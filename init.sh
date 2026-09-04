@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# init.sh — claude-harness を対象プロジェクトへ導入 / 更新する
+# init.sh — harness を対象プロジェクトへ導入 / 更新する
 #
 # 使い方:
 #   導入:  ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor] [--grok] [--codex]
@@ -32,8 +32,9 @@
 #   ※ harness 側でリリースタグを切ること（例: git tag v0.1.0 && git push --tags）。
 #
 # update が行うこと（submodule 配置の SSOT を取り込む）:
-#   対象の .claude-harness を最新（または --tag 指定）のリリースへ固定し、その版を
-#   コミットでピン留めする。対象を省略するとカレントの git リポジトリを対象にする。
+#   対象の .harness（無ければレガシーの .claude-harness）を最新（または --tag 指定）の
+#   リリースへ固定し、その版をコミットでピン留めする。対象を省略するとカレントの
+#   git リポジトリを対象にする。既存ホストのディレクトリ名は自動では変えない。
 #   --no-commit は更新のみでコミットしない。
 #   ※ symlink は harness 側で git pull するだけ、copy は install --force で更新する。
 #
@@ -59,7 +60,8 @@
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SUBMODULE_PATH=".claude-harness"
+SUBMODULE_PATH=".harness"
+LEGACY_SUBMODULE_PATH=".claude-harness"
 
 ACTION="install"
 MODE="submodule"
@@ -71,9 +73,9 @@ CODEX="false"
 TARGET_DIR=""
 TAG=""
 
-log()  { echo "[claude-harness] $*"; }
-warn() { echo "[claude-harness] warning: $*" >&2; }
-die()  { echo "[claude-harness] error: $*" >&2; exit 1; }
+log()  { echo "[harness] $*"; }
+warn() { echo "[harness] warning: $*" >&2; }
+die()  { echo "[harness] error: $*" >&2; exit 1; }
 
 usage()
 {
@@ -160,8 +162,15 @@ do_update()
 
   git -C "${TARGET_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || die "target is not a git repository: ${TARGET_DIR}"
-  [[ -e "${TARGET_DIR}/${SUBMODULE_PATH}" ]] \
-    || die "no ${SUBMODULE_PATH} submodule at target; update is for submodule installs"
+
+  if [[ -e "${TARGET_DIR}/${SUBMODULE_PATH}" ]]; then
+    :
+  elif [[ -e "${TARGET_DIR}/${LEGACY_SUBMODULE_PATH}" ]]; then
+    SUBMODULE_PATH="${LEGACY_SUBMODULE_PATH}"
+    log "using legacy submodule path ${SUBMODULE_PATH}"
+  else
+    die "no ${SUBMODULE_PATH} (or legacy ${LEGACY_SUBMODULE_PATH}) submodule at target; update is for submodule installs"
+  fi
 
   local sub="${TARGET_DIR}/${SUBMODULE_PATH}"
   log "target: ${TARGET_DIR}"
@@ -192,12 +201,12 @@ do_update()
   git -C "${TARGET_DIR}" add "${SUBMODULE_PATH}"
 
   if [[ "${NO_COMMIT}" == "true" ]]; then
-    log "set claude-harness to ${tag}; staged but not committed (--no-commit)."
+    log "set harness to ${tag}; staged but not committed (--no-commit)."
     exit 0
   fi
 
-  git -C "${TARGET_DIR}" commit -m "chore: set claude-harness to ${tag}"
-  log "committed: claude-harness -> ${tag}."
+  git -C "${TARGET_DIR}" commit -m "chore: set harness to ${tag}"
+  log "committed: harness -> ${tag}."
   exit 0
 }
 

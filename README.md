@@ -1,4 +1,4 @@
-# claude-harness
+# harness
 
 AI（特に Claude）の**ベースライン・コンテキストをゼロに保ちながら**、AI 自身が必要なルールだけを必要な瞬間にロードするための、**オンデマンド型ルーティング（Prompt as Code）** 共通プロンプトリポジトリです。
 
@@ -59,7 +59,7 @@ AI（特に Claude）の**ベースライン・コンテキストをゼロに保
 ## 📂 ディレクトリ構成
 
 ```text
-claude-harness/
+harness/
  ├── README.md               # このファイル
  ├── init.sh                 # 導入スクリプト（このリポジトリを .claude/ として配置）
  │
@@ -229,7 +229,7 @@ traceconfig.json                   # trace-check の設定（ホスト直下。s
 `init.sh` は以下を行います（詳細はスクリプト参照）。
 
 - `.claude/`（rules・agents・skills・tools・空の settings.json）を対象プロジェクトへ配置（既定 submodule。他に symlink / copy）
-- submodule の場合、harness の**リリースタグ（`v*`）の最新に固定**する（`--tag` で特定版も可）
+- submodule の場合、配置先は **`.harness`**。`.claude` はその中への相対リンク。harness の**リリースタグ（`v*`）の最新に固定**する（`--tag` で特定版も可）
 - ルーター用の CLAUDE.md は設置しない（routing はネイティブ `.claude/rules` ＋ skill が担う。プロジェクト固有の事実が要るなら各プロジェクトが自分で CLAUDE.md を用意する。Codex 併用時の AGENTS.md も同じで、install は置かない）
 
 > **前提（submodule 運用）**: harness を共有リモートへ push し、リリースを**タグで切る**こと（例: `git tag v0.1.0 && git push --tags`）。update はこのタグ単位で版を進める。
@@ -241,17 +241,17 @@ harness 側でルールを更新し**新しいリリースタグを切ったら*
 ```bash
 # submodule（既定）: 最新リリースへ固定してコミットでピン留め（プロジェクト内で実行）
 cd /path/to/your-project
-/path/to/claude-harness/init.sh update          # 最新の v* タグへ
-/path/to/claude-harness/init.sh update --tag v0.1.0   # 特定版へ（巻き戻しも可）
+/path/to/harness/init.sh update          # 最新の v* タグへ
+/path/to/harness/init.sh update --tag v0.1.0   # 特定版へ（巻き戻しも可）
 
 # submodule 配置に付属する init.sh を使ってもよい（clone 済みなら）
-./.claude-harness/init.sh update
+./.harness/init.sh update               # 新規 install。既存ホストは ./.claude-harness/init.sh update
 
 # symlink: このリポジトリを pull するだけで全プロジェクトに即反映（プロジェクト側の操作は不要）
 # copy   : 再度 ./init.sh ... --force で上書き
 ```
 
-- `update` は **submodule 配置専用**。gitlink を最新リリースへ進め、`chore: set claude-harness to <tag>` として自動コミット（`--no-commit` でコミット省略）。
+- `update` は **submodule 配置専用**。gitlink を最新リリースへ進め、`chore: set harness to <tag>` として自動コミット（`--no-commit` でコミット省略）。既存ホストのディレクトリ `.claude-harness` は自動では `.harness` に改名しない。
 - チーム運用では、A を clone した人は `git submodule update --init` で `.claude` の実体を取得する。版を進める bump は**一本化**する（各自が勝手に進めない）。
 
 ### 2. 動作イメージ

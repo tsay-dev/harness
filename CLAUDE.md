@@ -1,4 +1,4 @@
-# CLAUDE.md — the development guide for claude-harness itself
+# CLAUDE.md — the development guide for harness itself
 
 This repository is **the shared prompt for on-demand routing (Prompt as Code)**.
 What you touch here is not an application's business code but **the wiring (`.claude/`) that lets an AI load rules only at the moment it needs them**.

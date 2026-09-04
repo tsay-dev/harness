@@ -69,7 +69,8 @@ grep -c "<足したはずの見出し>" <host>/.claude/agents/produce-video/<age
 見えなければ、先に更新する:
 
 ```bash
-git -C <host>/.claude-harness fetch --tags && git -C <host>/.claude-harness checkout <tag>
+git -C <host>/.harness fetch --tags && git -C <host>/.harness checkout <tag>
+# 既存ホストのレガシーパスは .claude-harness
 ```
 
 **「直したつもり」で走らせた実行は、結果を信用できない。** 何が効いて何が効かなかったかが分からなくなる。

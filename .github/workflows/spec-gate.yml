@@ -10,7 +10,7 @@
 #     on: { pull_request: , push: { branches: [main] } }
 #     jobs:
 #       spec-gate:
-#         uses: GoboMan/claude-harness/.github/workflows/spec-gate.yml@vX.Y.Z
+#         uses: tsay-dev/harness/.github/workflows/spec-gate.yml@vX.Y.Z
 #
 #   検査ツールは呼び出し側（プロジェクト）の .claude（= 本 harness の submodule）に
 #   同梱の spec-lint を使う。バージョンは submodule の pin で決まる。
