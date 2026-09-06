@@ -109,24 +109,28 @@ paths:
 name: <unique-name>          # also the identifier in the Cursor / Grok / Codex projections
 description: <one sentence that makes the launch condition clear>
 tools: Read, Write, ...      # the minimum needed. Lean read-only for oracles
-model: opus | inherit        # the default hint for Claude Code. Follow the assignment rule below.
+model: opus | sonnet | haiku # the agent's tier, and the assignment's SSOT. Follow the rule below.
                              # Normalized to inherit in the Cursor projection, where the choice at launch is authoritative
-                             # (slice-reviewer: Cursor must pick the fable family — ADR-0020)
+                             # Read by codex-sync to pick that tier's pin from models.json (ADR-0024 / ADR-0025)
 ---
 ```
 
 - Producer: input contract → craft → output contract. Never self-approves (never marks something `fixed`).
 - Oracle / attacker / judge / reviewer: their mission is **exposing inconsistencies and defects**. Never settle for confirming agreement. As a rule, they fix nothing.
 
-**The `model:` assignment rule (cut by whether a machine oracle exists)**
+**The `model:` assignment rule (three tiers, assigned per agent)**
 
-| Zone | Who | Claude Code `model:` | Cursor (at Task launch) | Why |
-| --- | --- | --- | --- | --- |
-| The judgment zone (machines cannot refute it) | domain-definer / usecase-definer / requirement-definer / db-designer / contract-author / test-designer / adr-writer, and every oracle, attacker, and judge other than `slice-reviewer` | `opus` | the orchestrator picks a top-tier model to match the task | Everything downstream rests on these artifacts. Degradation here produces "correctly wrong" implementations |
-| The completion-gate reviewer | `slice-reviewer` | `opus` | the **fable** family when offered; inherit forbidden; if that family is missing, stop and tell the human (ADR-0020) | A false finding becomes a wrong implementation; an empty list is the definition of done |
-| The deterministic zone (a machine oracle exists) | the 3 implementation producers / skeleton-runner / committer | `inherit` | lighter, or `inherit`, is fine | Tests and builds decide pass/fail, so the model makes little difference to final quality |
+The tier is the agent's own frontmatter — `opus` = **top**, `sonnet` = **mid**, `haiku` = **light** — and that is the only place the assignment lives (ADR-0024). Skills and projections read it; they never restate it. `inherit` is not used in `develop`: it lets the parent's default decide, and a master session is deliberately stronger than its children.
 
-> **Never hardcode a versioned catalog id into `.claude/agents/*.md` or a skill body.** Cursor kebab-case slugs and GPT slugs scattered there would constrain every host (§0). A family name used as a launch-time selection criterion (`fable`) is not that pin: the orchestrator still chooses from the candidates the Task tool offers at that launch. In Cursor the projection becomes `inherit`, so **the orchestrator picks per Task launch, by zone and by the task's nature** (the script is authoritative in develop skill §5). In Claude Code, the agent frontmatter's `opus` / `inherit` acts as the default. **The Codex exception** is `.claude/tools/codex-sync/models.json` (ADR-0022): generated `.codex/agents/*.toml` pins `model` / `model_reasoning_effort` from that file. Update the JSON when the catalog moves, then `./init.sh codex`. Do not copy those IDs into agent markdown.
+| Tier | Who (develop) | Claude Code | Cursor (at Task launch) | Grok Build | Codex | Why |
+| --- | --- | --- | --- | --- | --- | --- |
+| **top** | domain-definer / usecase-definer / db-designer / structure-oracle / slice-reviewer / slice-attacker / system-attacker | `opus` | the **opus** family | the flagship **grok** reasoning family | `tiers.top` in `models.json` | The ground everything rests on, and the judgments that decide done. A degraded call here produces a "correctly wrong" build, or a false green at the completion gate |
+| **mid** | requirement-definer / contract-author / test-designer / adr-writer / the 3 implementation producers / skeleton-runner | `sonnet` | the **sonnet** family | the **grok … fast** family | `tiers.mid` | Derivation and construction bounded by an artifact already settled above, or by a machine oracle (tests, types, the contract checker) |
+| **light** | committer | `haiku` | the **haiku** family | the smallest **grok** family | `tiers.light` | Mechanical side effects with a deterministic oracle (git itself) |
+
+The **master / orchestrator session** (the agent that invoked the skill, not a Task) runs on the strongest family the runtime offers — in Cursor, **fable**. It is never passed into a Task. Agents outside `develop` (`produce-video` / `render-media` / `translate-manga-ko-ja`) default to **top**; their frontmatter is authoritative there too.
+
+> **Never hardcode a versioned catalog id into `.claude/agents/*.md` or a skill body.** Cursor kebab-case slugs and GPT slugs scattered there would constrain every host (§0). A family name used as a launch-time selection criterion (`opus` / `sonnet` / `haiku` / `fable`) is not that pin: the orchestrator still chooses from the candidates the Task tool offers at that launch, and **stops to ask the human when the tier's family is not offered** rather than silently falling back. In Cursor the projection becomes `inherit`, so the orchestrator picks per Task launch, by tier (the script is authoritative in develop skill §5). In Grok Build the spawn API has no per-launch model argument (ADR-0008), so the tier says which model this session needs to be on. **The Codex exception** is `.claude/tools/codex-sync/models.json` (ADR-0022 / ADR-0025): it maps each tier to a `model` / `model_reasoning_effort` pin, and the generator resolves an agent's tier from its `model:` frontmatter. Update the JSON when the catalog moves, then `./init.sh codex`. Do not copy those IDs into agent markdown.
 
 ---
 
@@ -158,10 +162,10 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 | --- | --- |
 | A rules leaf | Is `paths:` present? Is the glob valid? Is it one concern? |
 | A skill | Does the description work as a launch trigger? Does it instruct the orchestrator not to write code itself? Does every status transition (`active` / `fixed` / `phase:`) stay with the orchestrator? |
-| An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no versioned catalog id in agent markdown; slice-reviewer's Cursor pick is the fable family, ADR-0020; Codex pins live only in `codex-sync/models.json`, ADR-0022)? |
+| An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 tier rule (`opus` / `sonnet` / `haiku`, no `inherit` in develop, no versioned catalog id in agent markdown; Codex pins live only in `codex-sync/models.json`, ADR-0024 / ADR-0025)? |
 | cursor-sync | `paths`→`globs`, `alwaysApply: false`, `model: inherit`, the GENERATED marker |
 | grok-sync | flatten `agents/**/*.md` → `.grok/agents/<name>.md` by frontmatter `name:`, drop `model:`, the GENERATED marker; do not copy skills or rules |
-| codex-sync | skills → `.agents/skills/` (keep `.claude/` paths); flatten `agents/**/*.md` → `.codex/agents/<name>.toml`; `model` / `model_reasoning_effort` from `models.json` (`latest_agents` vs lite); do not copy rules; do not install a router `AGENTS.md` (ADR-0021, ADR-0022) |
+| codex-sync | skills → `.agents/skills/` (keep `.claude/` paths); flatten `agents/**/*.md` → `.codex/agents/<name>.toml`; `model` / `model_reasoning_effort` from `models.json` `tiers`, resolved by the agent's `model:` frontmatter; do not copy rules; do not install a router `AGENTS.md` (ADR-0021, ADR-0022) |
 | templates | One artifact, one template? Are the placeholders unified as `UC-000`-style IDs / `YYYY-MM-DD` / `<...>`? Is an optional frontmatter key marked `# optional`? Is spec-lint's derivation (required keys, required sections, required `x-` keys) unbroken? |
 | spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? Required keys and sections are derived from the templates and never restated on the lint side. **The closed vocabularies are the deliberate exception**: `status` / `phase` / `pattern` / `transport` / `direction` live in the lint, because only executable code can enforce them — a template's comment documents them and is not a second authority. Format and lifecycle only — traceability is trace-check's. Does the baseline ratchet keep trace-check's semantics (only new errors fail; `--update-baseline` records the whole present state; `gate` never consults it)? Does `convert` preserve the shape and leave every judgment as a `# convert:` note instead of deciding? |
 | trace-check | Does it stay traceability-only (C1–C14: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter, dead rules, numbering) and never re-check format? Does `--only` let a producer self-check its own concern? Does the baseline ratchet stay monotone (`--update-baseline` only shrinks)? Is `--next` the only numbering path agents use? |

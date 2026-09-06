@@ -1,7 +1,7 @@
 ---
 id: ADR-0022
 title: Codex カスタム agent のモデル ID を models.json にピンし、カタログ更新のたびに harness を追従する
-status: accepted
+status: superseded
 date: 2026-09-04
 ---
 

@@ -1,8 +1,9 @@
 {
-  "_comment": "Codex catalog pins for generated .codex/agents/*.toml. This is the only place in the harness that holds GPT catalog IDs (ADR-0022). When OpenAI retires a slug, edit this file and run ./init.sh codex. Do not copy these values into .claude/agents/*.md or into a skill body.",
-  "latest_model": "gpt-6-astra",
-  "lite_model": "gpt-5.6-luna",
-  "latest_effort": "high",
-  "lite_effort": "medium",
-  "latest_agents": ["slice-reviewer"]
+  "_comment": "Codex catalog pins for generated .codex/agents/*.toml. This is the only place in the harness that holds GPT catalog IDs (ADR-0022, ADR-0025). WHICH tier an agent belongs to is NOT here — it is that agent's own frontmatter model: (opus = top / sonnet = mid / haiku = light; anything else, including inherit, falls to default_tier). This file only maps a tier to a catalog id and a reasoning effort. When OpenAI retires a slug, edit this file and run ./init.sh codex. Do not copy these values into .claude/agents/*.md or into a skill body.",
+  "tiers": {
+    "top": { "model": "gpt-6-astra", "reasoning_effort": "high" },
+    "mid": { "model": "gpt-5.6-luna", "reasoning_effort": "high" },
+    "light": { "model": "gpt-5.6-luna", "reasoning_effort": "low" }
+  },
+  "default_tier": "top"
 }

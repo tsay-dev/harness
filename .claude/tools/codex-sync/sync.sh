@@ -15,7 +15,8 @@
 #     - disable-model-invocation: true なら agents/openai.yaml に allow_implicit_invocation: false
 #   agents/**/*.md     → .codex/agents/<frontmatter name>.toml
 #     - 出力ファイル名は frontmatter の name:（一意。衝突したら失敗）
-#     - model / model_reasoning_effort は tools/codex-sync/models.json（ADR-0022）
+#     - model / model_reasoning_effort は agent の model:（opus/sonnet/haiku＝段）を
+#       tools/codex-sync/models.json の tiers で引いた値（ADR-0022 / ADR-0024 / ADR-0025）
 #     - tools: は落とす（read-only 規律は body）
 #   rules は写さない
 #
@@ -136,16 +137,8 @@ src, out, src_rel = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 mark = os.environ["MARK"]
 agent_name = os.environ["AGENT_NAME"]
 pins = json.loads(Path(os.environ["CODEX_MODELS_JSON"]).read_text(encoding="utf-8"))
-latest_agents = set(pins.get("latest_agents") or [])
-if agent_name in latest_agents:
-    model = pins["latest_model"]
-    effort = pins["latest_effort"]
-else:
-    model = pins["lite_model"]
-    effort = pins["lite_effort"]
-for key, val in (("model", model), ("effort", effort)):
-    if not val:
-        sys.exit(f"empty Codex pin {key} in models.json")
+# 段（tier）の SSOT は agent frontmatter の model:。models.json は段→カタログの対応表だけを持つ（ADR-0024 / ADR-0025）。
+FAMILY_TIER = {"opus": "top", "sonnet": "mid", "haiku": "light"}
 text = src.read_text(encoding="utf-8")
 if text.startswith("\ufeff"):
     text = text[1:]
@@ -181,6 +174,20 @@ if not name:
     sys.exit(f"missing frontmatter name: {src}")
 if not desc:
     sys.exit(f"missing frontmatter description: {src}")
+
+tiers = pins.get("tiers") or {}
+default_tier = pins.get("default_tier") or "top"
+if not tiers:
+    sys.exit("missing 'tiers' in models.json (old latest_/lite_ shape? see ADR-0025)")
+tier = FAMILY_TIER.get(fields.get("model", "").strip(), default_tier)
+pin = tiers.get(tier)
+if not pin:
+    sys.exit(f"tier '{tier}' (agent {agent_name}) is not in models.json tiers")
+model = pin.get("model")
+effort = pin.get("reasoning_effort")
+for key, val in (("model", model), ("reasoning_effort", effort)):
+    if not val:
+        sys.exit(f"empty Codex pin {key} for tier '{tier}' in models.json")
 
 
 def toml_basic(s: str) -> str:

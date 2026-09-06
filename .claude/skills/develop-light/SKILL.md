@@ -105,7 +105,7 @@ Only after the contract is `fixed`.
    - The FE runs **sequentially**: after the contract is `fixed`, `frontend-ui-implementer` (🙋 human eyeball; no UI Red tests are passed) → after approval, `frontend-logic-implementer` (🤖; no FE Red tests are passed)
    - 4a-1 **may run concurrently** with test-designer. BE **may run concurrently** with the FE ui step (as long as write targets do not intersect)
 3. No dedicated integration phase (same as the mainline; the machine oracle is BE, and the FE gap is covered by the human eyeball plus `slice-reviewer`).
-4. Once FE and BE implementations are both in (and if any verification was skipped for exclusivity, after a consolidated run has settled red/green of the skipped UC IDs + blast radius — mainline develop skill §4 test-run granularity), launch **`slice-reviewer`** (Cursor model: the fable family; inherit forbidden — mainline develop skill §5 / ADR-0020). Iterate to zero defects (circuit breaker in §6). **No attacker is launched.**
+4. Once FE and BE implementations are both in (and if any verification was skipped for exclusivity, after a consolidated run has settled red/green of the skipped UC IDs + blast radius — mainline develop skill §4 test-run granularity), launch **`slice-reviewer`** (**top** tier; in Cursor `inherit` is forbidden — mainline develop skill §5 / ADR-0024). Iterate to zero defects (circuit breaker in §6). **No attacker is launched.**
 5. If you find yourself wanting to change the contract, stop implementation and return to Phase3. If the change breaks eligibility, escalate to the mainline.
 
 ### Verification and completion
@@ -138,7 +138,7 @@ Excuses like "it's a small CRUD" are rejected. If all you want is lower cost, yo
 
 ## 7. Agent wiring
 
-The SSOT for their personas is `.claude/agents/develop/<name>.md`. Do not duplicate mission text here. Pass the shared-vocabulary paths (the glossary, the BRs, `docs/_shared/components.yaml`, etc.) to every Task. Passing artifacts by path (never pasting bodies into a Task), choosing the model at Task launch in Cursor, spawning via `task` / `spawn_subagent` in Grok Build, and spawning via `spawn_agent` in Codex all follow mainline develop skill §5.
+The SSOT for their personas is `.claude/agents/develop/<name>.md`. Do not duplicate mission text here. Pass the shared-vocabulary paths (the glossary, the BRs, `docs/_shared/components.yaml`, etc.) to every Task. Passing artifacts by path (never pasting bodies into a Task), taking each agent's tier from its `model:` frontmatter (in Cursor, choosing that family at Task launch), spawning via `task` / `spawn_subagent` in Grok Build, and spawning via `spawn_agent` in Codex all follow mainline develop skill §5.
 
 **Concurrency is the default, serialization the exception**: always launch Tasks with no dependency simultaneously. Whether they can run concurrently, how to issue them, and how to handle exclusive resources are authoritative in mainline develop skill §4 (**when a producer reports that it skipped execution for exclusivity, close the concurrent section, have one agent run the skipped UC IDs plus blast radius, settle red/green of that selection, and only then move to verification**). When to run a selection vs the whole default suite is the same section (test-run granularity).
 

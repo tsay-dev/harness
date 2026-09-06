@@ -1,7 +1,7 @@
 ---
 id: ADR-0020
 title: slice-reviewer は Cursor 起動時に fable 系統を必須とする
-status: accepted
+status: superseded
 date: 2026-09-03
 ---
 
