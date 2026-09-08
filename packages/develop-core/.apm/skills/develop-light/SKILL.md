@@ -133,6 +133,7 @@ Excuses like "it's a small CRUD" are rejected. If all you want is lower cost, yo
 
 ## 6. Rework, circuit breaker, phase
 
+- Before dispatching a decision's changes, use [develop §4](../develop/SKILL.md#4-rework-routing-phase-concurrency)'s **Measure before dispatch** procedure and dependency checks. If the search reveals effects outside light's eligibility, hand the complete affected scope to the mainline before dispatching fixes.
 - Send all findings from one round back in a single pass.
 - **Circuit breaker: if the same defect survives 2 rounds, escalate to the 🙋 human** (the mainline allows 3; light escalates earlier).
 - An SSOT change to behavior only → back to the current slice. A change that touches the frozen structure → re-run Phase1→3, or escalate to the mainline.
