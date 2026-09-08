@@ -1,6 +1,7 @@
 ---
 name: develop-light
-description: Run a small single slice (standard CRUD and the like) fast, producing the same shape of docs, contract, and implementation artifacts as the mainline /develop, with only the depth of verification reduced. The main agent that invokes this skill acts as the orchestrator: it writes no code itself and directs the specialist subagents in this package's agent definitions. Launch only when the human explicitly asks for light — "/develop-light", "軽量 develop", "小CRUDを light で". Never launch from "開発したい" "実装して" alone; if the work does not qualify, route to the mainline /develop.
+description: >-
+  Run a small single slice (standard CRUD and the like) fast, producing the same shape of docs, contract, and implementation artifacts as the mainline /develop, with only the depth of verification reduced. The main agent that invokes this skill acts as the orchestrator: it writes no code itself and directs the specialist subagents in this package's agent definitions. Launch only when the human explicitly asks for light — "/develop-light", "軽量 develop", "小CRUDを light で". Never launch from "開発したい" "実装して" alone; if the work does not qualify, route to the mainline /develop.
 ---
 
 > **External executable assets:** tools and templates are not APM dependencies. Resolve `HARNESS_ROOT` to the separate harness checkout (normally `.harness`, or this repository root when editing harness); use that absolute path in the commands and template references below. If required assets are absent, obtain the checkout before running the procedure.

@@ -1,6 +1,7 @@
 ---
 name: develop
-description: Direct a fleet of subagents through the AI-driven development process for system development (new features, implementation, fixes, design). The main agent that invokes this skill acts as the orchestrator: it writes no code itself, launches the specialist subagents in this package's agent definitions according to their dependencies (concurrently when there is no dependency), and branches on human gates and receipt actions. Triggers on /develop or on phrases such as "開発したい" "機能を追加したい" "実装して" "バグを直して" (want to develop / add a feature / implement this / fix this bug).
+description: >-
+  Direct a fleet of subagents through the AI-driven development process for system development (new features, implementation, fixes, design). The main agent that invokes this skill acts as the orchestrator: it writes no code itself, launches the specialist subagents in this package's agent definitions according to their dependencies (concurrently when there is no dependency), and branches on human gates and receipt actions. Triggers on /develop or on phrases such as "開発したい" "機能を追加したい" "実装して" "バグを直して" (want to develop / add a feature / implement this / fix this bug).
 ---
 
 > **External executable assets:** tools and templates are not APM dependencies. Resolve `HARNESS_ROOT` to the separate harness checkout (normally `.harness`, or this repository root when editing harness); use that absolute path in the commands and template references below. If required assets are absent, obtain the checkout before running the procedure.
