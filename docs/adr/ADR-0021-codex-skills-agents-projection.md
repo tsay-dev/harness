@@ -1,7 +1,7 @@
 ---
 id: ADR-0021
 title: Codex 向けに skills を .agents/skills へ、agents を .codex/agents/*.toml へ射影する
-status: accepted
+status: superseded
 date: 2026-09-04
 ---
 

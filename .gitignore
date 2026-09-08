@@ -26,3 +26,12 @@ Icon?
 # trace-check の採番予約とロック（一時状態。番号は使われた時点で台帳から落ちる）
 .trace-reservations.json
 .trace-next.lock
+
+# 全ベンダー向け prompt は packages/ からの生成物
+.claude/
+.agents/
+.codex/
+.cursor/
+.grok/
+.harness-legacy.json
+__pycache__/

@@ -12,14 +12,18 @@
 #       spec-gate:
 #         uses: tsay-dev/harness/.github/workflows/spec-gate.yml@vX.Y.Z
 #
-#   検査ツールは呼び出し側（プロジェクト）の .claude（= 本 harness の submodule）に
-#   同梱の spec-lint を使う。バージョンは submodule の pin で決まる。
+#   検査ツールは APM 外の harness checkout を使う。host は .harness を別途用意し、
+#   必要なら harness_path で変更する。このリポジトリ自身では "." を指定する。
 name: spec-gate
 
 on:
   workflow_call:
     inputs:
       #   移行中（docs/specs/ が残る間）は "--ignore-legacy-layout" を渡す。移行完了時に外す（docs-migrate Phase 7）
+      harness_path:
+        type: string
+        required: false
+        default: ".harness"
       spec_lint_args:
         type: string
         required: false
@@ -28,6 +32,8 @@ on:
 jobs:
   spec-gate:
     runs-on: ubuntu-latest
+    env:
+      HARNESS_ROOT: ${{ inputs.harness_path }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,13 +46,13 @@ jobs:
 
       #   docs SSOT のフォーマット / ライフサイクル（契約カバレッジ warn 含む）。.spec-baseline.json があれば新規違反だけ落とす
       - name: Validate docs SSOT
-        run: node .claude/tools/spec-lint/spec-lint.mjs validate ${{ inputs.spec_lint_args }}
+        run: node "$HARNESS_ROOT/tools/spec-lint/spec-lint.mjs" validate ${{ inputs.spec_lint_args }}
 
       #   トレーサビリティ（被覆・@covers/@implements・配置・baseline ラチェット）。traceconfig.json を持つホストのみ
       - name: Trace check (new violations fail)
         shell: bash
         run: |
-          if [ -f traceconfig.json ]; then node .claude/tools/trace-check/trace-check.mjs; else echo "traceconfig.json なし: trace-check をスキップ"; fi
+          if [ -f traceconfig.json ]; then node "$HARNESS_ROOT/tools/trace-check/trace-check.mjs"; else echo "traceconfig.json なし: trace-check をスキップ"; fi
 
       #   PR の各コミットの UC: トレーラを検査（UC / REQ が active でない・契約が無い/未 fixed なら落とす）
       #   push 単発では base が不定なため PR のみ（validate は常時走る）
@@ -59,5 +65,5 @@ jobs:
           head='${{ github.event.pull_request.head.sha }}'
           for sha in $(git rev-list "$base".."$head"); do
             git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg.txt"
-            node .claude/tools/spec-lint/spec-lint.mjs gate --message "$RUNNER_TEMP/msg.txt"
+            node "$HARNESS_ROOT/tools/spec-lint/spec-lint.mjs" gate --message "$RUNNER_TEMP/msg.txt"
           done

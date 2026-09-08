@@ -1,7 +1,7 @@
 ---
 id: ADR-0024
 title: サブエージェントのモデルをエージェント単位の 3 段（top / mid / light）で割り当て、frontmatter を段の唯一の正とする
-status: accepted
+status: superseded
 date: 2026-09-06
 supersedes: ADR-0020
 ---

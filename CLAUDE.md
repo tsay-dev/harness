@@ -1,188 +1,99 @@
 # CLAUDE.md — the development guide for harness itself
 
-This repository is **the shared prompt for on-demand routing (Prompt as Code)**.
-What you touch here is not an application's business code but **the wiring (`.claude/`) that lets an AI load rules only at the moment it needs them**.
+This repository is the vendor-neutral source of agent skills, agents, and instructions, distributed as independently selectable APM packages. The source of truth is `packages/`, with executable assets in `tools/` and document formats in `templates/`. `.claude/` is generated output, just like `.agents/`, `.codex/`, `.cursor/`, and `.grok/`.
 
-The full text of the philosophy, the directory map, and the setup procedure is in [`README.md`](./README.md). This file carries **only the working guidance for modifying and extending the harness**.
+Read [`README.md`](./README.md) for the philosophy and package selection, and [`docs/apm.md`](./docs/apm.md) for the APM contract, migration, and verification. This file is the working guidance for modifying the harness itself.
 
-> **Language policy.** Everything under `.claude/` (skills, agents, rules, tool READMEs, and the guidance comments inside templates) is written **in English**, for token density. That is a property of the prompt, not of the work: **conversation with the user is in Japanese**, and **so are the deliverables** — the docs under `docs/` (vision, UC, REQ, BR …), ADRs, commit messages, and in-code comments. The templates in `.claude/templates/develop/` therefore keep Japanese headings and frontmatter keys, and `README.md` stays in Japanese. When you add or edit anything here, follow that split.
+> **Language policy.** Prompt sources under `packages/`, tool READMEs, and guidance comments inside templates are written **in English**, for token density. **Conversation with the user is in Japanese**. Deliverables under `docs/` (vision, UC, REQ, BR, ADR …), commit messages, and in-code comments are **in Japanese**. Templates retain Japanese headings and frontmatter keys. `README.md` and `docs/apm.md` are Japanese.
 
----
+## 0. Invariants
 
-## 0. What you must never do in this repository
+- **Never break zero-residency.** Do not add a resident rules index, a router in `AGENTS.md` / `CLAUDE.md`, or automatic injection in `settings.json`. Do not commit a docs ledger (`trace-check --index` generates it on demand). Do not compile all installed instructions into a baseline document merely because APM can do so.
+- **Never edit generated provider directories by hand.** `.claude/`, `.agents/`, `.codex/`, `.cursor/`, and `.grok/` are outputs. Change `packages/` or `tools/`, then regenerate. The root `AGENTS.md` / `CLAUDE.md` are this repository's working entrances, not generated rules routers.
+- **Never make one provider's output another provider's authority.** An adapter may use temporary intermediate files, but its input must originate in selected neutral packages.
+- **Never install everything by default.** There is no root all-in-one APM package. Development, translation, and each framework remain independently selectable.
+- **Never add host-specific facts here.** The shared harness contains generic procedures and rules. An engagement's stack, addresses, commands, and deviations belong in that host's `AGENTS.md` or `CLAUDE.md`.
+- **Never duplicate knowledge.** A document format has one source in `templates/`; spec-lint derives its required items there. Craft belongs in agent bodies. Skills contain orchestration, not copies of craft or instruction bodies.
+- **Keep executable assets outside APM packages.** `tools/` and `templates/` are explicit, separately provisioned assets, not APM primitives.
 
-- **Never break zero-residency.** Never revive an `index.md` or a catalog table of contents — and never commit a docs index or ledger either (`trace-check --index` generates it on demand). Never add automatic injection to `settings.json` (currently `{}`).
-- **Never write project-specific deviations here.** The shared harness holds only what is generic. Facts about a particular engagement go in the host project's `CLAUDE.md` (or `AGENTS.md` on a Codex host).
-- **Never duplicate the same knowledge.** A format has exactly one SSOT (a rules leaf, a template under `templates/`, or the agent body being generated). Never copy craft or format into a skill. The format of a docs artifact is authoritative in the template, and spec-lint derives its required items from the template (never restate the format on the lint side).
-- **Never hand-edit `.cursor/`.** The Cursor projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh cursor` (or `.claude/tools/cursor-sync/sync.sh`).
-- **Never hand-edit `.grok/agents/`.** The Grok Build projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh grok` (or `.claude/tools/grok-sync/sync.sh`).
-- **Never hand-edit `.agents/` or `.codex/agents/`.** The Codex projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh codex` (or `.claude/tools/codex-sync/sync.sh`). This repository's `AGENTS.md` is a Codex entry that points here; it is not a second copy of this file (ADR-0021). Codex catalog IDs live only in `.claude/tools/codex-sync/models.json`; when the catalog moves, edit that file and regenerate (ADR-0022).
+## 1. Governing rules
 
----
-
-## 1. Governing rules (always check before modifying)
-
-> **The `.md` at a level = the rules at that level of abstraction / a subfolder = a further specialization. Deeper means more specific.**
-> **The tree's axis is the kind, not the project.**
-
-| Principle | What it means |
+| Principle | Meaning |
 | --- | --- |
-| Zero residency | Zero rules ride on the baseline. Discovery happens only through the `paths` gate and a skill invocation |
-| Three aligned trees | A procedure key `<key>` has the same name under `skills/<key>`, `agents/<key>`, and `rules/<key>` |
-| Building ≠ judging | The producer and the oracle / reviewer / attacker / judge are different agents in different contexts |
-| A skill is how it is driven | Only the orchestrator's decision core and script. Types live in rules and templates; craft lives in the agent body |
-| References run one way, rules → skill | **A leaf may reference a skill** ("the procedure is authoritative in skill §X"). **A skill does not know a leaf's body** — all it may see is the metadata delivery requires (the directory position, the file name, `paths:`), and never a summary, an excerpt, or a section number from the body. Knowing a rule's content is the job of **the agent that receives the leaf**, not of the one delivering it |
+| Hierarchy represents abstraction | A leaf binds its level; a deeper directory specializes it. The axis is kind, never project. Framework and layer leaves contain only their delta on common rules. |
+| Package selection precedes loading | Install only the required scene and stack. A package's presence does not authorize loading all of its text. |
+| Building ≠ judging | Producer and oracle / reviewer / attacker / judge are separate agents in separate contexts. Producers never approve their own judgments. |
+| Skills drive the process | The orchestrator owns the decision core, delegation, gates, and status transitions. It does not implement the delegated work itself. |
+| References run one way, instructions → skill | A leaf may reference a procedure. A skill may discover only delivery metadata and addresses, never summarize or depend on the instruction body's section numbers or contents. The receiving agent reads the leaf. |
 
-**The orchestrator-variant exception:** a thin, separate entrance that is only a script (`skills/develop-light`, `skills/attack`) may share agents and rules with the parent key (`develop`) rather than growing a full set of three trees. This avoids duplicating craft and rules.
+Procedure names remain stable across skills, agents, and instruction scenes. Package boundaries split distribution without changing those responsibilities. Thin orchestrator variants (`develop-light`, `attack`) share develop agents and rules rather than duplicating them.
 
----
+## 2. Where things belong
 
-## 2. What goes where (a quick reference for when you are unsure)
-
-| What you want to place | Where it goes | When it loads |
+| Asset | Source | Load trigger |
 | --- | --- | --- |
-| A rule, a format, a type (one concern per leaf) | `rules/<key>/.../<leaf>.md` | when a file matching the leaf's `paths:` is touched |
-| A procedure's entrance, the orchestrator script | `skills/<name>/SKILL.md` | on `/name`, or auto-invocation via `description` |
-| A specialist subagent's persona and craft (the judgment rules for how to write) | `agents/<key>/<name>.md` | only when the orchestrator launches it as a Task |
-| The scaffold for a docs artifact (the format's SSOT; spec-lint derives required items from it) | `templates/<key>/<name>.(md\|yaml)` | when a producer Reads it as a scaffold |
-| An executable asset (lint, projection scripts) | `tools/<name>/` | when a producer / init invokes it directly |
-| The installation, updating, the Cursor / Grok / Codex projection | `init.sh` at the root | when a human runs it explicitly |
+| Instruction leaf | `packages/<package>/.apm/instructions/*.instructions.md` | Target file addresses match its neutral `applyTo` metadata; the receiving producer reads it on demand. |
+| Procedure | `packages/<package>/.apm/skills/<name>/SKILL.md` | Explicit invocation or skill description. Keep the standard Agent Skills directory layout. |
+| Specialist agent | `packages/<package>/.apm/agents/**/*.agent.md` | The orchestrator launches the specialist. |
+| Document scaffold | `templates/<procedure>/` | The producer reads the required format. |
+| Executable / provider adapter | `tools/<name>/` | Explicit invocation. |
+| Package manifest | `packages/<package>/apm.yml` | APM resolves the selected package. |
 
-**The skill hierarchy constraint:** Claude Code only explores the single level `skills/<name>/SKILL.md`. Never nest them.
-
----
+Do not flatten `.apm/` into an invented layout that APM cannot discover. Consult the official schema before changing manifest fields or primitive metadata. See `docs/apm.md` for the verified version and sources.
 
 ## 3. Extension checklist
 
-### 3.1 Adding a leaf (rules)
+### Adding an instruction
 
-1. Decide the level: `rules/<scene>/<platform>/<framework>/<concern>.md` (e.g. `develop/web/crow/common/coding.md`). If a framework splits into layers (`common` / `frontend` / `backend`), you may interpose that one level (deeper is more specific). **A layer-side leaf holds only its delta on the common side and never transcribes the common rules.**
-   In a scene with platform/framework levels (`develop`, and so on), **only a concern that binds every platform and every framework equally may go directly under the scene (`rules/<scene>/<concern>.md`)** (the in-code comment rules `comments.md` and the SDD docs conventions `docs.md`, for example). A scene with no platform level (`translate-manga-ko-ja`, and so on) has its leaves directly there. A leaf at this position is enumerated unconditionally by develop skill §6-A, regardless of framework detection, so **a gap in `paths:` coverage means that leaf alone stops being delivered** — update the coverage when you add a framework. Nothing else goes directly under the scene.
-
-**A file name is nothing but a signpost for humans. What decides the destination is `paths:`.**
-How things are split and what they are named is the rules side's freedom, and the develop skill does not know what a file name means (§1, one-way references).
-By convention `coding.md` (the notation for production code) / `testing.md` (how to write tests) / `db.md` (DB design) are used, but
-**those names have no delivery effect.**
-2. **The `paths:` frontmatter is the delivery contract.** Only a producer that **writes** a file matching a glob listed there receives that leaf (develop skill §6-B). Therefore:
-   - **Enumerate in `paths:`, exactly and completely, the addresses the intended recipient "writes".**
-     For testing rules, the glob of **test files**; for DB design, the glob of the **DB design SSOT**; for the notation of production code, **that code's addresses**.
-   - **Narrow it down to the addresses where the leaf actually binds.** A wide glob covering a whole framework (`**/<fw>_*/**`) may be written only for **a leaf that binds every address** (the common style, a layer's core).
-     Leaving an address-specific leaf on a wide glob means every leaf loads the moment an unrelated file is touched, and the point of splitting is gone.
-   - **Conversely, over-narrowing means it is never delivered.** "Testing rules whose `paths:` covers only production code" never reach test-designer.
-     `paths:` is both Claude Code's automatic load trigger and **a declaration of who receives it**.
-3. **One leaf = one concern** (coding / testing / db …). An overview holds nothing but entrance links.
-4. When a layer's leaves have split into several, **make that layer's `coding.md` "the core + an index from address to leaf"**
-   (holding only the boundaries and invariants, with address-specific matters in each leaf). **The index belongs to the leaves** —
-   the skill does not read a leaf's body (§1, one-way references), so write it so that narrowing delivery is decided by each leaf's `paths:` alone.
-5. **A delegation of implementation to another layer is declared by including that address in the delegate leaf's `paths:`.**
-   Writing "for X, see the other layer's `coding.md`" in the body has no delivery effect (the skill does not read the body).
-6. No addition to a table of contents is needed (there is none).
-
-```yaml
-#	a leaf that binds every address (the common style, a layer's core)
----
-paths:
-  - "**/crow3_*/**"
----
-
-#	an address-specific leaf (e.g. the Domain side only, or SQL only)
----
-paths:
-  - "**/crow3_*/app/classes/**"
----
-```
-
-### 3.2 Adding a procedure (skill + agents + rules)
-
-1. Decide the key name `<key>` and **grow three trees under the same name**.
-2. `skills/<key>/SKILL.md` … only the orchestrator's invariants, flow, and delegation targets.
-3. `agents/<key>/*.md` … producer and oracle separated. The format reference is embedded in the agent body being generated.
-4. `rules/<key>/**` … the types, lazily loaded through the paths gate.
-5. Point at agent paths relatively from the skill body (never write an absolute path or presume another project).
-
-**When adding only an orchestrator variant** (`develop-light`, for example): do not create new agents / rules trees. Add only a thin `skills/<variant>/SKILL.md` that references the parent key's agents from its Tasks. Put a cross-reference in the parent skill, and never let it become an escape hatch from a gate.
-
-### 3.3 The agent frontmatter type
+1. Choose its installation boundary first. Framework leaves belong only in `rules-next`, `rules-crow`, `rules-expo`, or `rules-swiftui`. Only platform-independent concerns such as docs and comments belong in `develop-core`.
+2. Keep **one concern per leaf**. Preserve scene / platform / framework / layer specialization in instruction filenames; APM 0.30.0 discovers instruction files directly under `.apm/instructions/`. Do not transcribe the common rules into a layer leaf.
+3. Declare **`applyTo` as the neutral delivery contract**, using a comma-separated string (not a YAML array). Enumerate exactly the files the intended recipient writes: test addresses for a test designer, native schema addresses for a DB designer, production addresses for implementers. Broad globs are valid only for a rule that binds every matching address. Excessively narrow globs silently prevent delivery.
+4. Claude `paths:` is emitted by its adapter; it is not source syntax. Other providers must not be assumed to have an equivalent native lazy loader. Instructions remain available in the installed APM package for invocation-time discovery and reading.
+5. A body's cross-reference has no delivery effect. Declare delegated addresses in `applyTo`. An address-to-leaf guide belongs in the relevant leaf, never a resident index or the skill body.
+6. Verify the package independently and check that unrelated packages do not appear in a fresh consumer.
 
 ```yaml
 ---
-name: <unique-name>          # also the identifier in the Cursor / Grok / Codex projections
-description: <one sentence that makes the launch condition clear>
-tools: Read, Write, ...      # the minimum needed. Lean read-only for oracles
-model: opus | sonnet | haiku # the agent's tier, and the assignment's SSOT. Follow the rule below.
-                             # Normalized to inherit in the Cursor projection, where the choice at launch is authoritative
-                             # Read by codex-sync to pick that tier's pin from models.json (ADR-0024 / ADR-0025)
+description: Rules for the selected source addresses
+applyTo: "**/crow3_*/app/classes/**"
 ---
 ```
 
-- Producer: input contract → craft → output contract. Never self-approves (never marks something `fixed`).
-- Oracle / attacker / judge / reviewer: their mission is **exposing inconsistencies and defects**. Never settle for confirming agreement. As a rule, they fix nothing.
+### Adding a procedure
 
-**The `model:` assignment rule (three tiers, assigned per agent)**
+1. Select or add an independent APM package for the use case. Do not add a dependency on every existing package.
+2. Put only the orchestration invariants and flow in `.apm/skills/<key>/SKILL.md`.
+3. Put specialist craft in `.apm/agents/<key>/*.agent.md`; keep producers and judges independent.
+4. Put applicable types and rules in `.apm/instructions/<scene>-<concern>.instructions.md`.
+5. Resolve references from neutral package sources or selected packages in `apm_modules/`; do not require `.claude/` to exist. Executable assets and templates resolve from their separately provisioned root.
 
-The tier is the agent's own frontmatter — `opus` = **top**, `sonnet` = **mid**, `haiku` = **light** — and that is the only place the assignment lives (ADR-0024). Skills and projections read it; they never restate it. `inherit` is not used in `develop`: it lets the parent's default decide, and a master session is deliberately stronger than its children.
+### Agent models and capabilities
 
-| Tier | Who (develop) | Claude Code | Cursor (at Task launch) | Grok Build | Codex | Why |
-| --- | --- | --- | --- | --- | --- | --- |
-| **top** | domain-definer / usecase-definer / db-designer / structure-oracle / slice-reviewer / slice-attacker / system-attacker | `opus` | the **opus** family | the flagship **grok** reasoning family | `tiers.top` in `models.json` | The ground everything rests on, and the judgments that decide done. A degraded call here produces a "correctly wrong" build, or a false green at the completion gate |
-| **mid** | requirement-definer / contract-author / test-designer / adr-writer / the 3 implementation producers / skeleton-runner | `sonnet` | the **sonnet** family | the **grok … fast** family | `tiers.mid` | Derivation and construction bounded by an artifact already settled above, or by a machine oracle (tests, types, the contract checker) |
-| **light** | committer | `haiku` | the **haiku** family | the smallest **grok** family | `tiers.light` | Mechanical side effects with a deterministic oracle (git itself) |
+Use stable agent names and explicit input / craft / output contracts. Oracles are read-only by default and expose defects rather than confirm agreement. Every neutral agent declares exactly one `x-model-tier: top | mid | light`; that frontmatter field is the assignment SSOT. It must not contain a provider model family or versioned catalog ID (ADR-0028).
 
-The **master / orchestrator session** (the agent that invoked the skill, not a Task) runs on the strongest family the runtime offers — in Cursor, **fable**. It is never passed into a Task. Agents outside `develop` (`produce-video` / `render-media` / `translate-manga-ko-ja`) default to **top**; their frontmatter is authoritative there too.
+Provider adapters map tiers, never agent names. Claude family mapping is in `tools/apm/claude-models.json`; Codex catalog IDs and reasoning effort are only in `tools/codex-sync/models.json` (ADR-0029). Native APM may preserve the extension without enforcing it, so the orchestrator reads the source tier and applies it at launch when supported. If a provider cannot honor the tier, report the limitation instead of claiming verified behavior.
 
-> **Never hardcode a versioned catalog id into `.claude/agents/*.md` or a skill body.** Cursor kebab-case slugs and GPT slugs scattered there would constrain every host (§0). A family name used as a launch-time selection criterion (`opus` / `sonnet` / `haiku` / `fable`) is not that pin: the orchestrator still chooses from the candidates the Task tool offers at that launch, and **stops to ask the human when the tier's family is not offered** rather than silently falling back. In Cursor the projection becomes `inherit`, so the orchestrator picks per Task launch, by tier (the script is authoritative in develop skill §5). In Grok Build the spawn API has no per-launch model argument (ADR-0008), so the tier says which model this session needs to be on. **The Codex exception** is `.claude/tools/codex-sync/models.json` (ADR-0022 / ADR-0025): it maps each tier to a `model` / `model_reasoning_effort` pin, and the generator resolves an agent's tier from its `model:` frontmatter. Update the JSON when the catalog moves, then `./init.sh codex`. Do not copy those IDs into agent markdown.
+## 4. Working flow
 
----
+1. Identify the neutral source being changed: package manifest / instruction / skill / agent, `tools/`, `templates/`, or repository guidance.
+2. Check package boundaries and duplication before moving files. Confirm current APM anatomy for format changes.
+3. Edit the source. Review references, language, instructions, and the meaning of process gates.
+4. Validate the package and regenerate the selected provider outputs using the commands in `docs/apm.md`. Never combine APM-managed output and legacy `init.sh` output in one consumer.
+5. If the change involves a lasting design judgment, have `adr-writer` record an ADR in `docs/adr/ADR-nnnn-<slug>.md`. The format is `templates/develop/ADR.md`. Reserve its number with `node tools/trace-check/trace-check.mjs --next adr`; never infer the next ID from a directory listing. `spec-lint validate` checks the result, and `trace-check --only C12` detects collisions.
+6. Delegate git operations to `committer`. Where a release is appropriate, describe breaking changes and the migration procedure; do not imply that an old submodule host will migrate automatically.
 
-## 4. The working flow for a modification (development in this repo)
+## 5. Verification focus
 
-1. **Identify the SSOT for what you are changing** (a rules leaf / a skill / an agent body / tools / `init.sh` / `README.md`).
-2. **Check no duplication arises** (is the same format scattered across a skill, an agent, and rules?).
-3. After the change, visually confirm the related README sections, comments, and reference paths from other agents are not broken.
-4. If you touched the Cursor, Grok, or Codex integration, or changed rules / skills / agents, regenerate the projection for the host or for verification:
-   ```bash
-   ./init.sh cursor .
-   ./init.sh grok .
-   ./init.sh codex .
-   # or
-   .claude/tools/cursor-sync/sync.sh .claude .cursor
-   .claude/tools/grok-sync/sync.sh .claude .grok
-   .claude/tools/codex-sync/sync.sh .claude .
-   ```
-   If the Codex catalog moved, edit `.claude/tools/codex-sync/models.json` first, then regenerate.
-5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/ADR-nnnn-<slug>.md` (the format is authoritative in `templates/develop/ADR.md`; `adr-writer` lands it; `spec-lint validate` checks it even in this repository).
-   **Take the number from `node .claude/tools/trace-check/trace-check.mjs --next adr`, never by eyeballing `ls docs/adr`.** Reading the directory and adding one is exactly what collides when two sessions write an ADR at the same time — and they do. `--next` reserves the number as it hands it out; `--only C12` catches a collision that slipped through. This repository carries its own `traceconfig.json` (docs only, no source or tests) so both work here. This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
-6. For a change that does not break submodule users, cut a **`v*` release tag** where appropriate (`init.sh update` follows tags). **A breaking change** (one that makes an existing host's `spec-lint validate` fail until it migrates) says so in the tag annotation, along with the migration command.
-
----
-
-## 5. Where to aim verification
-
-| What changed | The minimum check |
+| Change | Minimum check |
 | --- | --- |
-| A rules leaf | Is `paths:` present? Is the glob valid? Is it one concern? |
-| A skill | Does the description work as a launch trigger? Does it instruct the orchestrator not to write code itself? Does every status transition (`active` / `fixed` / `phase:`) stay with the orchestrator? |
-| An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 tier rule (`opus` / `sonnet` / `haiku`, no `inherit` in develop, no versioned catalog id in agent markdown; Codex pins live only in `codex-sync/models.json`, ADR-0024 / ADR-0025)? |
-| cursor-sync | `paths`→`globs`, `alwaysApply: false`, `model: inherit`, the GENERATED marker |
-| grok-sync | flatten `agents/**/*.md` → `.grok/agents/<name>.md` by frontmatter `name:`, drop `model:`, the GENERATED marker; do not copy skills or rules |
-| codex-sync | skills → `.agents/skills/` (keep `.claude/` paths); flatten `agents/**/*.md` → `.codex/agents/<name>.toml`; `model` / `model_reasoning_effort` from `models.json` `tiers`, resolved by the agent's `model:` frontmatter; do not copy rules; do not install a router `AGENTS.md` (ADR-0021, ADR-0022) |
-| templates | One artifact, one template? Are the placeholders unified as `UC-000`-style IDs / `YYYY-MM-DD` / `<...>`? Is an optional frontmatter key marked `# optional`? Is spec-lint's derivation (required keys, required sections, required `x-` keys) unbroken? |
-| spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? Required keys and sections are derived from the templates and never restated on the lint side. **The closed vocabularies are the deliberate exception**: `status` / `phase` / `pattern` / `transport` / `direction` live in the lint, because only executable code can enforce them — a template's comment documents them and is not a second authority. Format and lifecycle only — traceability is trace-check's. Does the baseline ratchet keep trace-check's semantics (only new errors fail; `--update-baseline` records the whole present state; `gate` never consults it)? Does `convert` preserve the shape and leave every judgment as a `# convert:` note instead of deciding? |
-| trace-check | Does it stay traceability-only (C1–C14: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter, dead rules, numbering) and never re-check format? Does `--only` let a producer self-check its own concern? Does the baseline ratchet stay monotone (`--update-baseline` only shrinks)? Is `--next` the only numbering path agents use? |
-| gate-hook | Never made permanent (installation is the host's `settings.local.json`, optional). Does it leave docs, `.claude`, and `traceconfig.json` unblocked? Does it read the gate state from `UC.md`'s `phase:` (no ledger file)? Does the block reason point at develop skill §2's return point? |
-| init.sh | Do the help for install / update / cursor / grok / codex and the README agree? |
+| Manifest / package boundary | APM recognizes the package; fresh installation contains only selected dependencies; no tools / templates are packaged. |
+| Instruction | Valid `applyTo`, one concern, intended writer addresses, Claude output has `paths` without losing glob meaning. |
+| Skill | Invocation works; orchestration remains separate from implementation; gates and `active` / `fixed` / `phase` transitions remain with the orchestrator; references work without `.claude/`. |
+| Agent | Independent producer / judge, explicit contracts, valid `x-model-tier`, correct target conversion and model policy. |
+| Adapters | Selected neutral inputs only, generated marker and ownership checks, no overwrite of unmanaged files, stable regeneration, no resident rules on targets without lazy loading. |
+| Templates / spec-lint | Required formats derive from templates. Closed vocabularies (`status`, `phase`, `pattern`, `transport`, `direction`) remain executable lint authority. Preserve baseline ratchet and judgment-free conversion notes. |
+| trace-check | Traceability only: C1–C14; no duplicate format checking. Preserve `--only`, monotone baseline, and `--next` reservations. |
+| gate-hook | Explicit opt-in in host settings; no automatic injection. Read phase from `UC.md`; allow docs, harness assets, and trace configuration writes. |
+| Installation / docs | Commands match actual help, fresh install and existing-host migration are distinguished, APM and legacy ownership do not overlap. |
 
-Application-level business tests are not this repository's primary target. **Consistency of the wiring, zero residency, and the alignment of the three trees** are the axes of quality.
-
----
-
-## 6. Reading order (when unsure)
-
-1. This file (the working guidance)
-2. [`README.md`](./README.md) (the philosophy, the map, the setup)
-3. Open only what you are touching:
-   - Changing a procedure → the relevant `skills/<key>/SKILL.md`
-   - Changing craft or a format → the relevant `agents/<key>/*.md`
-   - Changing a framework's rules → the relevant `rules/.../*.md`
-   - Changing the projection → `.claude/tools/cursor-sync/sync.sh` / `.claude/tools/grok-sync/sync.sh` / `.claude/tools/codex-sync/sync.sh`
-   - Changing installation → `init.sh`
+The quality axes are package isolation, reference integrity, zero-residency, and preserved process semantics. Packaging checks do not substitute for a real provider session when evaluating delegation or model selection.

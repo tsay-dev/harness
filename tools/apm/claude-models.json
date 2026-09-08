@@ -1,0 +1,9 @@
+{
+  "_comment": "Provider mapping only. Agent-to-tier assignment lives exclusively in each neutral agent's x-model-tier frontmatter (ADR-0028).",
+  "tiers": {
+    "top": "opus",
+    "mid": "sonnet",
+    "light": "haiku"
+  },
+  "default_tier": "top"
+}

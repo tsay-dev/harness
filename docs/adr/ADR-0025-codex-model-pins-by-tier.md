@@ -1,7 +1,7 @@
 ---
 id: ADR-0025
 title: Codex のモデルピンを段（tier）→ カタログの対応表にし、どの agent がどの段かは frontmatter から引く
-status: accepted
+status: superseded
 date: 2026-09-06
 supersedes: ADR-0022
 ---

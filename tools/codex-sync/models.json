@@ -1,0 +1,9 @@
+{
+  "_comment": "Codex catalog mapping only. Agent-to-tier assignment lives exclusively in each neutral agent's x-model-tier frontmatter (ADR-0028).",
+  "tiers": {
+    "top": { "model": "gpt-6-astra", "reasoning_effort": "high" },
+    "mid": { "model": "gpt-5.6-luna", "reasoning_effort": "high" },
+    "light": { "model": "gpt-5.6-luna", "reasoning_effort": "low" }
+  },
+  "default_tier": "top"
+}
