@@ -66,6 +66,8 @@ Common to both: on **invalid input**, the use case is not called and the failure
 
 Mock the Next-specific APIs; sweeping cache keys is not required.
 
+Which file and export a test calls for a given contract operation is the "operation → entry" convention in [common/testing.md](common-testing.instructions.md) — derive it from the contract, never from the implementation.
+
 ---
 
 ## 5. Infrastructure and the integration suite

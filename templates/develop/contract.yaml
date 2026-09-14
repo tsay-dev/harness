@@ -26,7 +26,12 @@ x-spec: ./UC.md              # the behavioral SSOT (UC.md + the REQ-*.md in this
 x-updated: YYYY-MM-DD
 
 operations:
-  # Key = the operation name (lowerCamelCase, unique within this file). It is the call site's identity
+  # Key = the operation name (lowerCamelCase, unique within this file). It is the call site's identity:
+  # tests and the host's contract adapter reach the implementation through the "operation → entry" convention
+  # of the framework testing leaf, so the name here is the name the code exposes
+  # The keys under an operation are a closed set (transport / direction / owned / source / auth / summary / wire /
+  # entry / requires / request / response / errors / examples). spec-lint rejects any other key, x-* included —
+  # rules and state transitions belong in UC / REQ / BR, and the evaluation order belongs in the order of errors
   <operationName>:
     transport: http          # http | sdk | local-store | deeplink | push | device | internal (enforced by spec-lint, which is authoritative)
     direction: outbound      # outbound = this app calls out / inbound = this app is called
@@ -53,6 +58,10 @@ operations:
         id: { type: integer }
         status: { type: string, const: ok }
     errors:                  # one entry per triggering condition. code must be defined in _shared errorCodes.
+                             # errors: is an ORDERED list: its order is the evaluation order (first match wins) and the
+                             # only place that order is written (R-1207). when: is a label for the entry, not a proof that
+                             # entries are exclusive — precedence between neighbours is decided by examples and tests,
+                             # never by prose here or in UC / BR / ADR / schema comments
                              # errors: [] declares "this operation has no failure path" (reading a stored setting, say):
                              # no failure example is required then. Omitting the key is NOT that declaration — omitted and
                              # empty are kept distinct, the same way auth: none is distinct from a missing auth
@@ -62,7 +71,11 @@ operations:
       - code: FORBIDDEN
         when: <発生条件を 1 行>
         wire: { status: 403 }
-    examples:                # mandatory once fixed: at least one success and (unless errors: []) one failure, with real values.
+    examples:                # mandatory once fixed: at least one success and one failure example PER errors[] code, with real
+                             # values (spec-lint). tools/contract-run executes every example through the host's contract
+                             # adapter (traceconfig.json commands.contract_adapter), so these are the contract's own tests.
+                             # Where two failure conditions can hold at once, add an example for that input expecting the
+                             # earlier code — that turns the evaluation order into an executed check.
                              # A failure example may carry keys the request forbids (additionalProperties: false / not:) —
                              # the counter-example is the point, so spec-lint matches only success examples against request.properties
       ok:
@@ -164,7 +177,7 @@ operations:
 #
 #  A UC that closes inside one screen (no network, no persistence, no OS capability)
 #  declares zero boundaries rather than going without a contract. This is a declaration, not an exemption,
-#  so develop skill §2's start gate stays intact. The reason is required — operations: {} alone is an error
+#  so the implementation start line (a contract before code) stays intact. The reason is required — operations: {} alone is an error
 #
 #   operations: {}
 #   x-no-boundary: <入力中のバリデーション表示のみで、通信も永続もない>

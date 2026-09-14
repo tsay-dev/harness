@@ -33,7 +33,23 @@ The choice, the configuration, and **the command that runs the default suite** a
 
 ---
 
-## 2. Scoped execution (the UC tag) and requirement coverage (`@covers`)
+## 2. Calling an operation from a test (operation → entry)
+
+A contract-conformance test calls the operation **by the entry the contract implies**, never by a symbol it learned from the implementation.
+`test-author` and `implementer` each derive the entry from `contract.yaml` and the table below — never from each other
+(the tests may exist before the implementation, and the other way round). The layers are those of [frontend/dataflow.md](frontend-dataflow.instructions.md).
+
+| Contract (`contract.yaml`) | Type the test constructs | Entry it calls |
+| --- | --- | --- |
+| `transport: http` / `sdk` / `local-store` / `device` (outbound), operation `fetchUser` | the Domain `UseCase` named **`<Operation>UseCase`** (`FetchUserUseCase`), built with a fake of its Repository protocol | `execute(...)` with the arguments `examples.*.request` names; the Repository fake returns `examples.*.response` or throws the `errors[].code` |
+| `transport: deeplink` / `push` (inbound), operation `openItem` | the same `<Operation>UseCase` (`OpenItemUseCase`) — the Router / app delegate only forwards to it | `execute(...)` with the decoded payload; the payload decoding is verified separately in Data |
+| any operation, through the host's `commands.contract_adapter` (`traceconfig.json`) | none — the test drives the adapter in-process by operation name and example; no implementation symbol appears in test code | — |
+
+If the implementation put the entry elsewhere, the implementation moves — tests are derived from the contract (R-801).
+
+---
+
+## 3. Scoped execution (the UC tag) and requirement coverage (`@covers`)
 
 In every test, make the outermost group's name read
 
@@ -44,12 +60,12 @@ so it can be selected mechanically by the UC ID (the same key as the UC director
 - With Swift Testing use `@Suite("UC-012 …")`; with XCTest include `UC-012` in the outermost class name or the name
 - **Every test names exactly one declared partition class** with `// @covers REQ-045#class` as the first line of its body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
 - Write the concrete selection command, matched to the runner, in `CLAUDE.md`
-- **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by UC ID
-- **Never let a new test go untagged** (when to run the selection is in [test-execution.md](common-test-execution.instructions.md) and develop skill §4)
+- **When to run a selection vs the whole default suite is authoritative in the develop skill's `references/playbook.md`, section *Test-run granularity*.** This leaf defines only how to stamp and select by UC ID
+- **Never let a new test go untagged** (when to run the selection is in [test-execution.md](common-test-execution.instructions.md) and the develop skill's *Test-run granularity* section)
 
 ---
 
-## 3. The machine oracle's main arena is the Domain (the UseCase)
+## 4. The machine oracle's main arena is the Domain (the UseCase)
 
 On this stack, the center of the deterministically drivable red-green loop is the **UseCase** (and a thin ViewModel where needed).
 
@@ -77,7 +93,7 @@ func loginSucceeds() async throws {
 
 ---
 
-## 4. Make it deterministic (what wobbles on iOS)
+## 5. Make it deterministic (what wobbles on iOS)
 
 | Source of wobble | How to handle it |
 | --- | --- |
@@ -92,14 +108,14 @@ A test that depends on `.shared` is a signal the design has already dissolved ([
 
 ---
 
-## 5. Split suites by what execution requires
+## 6. Split suites by what execution requires
 
 Rather than picking test-level names (unit / integration / system) first and classifying by them,
 split by **what has to be started for that test to run**.
 
 | Suite | The criterion (this alone decides it) | Location (the default example) | How often it runs |
 | --- | --- | --- | --- |
-| **Default** (unit) | starts neither a simulator nor a real API (mocks only at the boundary) | mirroring the target, `Tests/`, and so on | the suite the red-green loop draws from (selection during a round; whole run at a boundary — develop skill §4) |
+| **Default** (unit) | starts neither a simulator nor a real API (mocks only at the boundary) | mirroring the target, `Tests/`, and so on | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
 | **Integration** | **connects to a real API or a real service** | `Tests/Integration/`, and so on | at a boundary only |
 | **System** | **starts a simulator or a real device** (XCUITest, snapshots, and so on) | `UITests/` / `e2e/`, and so on | outside the phases (opt-in) |
 

@@ -184,6 +184,7 @@ public static function invalid_names(): array
 ## Substituting crow's boundaries
 
 Mocking is limited to the parts of crow that **touch the outside world**: the DB handle (the `crow::get_hdb()` equivalent) and `crow_request`.
+Which `module_*` / `action_*` (or `model_*` method) a test calls for a given contract operation is the "operation → entry" convention in [common/testing.md](common-testing.instructions.md) — derive it from the contract, never from the implementation.
 
 ```php
 public function test_returns_empty_list_when_no_row_matches()
@@ -223,7 +224,7 @@ PHPUnit's default discovery picks up `tests` recursively, so **without an `<excl
 
 | Suite | Run | When it runs |
 | --- | --- | --- |
-| Default | `phpunit --testsuite default` | the suite the red-green loop draws from (selection during a round; whole run at a boundary — develop skill §4). **It must go green on a machine with no DB** |
+| Default | `phpunit --testsuite default` | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*). **It must go green on a machine with no DB** |
 | Integration | `phpunit --testsuite integration` | at a boundary only (before returning, before commit, in CI) |
 
 Directly under `tests/` (the default suite), **always mock** boundaries such as the DB handle, per "Substituting crow's boundaries" above.

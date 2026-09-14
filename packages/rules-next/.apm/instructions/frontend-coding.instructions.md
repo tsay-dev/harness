@@ -8,7 +8,7 @@ applyTo: "**/next.config.*,**/app/**/page.tsx,**/app/**/layout.tsx,**/app/**/loa
 > **Scope: the UI surface on Next.js (App Router).** If it is not Next.js, treat this document as inapplicable and discard it.
 >
 > **The common rules are [common/coding.md](common-coding.instructions.md)**. Server-side separation of responsibilities is
-> [backend/coding.md](backend-coding.instructions.md) (the substance of Actions; the onion. It is part of the FE implementers' bundle — develop skill §6-B).
+> [backend/coding.md](backend-coding.instructions.md) (the substance of Actions; the onion. It is part of the FE implementers' bundle — the develop skill's `references/bundles.md`, section *Deciding the destination*).
 > The direction of data and where state lives is [dataflow.md](frontend-dataflow.instructions.md).
 > Component granularity is [components.md](frontend-components.instructions.md); where screens live is [routing.md](frontend-routing.instructions.md).
 > **FE tests are not filed for now** (no frontend testing leaf is placed; the common wiring is [common/testing.md](common-testing.instructions.md)).

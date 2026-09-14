@@ -27,6 +27,9 @@ Icon?
 .trace-reservations.json
 .trace-next.lock
 
+# gate-hook / stop-gate の拒否ログと状態（一時。ゲート降格判断のデータ）
+.harness-gate/
+
 # 全ベンダー向け prompt は packages/ からの生成物
 .claude/
 .agents/

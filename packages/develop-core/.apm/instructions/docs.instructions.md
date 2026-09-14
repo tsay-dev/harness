@@ -37,13 +37,14 @@ applyTo: "docs/**,traceconfig.json"
 | `01-glossary.md` | term, one-sentence definition, code identifier, forbidden synonyms | class design, table definitions |
 | `02-actors.md` | the closed set of actors (`ACT-nn`, system actors included) | the UCs that realize a goal (R-103) |
 | `GOAL.md` | one sentence in the actor's words, `actor`, `origin` (KPI), `domain` (R-1009) | the list of its UCs |
-| `UC.md` | scenario, the state × event table, pre/post conditions, BR **references** | the content of a BR, the content of a REQ, a list of derived REQs |
+| `UC.md` | scenario, the state × event table, pre/post conditions, BR **references** | the content of a BR, the content of a REQ, a list of derived REQs, the evaluation order of a contract's errors (R-1207) |
 | `REQ-nnn.md` | one EARS sentence, frontmatter (`pattern`, `uc`, `br`, `status`), the verification policy | implementation means, UI detail, the content of a test case |
-| `BR-nnn.md` | the rule's existence, its intent, `enforced_at` | its referrers, a value that could be machine-readable (R-102) |
+| `BR-nnn.md` | the rule's existence, its intent, `enforced_at` | its referrers, a value that could be machine-readable (R-102), the evaluation order of a contract's errors (R-1207) |
 | `NFR-nnn.md` | threshold + measurement method | anything unmeasurable (R-104) |
 | `ADR-nnnn-<slug>.md` | Context / Decision / Consequences, the rejected options and why | the current design state (an ADR is never updated, only superseded) |
 | `verification/GLOBAL.md` | the project-wide "not verified" ranges with reasons | per-REQ policy (that lives in the REQ) |
-| `contract.yaml` | the shape of the boundary (operations, types, errors, examples) | a prose copy of the same content, rules, purpose |
+| `verification/DEFERRED.md` | reviewer findings that cannot become a machine check, one row each, until resolved or promoted (orchestrator only) | findings a test or a lint can decide, open questions awaiting a human (those go to issue tracking) |
+| `contract.yaml` | the shape of the boundary (operations, types, errors **in evaluation order**, one failure example per error code) | a prose copy of the same content, rules, purpose, prose about the order or exclusivity of errors |
 
 ## 4. Requirements (EARS)
 
@@ -128,6 +129,7 @@ A contract is a **machine-readable agreement at a boundary between two parties w
 - **R-1201 (MUST)** At the start (Phase 1 of a migration), enumerate the boundaries and assign each a contract SSOT and a checker. Consider at least: (a) **time** — persisted data written by a shipped version, (b) **the OS / platform**, (c) **between modules** (public types), (d) **an external API we do not own**.
 - **R-1202 (MUST) The time boundary.** Data actually written by each shipped version is kept as golden fixtures under `contracts/fixtures/` (**append-only**; editing an existing fixture is itself a contract violation). A test proves the current code can read every fixture, declared as the partition class `#persist-vN-compat`. For an app that lives entirely on the device, this is the most important contract there is.
 - **R-1203 (MUST)** OS contracts (Info.plist, entitlements, a manifest) are machine-readable and therefore their own SSOT. Never transcribe them into prose (R-102).
-- **R-1204 (SHOULD)** Between modules the language's type system is the contract and the compiler plus C6 are the checkers. Unintended public-API drift may be watched with a snapshot comparison (the same shape as the baseline ratchet).
+- **R-1204 (SHOULD)** Between modules the language's type system is the contract and the compiler plus C6 are the checkers. Unintended public-API drift may be watched with a snapshot comparison (the same shape as the baseline ratchet). Where a contract operation is reached from a test, the entry (file and export) is derived from the operation name by the framework testing leaf's "operation → entry" convention — or declared once in the host's `CLAUDE.md` / `AGENTS.md` when no rules package applies — never from reading the implementation.
 - **R-1205 (SHOULD)** An external API is held defensively on the client side: a DTO layer, recorded-response fixtures, and tolerant decoding that ignores unknown fields.
 - **R-1206 (MUST)** Every UC carries `contract.yaml` (the harness format, not OpenAPI — why: `docs/adr/ADR-0001`). A UC that crosses no boundary **declares** it with `operations: {}` and `x-no-boundary: <reason>`; it never simply lacks a contract (that would open a hole in the implementation start gate). Never fabricate an HTTP operation for a boundary that is not HTTP.
+- **R-1207 (MUST)** The evaluation order of an operation's failure conditions has exactly one home: the order of its `errors:` list in `contract.yaml`, first match wins. `when` is a label for the entry, not a proof of exclusivity. UC / BR / ADR prose and schema comments never restate the order, and no `x-*` key under an operation may carry it (spec-lint rejects them). Precedence between neighbouring entries is refuted by an example that satisfies both conditions (executed by `contract-run`) or by a test class, never by prose.

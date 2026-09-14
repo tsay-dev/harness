@@ -31,7 +31,23 @@ The choice, the configuration, and **the command that runs the default suite** a
 
 ---
 
-## 2. Scoped execution (the UC tag) and requirement coverage (`@covers`)
+## 2. Calling an operation from a test (operation → entry)
+
+A contract-conformance test calls the operation **by the entry the contract implies**, never by a symbol it learned from the implementation.
+`test-author` and `implementer` each derive the entry from `contract.yaml` and the table below — never from each other
+(the tests may exist before the implementation, and the other way round). The location of `app/` is the host's (`CLAUDE.md`).
+
+| Contract (`contract.yaml`) | File the test imports | Export it calls |
+| --- | --- | --- |
+| `transport: http` with `wire.path: /api/users` and `wire.method: POST` | `app/api/users/route.ts` (the `wire.path` under `app/`, then `route.ts`) | the export named by `wire.method` (`POST`), called with a `Request` built from `examples.*.request` |
+| a Server Action (`transport: internal` under the project's ADR, or a same-app mutation the host maps to Actions) | the feature's `actions.ts` (the mutation-controller location declared in `CLAUDE.md`) | the export named **exactly as the operation** (`renameUser` for operation `renameUser`), called with `examples.*.request` as its argument |
+| any operation, through the host's `commands.contract_adapter` (`traceconfig.json`) | none — the test drives the adapter in-process by operation name and example; no implementation symbol appears in test code | — |
+
+If the implementation put the entry elsewhere, the implementation moves — tests are derived from the contract (R-801).
+
+---
+
+## 3. Scoped execution (the UC tag) and requirement coverage (`@covers`)
 
 In every test, make the outermost group (`describe` in most runners) read
 
@@ -41,12 +57,12 @@ so it can be selected mechanically by the UC ID (the same key as the UC director
 
 - **Every test names exactly one declared partition class**: put `// @covers REQ-045#accept-standard` as the first line inside the `it` / `test` body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
 - Write the concrete selection command, matched to the runner, in `CLAUDE.md` (e.g. a name filter for `UC-012`)
-- **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by UC ID
+- **When to run a selection vs the whole default suite is authoritative in the develop skill's `references/playbook.md`, section *Test-run granularity*.** This leaf defines only how to stamp and select by UC ID
 - **Never let a new test go untagged** (untagged, it falls out of scoped execution and regression detection is left to the boundary)
 
 ---
 
-## 3. Make it deterministic (what wobbles in Next)
+## 4. Make it deterministic (what wobbles in Next)
 
 Never depend implicitly on real time, randomness, the network, or a real DB. Inject them where needed and pin them in the test.
 
@@ -61,14 +77,14 @@ Tests **never depend on order.** If you modified a shared mutable global, always
 
 ---
 
-## 4. Split suites by what execution requires
+## 5. Split suites by what execution requires
 
 Rather than picking test-level names (unit / integration / system) first and classifying by them,
 split by **what has to be started for that test to run**.
 
 | Suite | The criterion (this alone decides it) | Location (the default example) | How often it runs |
 | --- | --- | --- | --- |
-| **Default** | starts no external environment (mocks only at the boundary) | mirroring the target structure, `__tests__/`, and so on | the suite the red-green loop draws from (selection during a round; whole run at a boundary — develop skill §4) |
+| **Default** | starts no external environment (mocks only at the boundary) | mirroring the target structure, `__tests__/`, and so on | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
 | **Integration** | **connects to a real DB or a real service** | `tests/integration/` | at a boundary only (before returning, before commit, in CI) |
 | **System** | **starts a browser** | `e2e/` | outside the phases (opt-in) |
 
@@ -87,10 +103,10 @@ start no external environment, so they are **not integration tests**.
 
 ---
 
-## 5. Coverage is a signal, not a target
+## 6. Coverage is a signal, not a target
 
 The coverage percentage is a hint about what you are not looking at — **never a target to hit**.
-**Green tests are a precondition, not the definition of done.** After green, adversarial verification (`slice-reviewer`, and `/attack` if needed) exposes the defects.
+**Green tests are a precondition, not the definition of done.** After green, adversarial verification (the `reviewer`, and `/attack` if needed) exposes the defects.
 
 ---
 

@@ -48,7 +48,7 @@ Once the concurrent section closes, **one agent running alone** (relaunching an 
 1. **Pin the destination to one.** Declare the device name and OS version in the host's `CLAUDE.md` and use the same one every time.
 2. **Reuse an already-booted simulator.** Do not create, delete, or restart one per run.
 3. **Never run two `xcodebuild` processes at once** (including multiplying processes via the parallel-test-execution option).
-4. **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how:
+4. **When to run a selection vs the whole default suite is authoritative in the develop skill's `references/playbook.md`, section *Test-run granularity*.** This leaf defines only how:
    - A fix-round / consolidated run is a **selection**: `-only-testing:` (or the host `CLAUDE.md`'s equivalent) on the UC suites named in the report, plus any neighboring `UC-nnn` in the blast radius. Never treat a mutation or a probe as a reason to fire the default-suite command.
    - A **whole default-suite run** is the host `CLAUDE.md`'s default-suite command, and only when the orchestrator asked for a boundary run (declaring the slice ready for commit, or CI).
 5. Take red/green from the exit code of **that** command. **Never hand anything to the next phase with nobody having run it.**

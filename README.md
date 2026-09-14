@@ -10,7 +10,7 @@
 
 | パッケージ | 内容 | 選ぶ場面 |
 | --- | --- | --- |
-| `develop-core` | develop / develop-light / attack / docs-migrate の skills、develop agents、docs・comments 共通則 | システム開発の共通手続き |
+| `develop-core` | develop / attack / docs-migrate の skills、develop agents（5 体）、docs・comments 共通則 | システム開発の共通手続き |
 | `rules-next` | Next.js の規約葉だけ | Next.js 開発。通常は develop-core と組み合わせる |
 | `rules-crow` | crow の規約葉だけ | crow 開発 |
 | `rules-expo` | Expo の規約葉だけ | Expo 開発 |
@@ -106,19 +106,23 @@ APM 0.30.0 の instruction 探索は `.apm/instructions/` 直下です。旧 sce
 
 ## 開発・翻訳の手続きは維持する
 
-配布単位を変えても、**作る主体と判定する主体を別 agent・別コンテキストに分ける**原則は変えません。skill は orchestrator の判断核・実行台本、agents は専門家の craft、instructions は規約です。skill が規約本文を要約・複製しません。
+配布単位を変えても、**作る主体と判定する主体を別 agent・別コンテキストに分ける**原則は変えません。skill は orchestrator の不変条件と完成の定義（手順は同梱の `references/` に任意参照）、agents は別コンテキストが要る役割の craft、instructions は規約です。skill が規約本文を要約・複製しません。
+
+壊れてはいけないこと（人間ゲート、producer ≠ judge、終端の検査リスト、閉じた語彙）は hook と lint で硬く強制し、うまくやる方法（順序・深さ・起動順）は skill の既定として柔らかく置きます。agent は「別コンテキストが必要か」（隔離・並列・独立性）でだけ分けます。
 
 各 agent の実行モデルは、中立な `x-model-tier`（top / mid / light）を agent source に一度だけ宣言します。provider 固有の family や version slug は adapter の tier 対応表へ分離し、agent 名の割当表を別に作りません。native APM がモデル指定を変換しない場合は、orchestrator が元 source の tier を起動時に適用します。
 
-develop は domain / use case / requirements の定義から、DB・契約の構造、Red テスト、見た目・frontend logic・backend logic の実装、独立 slice-reviewer の完成ゲートへ進みます。機械で反証できない判断は人間の確認を受け、機械で判定できる工程は検証ループを回します。構造のリスクが高い場合だけ skeleton-runner を使います。git 操作は committer、設計判断の記録は adr-writer に委譲します。
+develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契約）、`test-author`（実装を読まずに分割クラスと Red テストを書く）、`implementer`（logic / appearance / schema / probe のモード）、`reviewer`（別コンテキストの反証、read-only）、`attacker`（`/attack` 専用）。orchestrator は実装とテストを書かず、commit と ADR は skill 同梱の手順（`references/commit.md` / `adr.md`）に従って自分で行います。
 
-`develop-light` は成果物の形を本線と揃えた小規模向け入口で、人間の明示時だけ使います。`attack` は人間が依頼する任意の攻撃で、develop の通常ループには混ぜません。翻訳では maker が Stage 1–4 を通して訳し、翻訳を書いていない judge が Stage 5 の独立レビューを行います。工程・役割の詳細は各 skill / agent が正本です。
+完成の定義は終端の閉じたリストです: spec-lint、trace-check、contract-run（契約の examples をホストのアダプタ経由で実行）、ホストの typecheck / lint / test、そして reviewer の `阻止` ゼロ。reviewer の指摘は `阻止`（機械検査に変換できる反例付き）と `持ち越し` の 2 段で、`持ち越し` は `docs/verification/DEFERRED.md` に記録して同一スライスでは直しません。ホストは Claude Code の Stop hook に `tools/gate-hook/stop-gate.mjs` を明示設置すると、終了時に機械がこのリストを強制します。
+
+`attack` は人間が依頼する任意の攻撃で、develop の通常ループには混ぜません。翻訳では maker が Stage 1–4 を通して訳し、翻訳を書いていない judge が Stage 5 の独立レビューを行います。工程・役割の詳細は各 skill / agent が正本です。
 
 ### docs の SDD / SSOT
 
 成果物は 1 ID 1 ファイルです。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は中央に置きます。DB 設計は docs の案ではなく、ホストの migration / schema.prisma / model など native スキーマに書きます。
 
-人間ゲートの文書は `draft → active → withdrawn`、機械ループの契約は `draft → fixed`。工程状態は各 `UC.md` の `phase:` が持ち、別の台帳をコミットしません。テストは `@covers REQ-nnn#class`、実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流を指します。spec-lint は書式・ライフサイクル、trace-check は C1–C14 のトレーサビリティを検証し、既存違反には baseline ラチェットを使います。
+人間ゲートの文書は `draft → active → withdrawn`、機械ループの契約は `draft → fixed`。工程状態は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません（`docs/verification/DEFERRED.md` は反例を持つ内容なので唯一の例外）。テストは `@covers REQ-nnn#class`、実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流を指します。spec-lint は書式・ライフサイクル・契約のキー閉集合、trace-check は C1–C14 のトレーサビリティ、contract-run は契約 examples の実行を検証し、既存違反には baseline ラチェットを使います。契約の `errors` の並びが唯一の評価順で（R-1207）、散文に順序を再掲しません。
 
 ## APM と旧 init.sh の使い分け
 

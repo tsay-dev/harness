@@ -12,6 +12,7 @@
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/contract.yaml       UC の境界契約（harness 独自 YAML）
 //    docs/rules/BR-nnn.md  docs/nfr/NFR-nnn.md  docs/adr/ADR-nnnn-<slug>.md   横断（中央）
 //    docs/verification/GLOBAL.md                                 【任意】全体の検証除外
+//    docs/verification/DEFERRED.md                               【任意】機械判定できない指摘の保留台帳
 //    docs/_shared/components.yaml                                契約の共有語彙（$ref 先）
 //
 //  書式の SSOT は templates/develop/ のテンプレート。必須フロントマター・必須セクション・
@@ -51,11 +52,12 @@ const ADR_FILE_RE = /^ADR-\d+-[a-z0-9-]+\.md$/;
 //  --- 閉じた語彙（実行コードでしか強制できないため本ツールが正）---
 const NODE_STATUS = ["draft", "active", "withdrawn"]; //  GOAL / UC / REQ / BR / NFR。active ＝ 人間が承認した
 const SINGLETON_STATUS = ["draft", "frozen", "living"]; //  vision / glossary / actors / backlog / GLOBAL
+const DEFERRED_STATUS = ["living"]; //  DEFERRED（台帳は常に現在形。draft を持たない）
 const ADR_STATUS = ["proposed", "accepted", "superseded"];
 const CONTRACT_STATUS = ["draft", "fixed"]; //  fixed ＝ 構造オラクル不整合ゼロで orchestrator が凍結した
 const PHASES = ["定義", "構造", "実装", "検証", "完了"]; //  UC.md の phase:（工程台帳。orchestrator だけが進める）
 const EARS_PATTERNS = ["Ubiquitous", "Event-driven", "State-driven", "Unwanted behaviour", "Optional"];
-const POLICY = "検証方針"; //  REQ の検証方針セクション（所有者は test-designer。中身の判定は trace-check C2/C10）
+const POLICY = "検証方針"; //  REQ の検証方針セクション（所有者は test-author。中身の判定は trace-check C2/C10）
 const isSettled = (s) => !!s && s !== "draft" && s !== "proposed";
 
 //  --- 肥大の閾値（本ツールが唯一の SSOT。producer craft に数値を書き写さない）---
@@ -67,6 +69,12 @@ const MAX_BR_CHARS = 2500; //  BR 本文（存在と意図だけ。値は R-102 
 const MAX_EARS_CHARS = 200; //  EARS 文 1 本の長さ（超えるのは複数要件の圧縮 / R-401）
 const MAX_UC_CROSS_REFS = 10; //  UC.md の本文中の他 UC 参照数（複製の密度。表と事前条件の ID は数えない）
 const MAX_CONTRACT_LINES = 400; //  契約 YAML は 1 行 1 キーの ASCII なので行数で測る
+
+//  --- 保留台帳 docs/verification/DEFERRED.md の語彙と閾値（本ツールが唯一の SSOT。テンプレートの注記に数値を書き写さない）---
+const DEFERRED_ID_RE = /^DEF-\d{3}$/;
+const DEFERRED_TARGETS = ["spec-lint", "trace-check", "contract-run", "test", "typecheck", "lint", "hook", "未定"]; //  昇格先
+const DEFERRED_MAX_AGE_DAYS = 30; //  起票からこの日数を超えた保留は「昇格か解消か」を決める合図
+const DEFERRED_RECUR = 3; //  同じ対象にこの件数以上の保留が積もったら機械検査への昇格候補
 
 //  --- 収集した違反 ---
 const errors = [];
@@ -179,6 +187,7 @@ const FORMATS = {
 	actors: deriveDocFormat("02-actors.md", { required: ["id", "status"], optional: [], sections: ["アクター一覧"] }),
 	backlog: deriveDocFormat("goals-backlog.md", { required: ["id", "status"], optional: [], sections: [] }),
 	global: deriveDocFormat("verification-GLOBAL.md", { required: ["id", "status"], optional: [], sections: ["検証しない範囲"] }),
+	deferred: deriveDocFormat("DEFERRED.md", { required: ["id", "status"], optional: [], sections: ["保留中の指摘"] }),
 	goal: deriveDocFormat("GOAL.md", { required: ["id", "actor", "origin", "status"], optional: [], sections: [] }),
 	uc: deriveDocFormat("UC.md", { required: ["id", "title", "actor", "goal", "status", "phase"], optional: [], sections: ["概要", "事前条件", "主シナリオ", "状態", "例外系の走査", "事後条件"] }),
 	req: deriveDocFormat("REQ.md", { required: ["id", "pattern", "uc", "status"], optional: ["br"], sections: [POLICY] }),
@@ -298,10 +307,7 @@ function checkHygiene(file, body, kind, opts = {}) {
 	}
 
 	if (kind === "contract") {
-		//  業務ルールの契約への書き戻し（MIS 逸脱の煙探知機）
-		const dumpKeys = body.match(/^\s+x-(state-transition|evaluation-order|error-catalog|business-rule|internal-labels)\b/gm) || [];
-		if (dumpKeys.length > 0)
-			warn(file, `業務ルール再掲らしき x-* が ${dumpKeys.length} 件（例: ${dumpKeys[0].trim()}）— 規則・判定順序は UC / REQ / BR。契約は境界の形だけ`);
+		//  operation 配下の x-*（業務ルールの書き戻し）は validateContract の閉じたキー集合が err で落とす。ここは分量だけ見る
 		const longDescs = countLongDescriptions(lines);
 		if (longDescs > 0) warn(file, `長い description が ${longDescs} 件（8 行超または 200 字超）— 目的・規則・UI 説明は UC / REQ。契約は summary 1 行と短い注記のみ`);
 		if (lines.length > MAX_CONTRACT_LINES) warn(file, `本文が ${lines.length} 行（${MAX_CONTRACT_LINES} 行超）— 1 UC を超えた堆積の疑い（負のリスト該当を排出する）`);
@@ -338,8 +344,8 @@ function countLongDescriptions(lines) {
 
 //  --- 各文書の検証 ---
 
-//  単票（vision / glossary / actors / backlog / GLOBAL）
-function validateSingleton(file, kind, expectedId, required) {
+//  単票（vision / glossary / actors / backlog / GLOBAL / DEFERRED）。vocab は status の語彙（DEFERRED だけ living に閉じる）
+function validateSingleton(file, kind, expectedId, required, vocab = SINGLETON_STATUS) {
 	if (!existsSync(file)) {
 		if (required) warn(file, `${basename(file)} が無い（テンプレート templates/develop/${basename(file) === "GLOBAL.md" ? "verification-GLOBAL.md" : basename(file)} 参照）`);
 		return null;
@@ -348,7 +354,7 @@ function validateSingleton(file, kind, expectedId, required) {
 	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
 	checkRequiredFm(file, data, fmt.required);
 	if (data.id && data.id !== expectedId) err(file, `id は ${expectedId}。実際: "${data.id}"`);
-	const status = checkStatus(file, data.status, SINGLETON_STATUS);
+	const status = checkStatus(file, data.status, vocab);
 	checkSections(file, body, fmt.sections, status);
 	checkSentinels(file, body, status);
 	checkHygiene(file, body, "singleton");
@@ -418,7 +424,7 @@ function validateReq(file, ucDirId) {
 	else if (paras.length > 1) err(file, `要件文の blockquote が ${paras.length} 段落ある — 1 要件 1 文。別の要件は別の REQ へ（R-401）`);
 	else if (paras[0].length > MAX_EARS_CHARS) warn(file, `要件文が ${paras[0].length} 文字（${MAX_EARS_CHARS} 文字超）— 複数の要件の圧縮ではないか（R-401）`);
 
-	//  検証方針の中身は test-designer が後から埋める（trace-check C2 / C10 が判定）。ここでは見出しの存在だけ
+	//  検証方針の中身は test-author が後から埋める（trace-check C2 / C10 が判定）。ここでは見出しの存在だけ
 	checkSections(file, body, fmt.sections, status, { skipEmpty: [POLICY] });
 	checkSentinels(file, head, status);
 	checkHygiene(file, body, "req");
@@ -768,6 +774,10 @@ const DIRECTIONS = ["outbound", "inbound"];
 const ENTRY_TRANSPORTS = ["deeplink", "push"];
 const PERMISSION_CODE = "PERMISSION_DENIED";
 const OP_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
+//  operation 直下のキーは閉集合（x-* も不可）。規則は UC / REQ / BR、判定順序は errors の並び（R-1207）。
+//  templates/develop/contract.yaml が使う 13 キーと一致させる（テンプレートに無いキーは受けない）
+const OP_KEYS = ["transport", "direction", "owned", "source", "auth", "summary", "wire", "entry", "requires", "request", "response", "errors", "examples"];
+const ERROR_ITEM_KEYS = ["code", "when", "wire"]; //  errors[] の各項目も閉集合
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
@@ -835,6 +845,12 @@ function validateContract(file, text, dirId, xKeys, shared) {
 		}
 		if (!OP_NAME_RE.test(name))
 			err(opAt, `${label}: 操作名は lowerCamelCase で書く`);
+		for (const k of Object.keys(op))
+			if (!OP_KEYS.includes(k))
+				err(
+					at(lineOf(op, k) || lineOf(ops, name)),
+					`${label}: 未知のキー "${k}"（operation のキーは ${OP_KEYS.join(" / ")} に閉じる。x-* も不可 — 規則は UC / REQ / BR に、判定順序は errors の並びに書く: R-1207）`,
+				);
 
 		const fieldAt = (k) => at(lineOf(op, k) || lineOf(ops, name));
 		const transport = op["transport"];
@@ -904,6 +920,9 @@ function validateContract(file, text, dirId, xKeys, shared) {
 					}
 					errorCount++;
 					const code = e["code"];
+					for (const k of Object.keys(e))
+						if (!ERROR_ITEM_KEYS.includes(k))
+							err(at(lineOf(e, k) || lineOf(op, "errors")), `${label}: errors["${code}"] に未知のキー "${k}"（code / when / wire のみ）`);
 					if (!code) err(fieldAt("errors"), `${label}: errors に code が無い`);
 					else {
 						codes.push(code);
@@ -949,6 +968,11 @@ function validateContract(file, text, dirId, xKeys, shared) {
 							fieldAt("examples"),
 							`${label}: examples.${caseName} の error "${c["error"]}" がこの操作の errors に無い`,
 						);
+				//  逆向き: errors ⊆ examples。宣言した失敗経路には必ず実値の例を付ける（例の無い経路はテストにできない）
+				if (!noFailures)
+					for (const code of codes)
+						if (!ng.some(([, c]) => c["error"] === code))
+							err(fieldAt("examples"), `${label}: errors["${code}"] を返す examples が無い（失敗経路は例で実行可能にする）`);
 				//  例のキーが request の properties と噛み合っているか。
 				//  異常系（error: を持つ例）は「望まれない入力」なので、禁じたキーを含む反例を許す（未知キー・必須欠落とも検査しない）
 				const props = isMap(op["request"]) && isMap(op["request"]["properties"]) ? op["request"]["properties"] : null;
@@ -1020,6 +1044,47 @@ function validateDesign(file) {
 	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
 	if (!data["ステータス"] || !data["更新日"]) warn(file, `フロントマター（ステータス/更新日）が無い`);
 	if (/Given|When|Then|受け入れ条件/.test(body)) warn(file, `GWT/受け入れ条件らしき記述がある — 振る舞いは docs/goals/**/REQ-nnn.md へ`);
+}
+
+//  --- 保留台帳 docs/verification/DEFERRED.md（任意ファイル）---
+//  1 行 1 件の表だけを持つ。書式（7 列・ID・日付・語彙）は err、
+//  滞留（古い / 同じ対象に積もる / 対象が消えた）は warn ＝ 昇格か解消かを決める合図であって判定ではない。
+//  フロントマターと見出しは validateSingleton が先に見ている（status は living のみ）
+function validateDeferred(file) {
+	const { body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const sec = findSection(stripComments(body), (t) => t.startsWith("保留中"));
+	if (!sec) return; //  見出しの欠落は checkSections が既に出している
+	const rows = tableRows(sec.lines).slice(1); //  先頭はヘッダ行（区切り行は tableRows が除く）
+	const today = new Date().toISOString().slice(0, 10);
+	const seen = new Set();
+	const byTarget = new Map();
+	for (const cells of rows) {
+		const idLabel = cells[0] || "(ID なし)";
+		if (cells.length !== 7) {
+			err(file, `${idLabel}: 列数が ${cells.length}（ID / 起票日 / 出所 / 対象 / 指摘 / 理由 / 昇格先 の 7 列）`);
+			continue;
+		}
+		const [id, date, origin, target, finding, reason, promote] = cells;
+		if (!DEFERRED_ID_RE.test(id)) err(file, `ID は DEF-nnn。実際: "${id}"`);
+		else if (seen.has(id)) err(file, `${id}: ID が重複している`);
+		seen.add(id);
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) err(file, `${id}: 起票日は YYYY-MM-DD。実際: "${date}"`);
+		else if (date > today) err(file, `${id}: 起票日 ${date} が未来`);
+		else {
+			const age = Math.floor((Date.parse(today) - Date.parse(date)) / 86400000);
+			if (age > DEFERRED_MAX_AGE_DAYS) warn(file, `${id}: 起票から ${age} 日（${DEFERRED_MAX_AGE_DAYS} 日超）— 昇格か解消かを決める`);
+		}
+		for (const [label, v] of [["出所", origin], ["対象", target], ["指摘", finding], ["理由", reason]])
+			if (v.length === 0) err(file, `${id}: ${label} が空`);
+		if (!DEFERRED_TARGETS.includes(promote)) err(file, `${id}: 昇格先は ${DEFERRED_TARGETS.join(" | ")} のいずれか。実際: "${promote}"`);
+		if (target.length > 0) {
+			byTarget.set(target, (byTarget.get(target) || []).concat(id));
+			//  対象はホスト直下からの相対パス（validate は ホストのルートで走らせる前提）
+			if (!existsSync(join(process.cwd(), target))) warn(file, `${id}: 対象 "${target}" が存在しない — 解消済みなら行を消す`);
+		}
+	}
+	for (const [target, ids] of byTarget)
+		if (ids.length >= DEFERRED_RECUR) warn(file, `対象 "${target}" の保留が ${ids.length} 件（${DEFERRED_RECUR} 件以上）— 機械検査への昇格候補`);
 }
 
 //  --- validate コマンド ---
@@ -1094,6 +1159,9 @@ function loadModel(docsDir) {
 	validateSingleton(join(docsDir, "02-actors.md"), "actors", "ACTORS", true);
 	validateSingleton(join(docsDir, "goals-backlog.md"), "backlog", "GOALS_BACKLOG", false);
 	validateSingleton(join(docsDir, "verification", "GLOBAL.md"), "global", "VERIFICATION_GLOBAL", false);
+	const deferredFile = join(docsDir, "verification", "DEFERRED.md");
+	const deferred = validateSingleton(deferredFile, "deferred", "VERIFICATION_DEFERRED", false, DEFERRED_STATUS);
+	if (deferred) validateDeferred(deferredFile);
 	validateDesign(join(docsDir, "design.md"));
 
 	return { goals, ucs, contracts, shared };
