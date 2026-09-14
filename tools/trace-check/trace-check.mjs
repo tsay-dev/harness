@@ -34,7 +34,7 @@
 //         （before ＝ テスト印の直前のコメント / after ＝ 本体 1 行目）どおりの窓だけを見る。推測はしない
 //    C12  同一 ID が複数箇所で定義されていないか（採番衝突）
 //    C13  enforced_at に database を含む BR が、スキーマ源（traceconfig の schema.files）から @implements されているか
-//         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは structure-oracle の判断に残る）
+//         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは reviewer の判断に残る）
 //    C14  すべての active な REQ / BR がソースまたはスキーマ源の 1 ユニット以上に @implements されているか
 //         （C5 の逆方向。孤児参照ではなく「注釈忘れ」。source 未設定の docs-only ホストでは判定しない）
 //

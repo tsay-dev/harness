@@ -8,12 +8,13 @@ Read [`README.md`](./README.md) for the philosophy and package selection, and [`
 
 ## 0. Invariants
 
-- **Never break zero-residency.** Do not add a resident rules index, a router in `AGENTS.md` / `CLAUDE.md`, or automatic injection in `settings.json`. Do not commit a docs ledger (`trace-check --index` generates it on demand). Do not compile all installed instructions into a baseline document merely because APM can do so.
+- **Never break zero-residency.** Do not add a resident rules index, a router in `AGENTS.md` / `CLAUDE.md`, or automatic injection in `settings.json` (hooks such as `gate-hook` / `stop-gate` are explicit host opt-in). Do not commit a derivable docs ledger (`trace-check --index` generates the index on demand; `docs/verification/DEFERRED.md` is the one committed ledger — reviewer findings with their counterexamples, which no source can regenerate). Do not compile all installed instructions into a baseline document merely because APM can do so.
 - **Never edit generated provider directories by hand.** `.claude/`, `.agents/`, `.codex/`, `.cursor/`, and `.grok/` are outputs. Change `packages/` or `tools/`, then regenerate. The root `AGENTS.md` / `CLAUDE.md` are this repository's working entrances, not generated rules routers.
 - **Never make one provider's output another provider's authority.** An adapter may use temporary intermediate files, but its input must originate in selected neutral packages.
 - **Never install everything by default.** There is no root all-in-one APM package. Development, translation, and each framework remain independently selectable.
 - **Never add host-specific facts here.** The shared harness contains generic procedures and rules. An engagement's stack, addresses, commands, and deviations belong in that host's `AGENTS.md` or `CLAUDE.md`.
-- **Never duplicate knowledge.** A document format has one source in `templates/`; spec-lint derives its required items there. Craft belongs in agent bodies. Skills contain orchestration, not copies of craft or instruction bodies.
+- **Never duplicate knowledge.** A document format has one source in `templates/`; spec-lint derives its required items there. Craft belongs in agent bodies — or, for a side effect the orchestrator performs itself because its only input is its own judgment (commit, ADR), in that skill's `references/*.md`. A `SKILL.md` holds invariants and flow (≈100 lines); procedures not needed at every launch live beside it in `references/` with an explicit read trigger. Nothing is copied: an agent body that moved is deleted.
+- **Firm versus soft.** What must never break (the three human gates, producer ≠ judge, the terminal checklist, closed vocabularies) is enforced by hooks and lints. How to get there (order, depth, launch sequence) is a default in a skill that the orchestrator may reorder. Add a machine check before adding a procedure; add an agent only when a separate context is needed (isolation, parallelism, or independence — "does handing this to a subagent throw away the reasoning in a summary?" means fold it back).
 - **Keep executable assets outside APM packages.** `tools/` and `templates/` are explicit, separately provisioned assets, not APM primitives.
 
 ## 1. Governing rules
@@ -23,10 +24,10 @@ Read [`README.md`](./README.md) for the philosophy and package selection, and [`
 | Hierarchy represents abstraction | A leaf binds its level; a deeper directory specializes it. The axis is kind, never project. Framework and layer leaves contain only their delta on common rules. |
 | Package selection precedes loading | Install only the required scene and stack. A package's presence does not authorize loading all of its text. |
 | Building ≠ judging | Producer and oracle / reviewer / attacker / judge are separate agents in separate contexts. Producers never approve their own judgments. |
-| Skills drive the process | The orchestrator owns the decision core, delegation, gates, and status transitions. It does not implement the delegated work itself. |
+| Skills drive the process | The orchestrator owns the decision core, delegation, gates, and status transitions. It writes no implementation or tests; its own writes are statuses, `_shared`, `DEFERRED.md`, ADRs, and git. |
 | References run one way, instructions → skill | A leaf may reference a procedure. A skill may discover only delivery metadata and addresses, never summarize or depend on the instruction body's section numbers or contents. The receiving agent reads the leaf. |
 
-Procedure names remain stable across skills, agents, and instruction scenes. Package boundaries split distribution without changing those responsibilities. Thin orchestrator variants (`develop-light`, `attack`) share develop agents and rules rather than duplicating them.
+Procedure names remain stable across skills, agents, and instruction scenes. Package boundaries split distribution without changing those responsibilities. The `attack` orchestrator shares the develop agents and rules rather than duplicating them; depth for a small slice is the develop orchestrator's judgment, not a separate skill.
 
 ## 2. Where things belong
 
@@ -62,8 +63,8 @@ applyTo: "**/crow3_*/app/classes/**"
 ### Adding a procedure
 
 1. Select or add an independent APM package for the use case. Do not add a dependency on every existing package.
-2. Put only the orchestration invariants and flow in `.apm/skills/<key>/SKILL.md`.
-3. Put specialist craft in `.apm/agents/<key>/*.agent.md`; keep producers and judges independent.
+2. Put only the orchestration invariants, the definition of done, and the default flow in `.apm/skills/<key>/SKILL.md` (≈100 lines); move procedures to `references/*.md` in the same skill directory (APM installs the whole folder; the legacy adapter projects every file) and name the read trigger in `SKILL.md`.
+3. Add an agent in `.apm/agents/<key>/*.agent.md` only when a separate context is needed (isolation, parallelism, or an independence such as "never reads the implementation"); keep producers and judges independent. A role whose input is the orchestrator's own summary is a procedure, not an agent.
 4. Put applicable types and rules in `.apm/instructions/<scene>-<concern>.instructions.md`.
 5. Resolve references from neutral package sources or selected packages in `apm_modules/`; do not require `.claude/` to exist. Executable assets and templates resolve from their separately provisioned root.
 
@@ -79,8 +80,8 @@ Provider adapters map tiers, never agent names. Claude family mapping is in `too
 2. Check package boundaries and duplication before moving files. Confirm current APM anatomy for format changes.
 3. Edit the source. Review references, language, instructions, and the meaning of process gates.
 4. Validate the package and regenerate the selected provider outputs using the commands in `docs/apm.md`. Never combine APM-managed output and legacy `init.sh` output in one consumer.
-5. If the change involves a lasting design judgment, have `adr-writer` record an ADR in `docs/adr/ADR-nnnn-<slug>.md`. The format is `templates/develop/ADR.md`. Reserve its number with `node tools/trace-check/trace-check.mjs --next adr`; never infer the next ID from a directory listing. `spec-lint validate` checks the result, and `trace-check --only C12` detects collisions.
-6. Delegate git operations to `committer`. Where a release is appropriate, describe breaking changes and the migration procedure; do not imply that an old submodule host will migrate automatically.
+5. If the change involves a lasting design judgment, record an ADR yourself in `docs/adr/ADR-nnnn-<slug>.md`, following `packages/develop-core/.apm/skills/develop/references/adr.md`. The format is `templates/develop/ADR.md`. Reserve its number with `node tools/trace-check/trace-check.mjs --next adr`; never infer the next ID from a directory listing. `spec-lint validate` checks the result, and `trace-check --only C12` detects collisions.
+6. Commit yourself, following `packages/develop-core/.apm/skills/develop/references/commit.md`, and never while a subagent Task is running. Where a release is appropriate, describe breaking changes and the migration procedure; do not imply that an old submodule host will migrate automatically.
 
 ## 5. Verification focus
 
@@ -88,12 +89,13 @@ Provider adapters map tiers, never agent names. Claude family mapping is in `too
 | --- | --- |
 | Manifest / package boundary | APM recognizes the package; fresh installation contains only selected dependencies; no tools / templates are packaged. |
 | Instruction | Valid `applyTo`, one concern, intended writer addresses, Claude output has `paths` without losing glob meaning. |
-| Skill | Invocation works; orchestration remains separate from implementation; gates and `active` / `fixed` / `phase` transitions remain with the orchestrator; references work without `.claude/`. |
-| Agent | Independent producer / judge, explicit contracts, valid `x-model-tier`, correct target conversion and model policy. |
+| Skill | Invocation works; orchestration remains separate from implementation; gates and `active` / `fixed` / `phase` transitions remain with the orchestrator; references work without `.claude/`; `references/*.md` are present in every provider's output and carry no frontmatter of their own. |
+| Agent | Independent producer / judge, explicit contracts, valid `x-model-tier`, correct target conversion and model policy; the develop set stays at the five roles whose separate context is justified (`tools/apm/test_projection.py` pins the tier sets). |
 | Adapters | Selected neutral inputs only, generated marker and ownership checks, no overwrite of unmanaged files, stable regeneration, no resident rules on targets without lazy loading. |
-| Templates / spec-lint | Required formats derive from templates. Closed vocabularies (`status`, `phase`, `pattern`, `transport`, `direction`) remain executable lint authority. Preserve baseline ratchet and judgment-free conversion notes. |
+| Templates / spec-lint | Required formats derive from templates. Closed vocabularies (`status`, `phase`, `pattern`, `transport`, `direction`, the 13 operation keys and 3 `errors[]` item keys, `DEFERRED.md` row grammar) remain executable lint authority; one failure example per error code on `fixed` contracts. Preserve baseline ratchet and judgment-free conversion notes. |
 | trace-check | Traceability only: C1–C14; no duplicate format checking. Preserve `--only`, monotone baseline, and `--next` reservations. |
-| gate-hook | Explicit opt-in in host settings; no automatic injection. Read phase from `UC.md`; allow docs, harness assets, and trace configuration writes. |
+| contract-run | Executes contract examples only through `traceconfig.json` `commands.contract_adapter`; an undeclared adapter is reported as "not executed", never as a pass; no baseline file; `skip` replies are listed, never counted as pass. |
+| gate-hook / stop-gate | Explicit opt-in in host settings; no automatic injection. PreToolUse reads phase from `UC.md`; Stop runs spec-lint → trace-check → contract-run → `commands.*` from traceconfig only (never guessed), skips on an unchanged tree, releases at `--max-rounds` when `stop_hook_active`. Both append the reject log; allow docs, harness assets, `.harness-gate/`, and trace configuration writes. |
 | Installation / docs | Commands match actual help, fresh install and existing-host migration are distinguished, APM and legacy ownership do not overlap. |
 
 The quality axes are package isolation, reference integrity, zero-residency, and preserved process semantics. Packaging checks do not substitute for a real provider session when evaluating delegation or model selection.

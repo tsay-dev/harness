@@ -4,15 +4,17 @@ A zero-dependency Node tool bundled with the harness that mechanically verifies 
 the docs SSOT (the singletons, GOAL / UC / REQ, BR / NFR / ADR, the boundary contracts).
 
 - **The layout it verifies**: `docs/00-vision.md` `01-glossary.md` `02-actors.md` (+ optional
-  `goals-backlog.md`, `design.md`, `verification/GLOBAL.md`), `docs/goals/GOAL-nn-<slug>/GOAL.md`,
+  `goals-backlog.md`, `design.md`, `verification/GLOBAL.md`, `verification/DEFERRED.md` — the ledger of
+  reviewer findings that cannot be machine-judged, rows only), `docs/goals/GOAL-nn-<slug>/GOAL.md`,
   `…/UC-nnn-<slug>/` (`UC.md`, `REQ-nnn.md`, `contract.yaml`), `docs/rules/BR-nnn.md`, `docs/nfr/NFR-nnn.md`,
   `docs/adr/ADR-nnnn-<slug>.md`, `docs/_shared/components.yaml`
 - **The format it verifies**: the SSOT is the templates in `../../templates/develop/`. Required frontmatter
   keys (a key whose template comment says `optional` is optional), required sections, and the contract's
   required `x-` keys are **derived from the templates** (revise the format by editing the template and the
   lint follows). The closed vocabularies live here because only executable code can enforce them:
-  `status` (`draft|active|withdrawn` on nodes, `draft|frozen|living` on singletons, `proposed|accepted|superseded`
-  on ADRs, `draft|fixed` on contracts), `phase` (`定義|構造|実装|検証|完了`), `pattern` (the 5 EARS patterns),
+  `status` (`draft|active|withdrawn` on nodes, `draft|frozen|living` on singletons, `living` only on
+  `DEFERRED.md`, `proposed|accepted|superseded` on ADRs, `draft|fixed` on contracts), `phase`
+  (`定義|構造|実装|検証|完了`), `pattern` (the 5 EARS patterns),
   `transport` (`http|sdk|local-store|deeplink|push|device|internal` — `internal` is an in-process boundary the host
   has decided, in an ADR, to contract explicitly; the default under R-1204 is that such a boundary is not an operation)
   / `direction`
@@ -24,8 +26,10 @@ the docs SSOT (the singletons, GOAL / UC / REQ, BR / NFR / ADR, the boundary con
   `wire` only on `http`, `entry` only on `deeplink` / `push`, `source` required when `owned: false`, `auth`
   explicit on every operation and resolving in `_shared`, `errors[].code` closed to `_shared` `errorCodes`, a
   `requires` with no matching `PERMISSION_DENIED`, `errors: []` accepted as the declaration "no failure path"
-  (then no failure example is demanded; an omitted `errors` is not that declaration), and success `examples`
-  agreeing with the declared `request` (a failure example may carry forbidden keys — it is a counter-example).
+  (then no failure example is demanded; an omitted `errors` is not that declaration), success `examples`
+  agreeing with the declared `request` (a failure example may carry forbidden keys — it is a counter-example),
+  the operation's keys closed to the 13 the template uses, and — once `fixed` — every declared error code
+  returned by at least one example.
   **Because the checker decides all of this, no agent needs to read a contract in full to judge conformance**
 - **How it is used**: producers invoke it directly to machine-verify their deliverables. Wiring `gate` into a
   commit-msg hook is also possible (optional, on each project's side)
@@ -41,6 +45,7 @@ node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbo
 ```
 
 Exit codes: `0`=OK / `1`=violation / `2`=usage error. Node only (no external dependencies).
+Regression tests: `node --test "tools/spec-lint/test/*.test.mjs"` (a minimal docs tree is written to a temp dir per case).
 On detecting the old layout (`docs/specs/F-xxx-<slug>/`) it prompts for `/docs-migrate` and returns `1` — unless
 `--ignore-legacy-layout` is given, in which case the old directory is a warning and the new layout is checked in full.
 
@@ -89,6 +94,22 @@ with `errors: []` (no failure path is invented). The result is meant to pass `va
   duplicate keys; a contract still in OpenAPI form, or `api-contract.yaml` left in a UC directory
 - An operation missing `transport` / `direction` / `owned` / `auth` / `summary`, or holding a field that does
   not belong to its transport; `operations: {}` with no `x-no-boundary` reason
+- An operation holding a key outside the closed set `transport` / `direction` / `owned` / `source` / `auth` /
+  `summary` / `wire` / `entry` / `requires` / `request` / `response` / `errors` / `examples` — the 13 keys
+  `templates/develop/contract.yaml` uses. `x-*` is rejected at the operation level too: rules belong to UC / REQ /
+  BR and the evaluation order is the order of `errors` (R-1207). Each `errors[]` item is likewise closed to
+  `code` / `when` / `wire`
+- A `fixed` contract declaring an error code that no `examples.<case>.error` returns (`errors` ⊆ `examples`, the
+  reverse of the existing "every failure example names a declared code"; `errors: []` is exempt). A failure path
+  without an example cannot be executed by a test
+- `docs/verification/DEFERRED.md` (optional): `status` other than `living`; a row that does not have exactly 7
+  cells; an `ID` not matching `DEF-nnn` or duplicated; a `起票日` that is not `YYYY-MM-DD` or lies in the future; an
+  empty `出所` / `対象` / `指摘` / `理由`; a `昇格先` outside `spec-lint | trace-check | contract-run | test | typecheck |
+  lint | hook | 未定`. A table with only its header row is valid
+
+Hosts adopting these rules on contracts written before them run `validate --update-baseline` once so the existing
+material is ledgered and only new violations fail from then on (R-804's exception for the first application of a
+check to pre-existing material). `gate` still ignores the baseline.
 
 ## Docs-hygiene detection (all warnings)
 
@@ -105,7 +126,9 @@ the negative lists is each producer's craft):
 | An EARS sentence over 200 characters | REQ | Several requirements compressed into one (R-401) |
 | Over 10 references to other UCs **in the prose** (table rows — `不可: UC-010` cells included — and the 事前条件 section are not counted: an ID there is a reference by design, not a copy) | UC | Suspected duplication of the referenced behavior. Extract a BR (R-105) |
 | An NFR without a measurement, a BR without `**意図**` | NFR / BR | R-104 / the rule holds existence and intent |
-| `x-*` restating business rules, a long `description` | contract | Rules and evaluation order belong to UC / REQ / BR. A contract holds only the shape |
+| A long `description` (over 8 lines or 200 characters) | contract | Purpose, rules, and UI explanation belong to UC / REQ. A contract holds a one-line `summary` and short notes (an `x-*` under an operation is no longer a warning — the closed key set above rejects it) |
+| A `DEFERRED.md` row older than 30 days | DEFERRED | A finding that has waited this long is decided one way or the other: promote it to a machine check or resolve it |
+| Three or more `DEFERRED.md` rows naming the same `対象`, or a `対象` path that does not exist relative to the host root | DEFERRED | Recurrence is the signal that a machine check is worth writing; a vanished target means the row is stale (delete it if resolved) |
 | A UC `active` with no `contract.yaml` | UC | Declare zero boundaries (`operations: {}` + `x-no-boundary`) rather than omitting the file |
 | A UC whose exception sweep derives cases but whose contract has no `errors` (a 導出 cell starting with `なし` / `—` / `-`, reason or not, counts as no derivation) | contract | The failure path has no shape at the boundary |
 | `PRD.md` present, singletons missing | docs root | The old layout's remains; `/docs-migrate` |

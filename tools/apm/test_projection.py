@@ -43,9 +43,8 @@ class Projection(unittest.TestCase):
 
     def test_model_tiers_are_mapped_without_agent_name_tables(self):
         expected = {
-            'domain-definer': ('opus', 'gpt-6-astra', 'high'),
-            'requirement-definer': ('sonnet', 'gpt-5.6-luna', 'high'),
-            'committer': ('haiku', 'gpt-5.6-luna', 'low'),
+            'spec-author': ('opus', 'gpt-6-astra', 'high'),
+            'implementer': ('sonnet', 'gpt-5.6-luna', 'high'),
         }
         self.run_projection('claude', ('develop-core',))
         self.run_projection('cursor', ('develop-core',))
@@ -65,19 +64,11 @@ class Projection(unittest.TestCase):
                 self.assertNotIn(name, text)
 
     def test_all_agent_tier_assignments(self):
+        # light は現在空（該当する develop エージェントが無い）。tier 自体は対応表に残る。
         expected_develop = {
-            'top': {
-                'domain-definer', 'usecase-definer', 'db-designer',
-                'structure-oracle', 'slice-reviewer', 'slice-attacker',
-                'system-attacker',
-            },
-            'mid': {
-                'requirement-definer', 'contract-author', 'test-designer',
-                'adr-writer', 'backend-logic-implementer',
-                'frontend-logic-implementer', 'frontend-ui-implementer',
-                'skeleton-runner',
-            },
-            'light': {'committer'},
+            'top': {'spec-author', 'reviewer', 'attacker'},
+            'mid': {'test-author', 'implementer'},
+            'light': set(),
         }
         actual = {tier: set() for tier in expected_develop}
         develop_root = ROOT / 'packages/develop-core/.apm/agents/develop'
@@ -99,7 +90,7 @@ class Projection(unittest.TestCase):
         self.assertFalse(any('manga' in name for name in self.snapshot()))
 
     def test_handwritten_collision_untouched(self):
-        custom = self.host / '.codex/agents/domain-definer.toml'
+        custom = self.host / '.codex/agents/spec-author.toml'
         custom.parent.mkdir(parents=True)
         custom.write_text('handwritten')
         first = self.snapshot()
@@ -108,7 +99,7 @@ class Projection(unittest.TestCase):
 
     def test_modified_generated_file_untouched(self):
         self.run_projection()
-        custom = self.host / '.codex/agents/domain-definer.toml'
+        custom = self.host / '.codex/agents/spec-author.toml'
         custom.write_text(custom.read_text() + '\n# personal change\n')
         first = self.snapshot()
         self.run_projection(packages=('grilling',), success=False)

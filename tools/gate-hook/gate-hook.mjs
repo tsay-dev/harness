@@ -24,25 +24,35 @@
 //    - stdin が解釈できない等の内部エラー → 許可（exit 0）。フック自身の不具合で
 //      セッションを壊さない（ゲートは spec-lint gate と §2 自己確認が二重に守る）。
 //
+//  却下ログ:
+//    ゲート判定に達した書き込み（docs / provider dir / --exclude / --code 非マッチを除く）
+//    は結果を問わず 1 行ずつ .harness-gate/log.jsonl に記録する（gate-log.mjs）。
+//    母数＝ゲートされた書き込み、なので「ブロック率」がそのまま読める。
+//    reason 語彙: misconfig | no-goals | no-active-phase | uc-not-active | req-draft |
+//                 contract-missing | contract-not-fixed | ok
+//
 //  設定はフックコマンドの引数で渡す（設定ファイルを増やさない。submodule 配置でも
 //  取り込み先の settings.local.json に閉じる）:
 //    node tools/gate-hook/gate-hook.mjs --code 'src/**' [--code ...]
-//         [--exclude 'skeleton/**' ...] [--docs docs]
+//         [--exclude 'skeleton/**' ...] [--docs docs] [--log .harness-gate/log.jsonl]
 //
 //  使い方・設置手順・制約は同梱 README.md を参照。
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { appendLog, defaultLogPath } from "./gate-log.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
 
 function parseArgs(argv) {
-	const opts = { code: [], exclude: [], docs: "docs" };
+	//  log は root 確定後に既定値を解決する（null = 既定）
+	const opts = { code: [], exclude: [], docs: "docs", log: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--code") opts.code.push(argv[++i]);
 		else if (a === "--exclude") opts.exclude.push(argv[++i]);
 		else if (a === "--docs") opts.docs = argv[++i];
+		else if (a === "--log") opts.log = argv[++i];
 	}
 	return opts;
 }
@@ -128,8 +138,27 @@ function contractStatus(dir) {
 
 //  ---- 本体 ----------------------------------------------------------------
 
-function block(lines) {
+//  判定 1 件をログへ（ctx: logPath / session / target / uc / startedAt）
+function log(decision, reason, ctx) {
+	appendLog(ctx.logPath, {
+		ts: new Date().toISOString(),
+		hook: "gate-hook",
+		event: "PreToolUse",
+		session: ctx.session ?? null,
+		decision,
+		reason,
+		target: ctx.target ?? null,
+		uc: ctx.uc ?? null,
+		round: null,
+		failures: null,
+		ms: Date.now() - ctx.startedAt,
+	});
+}
+
+function block(reason, lines, ctx) {
 	//  exit 2: PreToolUse のブロック。stderr がそのまま AI に差し戻される。
+	//  ログを先に書く（stderr / exit の後には何も実行されない）。
+	log("block", reason, ctx);
 	process.stderr.write(
 		[
 			"[gate-hook] 実装着手ゲート（develop skill §2）によりこの書き込みをブロックしました。",
@@ -141,68 +170,98 @@ function block(lines) {
 }
 
 function main() {
+	const startedAt = Date.now();
 	const opts = parseArgs(process.argv.slice(2));
+
+	//  stdin は先に読むが、解釈できなくても設置ミスの警告は出す（root / session を取るためだけに読む）
+	let payload = null;
+	try {
+		payload = JSON.parse(readFileSync(0, "utf8"));
+	} catch {
+		payload = null;
+	}
+
+	const root = process.env.CLAUDE_PROJECT_DIR || payload?.cwd || process.cwd();
+	const logPath = opts.log ? resolve(root, opts.log) : defaultLogPath(root);
+	const ctx = { logPath, session: payload?.session_id ?? null, target: null, uc: null, startedAt };
+
 	if (opts.code.length === 0) {
 		//  有効化したのに対象 glob が無いのは設置ミス。ブロックはせず人間にだけ警告
-		//  （exit 1: 非ブロッキングエラー。stderr はユーザー向け表示に載る）。
+		//  （exit 1: 非ブロッキングエラー。stderr はユーザー向け表示に載る）。設置ミスも記録する。
+		log("skip", "misconfig", ctx);
 		process.stderr.write(
 			"[gate-hook] --code が未指定のため何もゲートしません（settings の hook コマンドに --code 'src/**' 等を追加してください）\n",
 		);
 		process.exit(1);
 	}
 
-	let payload;
-	try {
-		payload = JSON.parse(readFileSync(0, "utf8"));
-	} catch {
-		process.exit(0); //  入力が解釈できない → フック都合でセッションを壊さない
-	}
+	if (!payload || typeof payload !== "object") process.exit(0); //  入力が解釈できない → フック都合でセッションを壊さない
 
 	const input = payload.tool_input || {};
 	const target = input.file_path || input.notebook_path;
 	if (!target) process.exit(0);
 
-	const root = process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
 	const abs = isAbsolute(target) ? target : resolve(root, target);
 	const rel = relative(root, abs).split(sep).join("/");
 	if (rel.startsWith("..")) process.exit(0); //  プロジェクト外（scratchpad 等）
 
-	//  SSOT・harness 自身・trace 設定は常に通す（ゲートを通すための行為を塞がない）
+	//  SSOT・harness 自身・trace 設定・ゲートのログ置き場は常に通す（ゲートを通すための行為を塞がない）。
+	//  ここまでの exit 0 はゲート判定に達していないので記録しない（母数＝ゲートされた書き込み）。
 	const docsDir = opts.docs.replace(/\/+$/, "");
 	if (rel === docsDir || rel.startsWith(docsDir + "/")) process.exit(0);
-	if ([".claude/", ".agents/", ".codex/", ".cursor/", ".grok/", "apm_modules/", ".harness/"].some(prefix => rel.startsWith(prefix))) process.exit(0);
+	if ([".claude/", ".agents/", ".codex/", ".cursor/", ".grok/", "apm_modules/", ".harness/", ".harness-gate/"].some(prefix => rel.startsWith(prefix))) process.exit(0);
 	if (rel === "traceconfig.json" || rel === ".trace-baseline.json") process.exit(0);
 
 	if (matchesAny(rel, opts.exclude)) process.exit(0);
 	if (!matchesAny(rel, opts.code)) process.exit(0);
 
 	//  ---- ここから実装コードへの書き込み: UC.md の工程で §2 を検証（fail-closed） ----
+	ctx.target = rel;
 
 	const goalsRoot = join(root, docsDir, "goals");
 	if (!existsSync(goalsRoot))
-		block([`対象: ${rel}`, `${docsDir}/goals（GOAL → UC → REQ の SSOT）が存在しない。§2 判定条件 1 を満たせません。`]);
+		block("no-goals", [`対象: ${rel}`, `${docsDir}/goals（GOAL → UC → REQ の SSOT）が存在しない。§2 判定条件 1 を満たせません。`], ctx);
 
 	const active = collectUcs(goalsRoot).filter((u) => u.phase && ACTIVE_PHASES.has(u.phase));
+	ctx.uc = active.map((u) => u.id);
 	if (active.length === 0)
-		block([
-			`対象: ${rel}`,
-			`phase=実装（または 検証）の UC が ${docsDir}/goals 配下にありません。`,
-			"実装に入る UC の UC / REQ を active、契約を fixed にしたうえで、orchestrator が UC.md の phase: を「実装」へ更新してから書くこと。",
-		]);
+		block(
+			"no-active-phase",
+			[
+				`対象: ${rel}`,
+				`phase=実装（または 検証）の UC が ${docsDir}/goals 配下にありません。`,
+				"実装に入る UC の UC / REQ を active、契約を fixed にしたうえで、orchestrator が UC.md の phase: を「実装」へ更新してから書くこと。",
+			],
+			ctx,
+		);
 
+	//  複数の未充足があっても reason は最初に見つかった種類 1 つ（ログの語彙を閉じる）
 	const problems = [];
+	let reason = null;
+	const found = (r) => (reason ??= r);
 	for (const u of active) {
-		if (u.status !== "active") problems.push(`${u.id}: UC が active でない（現在 ${u.status ?? "不明"}）→ Phase 1`);
+		if (u.status !== "active") {
+			found("uc-not-active");
+			problems.push(`${u.id}: UC が active でない（現在 ${u.status ?? "不明"}）→ Phase 1`);
+		}
 		const drafts = draftReqs(u.dir);
-		if (drafts.length > 0) problems.push(`${u.id}: draft の REQ がある（${drafts.join(", ")}）→ Phase 1`);
+		if (drafts.length > 0) {
+			found("req-draft");
+			problems.push(`${u.id}: draft の REQ がある（${drafts.join(", ")}）→ Phase 1`);
+		}
 		const contract = contractStatus(u.dir);
-		if (!contract) problems.push(`${u.id}: 契約（${basename(u.dir)}/contract.yaml）が存在しない → Phase 3`);
-		else if (contract.status !== "fixed")
-			problems.push(`${u.id}: 契約が fixed でない（現在 ${contract.status ?? "不明"}）→ Phase 3（fixed 化は structure-oracle 不整合ゼロ後に orchestrator が行う）`);
+		if (!contract) {
+			found("contract-missing");
+			problems.push(`${u.id}: 契約（${basename(u.dir)}/contract.yaml）が存在しない → Phase 3`);
+		} else if (contract.status !== "fixed") {
+			found("contract-not-fixed");
+			problems.push(`${u.id}: 契約が fixed でない（現在 ${contract.status ?? "不明"}）→ 契約を先に fixed にする（spec-lint が緑で、reviewer を起動した場合は阻止ゼロの後に orchestrator が行う）`);
+		}
 	}
 	if (problems.length > 0)
-		block([`対象: ${rel}`, `実装中（phase=実装|検証）の UC に未充足があります:`, ...problems.map((p) => "  - " + p)]);
+		block(reason, [`対象: ${rel}`, `実装中（phase=実装|検証）の UC に未充足があります:`, ...problems.map((p) => "  - " + p)], ctx);
 
+	log("pass", "ok", ctx);
 	process.exit(0);
 }
 

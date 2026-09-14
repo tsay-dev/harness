@@ -7,8 +7,8 @@ applyTo: "**/crow3_*/**/db_design.txt"
 
 > In crow, the **single SSOT for DB design** is a text file in crow's own format, `db_design.txt`.
 > crow **generates migrations directly from this file** (the equivalent of `schema.prisma` for Prisma in TypeScript).
-> Therefore develop's DB design deliverable (the output of `db-designer`) is written **into `db_design.txt` itself**.
-> The procedure rests on develop skill §3 (where docs artifacts live) and §6 (handing over framework rules).
+> Therefore develop's DB design deliverable (the output of `implementer` in `mode: schema`) is written **into `db_design.txt` itself**.
+> The procedure rests on the develop skill's `references/playbook.md` (section *Where docs artifacts live*) and `references/bundles.md` (handing over framework rules).
 >
 > **Write the content in Japanese** (comments and any descriptive text in the file).
 
@@ -25,4 +25,4 @@ applyTo: "**/crow3_*/**/db_design.txt"
 ## Never split the SSOT (most important)
 
 - **Treat `db_design.txt` as the single SSOT; never transcribe it into a second copy such as `schema.md`.** Duplication quietly breeds inconsistency between the migrations and the design document.
-- The soundness of a DB design (normalization, boundaries, relations) cannot be refuted by machine → follow develop's **🙋 human gate** (`db-designer` stops at a draft; the orchestrator settles it on human confirmation). **The file being settled is `db_design.txt`.** If the native format has no draft/fixed status field, settlement is established by the orchestrator's human approval (do not force a status field into the file).
+- The soundness of a DB design (normalization, boundaries, relations) cannot be refuted by machine → follow develop's **🙋 human gate** (the schema implementer stops at a draft; the orchestrator settles it on human confirmation). **The file being settled is `db_design.txt`.** If the native format has no draft/fixed status field, settlement is established by the orchestrator's human approval (do not force a status field into the file).

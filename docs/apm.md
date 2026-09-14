@@ -24,7 +24,7 @@ APM 0.30.0 の実装・最小 package で、instructions は `.apm/instructions/
 
 | 旧正本 | 新正本 |
 | --- | --- |
-| `.claude/skills/{develop,develop-light,attack,docs-migrate}/` | `packages/develop-core/.apm/skills/` |
+| `.claude/skills/{develop,attack,docs-migrate}/` | `packages/develop-core/.apm/skills/`（`develop-light` は 2026-09 に本線へ吸収、ADR-0033） |
 | `.claude/agents/develop/` | `packages/develop-core/.apm/agents/develop/` |
 | `.claude/rules/develop/{docs,comments}.md` | `packages/develop-core/.apm/instructions/` |
 | `.claude/rules/develop/web/next/**` | `packages/rules-next/.apm/instructions/` |
@@ -77,7 +77,7 @@ GitHub 例はこの構成が公開された版に対して有効。ref を固定
 
 ### 出力と常駐ゼロ
 
-APM 0.30.0 の install では skills は原則 `.agents/skills/` に共有配置され、Claude などの target に必要な発見経路も生成される。agents の出力は Claude `.claude/agents/`、Codex `.codex/agents/`、Cursor `.cursor/agents/`、Grok Build `.grok/agents/`。配布名に package 名が付くことがあるため、元の短いファイル名を展開後の識別子だと決めつけない。
+APM 0.30.0 の install では skills はフォルダ単位（`SKILL.md` と同梱の `references/*.md`）で原則 `.agents/skills/` に共有配置され、Claude などの target に必要な発見経路も生成される。legacy 射影（`init.sh`）も `references/` を出力する。agents の出力は Claude `.claude/agents/`、Codex `.codex/agents/`、Cursor `.cursor/agents/`、Grok Build `.grok/agents/`。配布名に package 名が付くことがあるため、元の短いファイル名を展開後の識別子だと決めつけない。
 
 Claude / Cursor 向けには scoped instructions をそれぞれの形式へ展開する。Codex / Grok Build では install だけで root `AGENTS.md` は作られず、installed instructions は `apm_modules/` に残る。skill 起動時に選択済み package の `applyTo` とパスを調べ、担当者が書くファイルに合う葉だけを渡す。本文を常駐させるルーターは作らない。
 
@@ -112,7 +112,11 @@ APM packages は tools / templates を含まない。develop の検証・文書�
 # 導入後、消費プロジェクト直下から実行する例
 node .harness/tools/spec-lint/spec-lint.mjs validate
 node .harness/tools/trace-check/trace-check.mjs
+node .harness/tools/contract-run/contract-run.mjs          # traceconfig.json commands.contract_adapter を宣言したホストのみ実行される
+node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計（降格判断のデータ）
 ```
+
+Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（スニペットは `tools/gate-hook/README.md`）。
 
 各手続きは冒頭で `HARNESS_ROOT` を tools / templates を持つ checkout の絶対パスとして解決する。消費側の通常配置は `.harness/`、このリポジトリ自身では root。`.harness/tools/` は実行アセット、`.harness/templates/` は書式の参照先である。checkout 自体は全ソースを含み得るが、その存在だけで各 provider に全パッケージを展開しない。**この checkout の `init.sh` は APM consumer に実行しない。** フック・CI・ブランチ保護はホストが明示して設置する。未導入アセットが必要な工程では、存在を仮定してコマンドを捏造しない。
 
@@ -151,11 +155,12 @@ APM を使わない環境では `init.sh` を選択パッケージの中立ソ�
 
 ```bash
 python3 tools/apm/test_projection.py
+node --test "tools/**/*.test.mjs"
 node tools/spec-lint/spec-lint.mjs validate
 node tools/trace-check/trace-check.mjs
 ```
 
-互換生成の 9 テスト、spec-lint、trace-check は通過した。以下の native APM install は別の fresh consumer で確認する。
+互換生成のテスト、tools のユニットテスト（spec-lint / gate-hook / stop-gate / contract-run）、spec-lint、trace-check は通過した。以下の native APM install は別の fresh consumer で確認する。
 
 公開前はローカルパッケージで fresh consumer を作れる。絶対パスを作業環境の checkout に置き換える。
 
@@ -184,7 +189,7 @@ APM 0.30.0、公開前のローカル package を絶対パス依存にした fre
 | --- | --- |
 | 9 パッケージそれぞれを Codex へ単独 install | 9 件すべて exit 0 |
 | develop-core + rules-next を Claude / Codex / Cursor / Grok Build へ install | 4 件すべて exit 0。他スタック・翻訳の混入なし |
-| 9 パッケージを明示して同時に Codex へ install | exit 0。28 agents、名前衝突なし |
+| 9 パッケージを明示して同時に Codex へ install | exit 0。28 agents、名前衝突なし（2026-09 の develop agent 統合後は 17 = develop 5 + 他 12、ADR-0033） |
 | 出力の Markdown 参照 | 書換済み URL と上記 Codex source-resolution 規約を含め、未解決 0 |
 | 配布対象外と常駐本文 | tools / templates 同梱なし。root AGENTS.md / CLAUDE.md 生成なし |
 | `x-model-tier` の互換性 | APM 0.30.0 の develop-core → Codex install は exit 0。中立値は `apm_modules/` に保持され、生成 TOML へ未知 field として漏れない |

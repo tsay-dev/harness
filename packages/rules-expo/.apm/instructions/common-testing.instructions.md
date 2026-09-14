@@ -29,7 +29,24 @@ That is a defect in the configuration, not in what you are testing, so do not bu
 
 ---
 
-## 2. One command to run
+## 2. Calling an operation from a test (operation → entry)
+
+A contract-conformance test calls the operation **by the entry the contract implies**, never by a symbol it learned from the implementation.
+`test-author` and `implementer` each derive the entry from `contract.yaml` and the table below — never from each other
+(the tests may exist before the implementation, and the other way round). The layers are those of [frontend/dataflow.md](frontend-dataflow.instructions.md); module locations are the host's (`CLAUDE.md`).
+
+| Contract (`contract.yaml`) | File the test imports | Export it calls |
+| --- | --- | --- |
+| `transport: http` / `sdk` (outbound), operation `fetchUser` | the feature's API module — the file the query layer's `queryFn` / `mutationFn` import from | the function named **exactly as the operation** (`fetchUser`), called with `examples.*.request`; the network is faked at the boundary |
+| `transport: local-store`, operation `saveAppearance` | the feature's persistence module (dataflow §7) | the function named exactly as the operation (`saveAppearance`); the storage adapter is faked |
+| `transport: device` / `deeplink` / `push` | the module wrapping that OS capability or inbound entry | the function named exactly as the operation, with the native module mocked |
+| any operation, through the host's `commands.contract_adapter` (`traceconfig.json`) | none — the test drives the adapter in-process by operation name and example; no implementation symbol appears in test code | — |
+
+If the implementation put the entry elsewhere, the implementation moves — tests are derived from the contract (R-801).
+
+---
+
+## 3. One command to run
 
 - **A single command must run everything, with the exit code deciding red or green**
 - **If none is installed, installing it is the gate to starting.** Pushing implementation forward with no runner means
@@ -38,12 +55,12 @@ That is a defect in the configuration, not in what you are testing, so do not bu
 - **Scoped execution (the UC tag)**: in every test, make the outermost `describe` read
   `describe('UC-012 <UC title>', ...)`, so it can be selected mechanically by the UC ID
   (the same key as the UC directory name under `docs/goals/`). Run the selection with `jest -t "UC-012"`.
-  **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by UC ID
+  **When to run a selection vs the whole default suite is authoritative in the develop skill's `references/playbook.md`, section *Test-run granularity*.** This leaf defines only how to stamp and select by UC ID
 - **Requirement coverage**: every test names exactly one declared partition class with `// @covers REQ-045#class` as the first line of its body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
 
 ---
 
-## 3. What "deterministic" means in React Native
+## 4. What "deterministic" means in React Native
 
 The sources of non-determinism are not only real time, randomness, and the network. RN has its own wobbles.
 
@@ -59,15 +76,15 @@ Real-time waiting is not just slow — it always produces a flake that fails dep
 
 ---
 
-## 4. Split suites by what execution requires
+## 5. Split suites by what execution requires
 
 Rather than picking test-level names (unit / integration / system) first and classifying by them,
 split by **what has to be started for that test to run**. This criterion needs no judgment, is decided
-mechanically, and coincides with "may this be mixed into §2's red-green loop?"
+mechanically, and coincides with "may this be mixed into §3's red-green loop?"
 
 | Suite | The criterion (this alone decides it) | Location (the default) | How often it runs |
 | --- | --- | --- | --- |
-| **Default** (unit) | starts no external environment (mocks only at the boundary) | as-is (mirroring the target structure, `__tests__/`) | the suite the red-green loop draws from (selection during a round; whole run at a boundary — develop skill §4) |
+| **Default** (unit) | starts no external environment (mocks only at the boundary) | as-is (mirroring the target structure, `__tests__/`) | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
 | **Integration** | **connects to a real API or a real service** | `tests/integration/` | at a boundary only (before returning, before commit, in CI) |
 | **System** | **starts a simulator, a real device, or a browser** | `e2e/` (following the Maestro / Detox convention is fine) | outside the phases (opt-in) |
 
