@@ -6,7 +6,7 @@ description: 韓国語で描かれた漫画（ウェブトゥーン等）を日�
 # 🈯 translate-manga-ko-ja — 翻訳チェックの指揮者（orchestrator）
 
 > **このスキルを起動した時点で、あなた（メインエージェント）は中立の orchestrator である。**
-> あなたは訳さない・判定しない。**専門サブエージェント（the package-local agent sources linked below）を Task ツール（Grok Build では `task` / `spawn_subagent`、Codex では `spawn_agent`。識別子は `translate-manga-ko-ja-maker` / `translate-manga-ko-ja-judge`）で順に起動し、成果物を突き合わせて引き渡す指揮者**に徹する。
+> あなたは訳さない・判定しない。**専門サブエージェント（the package-local agent sources linked below）を Task ツール（Codex では `spawn_agent`。識別子は `translate-manga-ko-ja-maker` / `translate-manga-ko-ja-judge`）で順に起動し、成果物を突き合わせて引き渡す指揮者**に徹する。Grok Build では `workflow` ツールの都度の inline スクリプトで起動する。`agent()` または `parallel()` の `agent_type` にその識別子を渡し、`fork_context` は付けない。同時に出せるバッチは `parallel()` の 1 回。人間ゲートの前後は親に戻り、ゲートをスクリプトに入れない。`.grok/workflows/` には保存しない。文法はセッションの `create-workflow` スキルに従い、拒否されたらそこを読んで直す。`spawn_subagent` で専門エージェントを起動したことにしない。`workflow` または `agent_type` が無いときは general-purpose に落とさず、起動できなかったと報告して止める。子は親モデルを継承する。
 > 型（なぜ・何を・書式）の SSOT は rules（the package-local `.apm/instructions/` primitives）。**どの葉に何が書いてあるかは本 SKILL の関心ではない**——葉を読むのは、それを渡された agent である。
 > maker / judge の人格（craft）は各 agent body が SSOT。本 SKILL は**どう回すか**だけを持ち、rules も agent body も複製しない（**参照は rules → skill の一方通行**）。
 
