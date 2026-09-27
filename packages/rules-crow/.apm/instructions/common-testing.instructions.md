@@ -12,7 +12,7 @@ applyTo: "**/crow3_*/tests/**,**/crow3_*/phpunit.xml*"
 >
 > This document defines **what to observe when writing tests in crow**.
 > Layer-specific style lives in [backend/testing.md](backend-testing.instructions.md).
-> **No frontend testing leaf is placed for now** (develop does not file FE tests).
+> **No frontend unit-testing leaf is placed** (develop files no FE unit tests). The system suite — the one scenario test per use case that starts a browser — is [system-testing.md](system-testing.instructions.md).
 > **Never copy the common rules into a layer leaf** (the SSOT is here, in one place).
 >
 > **Write test names and comments in Japanese.**
@@ -74,7 +74,7 @@ mechanically, and coincides with "may this be mixed into the red-green loop?"
 | --- | --- | --- |
 | **Default** (unit) | starts no external environment (mocks only at the boundary) | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
 | **Integration** | **connects to a real DB or a real service** | at a boundary only (before returning, before commit, in CI) |
-| **System** | **starts a browser or a real device** | outside the phases (opt-in) |
+| **System** | **starts a browser or a real device** | the scenario tests (one per UC); the selection by UC in the FE-wiring round, whole once at the boundary (terminal list where `commands.system` is declared, CI) — [system-testing.md](system-testing.instructions.md) |
 
 Locations and run commands are defined by [backend/testing.md](backend-testing.instructions.md).
 
@@ -87,14 +87,12 @@ Locations and run commands are defined by [backend/testing.md](backend-testing.i
 
 The backend's contract-conformance tests (inputs/outputs, pure functions — [backend/testing.md](backend-testing.instructions.md)) start no external environment, so they are **not integration tests**. By the criterion above they fall into the default suite.
 
-**They must never be moved into the integration suite.** develop's Phase4 machine oracle is carried, for now, by the **BE tests** (FE tests are not filed).
+**They must never be moved into the integration suite.** develop's Phase4 red-green loop is carried by the **BE tests** (FE unit tests are not filed; the scenario test closes at the boundary, not in the loop).
 The moment they leave the red-green loop, there is no means left of catching an integration defect in Phase4.
 
-### The system suite is "a place that merely exists"
+### The system suite holds exactly the scenario tests
 
-**Browser-driven system tests are not part of develop's phases.** A project that judges them necessary adds them itself, and
-this document does not cover how to write them (tool choice, scenario construction). It defines only **the location and "do not mix them into the default suite"**.
-An empty folder there is not a gap.
+One scenario test per use case, the executable projection of `UC.md`'s main scenario (`docs.instructions.md` R-1106–R-1108). How to write them (Playwright against the served pages, the locator ladder, the pending marker) is [system-testing.md](system-testing.instructions.md); this document defines only **the location (`e2e/`, outside `tests/`) and "do not mix them into the default suite"**. An empty folder there is a C15 violation for every human-facing active UC, not a gap to leave.
 
 ## Calling an operation from a test (operation → entry)
 

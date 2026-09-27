@@ -10,6 +10,7 @@
 //    2. trace-check                   トレーサビリティ（<root>/traceconfig.json がある時だけ）
 //    3. contract-run                  契約例の実行検査（commands.contract_adapter 宣言時だけ）
 //    4. commands.typecheck → lint → test（traceconfig.json の commands ブロックから。無い鍵は skip）
+//    5. commands.system                シナリオテスト（system suite）全件。宣言時だけ、4 が全部通ったあとに 1 回（ADR-0035）
 //  コマンドは traceconfig.json に宣言されたものしか走らせない。推測・発明はしない。
 //
 //  Stop フックの入出力（Claude Code の契約）:
@@ -169,10 +170,11 @@ function runSuite(root, opts, toolsDir, configPath) {
 	if (commands.contract_adapter) run("contract-run", `node ${q(join(toolsDir, "contract-run", "contract-run.mjs"))}`);
 	else skip("contract-run", "commands.contract_adapter 未宣言 — 契約の実行検査は行われていない");
 
-	//  4: 宣言されたコマンドを順に。最初の失敗で止める（型が通らないのに test を回しても意味がない）
-	for (const k of ["typecheck", "lint", "test"]) {
+	//  4–5: 宣言されたコマンドを順に。最初の失敗で止める（型が通らないのに test を回しても意味がない。
+	//  system はブラウザ / シミュレータを起動する最も重い検査なので最後に置き、default suite が赤なら走らせない）
+	for (const k of ["typecheck", "lint", "test", "system"]) {
 		if (!commands[k]) {
-			skip(k, `commands.${k} 未宣言`);
+			skip(k, k === "system" ? "commands.system 未宣言 — シナリオテストは走っていない（CI に任せるなら宣言しない）" : `commands.${k} 未宣言`);
 			continue;
 		}
 		if (!run(k, commands[k])) break;

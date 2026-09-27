@@ -12,7 +12,7 @@ applyTo: "**/*Tests.swift,**/*Test.swift,**/*Tests/**,**/*Spec.swift"
 > make it deterministic; coverage is a signal, not a target — these are common to all development, so they are not restated here; follow them there.
 >
 > This document holds only **the wiring that makes those principles hold in SwiftUI iOS**.
-> **No frontend (View) testing leaf is placed for now** (develop does not file FE tests).
+> **No frontend (View) unit-testing leaf is placed** (develop files no FE unit tests). The system suite — the one XCUITest scenario per use case that starts a simulator — is [system-testing.md](system-testing.instructions.md).
 > Notation is [common/coding.md](common-coding.instructions.md). Where the layers live is [frontend/dataflow.md](frontend-dataflow.instructions.md).
 > **Who runs the tests you wrote, and when** (never during a concurrent section; consolidated into one run on one simulator) is authoritative in
 > [test-execution.md](common-test-execution.instructions.md). This document covers **what to write and which suite it goes in**.
@@ -73,7 +73,7 @@ On this stack, the center of the deterministically drivable red-green loop is th
 | --- | --- | --- |
 | Primary | **UseCase** | Inject a **fake of the protocol** for the Repository. Exercise success, failure, empty, permission, and boundary |
 | Next | **ViewModel** | Inject a fake UseCase and verify only the screen state and the Router calls |
-| Not done (by default) | **View snapshots / XCUITest** | They tend to presuppose a simulator. Never mix them into the default suite |
+| Separate suite | **XCUITest scenario** (one per UC) | Presupposes a simulator: the system suite, never the default one — [system-testing.md](system-testing.instructions.md). View snapshots are not filed |
 
 - **Mock only at the boundary** (the Repository, the clock, randomness, and so on). Never mock a whole Domain Entity
 - Never let a Data-layer `URLSession` implementation hit the real network in the default suite.
@@ -117,7 +117,7 @@ split by **what has to be started for that test to run**.
 | --- | --- | --- | --- |
 | **Default** (unit) | starts neither a simulator nor a real API (mocks only at the boundary) | mirroring the target, `Tests/`, and so on | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
 | **Integration** | **connects to a real API or a real service** | `Tests/Integration/`, and so on | at a boundary only |
-| **System** | **starts a simulator or a real device** (XCUITest, snapshots, and so on) | `UITests/` / `e2e/`, and so on | outside the phases (opt-in) |
+| **System** | **starts a simulator or a real device** (XCUITest) | `UITests/` (a separate test target) | the scenario tests (one per UC); the selection by UC class in the FE-wiring round, whole once at the boundary (terminal list where `commands.system` is declared, CI) — [system-testing.md](system-testing.instructions.md) |
 
 - **Separate by folder (or a separate test target).** Relying on names alone lets things leak into the default suite
 - **Exclude the integration and system locations from the default suite's discovery**
@@ -125,9 +125,7 @@ split by **what has to be started for that test to run**.
   "Starts nothing" here means **the test itself does not start UI, a real device, or a real service**; it does not forbid
   a setup where the runner requires a simulator destination (an app target's `xcodebuild test`).
   How runs are driven in that setup is [test-execution.md](common-test-execution.instructions.md)
-- **The system suite is not part of develop's phases** (Phase4's machine oracle does not file FE tests for now).
-  A project that judges it necessary adds it itself, and this document does not cover how to write it.
-  All it defines is **the location and "never mix it into the default suite"**
+- **The system suite holds exactly the scenario tests** (`docs.instructions.md` R-1106–R-1108). How to write them is [system-testing.md](system-testing.instructions.md); this document defines only **the location and "never mix it into the default suite"**
 
 ### Contract-conformance and UseCase tests belong to the default suite
 

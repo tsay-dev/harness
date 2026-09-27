@@ -37,6 +37,9 @@
 //         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは reviewer の判断に残る）
 //    C14  すべての active な REQ / BR がソースまたはスキーマ源の 1 ユニット以上に @implements されているか
 //         （C5 の逆方向。孤児参照ではなく「注釈忘れ」。source 未設定の docs-only ホストでは判定しない）
+//    C15  アクター種別が人間（docs.actors の表で 種別 が「人間」で始まる）の active な UC に、system suite
+//         （traceconfig の tests.system）の @scenario UC-nnn を持つシナリオテストが 1 件以上あるか。
+//         @scenario が未定義の UC を指す場合も違反。tests.system 未設定なら判定しない（ADR-0035）
 //
 //  使い方:
 //    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（baseline との差分で判定）
@@ -134,7 +137,7 @@ function definedInDir(dir) {
 class Corpus {
 	constructor(cfg) {
 		this.goals = {}; //  id -> { status, dir }
-		this.ucs = {}; //  id -> { goal, status, phase, dir, goalDir, file }
+		this.ucs = {}; //  id -> { goal, actor, status, phase, dir, goalDir, file }
 		this.reqs = {}; //  id -> { uc, status, dir, goalDir, file, hasPolicy, classes }
 		this.pathViolations = [];
 		const goalsDir = p(cfg, "docs.goals_dir");
@@ -173,7 +176,7 @@ class Corpus {
 				if (ufm.goal !== dirGoal)
 					this.pathViolations.push(`${r(ufile)}: goal (${ufm.goal}) が配置ディレクトリ (${dirGoal}) と一致しない`);
 				const uid = ufm.id || dirUc;
-				this.ucs[uid] = { goal: ufm.goal, status: ufm.status || "active", phase: ufm.phase || "", dir: udir, goalDir: gdir, file: ufile };
+				this.ucs[uid] = { goal: ufm.goal, actor: ufm.actor || "", status: ufm.status || "active", phase: ufm.phase || "", dir: udir, goalDir: gdir, file: ufile };
 
 				for (const f of listFiles(udir, (n) => /^REQ-\d+\.md$/.test(n))) {
 					const fm = frontmatter(f);
@@ -318,6 +321,36 @@ function collectTestCoverage(cfg, coversRe) {
 	}
 	return coverage;
 }
+
+//  system suite（tests.system）の @scenario UC-nnn を拾う: uc -> [検証箇所]。tests.system 未設定なら null（C15 は判定しない）
+function collectScenarioCoverage(cfg) {
+	const sec = cfg.tests?.system;
+	if (!sec || !(sec.dirs || []).length) return null;
+	const re = new RegExp(cfg.scenario_pattern || "@scenario\\s+(UC-\\d{3})", "g");
+	const found = {};
+	for (const path of (sec.dirs || []).flatMap((d) => walk(join(cfg._root, d), sec.extensions || []))) {
+		const lines = read(path).split(/\r?\n/);
+		lines.forEach((line, i) => {
+			for (const m of line.matchAll(re)) (found[m[1]] ||= []).push(`${basename(path)}:${i + 1}`);
+		});
+	}
+	return found;
+}
+
+//  docs.actors の表から ACT-nn -> 種別 を読む（人間かどうかは 種別 が「人間」で始まるかで決める）。
+//  表が無い、または UC の actor が表に無い場合は「人間」とみなす（存在の要求を外す根拠が無いため）
+function actorKinds(cfg) {
+	const kinds = {};
+	const file = cfg.docs?.actors ? join(cfg._root, cfg.docs.actors) : null;
+	if (!file || !existsSync(file)) return kinds;
+	for (const line of read(file).split(/\r?\n/)) {
+		const cells = line.split("|").map((c) => c.trim());
+		if (cells.length < 4 || !/^ACT-\d+$/.test(cells[1])) continue;
+		kinds[cells[1]] = cells[3];
+	}
+	return kinds;
+}
+const isHumanActor = (kinds, actor) => !(actor in kinds) || kinds[actor].startsWith("人間");
 
 //  implements_pattern の捕捉 1 は「ID の並び」でもよい（`@implements UC-001, REQ-009 / BR-015`）。区切りで割って 1 件ずつ数える
 function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source")) {
@@ -553,6 +586,22 @@ function runChecks(cfg) {
 				failures.push(`[C14] ${br} を @implements する実装が存在しない（active な規則はソースまたはスキーマ源のユニットに注釈すること）`);
 	}
 
+	//  C15: 人間アクターの active な UC はシナリオテスト（system suite の @scenario UC-nnn）を 1 件以上持つ。
+	//  1 UC 1 本・正常系のみが規律（ADR-0035）だが、機械が見るのは存在と参照先の実在だけ（本数の上限は reviewer）。
+	//  tests.system 未設定なら判定しない
+	const scenarios = collectScenarioCoverage(cfg);
+	if (scenarios) {
+		const kinds = actorKinds(cfg);
+		for (const uid of Object.keys(corpus.ucs).sort()) {
+			const u = corpus.ucs[uid];
+			if (u.status !== "active" || !isHumanActor(kinds, u.actor)) continue;
+			if (!scenarios[uid])
+				failures.push(`[C15] ${uid} (active、アクター ${u.actor || "未記載"}) にシナリオテストが存在しない（system suite に @scenario ${uid} を持つテストを 1 本置く）`);
+		}
+		for (const uid of Object.keys(scenarios).sort())
+			if (!(uid in corpus.ucs)) failures.push(`[C15] ${scenarios[uid].join(", ")}: 未定義の ${uid} を @scenario している`);
+	}
+
 	//  C12: 重複 ID（採番衝突）
 	for (const [ident, files] of Object.entries(collectDefinitions(cfg)).sort())
 		if (files.length > 1) failures.push(`[C12] ${ident} が複数箇所で定義されている（${files.map((f) => rel(cfg, f)).join(", ")}）`);
@@ -565,14 +614,15 @@ function runChecks(cfg) {
 	lines.push(
 		`  GOAL: ${Object.keys(corpus.goals).length} (active: ${nActiveGoals}) / UC: ${Object.keys(corpus.ucs).length}` +
 			` / REQ: ${Object.keys(corpus.reqs).length} / 分割クラス: ${nClasses} / BR: ${Object.keys(brs).length} / テスト: ${nTests}` +
-			(unannotated ? ` / テスト関数: ${unannotated.total}（@covers なし ${unannotated.missing.length} / 仕様外 ${unannotated.exempt} / 帰属なし注釈 ${unannotated.orphans.length}）` : ""),
+			(unannotated ? ` / テスト関数: ${unannotated.total}（@covers なし ${unannotated.missing.length} / 仕様外 ${unannotated.exempt} / 帰属なし注釈 ${unannotated.orphans.length}）` : "") +
+			(scenarios ? ` / シナリオテスト: ${Object.values(scenarios).reduce((n, w) => n + w.length, 0)}` : ""),
 	);
 	for (const goal of Object.keys(corpus.goals).sort()) {
 		const g = corpus.goals[goal];
 		lines.push("-".repeat(68), ` ${goal} (${basename(g.dir)}/)`);
 		for (const uid of Object.keys(corpus.ucs).sort().filter((u) => corpus.ucs[u].goalDir === g.dir)) {
 			const u = corpus.ucs[uid];
-			lines.push(`  ${uid} (${basename(u.dir)}/)${u.phase ? `  [${u.phase}]` : ""}`);
+			lines.push(`  ${uid} (${basename(u.dir)}/)${u.phase ? `  [${u.phase}]` : ""}${scenarios ? `  scenario:${scenarios[uid] ? scenarios[uid].join(", ") : "-"}` : ""}`);
 			for (const req of Object.keys(corpus.reqs).sort().filter((r) => corpus.reqs[r].dir === u.dir)) {
 				const info = corpus.reqs[req];
 				lines.push(`    ${req}  ${req in implementsMap ? "impl:o" : "impl:-"}  [${info.status}]`);

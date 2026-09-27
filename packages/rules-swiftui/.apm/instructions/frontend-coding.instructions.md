@@ -138,10 +138,10 @@ A control that is only an icon or only decoration announces nothing to VoiceOver
 | A purely decorative image | `accessibilityHidden(true)` |
 | State (selected, disabled) | express it in the accessibility state as well as in the appearance |
 
-Never use a copy of the displayed wording as an id (a wording change breaks it). When identification in tests is needed, attach a separate identifier **named for the function**.
+Never use a copy of the displayed wording as an id (a wording change breaks it). Identifiers are **derived, never invented** (ADR-0037): the control that fires a contract operation carries `.accessibilityIdentifier("<operation>")` (`"createProject"`), the input for a request field `.accessibilityIdentifier("<operation>.<field>")` (`"createProject.title"`). Visible wording — `Text`, button labels, `accessibilityLabel` — is the **glossary term** verbatim (`docs/01-glossary.md`); a new term goes to the glossary through its gate, never into the View first.
 
-> Deeper a11y guidance and an FE testing leaf are not placed for now.
-> In line with the premise that develop does not file FE tests, only the minimum line for emission is pinned here.
+> These are what VoiceOver announces and what the UC's XCUITest scenario ([system-testing.md](system-testing.instructions.md)) taps and asserts on — the scenario derives them from the same glossary and contract, so return the wording → identifier table in your report; when the two disagree, the appearance moves.
+> Deeper a11y guidance is not placed; FE unit tests are not filed.
 
 ---
 
@@ -162,4 +162,5 @@ Never use a copy of the displayed wording as an id (a wording change breaks it).
 - [ ] Will the real-device layout survive the safe area and the keyboard?
 - [ ] Does a Preview depend on a real API or `.shared`?
 - [ ] Do icon buttons and the like have an `accessibilityLabel` (or an equivalent)?
+- [ ] Is every visible term the glossary term, and every operation control / request input carrying `accessibilityIdentifier` `"<operation>"` / `"<operation>.<field>"`?
 - [ ] Are you multiplying `GeometryReader` without a reason?

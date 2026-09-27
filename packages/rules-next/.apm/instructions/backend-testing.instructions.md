@@ -12,7 +12,7 @@ applyTo: "**/*.test.ts,**/*.spec.ts,**/__tests__/**,**/vitest.config.*,**/jest.c
 > only what to try and how, per role. It never restates the common side.
 >
 > Separation of responsibilities is [backend/coding.md](backend-coding.instructions.md).
-> **FE-side tests for the read wiring (an RSC page) are not filed for now** (no frontend testing leaf is placed).
+> **FE-side unit tests for the read wiring (an RSC page) are not filed** (no frontend unit-testing leaf is placed); the page is observed end to end by the UC's scenario test ([system-testing.md](system-testing.instructions.md)).
 >
 > **Write test names and comments in Japanese.**
 

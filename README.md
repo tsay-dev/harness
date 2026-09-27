@@ -112,9 +112,9 @@ APM 0.30.0 の instruction 探索は `.apm/instructions/` 直下です。旧 sce
 
 各 agent の実行モデルは、中立な `x-model-tier`（top / mid / light）を agent source に一度だけ宣言します。provider 固有の family や version slug は adapter の tier 対応表へ分離し、agent 名の割当表を別に作りません。native APM がモデル指定を変換しない場合は、orchestrator が元 source の tier を起動時に適用します。
 
-develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契約）、`test-author`（実装を読まずに分割クラスと Red テストを書く）、`implementer`（logic / appearance / schema / probe のモード）、`reviewer`（別コンテキストの反証、read-only）、`attacker`（`/attack` 専用）。orchestrator は実装とテストを書かず、commit と ADR は skill 同梱の手順（`references/commit.md` / `adr.md`）に従って自分で行います。
+develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契約）、`test-author`（実装を読まずに書く。`track: backend-logic` は分割クラスと Red の BE テスト、`track: scenario` は UC 主シナリオの写しであるシナリオテスト 1 本）、`implementer`（logic / appearance / schema / probe のモード）、`reviewer`（別コンテキストの反証、read-only）、`attacker`（`/attack` 専用）。orchestrator は実装とテストを書かず、commit と ADR は skill 同梱の手順（`references/commit.md` / `adr.md`）に従って自分で行います。
 
-完成の定義は終端の閉じたリストです: spec-lint、trace-check、contract-run（契約の examples をホストのアダプタ経由で実行）、ホストの typecheck / lint / test、そして reviewer の `阻止` ゼロ。reviewer の指摘は `阻止`（機械検査に変換できる反例付き）と `持ち越し` の 2 段で、`持ち越し` は `docs/verification/DEFERRED.md` に記録して同一スライスでは直しません。ホストは Claude Code の Stop hook に `tools/gate-hook/stop-gate.mjs` を明示設置すると、終了時に機械がこのリストを強制します。
+完成の定義は終端の閉じたリストです: spec-lint、trace-check、contract-run（契約の examples をホストのアダプタ経由で実行）、ホストの typecheck / lint / test、宣言時は system（シナリオテスト全件を 1 回）、そして reviewer の `阻止` ゼロ。reviewer の指摘は `阻止`（機械検査に変換できる反例付き）と `持ち越し` の 2 段で、`持ち越し` は `docs/verification/DEFERRED.md` に記録して同一スライスでは直しません。ホストは Claude Code の Stop hook に `tools/gate-hook/stop-gate.mjs` を明示設置すると、終了時に機械がこのリストを強制します。
 
 `attack` は人間が依頼する任意の攻撃で、develop の通常ループには混ぜません。翻訳では maker が Stage 1–4 を通して訳し、翻訳を書いていない judge が Stage 5 の独立レビューを行います。工程・役割の詳細は各 skill / agent が正本です。
 
@@ -122,7 +122,93 @@ develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契
 
 成果物は 1 ID 1 ファイルです。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は中央に置きます。DB 設計は docs の案ではなく、ホストの migration / schema.prisma / model など native スキーマに書きます。
 
-人間ゲートの文書は `draft → active → withdrawn`、機械ループの契約は `draft → fixed`。工程状態は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません（`docs/verification/DEFERRED.md` は反例を持つ内容なので唯一の例外）。テストは `@covers REQ-nnn#class`、実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流を指します。spec-lint は書式・ライフサイクル・契約のキー閉集合、trace-check は C1–C14 のトレーサビリティ、contract-run は契約 examples の実行を検証し、既存違反には baseline ラチェットを使います。契約の `errors` の並びが唯一の評価順で（R-1207）、散文に順序を再掲しません。
+人間ゲートの文書は `draft → active → withdrawn`、機械ループの契約は `draft → fixed`。工程状態は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません（`docs/verification/DEFERRED.md` は反例を持つ内容なので唯一の例外）。テストは `@covers REQ-nnn#class`、シナリオテストは `@scenario UC-nnn`、実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流を指します。spec-lint は書式・ライフサイクル・契約のキー閉集合、trace-check は C1–C15 のトレーサビリティ、contract-run は契約 examples の実行を検証し、既存違反には baseline ラチェットを使います。契約の `errors` の並びが唯一の評価順で（R-1207）、散文に順序を再掲しません。
+
+### シナリオテスト（E2E）の位置づけ
+
+ブラウザ・シミュレータ・実機を起動する system suite は、**UC の主シナリオの実行可能な写し**として develop の phase の内側に置きます（ADR-0035〜0037）。SSOT は `UC.md` の主シナリオと事後条件、表示文言は `01-glossary.md`、識別子は `contract.yaml` の operation 名と request フィールド名で、テストコードを SSOT にはしません。1 UC につき正常系 1 本だけを書き、失敗系・境界は REQ の分割クラス（デフォルトスイート）が担います。書く時期は契約 `fixed` 直後で、実装と同時に `test-author (track: scenario)` が pending マーカー付きで filing し、FE 配線の `implementer (logic)` がマーカーを外して緑にします。走らせるのは境界だけ（修正ラウンドでは当該 UC の選択のみ、終端リストと CI で全件）で、赤緑ループには混ぜません。
+
+#### 誰が・いつ・どの SSOT から・何を走らせるか
+
+```mermaid
+flowchart TB
+  classDef producer fill:#EEEDFE,stroke:#534AB7,color:#26215C
+  classDef judge fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+  classDef orch fill:#F1EFE8,stroke:#888780,color:#2C2C2A
+  classDef gate fill:#FAEEDA,stroke:#BA7517,color:#412402
+
+  subgraph P1["Phase 1 定義 — phase: 定義"]
+    direction LR
+    SA1["spec-author<br/>入力: vision / glossary / actors, 既存 BR<br/>出力: UC.md, REQ-nnn.md, BR<br/>実行: spec-lint, trace-check C4,C9,C12"]:::producer
+    G1["人間ゲート: docs を active に"]:::gate
+    SA1 --> G1
+  end
+
+  subgraph P3["Phase 3 構造 — phase: 構造"]
+    direction LR
+    IS["implementer (schema)<br/>入力: UC dir, DB の BR, glossary, schema 源<br/>出力: schema 差分 + 保証点の提案<br/>実行: trace-check C5,C13"]:::producer
+    G3["人間ゲート: schema"]:::gate
+    SA3["spec-author (contract)<br/>入力: UC dir, 確定 schema, _shared<br/>出力: contract.yaml (draft)<br/>実行: spec-lint"]:::producer
+    RV3["reviewer (structure, 任意)<br/>read-only, 阻止 / 持ち越し"]:::judge
+    O3["orchestrator<br/>spec-lint 緑 + 阻止ゼロ → x-status: fixed"]:::orch
+    IS --> G3 --> SA3 --> RV3 --> O3
+  end
+
+  subgraph P4["Phase 4 実装 — phase: 実装（契約 fixed の上で四並列）"]
+    direction LR
+    TA["test-author (backend-logic)<br/>入力: UC dir + contract + BR, testing 葉<br/>出力: 検証方針, Red BE テスト (@covers)<br/>実行: 新規のみ選択実行, C3,C10,C11"]:::producer
+    TS["test-author (scenario)<br/>入力: UC.md 主シナリオ + 事後条件, contract examples, system-testing 葉<br/>出力: シナリオテスト 1 本 (@scenario, pending)<br/>実行: 新規のみ選択実行, C15"]:::producer
+    IL["implementer (logic, BE)<br/>入力: contract + REQ 文, rules 葉<br/>出力: 実装 (@implements)<br/>実行: UC タグ + 影響範囲の選択, C5,C6,C7,C14, contract-run --uc"]:::producer
+    IA["implementer (appearance)<br/>入力: contract の応答形 (mock), frontend 葉<br/>出力: 全 UI 状態 + 導出した識別子<br/>実行: typecheck / lint"]:::producer
+  end
+  O4a["orchestrator: ロケータ照合（ズレたら appearance を 1 回再起動）"]:::orch
+  G4["人間ゲート: 見た目"]:::gate
+  IF["implementer (logic, FE 配線)<br/>入力: fixed contract, 承認済み appearance, シナリオテスト (closing)<br/>出力: 要求処理・状態・API クライアント<br/>実行: pending を外し当該 UC のシナリオだけ選択実行 → 緑"]:::producer
+  O4b["orchestrator: BE の pair を閉じる（C1,C10,C11 clean, 選択緑, contract-run --uc）"]:::orch
+
+  subgraph P5["検証 — phase: 検証（reviewer は最大 2 回）"]
+    direction LR
+    RV["reviewer (slice)<br/>入力: UC dir, contract, BR, 実装, テスト, シナリオ, DEFERRED<br/>出力: 阻止 (反例付き) / 持ち越し<br/>実行: spec-lint, trace-check 全件, contract-run, UC 選択"]:::judge
+    O5["orchestrator<br/>阻止 → クラス追加 or lint 規則 → 機械ループ<br/>持ち越し → DEFERRED.md"]:::orch
+    RV --> O5
+  end
+
+  subgraph P6["完了 — 終端リスト（stop-gate が Stop ごとに強制）"]
+    direction LR
+    M["機械: spec-lint → trace-check (C1–C15) → contract-run → typecheck → lint → test (default 全件) → system (宣言時, 全件)"]:::judge
+    O6["orchestrator: 全部 exit 0 + 阻止ゼロ → commit → phase: 完了"]:::orch
+    M --> O6
+  end
+
+  P1 --> P3 --> P4
+  TS --> O4a
+  IA --> O4a --> G4 --> IF --> O4b
+  TA --> O4b
+  IL --> O4b
+  O4b --> P5 --> P6
+```
+
+生成する側（紫）と判定する側（緑）は必ず別コンテキストで、orchestrator（灰）は状態遷移と照合だけを行います。
+
+#### テストを走らせる瞬間
+
+| 走らせる瞬間 | default（単体・契約準拠） | integration | system（シナリオ） |
+| --- | --- | --- | --- |
+| test-author が filing した直後 | 新規テストだけ選択実行（Red 確認） | — | 新規 1 本だけ選択実行（Red / pending 確認） |
+| 修正ラウンド（implementer） | UC タグ + 影響範囲の選択 | — | FE 配線のときだけ当該 UC の 1 本 |
+| reviewer（slice） | UC タグの選択 | — | — |
+| 終端リスト（commit 前、stop-gate） | 全件 1 回 | — | 全件 1 回（`commands.system` 宣言時） |
+| CI | 全件 | 全件 | 全件 |
+
+修正ラウンドで default / system の全件を撃つことは禁止です。integration の走らせ方はホストが定義します。
+
+#### シナリオテストが赤になったときの三分岐
+
+orchestrator が必ずこの順で診断し、「テストが落ちたから UC を直す」へ直行しません。
+
+1. 主シナリオと契約が既にその動作を決めている → **実装の欠陥**。`implementer (logic)` に artifact 単位の制約として戻す。
+2. テストが主シナリオに無い手順や DOM 構造を固定している → **SSOT は正しい**。`test-author (track: scenario)` に再導出させる。
+3. 主シナリオ自体がその操作を表現できない → **SSOT 変更**。`spec-author` 🙋 で `UC.md` を直し、テストと実装の両方を再導出。
 
 ## APM と旧 init.sh の使い分け
 

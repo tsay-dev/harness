@@ -13,7 +13,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 >
 > This document holds only **the wiring that makes those principles hold in Next.js**.
 > Layer-specific style is in [backend/testing.md](backend-testing.instructions.md).
-> **No frontend testing leaf is placed for now** (develop does not file FE tests).
+> **No frontend unit-testing leaf is placed** (develop files no FE unit tests). The system suite — the one scenario test per use case that starts a browser — is [system-testing.md](system-testing.instructions.md).
 > Notation is [common/coding.md](common-coding.instructions.md).
 >
 > **Write test names and comments in Japanese.**
@@ -86,20 +86,20 @@ split by **what has to be started for that test to run**.
 | --- | --- | --- | --- |
 | **Default** | starts no external environment (mocks only at the boundary) | mirroring the target structure, `__tests__/`, and so on | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
 | **Integration** | **connects to a real DB or a real service** | `tests/integration/` | at a boundary only (before returning, before commit, in CI) |
-| **System** | **starts a browser** | `e2e/` | outside the phases (opt-in) |
+| **System** | **starts a browser** | `e2e/` | the scenario tests (one per UC); the selection by UC in the FE-wiring round, whole once at the boundary (terminal list where `commands.system` is declared, CI) — [system-testing.md](system-testing.instructions.md) |
 
 - **Separate by folder.** Separation by tag alone cannot be noticed when a gap in configuration lets something leak into the default suite
 - **Exclude the integration and system locations from the default suite's discovery** (ignore them in the runner config). Forget it and a browser or a real DB slips into the red-green loop
 - **The default suite must go green on a machine with neither a DB nor a browser available**
 - A project that renames the locations **declares it in `CLAUDE.md`**. The criterion and "never mix into the default" do not change
-- **The system suite is not part of develop's phases.** How to write it is outside this document's scope. All it defines is the location and the ban on mixing
+- **The system suite holds exactly the scenario tests** (`docs.instructions.md` R-1106–R-1108). How to write them is [system-testing.md](system-testing.instructions.md); this document defines only the location and the ban on mixing
 
 ### Contract-conformance tests belong to the default suite
 
 The backend's contract-conformance tests (inputs/outputs, pure functions — [backend/testing.md](backend-testing.instructions.md))
 start no external environment, so they are **not integration tests**.
 
-**They must never be moved into the integration suite.** develop's Phase4 machine oracle is carried, for now, by the **BE tests** (FE tests are not filed).
+**They must never be moved into the integration suite.** develop's Phase4 red-green loop is carried by the **BE tests** (FE unit tests are not filed; the scenario test closes at the boundary, not in the loop).
 
 ---
 

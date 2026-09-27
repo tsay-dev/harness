@@ -136,8 +136,10 @@ Nothing is decided automatically from markup as on the Web, so **emit it explici
 | States such as disabled, selected, expanded | `accessibilityState` (never express it through appearance alone) |
 | A tap area smaller than 44pt | `hitSlop` (widen only the hit area, leaving the appearance) |
 
-On top of that, **attach a stable `testID` to anything pressable and anything you want to identify in tests.**
-**Name the value for the function, not by copying the displayed text** (so a wording change does not break the test).
+On top of that, **attach a stable `testID` to anything pressable and anything a scenario flow will identify — and derive its value, never invent it** (ADR-0037):
+the control that fires a contract operation carries the **operation name** (`testID="createProject"`), the input for a request field carries **`<operation>.<field>`** (`testID="createProject.title"`).
+**Never copy the displayed text** (a wording change would break the flow), and never an id the contract does not name (a scenario flow cannot derive it).
+Visible wording — labels, button text, `accessibilityLabel` — is the **glossary term** verbatim (`docs/01-glossary.md`); a new term goes to the glossary through its gate, never into the screen first.
 
 ```tsx
 //  NG: 何も名乗らない。読み上げでは無反応、テストからも引けない
@@ -149,15 +151,14 @@ On top of that, **attach a stable `testID` to anything pressable and anything yo
   accessibilityRole="button"
   accessibilityLabel="送信する"
   accessibilityState={{ disabled: isSubmitting }}
-  testID="submit-button"
+  testID="createProject"
   hitSlop={8}
 >
   <Icon name="check" />
 </Pressable>
 ```
 
-> The attributes emitted here become the means of identification for a11y and for future FE tests.
-> **No FE testing leaf is placed for now** (develop does not file FE tests).
+> The attributes emitted here are what VoiceOver / TalkBack announce and what the UC's scenario flow ([system-testing.md](system-testing.instructions.md)) taps and asserts on — the flow derives them from the same glossary and contract, so return the wording → `testID` table in your report; when the two disagree, the appearance moves.
 
 ---
 
@@ -171,4 +172,4 @@ On top of that, **attach a stable `testID` to anything pressable and anything yo
 - [ ] Did you put `keyboardShouldPersistTaps="handled"` on a `ScrollView` containing input?
 - [ ] Does everything pressable have an `accessibilityRole` and (if it has no text) an `accessibilityLabel`?
 - [ ] Did you express state through `accessibilityState` as well as appearance?
-- [ ] Is `testID` named for the function rather than the displayed text?
+- [ ] Is every `testID` the contract's operation name or `<operation>.<field>`, and every visible term the glossary term — never the displayed text copied into an id?
