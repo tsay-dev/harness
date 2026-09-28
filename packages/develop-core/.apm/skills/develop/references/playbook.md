@@ -130,7 +130,7 @@ The default suite is **the pool the red-green loop draws from**, not a command f
 | Moment | What you run | What "green" means |
 | --- | --- | --- |
 | A fix / rework round (including the consolidated run after an exclusive-resource skip) | the **reds of this round + their blast radius** | that selection is green |
-| Declaring the slice ready to commit (after the reviewer's last pass at zero `阻止`) | the **terminal list** (`spec-lint validate`, `trace-check`, `contract-run`, then the host's `commands.typecheck` / `lint` / `test` — the whole default suite, once) | every command exits 0 and `trace-check` reports no new violation |
+| Declaring the slice ready to commit (after the reviewer's last pass at zero `阻止`) | the **terminal list** (`spec-lint validate`, `trace-check`, `contract-run`, then the host's `commands.typecheck` / `lint` / `test` — the whole default suite, once — and `commands.system` where declared) | every command exits 0 and `trace-check` reports no new violation |
 | CI (push, pull request, merge) | the whole default suite, spec-lint, trace-check, and whatever else CI defines | CI |
 
 The **system suite** (scenario tests) follows the same shape one level up: right after `test-author (track: scenario)` files, only the new test (Red / pending); in the FE-wiring round, only the UC's one scenario (a `UC-nnn` selection); in the terminal list and CI, the whole suite once (`commands.system`, where declared). **A fix round never fires the whole system suite**, and a browser or simulator is an exclusive resource (*Concurrency conditions*).

@@ -5,7 +5,7 @@ Two hooks and one shared log that turn the develop skill's persuasive stop lines
 | Hook | Claude Code event | What it stops | Script |
 | --- | --- | --- | --- |
 | **Implementation-start gate** (§2) | `PreToolUse` (Write / Edit / NotebookEdit) | Writing implementation code before the UC and its REQs are `active` and the contract is `fixed` | `gate-hook.mjs` |
-| **Terminal gate** | `Stop` | Ending the turn while spec-lint, trace-check, contract-run or the host's typecheck / lint / test still fail | `stop-gate.mjs` |
+| **Terminal gate** | `Stop` | Ending the turn while spec-lint, trace-check, contract-run or the host's typecheck / lint / test / system still fail | `stop-gate.mjs` |
 | **Reject log** | (shared) | Records every gate decision as one JSONL line, so "does this gate actually stop anything?" is answered from data | `gate-log.mjs` |
 
 - **The develop process works without them** (§2 is a self-check, and the spec-lint gate is a post-hoc
