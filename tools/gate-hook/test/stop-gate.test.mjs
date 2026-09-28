@@ -115,7 +115,8 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	assert.equal(e.status, 0, e.stderr);
 	assert.match(e.stdout, /commands\.test 未宣言/);
 	assert.match(e.stdout, /commands\.contract_adapter 未宣言/);
-	assert.match(e.stdout, /終端ゲート通過（2 検査、skip: contract-run, typecheck, lint, test）/);
+	assert.match(e.stdout, /commands\.system 未宣言/);
+	assert.match(e.stdout, /終端ゲート通過（2 検査、skip: contract-run, typecheck, lint, test, system）/);
 
 	//  (f) Stop 以外のイベントは対象外
 	const f = runGate(root, stop(root, { hook_event_name: "SubagentStop" }));
@@ -164,4 +165,29 @@ test("stop-gate: タイムアウトは timeout:<step> として失敗にする",
 	assert.match(r.stderr, /失敗 = timeout:test/);
 	assert.match(r.stderr, /timeout:test: timeout 1s/);
 	assert.deepEqual(last(root).failures, ["timeout:test"]);
+});
+
+test("stop-gate: commands.system は test の後に 1 回走り、test が赤なら走らない", (t) => {
+	const root = makeRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+
+	//  (a) test 緑 → system が走り、赤ならブロック（失敗は system）
+	writeFileSync(join(root, "traceconfig.json"), traceconfig({ test: "exit 0", system: "echo scenario-red; exit 1" }));
+	const a = runGate(root, stop(root));
+	assert.equal(a.status, 2, a.stdout);
+	assert.match(a.stderr, /  system: exit 1\n    scenario-red/);
+	assert.deepEqual(last(root).failures, ["system"]);
+
+	//  (b) test 赤 → system は走らない（失敗は test だけ）
+	writeFileSync(join(root, "traceconfig.json"), traceconfig({ test: "exit 1", system: "echo never; exit 1" }));
+	const b = runGate(root, stop(root, { session_id: "s2" }));
+	assert.equal(b.status, 2, b.stdout);
+	assert.deepEqual(last(root).failures, ["test"]);
+	assert.doesNotMatch(b.stderr, /never/);
+
+	//  (c) 両方緑 → 通過（system も検査数に数える）
+	writeFileSync(join(root, "traceconfig.json"), traceconfig({ test: "exit 0", system: "exit 0" }));
+	const c = runGate(root, stop(root, { session_id: "s3" }));
+	assert.equal(c.status, 0, c.stderr);
+	assert.match(c.stdout, /終端ゲート通過（4 検査、skip: contract-run, typecheck, lint）/);
 });

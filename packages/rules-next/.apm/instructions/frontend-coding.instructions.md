@@ -11,7 +11,7 @@ applyTo: "**/next.config.*,**/app/**/page.tsx,**/app/**/layout.tsx,**/app/**/loa
 > [backend/coding.md](backend-coding.instructions.md) (the substance of Actions; the onion. It is part of the FE implementers' bundle — the develop skill's `references/bundles.md`, section *Deciding the destination*).
 > The direction of data and where state lives is [dataflow.md](frontend-dataflow.instructions.md).
 > Component granularity is [components.md](frontend-components.instructions.md); where screens live is [routing.md](frontend-routing.instructions.md).
-> **FE tests are not filed for now** (no frontend testing leaf is placed; the common wiring is [common/testing.md](common-testing.instructions.md)).
+> **FE unit tests are not filed** (no frontend unit-testing leaf is placed; the common wiring is [common/testing.md](common-testing.instructions.md)). The screen is observed end to end by the UC's scenario test ([system-testing.md](system-testing.instructions.md)), which finds elements by the wording and identifiers §5 emits.
 > This document defines, **on top of following those**, only the RSC / Client boundary and the thinness of a page. It never restates the common side.
 >
 > **The harness does not pin directory names (`components/` and the like).** Locations are recorded in the project's `CLAUDE.md`.
@@ -107,8 +107,25 @@ rather than hitting infrastructure from the Client.
 
 ---
 
+## 5. Wording and identifiers are derived, and emitted
+
+The scenario test never reads your markup; it derives its locators from the same SSOT you do (ADR-0037). Emit exactly what it will look for.
+
+| Target | What to emit | Derived from |
+| --- | --- | --- |
+| Visible wording (button text, labels, headings, row text) | the **glossary term**, verbatim | `docs/01-glossary.md` (never a synonym, never a "friendlier" rewording — a new term goes to the glossary through its gate) |
+| A control that fires a contract operation | `data-testid="<operation>"` | the operation name in `contract.yaml` (`data-testid="renameUser"`) |
+| An input for a request field | `data-testid="<operation>.<field>"` | the request field name (`data-testid="renameUser.name"`) |
+| Anything pressable, every form control | a real role (`<button>`, `<a href>`, `<input>` with a `<label>`) | so `getByRole` / `getByLabel` resolve without an id |
+
+- **Never copy the displayed text into an identifier**, and never invent an identifier the contract does not name — a scenario test cannot derive it.
+- Return the **wording → identifier table** in your report; the orchestrator reconciles it against the scenario test before the eyeball, and **when they disagree, the appearance moves**.
+
+---
+
 ## ✅ Checklist before returning
 
+- [ ] Is every visible term the glossary term, and every operation control / request input carrying `data-testid="<operation>"` / `"<operation>.<field>"`?
 - [ ] Is `"use client"` on the leaves that need interaction, rather than at a page root?
 - [ ] Do `page.tsx` / `layout.tsx` stay closed on read wiring, passing the UI substance downward?
 - [ ] Are `params` / `searchParams` validated before being handed to a use case?

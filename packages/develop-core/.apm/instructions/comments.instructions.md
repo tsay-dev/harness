@@ -1,6 +1,6 @@
 ---
 description: "💬 In-code comments describe only the current spec"
-applyTo: "**/*.swift,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.mjs,**/*.cjs,**/*.php,**/*.py,**/*.rb,**/*.go,**/*.rs,**/*.kt,**/*.java,**/*.cs,**/*.sql,**/*.css,**/*.scss,**/*.html"
+applyTo: "**/*.swift,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.mjs,**/*.cjs,**/*.php,**/*.py,**/*.rb,**/*.go,**/*.rs,**/*.kt,**/*.java,**/*.cs,**/*.sql,**/*.css,**/*.scss,**/*.html,**/.maestro/**/*.yaml,**/.maestro/**/*.yml"
 ---
 
 > **External executable assets:** tools and templates are not APM dependencies. Resolve `HARNESS_ROOT` to the separate harness checkout (normally `.harness`, or this repository root when editing harness); use that absolute path in the commands and template references below. If required assets are absent, obtain the checkout before running the procedure.

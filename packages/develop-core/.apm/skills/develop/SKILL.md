@@ -13,7 +13,7 @@ description: >-
 ## 1. Invariants (firm)
 
 - **You write no implementation and no tests.** Your own writes are exactly: statuses and the `phase:` line, `docs/_shared/components.yaml`, `docs/verification/DEFERRED.md`, ADRs (per [references/adr.md](references/adr.md)), and git (per [references/commit.md](references/commit.md)). Everything else is produced by a specialist in a separate context.
-- **Producer ≠ judge.** Whoever built an artifact never judges it; `reviewer` is always a separate, read-only context. `test-author` never reads implementation (tests derive from the contract's operation surface, never from code).
+- **Producer ≠ judge.** Whoever built an artifact never judges it; `reviewer` is always a separate, read-only context. `test-author` never reads implementation (BE tests derive from the contract's operation surface, scenario tests from the UC's main scenario and the contract — never from code).
 - **Three human gates**, and only three: the SSOT under `docs/` (vision, glossary, actors, goals, `UC.md`, `REQ-nnn.md`, `BR-nnn.md`, NFRs → `active` / `frozen` / `living` by human approval), UI appearance (human eyeball), and the DB schema. A subagent never self-approves; you run the confirmation (AskUserQuestion / plan mode) and set the status.
 - **SSOT first.** Code is never the source of truth. When implementation exposes a hole in the spec, the doc changes (through its gate) and the machine re-checks; never promote the code to truth (R-801).
 - **Never fabricate a command.** Verification commands come from `traceconfig.json` `commands`, then the host `CLAUDE.md` / `AGENTS.md`; a check you cannot run is reported as unexecuted, never as green.
@@ -27,10 +27,11 @@ A slice is done when **all** of these hold — nothing more, nothing less:
 2. `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` reports zero new violations (every active REQ covered and `@implements`'d, every declared class tested, no orphan).
 3. `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` reports zero `fail` where the host declares `commands.contract_adapter` (every contract example executed against the implementation); an undeclared adapter is reported to the human as "not executed", not hidden.
 4. The host's `commands.typecheck` / `lint` / `test` exit 0.
-5. `reviewer` (`mode: slice`) closed with zero `阻止`; every `持ち越し` is a row in `docs/verification/DEFERRED.md`.
-6. The UC's `phase:` reads `完了`, the contract is `fixed`, and no human gate is pending.
+5. The host's `commands.system` (the scenario suite, whole, once) exits 0 where the host declares it; an undeclared one is reported to the human as "not executed", not hidden. `trace-check` C15 (every human-facing active UC has its scenario test) is part of item 2.
+6. `reviewer` (`mode: slice`) closed with zero `阻止`; every `持ち越し` is a row in `docs/verification/DEFERRED.md`.
+7. The UC's `phase:` reads `完了`, the contract is `fixed`, and no human gate is pending.
 
-Where the host enables `tools/gate-hook/stop-gate.mjs` (Stop hook), the machine enforces 1–4 at every stop. Where it does not, run the same list yourself before declaring done. "All tests pass" alone is not done.
+Where the host enables `tools/gate-hook/stop-gate.mjs` (Stop hook), the machine enforces 1–5 at every stop. Where it does not, run the same list yourself before declaring done. "All tests pass" alone is not done.
 
 ## 3. How AI judgment closes
 
@@ -40,7 +41,7 @@ Where the host enables `tools/gate-hook/stop-gate.mjs` (Stop hook), the machine 
 
 ## 4. Default playbook (soft)
 
-`spec-author` (domain → UC → REQ+BR, 🙋 each) → `spec-author` (contract; spec-lint clean → you mark `fixed`, optionally after `reviewer mode: structure` for shared concepts) → `implementer mode: schema` (🙋, only when the slice owns persisted data) → **in one message**: `test-author` ∥ `implementer mode: logic` ∥ `implementer mode: appearance` (🙋) → close the test/implementation pair (C1/C10/C11 clean, selection green, `contract-run --uc`) → `reviewer mode: slice` → §2 list → commit.
+`spec-author` (domain → UC → REQ+BR, 🙋 each) → `spec-author` (contract; spec-lint clean → you mark `fixed`, optionally after `reviewer mode: structure` for shared concepts) → `implementer mode: schema` (🙋, only when the slice owns persisted data) → **in one message**: `test-author track: backend-logic` ∥ `test-author track: scenario` ∥ `implementer mode: logic` ∥ `implementer mode: appearance` (🙋, after the locator reconciliation) → close the test/implementation pair (C1/C10/C11 clean, selection green, `contract-run --uc`) → FE wiring closes the scenario test (marker removed, the UC's one scenario green) → `reviewer mode: slice` → §2 list → commit.
 
 Reorder freely. The recommended stop line "no implementation before the UC and its REQs are `active` and the contract is `fixed`" is the host's to enforce with `gate-hook` (PreToolUse); treat it as your default, not as a gate you may not cross when the human asks otherwise. Details, routing, concurrency conditions, and receipt actions are in [references/playbook.md](references/playbook.md).
 
@@ -49,7 +50,7 @@ Reorder freely. The recommended stop line "no implementation before the UC and i
 | Agent | Tier | Separate context because | Gate |
 | --- | --- | --- | --- |
 | [spec-author](../../agents/develop/spec-author.agent.md) | top | parallel per-UC authoring, large reads | 🙋 docs; contract by spec-lint |
-| [test-author](../../agents/develop/test-author.agent.md) | mid | must never see the implementation | — |
+| [test-author](../../agents/develop/test-author.agent.md) (`track: backend-logic / scenario`) | mid | must never see the implementation | — |
 | [implementer](../../agents/develop/implementer.agent.md) (`mode: logic / appearance / schema / probe`) | mid | parallel implementation | 🙋 schema; appearance by eyeball |
 | [reviewer](../../agents/develop/reviewer.agent.md) (`mode: structure / slice / proposal`) | top | independent refutation, read-only | — |
 | [attacker](../../agents/develop/attacker.agent.md) | top | `/attack` only — never launched here | — |

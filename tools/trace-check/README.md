@@ -5,7 +5,7 @@ the docs SSOT (GOAL → UC → REQ, BR) and the code (tests, implementation): co
 layering, and the contract vocabulary. It is the Node port of sdd-kit's `trace_check.py` (why the port:
 `docs/adr/ADR-0003`).
 
-- **What it verifies**: the 14 checks below. **Format and lifecycle** (frontmatter, sections, status
+- **What it verifies**: the 15 checks below. **Format and lifecycle** (frontmatter, sections, status
   vocabularies, the contract's structure) are `../spec-lint/`'s job; the two tools do not overlap
 - **What it reads**: `traceconfig.json` at the host project root (seeded once from
   `templates/develop/traceconfig.json`; the host maintains `source` / `tests` / `schema` / `layering` / `contract`).
@@ -30,7 +30,7 @@ node trace-check.mjs --only C9,C12                            # judge only these
 
 Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. Node only.
 
-## The 14 checks
+## The 15 checks
 
 | # | Fails when | Rule |
 | --- | --- | --- |
@@ -48,8 +48,9 @@ Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. No
 | C12 | the same ID is defined in more than one file (a numbering collision) | R-204 |
 | C13 | a BR whose `enforced_at` names the database has no `@implements BR-nnn` in the schema source (`schema.files` / `schema.dirs`; only when configured) | R-704 |
 | C14 | an `active` REQ or `active` BR has no `@implements` in `source` or the schema source (the reverse of C5; only when `source` is configured). UC-level `@implements UC-nnn` is craft (`comments.md`), not this check | R-705 |
+| C15 | an `active` UC whose actor is human (`docs.actors` table, `種別` starting with `人間`; an actor missing from the table counts as human) has no test carrying `@scenario UC-nnn` (`scenario_pattern`) under `tests.system`; or an `@scenario` names a UC that does not exist. Only when `tests.system` is configured. `tests.system.dirs` must be disjoint from `tests.dirs`, or C11 reports the scenario tests as unannotated. The check sees existence and reference; "one per UC, happy path only" is the reviewer's | R-1106 / R-1107 |
 
-Only `active` docs are subject to C1 / C2 / C8 / C10 / C14 — a `draft` REQ or BR demands nothing yet, and a `withdrawn`
+Only `active` docs are subject to C1 / C2 / C8 / C10 / C14 / C15 — a `draft` REQ or BR demands nothing yet, and a `withdrawn`
 one demands nothing any more. C11 applies to every test regardless.
 
 ## The baseline ratchet (adopting it on an existing project)
@@ -74,11 +75,11 @@ once with `--update-baseline`, named with its count in that phase's report, and 
 
 ## What green does and does not guarantee
 
-When the tests and these 14 checks are all green, the following holds mechanically: every active GOAL has a UC
+When the tests and these 15 checks are all green, the following holds mechanically: every active GOAL has a UC
 and every active REQ a test; every declared partition class has a test **and no test exists outside the
 policy**; every ID referenced from code and tests exists; every active REQ and every active BR is annotated
 from source or schema (`@implements`); no rule is dead; no ID is defined twice; placement
-agrees with the frontmatter; the dependency direction and the contract vocabulary agree with the implementation; every rule enforced at the database is annotated on a constraint in the schema source.
+agrees with the frontmatter; the dependency direction and the contract vocabulary agree with the implementation; every rule enforced at the database is annotated on a constraint in the schema source; every human-facing active UC has a scenario test (when a system suite is declared).
 
 What remains for review (R-901): whether the partition exhausts the input space, whether an assertion verifies
 the meaning of the EARS sentence, whether the EARS sentence itself is right, whether the annotated unit

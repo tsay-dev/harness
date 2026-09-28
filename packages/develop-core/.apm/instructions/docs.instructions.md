@@ -122,6 +122,12 @@ The test code is the SSOT for case content, but "why this test exists" and "how 
 
 **What the machine cannot see (know this):** C10 / C11 guarantee agreement between declaration and implementation. Whether the partition exhausts the input space, and whether an assertion verifies the meaning of the EARS sentence, remain the reviewer's responsibility (R-901 persuasive control).
 
+The scenario test (the system suite — a browser, simulator, or device) is bound the same way, at the UC level rather than the REQ level (`docs/adr/ADR-0035`):
+
+- **R-1106 (MUST)** The `## 主シナリオ` and `成功時` post-condition of `UC.md` are the SSOT of the UC's scenario test. Every `active` UC whose actor is human has **one** scenario test, happy path only, carrying `@scenario UC-nnn` (C15 checks existence and that the UC exists). Failure paths are partition classes of the REQs, never scenario tests.
+- **R-1107 (MUST)** A scenario test performs the scenario's steps and asserts its post-condition, in glossary terms, and nothing else: no step the scenario does not list, no DOM or view-hierarchy assertion. To add a step, change `UC.md` through its gate first (R-801 applied); a test that diverges from the scenario is the test's defect, never the scenario's.
+- **R-1108 (MUST)** Locators are derived, never read from the implementation: visible wording from `01-glossary.md`, function-named identifiers from the contract's operation and request field names (`docs/adr/ADR-0037`; the stack's system-testing leaf holds the syntax). When a scenario test and an appearance disagree, the appearance moves.
+
 ## 12. Contracts in general (boundaries that are not HTTP)
 
 A contract is a **machine-readable agreement at a boundary between two parties with different ownership, change cadence, or lifetime**. HTTP is one case.

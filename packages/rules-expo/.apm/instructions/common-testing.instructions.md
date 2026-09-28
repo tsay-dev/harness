@@ -12,7 +12,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 > make it deterministic; coverage is a signal, not a target — these are common to all development, so they are not restated here; follow them there.
 >
 > This document holds only **the wiring that makes those principles hold in Expo**.
-> **No frontend testing leaf is placed for now** (develop does not file FE tests). Notation is [common/coding.md](common-coding.instructions.md).
+> **No frontend unit-testing leaf is placed** (develop files no FE unit tests). The system suite — the one scenario flow per use case that starts a simulator — is [system-testing.md](system-testing.instructions.md). Notation is [common/coding.md](common-coding.instructions.md).
 >
 > **Write test names and comments in Japanese.**
 
@@ -86,18 +86,17 @@ mechanically, and coincides with "may this be mixed into §3's red-green loop?"
 | --- | --- | --- | --- |
 | **Default** (unit) | starts no external environment (mocks only at the boundary) | as-is (mirroring the target structure, `__tests__/`) | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
 | **Integration** | **connects to a real API or a real service** | `tests/integration/` | at a boundary only (before returning, before commit, in CI) |
-| **System** | **starts a simulator, a real device, or a browser** | `e2e/` (following the Maestro / Detox convention is fine) | outside the phases (opt-in) |
+| **System** | **starts a simulator, a real device, or a browser** | `.maestro/` or `e2e/` (the Maestro / Detox convention) | the scenario flows (one per UC); the selection by UC tag in the FE-wiring round, whole once at the boundary (terminal list where `commands.system` is declared, CI) — [system-testing.md](system-testing.instructions.md) |
 
 - **Separate by folder.** Separation by tag cannot be noticed when a gap in the run command's configuration lets something leak into the default suite
 - **Exclude the integration and system locations from Jest's discovery.** Put `tests/integration` and `e2e` in `testPathIgnorePatterns`.
   Forget it and the mere names `*.test.ts` / `__tests__` get them picked up by the default suite, and a simulator launch slips into the red-green loop
 - **The default suite must go green on a machine with neither a simulator nor a server available**
-- **The system suite is not part of develop's phases** (Phase4's machine oracle is on the BE side for now; FE tests are not filed).
-  A project that judges it necessary adds it itself, and this document does not cover how to write it. All it defines is **the location and "never mix it into the default suite"**
+- **The system suite holds exactly the scenario flows** (`docs.instructions.md` R-1106–R-1108). How to write them is [system-testing.md](system-testing.instructions.md); this document defines only **the location and "never mix it into the default suite"**
 
 ### Contract-conformance tests belong to the default suite
 
 A contract-conformance test that starts no external environment is **not an integration test** (by the criterion above it falls into the default suite).
 
-**It must never be moved into the integration suite.** develop's Phase4 machine oracle is carried, for now, by the **BE tests** (FE tests are not filed).
+**It must never be moved into the integration suite.** develop's Phase4 red-green loop is carried by the **BE tests** (FE unit tests are not filed; the scenario flow closes at the boundary, not in the loop).
 The moment it leaves the red-green loop, there is no means left of catching an integration defect in Phase4.

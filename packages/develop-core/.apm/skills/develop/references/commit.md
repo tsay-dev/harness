@@ -6,7 +6,7 @@ You, the orchestrator, land a slice as git commits (and a PR when the human asks
 
 ## When you may commit
 
-- **Only after the terminal list passes** (*Phase 4: behaviour* in [playbook.md](playbook.md): `spec-lint validate`, `trace-check`, `contract-run`, then the host's `commands.typecheck` / `lint` / `test`) **and the slice's reviewer pass is at zero `阻止`**. Green tests alone are not the condition.
+- **Only after the terminal list passes** (*Phase 4: behaviour* in [playbook.md](playbook.md): `spec-lint validate`, `trace-check`, `contract-run`, then the host's `commands.typecheck` / `lint` / `test`, and `commands.system` where declared) **and the slice's reviewer pass is at zero `阻止`**. Green tests alone are not the condition.
 - **Only while no Task is running.** The git index is an exclusive resource; a producer writing mid-commit corrupts the diff. Close every concurrent section first, and commit slices one at a time in order of completion.
 - **One commit, one logical change.** Never mix formatting with logic; never mix two slices. You know which round produced which files — split along that line, and stack several commits when a slice landed several logical changes.
 - **Conventional Commits** (`type(scope): subject`): imperative subject, no trailing period, around 50 characters; the body carries the why; the footer carries `Refs:` / `ADR-nnnn` / `UC: UC-nnn` and `BREAKING CHANGE:`. Opt in to the machine check of the `UC:` trailer with `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" gate --message <file>` (it verifies that the named UC and its REQs are `active` and its contract `fixed`).

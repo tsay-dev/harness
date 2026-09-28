@@ -27,7 +27,10 @@ Write the content in Japanese.
 
 ## 主シナリオ
 
-<!-- Numbered. The subject of every step is either the actor or システム. A step that applies a BR carries "→ BR-nnn". -->
+<!-- Numbered. The subject of every step is either the actor or システム. A step that applies a BR carries "→ BR-nnn".
+     This list is the SSOT of the UC's scenario test (one per UC, happy path only — ADR-0035): write each step as an
+     observable operation by the actor or an observable response by システム, in glossary terms. Never write screen
+     structure, widget names, or identifiers here; a scenario test asserts nothing this list does not say. -->
 
 1. <アクター>が…
 2. システムが…を検証する → BR-000
@@ -53,6 +56,8 @@ Write the content in Japanese.
 | 外部依存 | | |
 
 ## 事後条件
+
+<!-- 成功時 is the final assertion of the scenario test: an observation the actor can make, in glossary terms. -->
 
 - 成功時: <観測可能な状態>
 - 失敗時: いかなる状態変更も残っていない（部分適用なし）

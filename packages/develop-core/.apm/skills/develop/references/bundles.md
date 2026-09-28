@@ -28,7 +28,8 @@ Decided by `applyTo:` alone.
 | Recipient | What counts as "paths it writes" |
 | --- | --- |
 | `spec-author` | the paths of the **docs files** created or edited in that launch (under `docs/`) |
-| `test-author` | the paths of the **test files** created in that slice; plus the **docs paths** of the REQs whose `## 検証方針` it declares |
+| `test-author` (`backend-logic`) | the paths of the **test files** created in that slice; plus the **docs paths** of the REQs whose `## 検証方針` it declares |
+| `test-author` (`scenario`) | the paths of the **scenario test files** created in that slice (the system suite — `e2e/`, `UITests/`, `.maestro/`, … as the host declares in `tests.system`) |
 | `implementer` (`logic` / `appearance` / `probe`) | the paths of the **production code** created or edited in that slice |
 | `implementer` (`schema`) | the path of the **schema source** (the host's native DB design — *Where docs artifacts live* in [playbook.md](playbook.md)) |
 | the orchestrator, for its own docs writes (ADR / `DEFERRED.md`) | the **docs paths** it writes — it is the receiving agent of the matching leaves and reads them before writing |
@@ -38,5 +39,5 @@ Decided by `applyTo:` alone.
 - **Never split a bundle.** When several implementers work in the same layer (appearance and logic), pass both the same bundle. Narrowing by written paths is not "splitting" (implementers that write the same paths get the same bundle).
 - **Cross-layer delegation is also declared by `applyTo:`.** When a rule also binds addresses in another layer, that shows up as **that leaf including those addresses in its `applyTo:`**. This procedure never infers it from a leaf's body.
 - If an implementer ends up writing an unplanned path mid-implementation, **it opens the leaves whose `applyTo:` match that path itself, before writing** (no need to come back to the orchestrator).
-- **Tracks launched for now**: `test-author` writes **BE tests only**. Bundles for UI / FE test tracks are **not assembled and not passed**.
+- **Two test-author tracks, one procedure**: `backend-logic` writes the default suite, `scenario` writes the system suite; each receives the leaves whose `applyTo:` match its own write targets. No FE unit-test track exists (no bundle is assembled for one).
 - Naming a new instruction and narrowing its `applyTo` is covered in the harness repository's `CLAUDE.md`. **Bundle composition is authoritative in this file.**

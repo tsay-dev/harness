@@ -35,7 +35,7 @@ There are 9 sections in use. **Never use anything else.**
 | `<recv>` | message-receipt handlers (cross-cutting notifications only) |
 | `<depends>` | explicitly declared dependent parts (prefetch targets) |
 
-**Never write tests inside a part file.** **The harness does not file FE tests for now** (no frontend testing leaf is placed).
+**Never write tests inside a part file.** The harness files no FE unit tests; the screen is observed end to end by the UC's scenario test ([system-testing.md](system-testing.instructions.md)), which finds elements by glossary wording and by `data-testid="<operation>"` / `"<operation>.<field>"` — emit those on every control that fires a contract operation and every request input, and never copy the displayed text into an id (ADR-0037).
 
 ### Fix the order of the sections
 

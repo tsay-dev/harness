@@ -5,7 +5,7 @@ Two hooks and one shared log that turn the develop skill's persuasive stop lines
 | Hook | Claude Code event | What it stops | Script |
 | --- | --- | --- | --- |
 | **Implementation-start gate** (§2) | `PreToolUse` (Write / Edit / NotebookEdit) | Writing implementation code before the UC and its REQs are `active` and the contract is `fixed` | `gate-hook.mjs` |
-| **Terminal gate** | `Stop` | Ending the turn while spec-lint, trace-check, contract-run or the host's typecheck / lint / test still fail | `stop-gate.mjs` |
+| **Terminal gate** | `Stop` | Ending the turn while spec-lint, trace-check, contract-run or the host's typecheck / lint / test / system still fail | `stop-gate.mjs` |
 | **Reject log** | (shared) | Records every gate decision as one JSONL line, so "does this gate actually stop anything?" is answered from data | `gate-log.mjs` |
 
 - **The develop process works without them** (§2 is a self-check, and the spec-lint gate is a post-hoc
@@ -68,9 +68,12 @@ model as the reason to continue. The model then fixes what failed and tries to s
 | 2 | `trace-check` | `traceconfig.json` exists (else `skip: traceconfig.json 無し`) | collected |
 | 3 | `contract-run` | `commands.contract_adapter` is declared (else `skip: commands.contract_adapter 未宣言 — 契約の実行検査は行われていない`) | collected |
 | 4 | `commands.typecheck` → `commands.lint` → `commands.test` | each key that is declared (else `skip: commands.<k> 未宣言`) | stops at the first failure |
+| 5 | `commands.system` (the scenario suite — browser / simulator / device — once, whole) | declared, and step 4 passed (else `skip: commands.system 未宣言`) | collected |
 
 Steps 1–3 always run so that every failure is reported at once. Step 4 stops early because running
-tests on code that does not typecheck is noise. A step that exceeds `--timeout` is a failure named
+tests on code that does not typecheck is noise, and step 5 is the most expensive check, so it runs
+only after the default suite is green. A host whose scenario suite is too slow to run on every stop
+leaves `commands.system` undeclared and runs it in CI only; the skip line makes that choice visible. A step that exceeds `--timeout` is a failure named
 `timeout:<step>`.
 
 **Commands come only from `traceconfig.json`'s `commands` block and are never guessed.** An absent key
@@ -164,7 +167,7 @@ A logging failure never stops a gate. Record shape (keys in this fixed order):
 | `event` | `PreToolUse` \| `Stop` |
 | `session` | Claude Code `session_id`, or `null` |
 | `decision` | `block` \| `pass` \| `skip` \| `release` |
-| `reason` | gate-hook: `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `ok`. stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`, or on a block the first failed step name (`spec-lint` `trace-check` `contract-run` `typecheck` `lint` `test`, `timeout:<step>`) |
+| `reason` | gate-hook: `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `ok`. stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`, or on a block the first failed step name (`spec-lint` `trace-check` `contract-run` `typecheck` `lint` `test` `system`, `timeout:<step>`) |
 | `target` | gate-hook: the gated file path relative to the root. Otherwise `null` |
 | `uc` | gate-hook: the ids of the in-progress UCs that were checked. Otherwise `null` |
 | `round` | stop-gate: the round number on a block / release. Otherwise `null` |
@@ -193,6 +196,9 @@ by a human from this data; the tool only surfaces the count.
 
 ## Limits (use them knowing these)
 
+- **Keep the scenario suite (`e2e/**`, `UITests/**`) out of `--code`.** The scenario test is written
+  together with the implementation once the UC is `active` and its contract `fixed`, so the gate would only
+  add noise there; the Stop gate and `trace-check` C15 cover it.
 - **Writes via Bash (`sed -i`, redirects, and so on) pass straight through** the PreToolUse gate, because
   the matcher covers only the Write/Edit family. A design that also blocks Bash misfires too often
   (obstructing builds and test runs), so it is deliberately out of scope.

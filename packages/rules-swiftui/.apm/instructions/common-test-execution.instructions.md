@@ -6,7 +6,8 @@ applyTo: "**/*.swift"
 # 🚦 SwiftUI — how test runs are driven (the simulator is a shared resource)
 
 > **Scope: SwiftUI native iOS apps whose default suite requires a simulator destination to run**
-> (running the app target through `xcodebuild test`, and the like).
+> (running the app target through `xcodebuild test`, and the like) — **and, always, the system suite**
+> (the XCUITest scenario target, [system-testing.md](system-testing.instructions.md)), which takes the simulator by definition.
 > Where the default suite closes with `swift test` alone, no exclusivity arises and this document's restrictions do not apply
 > (each producer drives itself to green as usual). If you cannot tell, look at the host `CLAUDE.md`'s
 > default-suite run command.
