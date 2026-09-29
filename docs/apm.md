@@ -160,7 +160,7 @@ node tools/spec-lint/spec-lint.mjs validate
 node tools/trace-check/trace-check.mjs
 ```
 
-互換生成のテスト、tools のユニットテスト（spec-lint / gate-hook / stop-gate / contract-run）、spec-lint、trace-check は通過した。以下の native APM install は別の fresh consumer で確認する。
+互換生成のテスト、tools のユニットテスト（spec-lint / trace-check / gate-hook / stop-gate / contract-run / goal-status）、spec-lint、trace-check は通過した。以下の native APM install は別の fresh consumer で確認する。
 
 公開前はローカルパッケージで fresh consumer を作れる。絶対パスを作業環境の checkout に置き換える。
 
