@@ -81,7 +81,37 @@ function addReqs(root, n) {
 	}
 }
 
-test("出力がパイプでも 64KB で切れない（レポート末尾の FAIL 一覧が最後まで読める）", (t) => {
+test("--json: 木と、違反が名指しする ID を出す。baseline 済みかどうかを添え、終了コードは変えない", (t) => {
+	const root = makeRoot({ system: false });
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	addReqs(root, 2);
+
+	const a = run(root, "--json");
+	assert.equal(a.status, 1, a.stdout + a.stderr);
+	const j = JSON.parse(a.stdout);
+	assert.deepEqual(Object.keys(j), ["goals", "ucs", "reqs", "violations"]);
+	assert.deepEqual(j.goals, [{ id: "GOAL-01", status: "active", dir: "docs/goals/GOAL-01-register", statement: "" }]);
+	assert.deepEqual(j.ucs[0], { id: "UC-001", goal: "GOAL-01", status: "active", phase: "実装", actor: "ACT-01", title: "t", dir: "docs/goals/GOAL-01-register/UC-001-register" });
+	assert.deepEqual(j.reqs[0], { id: "REQ-001", goal: "GOAL-01", uc: "UC-001", status: "active", classes: ["ok"] });
+	assert.deepEqual(
+		j.violations.map((v) => `${v.check} ${v.ids.join(",")} ${v.baselined}`),
+		["C1 REQ-001 false", "C1 REQ-002 false", "C10 REQ-001 false", "C10 REQ-002 false"],
+	);
+	assert.equal(j.violations[0].message, "[C1] REQ-001 を被覆するテストが存在しない（未検証の要件）");
+
+	//  baseline に載った違反は baselined: true で残る（消えない）。新規が無いので exit 0
+	assert.equal(run(root, "--update-baseline").status, 0);
+	const b = run(root, "--json");
+	assert.equal(b.status, 0, b.stdout + b.stderr);
+	assert.deepEqual(JSON.parse(b.stdout).violations.map((v) => v.baselined), [true, true, true, true]);
+
+	//  出力形式なので、書き込みや別の出力とは併用できない
+	const c = run(root, "--json", "--index");
+	assert.equal(c.status, 2);
+	assert.match(c.stderr, /--json は検査の出力形式/);
+});
+
+test("出力がパイプでも 64KB で切れない（レポート末尾の FAIL 一覧と --json が最後まで読める）", (t) => {
 	const root = makeRoot({ system: false });
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	addReqs(root, 900);
@@ -91,4 +121,8 @@ test("出力がパイプでも 64KB で切れない（レポート末尾の FAIL
 	assert.ok(Buffer.byteLength(text.stdout) > 64 * 1024, `レポートが小さすぎて検証にならない: ${Buffer.byteLength(text.stdout)} bytes`);
 	assert.match(text.stdout, /FAIL（新規違反 1800 件）/);
 	assert.match(text.stdout, /逆流ルール R-801）\n$/);
+
+	const json = run(root, "--json");
+	assert.ok(Buffer.byteLength(json.stdout) > 64 * 1024);
+	assert.equal(JSON.parse(json.stdout).violations.length, 1800);
 });

@@ -11,8 +11,8 @@ layering, and the contract vocabulary. It is the Node port of sdd-kit's `trace_c
   `templates/develop/traceconfig.json`; the host maintains `source` / `tests` / `schema` / `layering` / `contract`).
   Annotations are found by regex on every line (`covers_pattern` / `implements_pattern`), so any language works;
   `implements_pattern`'s capture may be a list (`@implements UC-001, REQ-009 / BR-015` — split on `,` or `/`)
-- **What it generates**: the coverage matrix (its report) and the whole-project index (`--index`). Both are
-  derived, never committed (R-1003 / R-603)
+- **What it generates**: the coverage matrix (its report), the whole-project index (`--index`), and the
+  report's machine-readable form (`--json`). All are derived, never committed (R-1003 / R-603)
 - **How it is used**: producers invoke it directly (`--only` narrows to their concern), the orchestrator runs
   it at the end of a slice (the merge condition is tests green + zero new violations, R-803), and CI runs it
 
@@ -26,9 +26,18 @@ node trace-check.mjs --next req [--reserve N]                 # the next N free 
                                                               # concurrent Tasks can all call it and never receive the same number. For req,
                                                               # IDs a UC.md table has reserved count as taken even before the file exists
 node trace-check.mjs --only C9,C12                            # judge only these checks (a producer's self-check)
+node trace-check.mjs --json                                   # one JSON object instead of the report (read by ../goal-status/)
 ```
 
 Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. Node only.
+
+`--json` prints `{ goals, ucs, reqs, violations }` and leaves the exit code as it is. Membership (`goal` /
+`uc`) follows placement, so a violation can be attributed even where the frontmatter is what is broken.
+Each violation is `{ check, ids, message, baselined }`: `ids` are the IDs the violation names — declared
+where the check fires, never parsed back out of the message — and are empty for a violation that names
+nothing in the tree (C6, C7, an unannotated test). A baselined violation stays in the list with
+`baselined: true`. It states facts only; deciding whether a GOAL holds is goal-status's job. It is an
+output format of the check, so it cannot be combined with `--update-baseline`, `--index`, or `--next`.
 
 ## The 15 checks
 
