@@ -69,3 +69,26 @@ test("レポート: 各 UC の行にシナリオテストの所在を出す", (t
 	assert.match(r.stdout, /UC-003 \(UC-003-browse\/\)  \[実装\]  scenario:-/);
 	assert.match(r.stdout, /シナリオテスト: 2/);
 });
+
+//  REQ を n 件持つ UC を足す（被覆するテストは置かないので、REQ ごとに C1 と C10 が出る）
+function addReqs(root, n) {
+	for (let i = 1; i <= n; i++) {
+		const id = `REQ-${String(i).padStart(3, "0")}`;
+		writeFileSync(
+			join(root, "docs/goals/GOAL-01-register/UC-001-register", `${id}.md`),
+			`---\nid: ${id}\npattern: Event-driven\nuc: UC-001\nstatus: active\n---\n\n# ${id}\n\n> 利用者が送信したとき、システムは ${id} を満たさなければならない。\n\n## 検証方針\n\n- **分割クラス**:\n  - \`#ok\` — 正常\n`,
+		);
+	}
+}
+
+test("出力がパイプでも 64KB で切れない（レポート末尾の FAIL 一覧が最後まで読める）", (t) => {
+	const root = makeRoot({ system: false });
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	addReqs(root, 900);
+
+	const text = run(root, "--strict");
+	assert.equal(text.status, 1);
+	assert.ok(Buffer.byteLength(text.stdout) > 64 * 1024, `レポートが小さすぎて検証にならない: ${Buffer.byteLength(text.stdout)} bytes`);
+	assert.match(text.stdout, /FAIL（新規違反 1800 件）/);
+	assert.match(text.stdout, /逆流ルール R-801）\n$/);
+});

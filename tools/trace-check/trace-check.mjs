@@ -773,4 +773,6 @@ function main() {
 	return 0;
 }
 
-process.exit(main());
+//  process.exit() は使わない: stdout がパイプのとき書き込みは非同期で、即時終了すると出力が 64KB で切れる
+//  （レポート末尾の FAIL 一覧が読めなくなる）。終了コードだけ置いて、書き切ってから終わらせる
+process.exitCode = main();
