@@ -165,6 +165,17 @@ class Projection(unittest.TestCase):
                     if path and '://' not in path and not path.startswith('/'):
                         self.assertTrue((source.parent / path).exists(), f'{source}: {url}')
 
+    def test_frontmatter_plain_values_are_valid_yaml(self):
+        # 引用符なしの値に ": " や " #" があると YAML として読めず、APM は frontmatter 全体を無視する。
+        for source in (ROOT / 'packages').rglob('*.md'):
+            frontmatter = re.match(r'---\n(.*?)\n---\n', source.read_text(), re.S)
+            if not frontmatter:
+                continue
+            for line in frontmatter[1].splitlines():
+                entry = re.match(r'([\w-]+): (.+)$', line)
+                if entry and entry[2][0] not in '"\'>|[{':
+                    self.assertNotRegex(entry[2], r': | #|:$', f'{source}: {entry[1]}')
+
 
 if __name__ == '__main__':
     unittest.main()
