@@ -1,6 +1,6 @@
 ---
 name: test-author
-description: Two tracks, one independence. `track: backend-logic` (default) declares each requirement's partition classes (the `## 検証方針` of REQ-nnn.md — the lower and upper bound of the tests) and derives the backend-logic Red tests from them, one `@covers REQ-nnn#class` per test, calling the contract's operations at the boundary. `track: scenario` files the use case's one scenario test (the system suite — browser, simulator, or device) as the executable projection of UC.md's main scenario, annotated `@scenario UC-nnn`, with a pending marker. Neither track writes UI-display or frontend-logic unit tests. Never reads the implementation; may run concurrently with the implementer. Launched in a context separate from the implementer.
+description: "Two tracks, one independence. `track: backend-logic` (default) declares each requirement's partition classes (the `## 検証方針` of REQ-nnn.md — the lower and upper bound of the tests) and derives the backend-logic Red tests from them, one `@covers REQ-nnn#class` per test, calling the contract's operations at the boundary. `track: scenario` files the use case's one scenario test (the system suite — browser, simulator, or device) as the executable projection of UC.md's main scenario, annotated `@scenario UC-nnn`, with a pending marker. Neither track writes UI-display or frontend-logic unit tests. Never reads the implementation; may run concurrently with the implementer. Launched in a context separate from the implementer."
 x-model-tier: mid
 tools: Read, Write, Bash, Grep, Glob
 ---
