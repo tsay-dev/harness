@@ -65,7 +65,10 @@ per case).
   host that already calls that workflow needs only the `git` block. To make a failure block the merge, the
   host protects its default branch and requires the status check the workflow reports (shown as
   `spec-gate / spec-gate` when the calling job is named `spec-gate`). Branch protection is the host's
-  setting; the harness does not install it.
+  setting; the harness does not install it. Where the host cannot protect the branch (its plan does not
+  offer protection for that repository), the check still runs and shows red on the pull request but
+  nothing stops the merge: the stop is then the rule in `commit.md` — never merge a pull request whose
+  checks are not all green — which binds the orchestrator and, by agreement, the humans.
 - **The orchestrator**, right after cutting a branch (`commit.md`). This is the cheap place to catch a
   wrong name: in CI the fix is a new branch and a new pull request.
 - **Local hooks**, optional and per clone:

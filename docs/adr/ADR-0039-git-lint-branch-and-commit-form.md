@@ -23,6 +23,7 @@ date: 2026-10-02
   - コミットメッセージの 1 行目: `<type>(<scope>): <subject>` の形、`type` の閉じた語彙、末尾の句点なし、モノレポでは `scope` が必須で unit か `repo`。
 - ホストは `traceconfig.json` の `git` ブロックで宣言する。`git.units` がモノレポのユニット（名前とディレクトリ）の唯一の宣言場所で、orchestrator もここから読む。`git` が無いホストでは検査は実行されず、「検査していない」と出力する（pass とは扱わない）。`git.exempt_branches` は bot のブランチを対象外にする。
 - 強制の所在は CI である。再利用ワークフロー `.github/workflows/spec-gate.yml` が PR ごとにブランチ名と各コミットを検査する。merge を止めるのは、ホストが既定ブランチの保護でそのジョブを必須チェックにしたときである。
+- ブランチ保護を使えないホスト（プランがそのリポジトリの保護を提供しない場合）では、merge を止める機械が無い。そこでは「チェックが緑でない PR を merge しない」を `commit.md` の規則として置き、orchestrator は merge の前に PR のチェックを読む。これは説得的な統制であり、人による merge は運用の合意でしか止まらない。
 - orchestrator はブランチを切った直後に同じツールで名前を確かめる。ローカルの commit-msg / pre-push フックは任意とする。
 - `type` の語彙は `commit.md` の表とツールの両方にあり、ツールのテストが一致を固定する。
 

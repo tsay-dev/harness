@@ -34,6 +34,7 @@ Cut the slice's branch **before the first producer writes** — the base is fixe
 
 - **Never commit directly to the default branch (main, etc.).** If you are on it, cut a branch first (*Cutting the branch*).
 - **Push and PR creation happen only when the human explicitly asks.** Absent that, stop at the commit.
+- **Merging happens only when the human explicitly asks, and never on a PR whose checks are not all green.** Read them first (`gh pr checks <number>`): a failing check → do not merge, report which check failed and why; a pending one → wait for it. A host without branch protection has no machine that stops a red merge, so this line is the only stop there.
 - **Never use `--no-verify`.** Do not bypass commit-msg / pre-commit hooks — let them run.
 - Never perform destructive or irreversible operations such as `reset --hard`, `push --force`, or `clean -f`.
 - If secrets (keys, tokens) appear in the diff, do not commit — stop and report.
