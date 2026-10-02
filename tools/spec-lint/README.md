@@ -40,11 +40,15 @@ node spec-lint.mjs validate --ignore-legacy-layout   # keep checking the new lay
 node spec-lint.mjs validate --update-baseline # ledger today's errors in .spec-baseline.json; from then on only NEW errors fail
 node spec-lint.mjs validate --strict          # ignore the baseline (everything fails)   [--baseline <file> to relocate it]
 node spec-lint.mjs gate --message <file>       # verify a commit's UC: trailer (UC / REQs active, contract fixed) — never uses the baseline
-node spec-lint.mjs gate --uc UC-012            # the same for one UC
+node spec-lint.mjs gate --uc UC-012            # the same for one UC   [--unit <name> at a monorepo root]
 node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
 ```
 
 Exit codes: `0`=OK / `1`=violation / `2`=usage error. Node only (no external dependencies).
+In a monorepo host (`traceconfig.json` declares `git.units`, run from the repository root) docs and UC numbers are
+per unit, so `gate` looks the UC up in one unit's `docs/`: `--message` takes the unit from the commit header's
+`scope`, `--uc` takes it from `--unit`. A commit that carries `UC:` with a scope that is not a declared unit
+(`repo`, none) fails; a commit without the trailer passes untouched, as everywhere (ADR-0040).
 Regression tests: `node --test "tools/spec-lint/test/*.test.mjs"` (a minimal docs tree is written to a temp dir per case).
 On detecting the old layout (`docs/specs/F-xxx-<slug>/`) it prompts for `/docs-migrate` and returns `1` — unless
 `--ignore-legacy-layout` is given, in which case the old directory is a warning and the new layout is checked in full.

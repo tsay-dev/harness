@@ -30,6 +30,12 @@
     "contract_adapter": "npx tsx scripts/contract-adapter.ts",
     "system": "npx playwright test"
   },
+  "git": {
+    "_comment": "Read by tools/git-lint (branch names and commit-message headers; the reusable CI workflow runs it on every pull request); spec-lint gate also reads units, to look a commit's UC: trailer up in the docs of the unit its scope names. Remove this block to leave both unchecked - git-lint then reports that nothing was checked, never a pass. As written, a branch is <type>/<topic>. For a monorepo add units, one name per independently deployed app or shared package mapped to its directory, e.g. \"units\": { \"app-a\": \"apps/a\", \"ui\": \"packages/ui\" }: a branch is then <unit>/<topic> (repo/<topic> for a change that belongs to no unit) and a commit scope must be a unit or repo. The orchestrator reads the units from here and never infers them from the layout. exempt_branches lists globs (** / * / ?) of branches left unchecked, for bots.",
+    "exempt_branches": [
+      "dependabot/**"
+    ]
+  },
   "source": {
     "dirs": [
       "src"
