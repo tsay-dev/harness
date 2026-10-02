@@ -31,6 +31,8 @@
 //                                                   trace-check と同じ baseline ラチェット。既知の違反を台帳化し、以降は新規違反だけ落とす
 //    node spec-lint.mjs gate --message <file>       commit メッセージの UC: トレーラの UC が実装可能か検証（baseline は見ない）
 //    node spec-lint.mjs gate --uc UC-012            指定 UC が実装可能（UC / REQ が active・契約 fixed）か検証
+//        [--unit <名前>]                            モノレポ（traceconfig.json の git.units）のルートで実行するときの unit。
+//                                                   --message では unit をコミット 1 行目の scope から決める（ADR-0040）
 //    node spec-lint.mjs convert <openapi.yaml> [--uc UC-012] [--direction outbound|inbound] [--out contract.yaml]
 //                                                   旧 OpenAPI 3.x 契約を harness 契約へ機械変換する（形を保つだけ。判断は注記で返す）
 //
@@ -1256,10 +1258,46 @@ function findUcDir(docsDir, id) {
 	return null;
 }
 
+//  モノレポのホスト（traceconfig.json の git.units）では docs が unit ごとにあり、UC の番号も unit ごとに振られる。
+//  どの unit の UC かは UC-nnn だけでは決まらないので、--message はコミット 1 行目の scope で、
+//  --uc は --unit で決める（docs/adr/ADR-0040）。units の書式（名前の形・ディレクトリの実在）を検査するのは
+//  git-lint で、ここでは名前 → ディレクトリの対応だけを読む。
+//  返り値: null = 未宣言（単一ユニット。docs は cwd 直下） / Map<名前, ディレクトリ> / undefined = 設定異常
+const UNITS_CONFIG = "traceconfig.json";
+const COMMIT_SCOPE_RE = /^[A-Za-z]+(?:\(([^()]*)\))?!?: /;
+
+function readUnits() {
+	if (!existsSync(UNITS_CONFIG)) return null;
+	let cfg;
+	try {
+		cfg = JSON.parse(readFileSync(UNITS_CONFIG, "utf8"));
+	} catch (e) {
+		console.error(`spec-lint gate: ${UNITS_CONFIG} が JSON として読めない（${e.message}）`);
+		return undefined;
+	}
+	const decl = cfg?.git?.units;
+	if (decl === undefined) return null;
+	const units = new Map();
+	if (decl !== null && typeof decl === "object" && !Array.isArray(decl)) {
+		for (const [name, dir] of Object.entries(decl)) if (name !== "_comment" && typeof dir === "string" && dir.trim()) units.set(name, dir);
+	}
+	if (units.size === 0) {
+		console.error(`spec-lint gate: ${UNITS_CONFIG} の git.units から unit を読めない（書式は git-lint で確かめる）`);
+		return undefined;
+	}
+	return units;
+}
+
+//  コミットメッセージの 1 行目（空行と commit-msg ファイルの # 行を飛ばす）の scope。無ければ null
+function scopeOf(msg) {
+	const header = msg.split(/\r?\n/).find((l) => l.trim() && !l.startsWith("#")) ?? "";
+	return COMMIT_SCOPE_RE.exec(header)?.[1] || null;
+}
+
 function gateUc(docsDir, id) {
 	const dir = findUcDir(docsDir, id);
 	if (!dir || !existsSync(join(dir, "UC.md"))) {
-		err("gate", `${id}: 対応する UC が無い（docs/goals/<GOAL-nn-slug>/${id}-<slug>/UC.md を作る）`);
+		err("gate", `${id}: 対応する UC が無い（${docsDir}/goals/<GOAL-nn-slug>/${id}-<slug>/UC.md を作る）`);
 		return;
 	}
 	const uc = parseFrontmatter(readFileSync(join(dir, "UC.md"), "utf8")).data;
@@ -1282,20 +1320,47 @@ function gateUc(docsDir, id) {
 
 function cmdGate(docsDir, opts) {
 	let ids = [];
+	let msg = null;
 	if (opts.uc) ids = [opts.uc];
 	else if (opts.message) {
 		if (!existsSync(opts.message)) {
 			console.error(`spec-lint gate: メッセージファイルが無い: ${opts.message}`);
 			return 2;
 		}
-		const msg = readFileSync(opts.message, "utf8");
+		msg = readFileSync(opts.message, "utf8");
 		ids = [...msg.matchAll(/^UC:\s*(UC-\d+)/gim)].map((m) => m[1]);
 		if (ids.length === 0) return 0; //  トレーラ未使用はオプトイン。素通り（未強制）
 	} else {
 		console.error("spec-lint gate: --message <file> か --uc UC-nnn が要る");
 		return 2;
 	}
-	for (const id of ids) gateUc(docsDir, id);
+
+	const units = readUnits();
+	if (units === undefined) return 2;
+	const names = units ? [...units.keys()].join(" / ") : "";
+	if (opts.unit !== undefined && (!units || msg !== null)) {
+		console.error("spec-lint gate: --unit は git.units を宣言したホストで --uc と一緒に使う（--message では unit をコミットの scope から決める）");
+		return 2;
+	}
+	let unit = null;
+	if (units && msg === null) {
+		if (!units.has(opts.unit)) {
+			console.error(`spec-lint gate: モノレポでは --uc に --unit <名前> が要る（使えるのは ${names}）`);
+			return 2;
+		}
+		unit = opts.unit;
+	} else if (units) {
+		const scope = scopeOf(msg);
+		if (!units.has(scope)) {
+			err("gate", `${ids.join(", ")}: コミットの scope ${scope ?? "（なし）"} が unit でない（UC は unit の docs にある。UC: を付けるコミットの scope は ${names} のどれか）`);
+			report();
+			return 1;
+		}
+		unit = scope;
+	}
+
+	const unitDocs = unit ? join(units.get(unit), docsDir) : docsDir;
+	for (const id of ids) gateUc(unitDocs, id);
 	report();
 	return errors.length > 0 ? 1 : 0;
 }
@@ -1586,6 +1651,7 @@ function parseArgs(argv) {
 		if (a === "--docs") opts.docs = argv[++i];
 		else if (a === "--message") opts.message = argv[++i];
 		else if (a === "--uc") opts.uc = argv[++i];
+		else if (a === "--unit") opts.unit = argv[++i];
 		else if (a === "--ignore-legacy-layout") opts.ignoreLegacy = true;
 		else if (a === "--update-baseline") opts.updateBaseline = true;
 		else if (a === "--strict") opts.strict = true;
@@ -1609,7 +1675,7 @@ function main() {
 	if (cmd === "convert") process.exit(cmdConvert(opts));
 	console.error(
 		"usage: spec-lint.mjs validate [--docs docs] [--ignore-legacy-layout] [--update-baseline|--strict] [--baseline f]\n" +
-			"       spec-lint.mjs gate --message f | --uc UC-012\n" +
+			"       spec-lint.mjs gate --message f | --uc UC-012 [--unit name]\n" +
 			"       spec-lint.mjs convert <openapi.yaml> [--uc UC-012] [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]",
 	);
 	process.exit(2);

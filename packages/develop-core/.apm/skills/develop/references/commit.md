@@ -100,7 +100,8 @@ Record the sha and subject of each commit in the round ledger; commit success or
   - Reference related issues / ADRs: `Refs: #123` / `ADR-0007`
   - Name the corresponding use case: `UC: UC-012` (the UC ID of `docs/goals/**/UC-012-<slug>/`). That this UC and its REQs are
     `active` and its contract `fixed` is machine-verified by the spec-lint tool (`"${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" gate --message <file>`)
-    (so implementation does not proceed on a draft). Opt-in in practice.
+    (so implementation does not proceed on a draft). Opt-in in practice. In a monorepo host the UC is looked up in the docs of
+    the unit the header's `scope` names, so a commit that carries `UC:` has that unit as its scope — never `repo`.
   - Breaking changes: `BREAKING CHANGE: <description>`
   - Commits an AI took part in may carry a `Co-Authored-By:` trailer (optional).
 

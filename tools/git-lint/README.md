@@ -17,7 +17,8 @@ nothing was checked and exits `0` — a skip, never a pass.
 ```
 
 - `units` maps a unit name (lowercase ASCII kebab-case) to its directory. It is also where the orchestrator
-  reads the units from; nothing infers them from the layout. `repo` is reserved for changes that belong to
+  reads the units from, and where `spec-lint gate` finds the docs of the unit a commit's `scope` names
+  (ADR-0040); nothing infers them from the layout. `repo` is reserved for changes that belong to
   no unit and cannot be declared. A unit whose directory is missing is a configuration error (the
   declaration is stale).
 - `exempt_branches` is for branches no agent or human of the project names (bots). A matching branch skips

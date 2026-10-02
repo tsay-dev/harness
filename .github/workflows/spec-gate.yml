@@ -59,6 +59,7 @@ jobs:
           if [ -f traceconfig.json ]; then node "$HARNESS_ROOT/tools/trace-check/trace-check.mjs"; else echo "traceconfig.json なし: trace-check をスキップ"; fi
 
       #   PR の各コミットの UC: トレーラを検査（UC / REQ が active でない・契約が無い/未 fixed なら落とす）
+      #   モノレポ（git.units）では、コミットの scope が指す unit の docs で UC を引く（ADR-0040）
       #   push 単発では base が不定なため PR のみ（validate は常時走る）
       - name: Gate commits (UC トレーラの UC active・契約 fixed を要求)
         if: ${{ github.event_name == 'pull_request' }}
