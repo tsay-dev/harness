@@ -4,6 +4,23 @@ You, the orchestrator, land a slice as git commits (and a PR when the human asks
 
 > **Language**: write commit messages and PR bodies in Japanese (the `type`, the scope, and the trailers stay in English).
 
+## Cutting the branch
+
+Cut the slice's branch **before the first producer writes** — the base is fixed at the slice's start, not at commit time.
+
+- **One trunk.** Every branch starts at the tip of the remote default branch: `git fetch origin`, then `git switch -c <name> --no-track origin/<default>` (`<default>` is what `git symbolic-ref --short refs/remotes/origin/HEAD` names). If the fetch fails, cut from the local default branch and report that the base may be stale. Never branch from another working branch, and never create or use a long-lived branch beside the default one — in a monorepo there is no per-unit trunk (`app-a`, `app-a/main`, `release/app-a`).
+- **One slice, one branch, short-lived.** A branch carries exactly one slice and ends at its merge. Resuming the same slice → stay on its branch. Starting a new slice while on any other working branch, merged or not → cut a fresh one from the default branch; never append the next slice to keep a branch alive. If the new slice needs work that is not merged yet, ask the human instead of stacking. Slices that ran concurrently in one working tree each get their own branch at commit time, from that same base (`git switch -c <name> --no-track <base>` carries the uncommitted files).
+- **The name is derived, never invented.**
+
+| Host | Name | How each part is decided |
+| --- | --- | --- |
+| Monorepo: the host `CLAUDE.md` / `AGENTS.md` declares its units (a name and a directory for each independently deployed app and each shared package) | `<unit>/<topic>` (`app-a/add-login`) | `<unit>` is a declared name, chosen by the first row that fits: the app where the slice's user value surfaces (the one the UC's actor uses), even when the diff also touches other units → the shared package, when the change is confined to one → `repo`, when it belongs to no unit (root configuration, CI, repository-wide docs) |
+| No units declared | `<type>/<topic>` (`feat/add-login`), unless the host declares its own convention | `<type>` is the commit `type` of the slice's main change |
+
+- `<topic>` is lowercase ASCII kebab-case, verb first, two to four words.
+- The slash only groups the branch list; it creates no hierarchy. `<unit>` alone is never a branch — it would be a per-unit trunk, and git cannot hold `app-a` beside `app-a/add-login`.
+- Never infer the units from the directory layout. When the layout suggests several apps (`apps/*`, a workspace manifest) but nothing is declared, ask the human which units exist and record them in the host `CLAUDE.md` / `AGENTS.md` before cutting.
+
 ## When you may commit
 
 - **Only after the terminal list passes** (*Phase 4: behaviour* in [playbook.md](playbook.md): `spec-lint validate`, `trace-check`, `contract-run`, then the host's `commands.typecheck` / `lint` / `test`, and `commands.system` where declared) **and the slice's reviewer pass is at zero `阻止`**. Green tests alone are not the condition.
@@ -14,7 +31,7 @@ You, the orchestrator, land a slice as git commits (and a PR when the human asks
 
 ## Guardrails (never cross these)
 
-- **Never commit directly to the default branch (main, etc.).** If you are on it, cut a branch first.
+- **Never commit directly to the default branch (main, etc.).** If you are on it, cut a branch first (*Cutting the branch*).
 - **Push and PR creation happen only when the human explicitly asks.** Absent that, stop at the commit.
 - **Never use `--no-verify`.** Do not bypass commit-msg / pre-commit hooks — let them run.
 - Never perform destructive or irreversible operations such as `reset --hard`, `push --force`, or `clean -f`.
@@ -51,7 +68,7 @@ Record the sha and subject of each commit in the round ledger; commit success or
 <footer>
 ```
 
-- Everything except **type** (required) and **subject** (required) is optional. `scope` is the area affected (e.g. `auth`, `docs`).
+- Everything except **type** (required) and **subject** (required) is optional. `scope` is the area affected (e.g. `auth`, `docs`); in a monorepo host it is the unit name, the same one the branch carries (*Cutting the branch*).
 
 ### The types
 

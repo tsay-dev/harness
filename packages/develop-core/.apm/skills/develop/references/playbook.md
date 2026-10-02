@@ -31,7 +31,7 @@
 
 ## Phase 1: definition
 
-Before the first launch, seed `traceconfig.json` from `${HARNESS_ROOT}/templates/develop/traceconfig.json` if absent (adjust `source` / `tests` / `commands`; ask when unsure); on an existing project run `trace-check --update-baseline` once. Then launch `spec-author` per target, in dependency order, one 🙋 pass per return:
+Before the first launch, cut the slice's branch ([commit.md](commit.md), *Cutting the branch*) and seed `traceconfig.json` from `${HARNESS_ROOT}/templates/develop/traceconfig.json` if absent (adjust `source` / `tests` / `commands`; ask when unsure); on an existing project run `trace-check --update-baseline` once. Then launch `spec-author` per target, in dependency order, one 🙋 pass per return:
 
 1. **Domain** — vision (measurable KPIs), glossary and actor set closed, every goal a `GOAL.md` or a backlog entry, every NFR with a measurement. On approval set `frozen` / `living` / `active`.
 2. **Use cases** — one Task per UC, concurrently across UCs. Each reserves its REQ IDs with `trace-check --next req --reserve N` (atomic; no band handed out). Done when the state × event table has no empty cell, every cell names a reserved REQ, a planned UC, or `不可` with a reason, and the exception sweep covers the 4 axes. On approval `active`.

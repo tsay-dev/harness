@@ -61,6 +61,6 @@ Pass inputs as paths (the UC directory, the BRs, `_shared`, the rules leaves per
 
 - [references/playbook.md](references/playbook.md) — before the first launch of a slice, on any rework, and before launching 2+ Tasks at once.
 - [references/bundles.md](references/bundles.md) — before launching any producer that writes files.
-- [references/commit.md](references/commit.md) — before committing. [references/adr.md](references/adr.md) — when a lasting design decision is made.
+- [references/commit.md](references/commit.md) — at a slice's start (its *Cutting the branch*) and before committing. [references/adr.md](references/adr.md) — when a lasting design decision is made.
 
 After advancing `phase:` and before the next launch, re-read §1–§3 and restate in one line what binds next; this file is short so that re-read is cheap.
