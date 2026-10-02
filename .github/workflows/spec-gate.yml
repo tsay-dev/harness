@@ -12,6 +12,10 @@
 #       spec-gate:
 #         uses: tsay-dev/harness/.github/workflows/spec-gate.yml@vX.Y.Z
 #
+#   PR ではブランチ名とコミットメッセージの書式（tools/git-lint）も同じジョブで検査する。
+#   ホストが traceconfig.json に git を宣言したときだけ実行され、未宣言なら「検査していない」と出て通る。
+#   失敗で merge を止めるには、ホストが既定ブランチの保護でこのジョブを必須チェックにする。
+#
 #   検査ツールは APM 外の harness checkout を使う。host は .harness を別途用意し、
 #   必要なら harness_path で変更する。このリポジトリ自身では "." を指定する。
 name: spec-gate
@@ -67,3 +71,21 @@ jobs:
             git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg.txt"
             node "$HARNESS_ROOT/tools/spec-lint/spec-lint.mjs" gate --message "$RUNNER_TEMP/msg.txt"
           done
+
+      #   ブランチ名とコミットメッセージの書式（commit.md の機械で決まる部分。ADR-0039）
+      #   head_ref は PR 作成者が決める文字列なので、run へ直接展開せず env 経由で渡す
+      #   片方が落ちても両方の結果を出してから落とす
+      - name: Git lint (ブランチ名・コミットメッセージの書式)
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          if [ ! -f traceconfig.json ]; then echo "traceconfig.json なし: git-lint をスキップ"; exit 0; fi
+          rc=0
+          node "$HARNESS_ROOT/tools/git-lint/git-lint.mjs" branch --name "$HEAD_REF" || rc=1
+          node "$HARNESS_ROOT/tools/git-lint/git-lint.mjs" message --range "$BASE_SHA..$HEAD_SHA" --branch "$HEAD_REF" || rc=1
+          exit $rc

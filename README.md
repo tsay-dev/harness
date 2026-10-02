@@ -116,6 +116,8 @@ develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契
 
 完成の定義は終端の閉じたリストです: spec-lint、trace-check、contract-run（契約の examples をホストのアダプタ経由で実行）、ホストの typecheck / lint / test、宣言時は system（シナリオテスト全件を 1 回）、そして reviewer の `阻止` ゼロ。reviewer の指摘は `阻止`（機械検査に変換できる反例付き）と `持ち越し` の 2 段で、`持ち越し` は `docs/verification/DEFERRED.md` に記録して同一スライスでは直しません。ホストは Claude Code の Stop hook に `tools/gate-hook/stop-gate.mjs` を明示設置すると、終了時に機械がこのリストを強制します。
 
+ブランチの切り方とコミットメッセージの書式は `references/commit.md` が定め、機械で決まる部分（名前の形・接頭辞・`type` の語彙・モノレポでの `scope`）は `tools/git-lint` が検査します（ADR-0039）。ホストが `traceconfig.json` に `git` を宣言したときだけ実行され、モノレポは `git.units` にユニット名とディレクトリを書きます。再利用ワークフロー `.github/workflows/spec-gate.yml` が PR ごとに同じ検査を走らせるので、ホストが既定ブランチの保護でそのジョブを必須チェックにすると、通らない PR は merge できません。ブランチ保護の設定はホストの責務です。
+
 `attack` は人間が依頼する任意の攻撃で、develop の通常ループには混ぜません。翻訳では maker が Stage 1–4 を通して訳し、翻訳を書いていない judge が Stage 5 の独立レビューを行います。工程・役割の詳細は各 skill / agent が正本です。
 
 ### docs の SDD / SSOT

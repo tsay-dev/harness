@@ -114,9 +114,12 @@ node .harness/tools/spec-lint/spec-lint.mjs validate
 node .harness/tools/trace-check/trace-check.mjs
 node .harness/tools/contract-run/contract-run.mjs          # traceconfig.json commands.contract_adapter を宣言したホストのみ実行される
 node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計（降格判断のデータ）
+node .harness/tools/git-lint/git-lint.mjs branch           # ブランチ名の書式。traceconfig.json に git を宣言したホストのみ実行される
 ```
 
 Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（スニペットは `tools/gate-hook/README.md`）。
+
+ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `traceconfig.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い、失敗で merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（手順は `tools/git-lint/README.md`）。
 
 各手続きは冒頭で `HARNESS_ROOT` を tools / templates を持つ checkout の絶対パスとして解決する。消費側の通常配置は `.harness/`、このリポジトリ自身では root。`.harness/tools/` は実行アセット、`.harness/templates/` は書式の参照先である。checkout 自体は全ソースを含み得るが、その存在だけで各 provider に全パッケージを展開しない。**この checkout の `init.sh` は APM consumer に実行しない。** フック・CI・ブランチ保護はホストが明示して設置する。未導入アセットが必要な工程では、存在を仮定してコマンドを捏造しない。
 
@@ -160,7 +163,7 @@ node tools/spec-lint/spec-lint.mjs validate
 node tools/trace-check/trace-check.mjs
 ```
 
-互換生成のテスト、tools のユニットテスト（spec-lint / gate-hook / stop-gate / contract-run）、spec-lint、trace-check は通過した。以下の native APM install は別の fresh consumer で確認する。
+互換生成のテスト、tools のユニットテスト（spec-lint / gate-hook / stop-gate / contract-run / git-lint）、spec-lint、trace-check は通過した。以下の native APM install は別の fresh consumer で確認する。
 
 公開前はローカルパッケージで fresh consumer を作れる。絶対パスを作業環境の checkout に置き換える。
 
