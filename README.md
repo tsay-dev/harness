@@ -124,6 +124,19 @@ develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契
 
 人間ゲートの文書は `draft → active → withdrawn`、機械ループの契約は `draft → fixed`。工程状態は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません（`docs/verification/DEFERRED.md` は反例を持つ内容なので唯一の例外）。テストは `@covers REQ-nnn#class`、シナリオテストは `@scenario UC-nnn`、実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流を指します。spec-lint は書式・ライフサイクル・契約のキー閉集合、trace-check は C1–C15 のトレーサビリティ、contract-run は契約 examples の実行を検証し、既存違反には baseline ラチェットを使います。契約の `errors` の並びが唯一の評価順で（R-1207）、散文に順序を再掲しません。
 
+### 進捗は保存せず、GOAL の成立から導出する
+
+プロジェクトの「今どこまで」は、どこにも書き込まず、その都度 `tools/goal-status` で導出します（ADR-0038）。分母は人が決めた `active` な GOAL、分子は終端リストの実行結果と trace-check の違反です。`UC.md` の `phase:` は orchestrator の申告なので判定には使わず、申告と観測が食い違う件数だけを添えます。
+
+GOAL の状態は `true` / `false` / `unobserved` の 3 値です。`true` は「条件（`active` な REQ）があり、配下を名指しする違反が無く、終端リストが実行されて通った」ときだけで、baseline に載せた違反・未宣言の `commands.test`・条件の無い GOAL はどれも `true` になりません。出力には観測時刻とコミット、未コミットの件数、`DEFERRED.md` の件数が付きます。goal-status は報告であってゲートではなく、終了コードは状態を表しません。
+
+```bash
+node .harness/tools/goal-status/goal-status.mjs          # 人が読む表（未達だけを詳しく）
+node .harness/tools/goal-status/goal-status.mjs --json   # 一覧画面などの集約側が読む JSON
+```
+
+GOAL が扱うのは製品の振る舞いです。公開・デプロイ・KPI はこの報告の外にあります。
+
 ### シナリオテスト（E2E）の位置づけ
 
 ブラウザ・シミュレータ・実機を起動する system suite は、**UC の主シナリオの実行可能な写し**として develop の phase の内側に置きます（ADR-0035〜0037）。SSOT は `UC.md` の主シナリオと事後条件、表示文言は `01-glossary.md`、識別子は `contract.yaml` の operation 名と request フィールド名で、テストコードを SSOT にはしません。1 UC につき正常系 1 本だけを書き、失敗系・境界は REQ の分割クラス（デフォルトスイート）が担います。書く時期は契約 `fixed` 直後で、実装と同時に `test-author (track: scenario)` が pending マーカー付きで filing し、FE 配線の `implementer (logic)` がマーカーを外して緑にします。走らせるのは境界だけ（修正ラウンドでは当該 UC の選択のみ、終端リストと CI で全件）で、赤緑ループには混ぜません。

@@ -5,13 +5,8 @@
 //  AI がターンを終えようとした瞬間に host の検証一式を走らせ、通らなければ exit 2 で
 //  終了をブロックし、失敗した検査の末尾ログを stderr で AI に差し戻す。
 //
-//  検査の順序（1–3 は全部走らせて失敗を集める。4 は最初の失敗で止める）:
-//    1. spec-lint validate            docs SSOT のフォーマット / ライフサイクル
-//    2. trace-check                   トレーサビリティ（<root>/traceconfig.json がある時だけ）
-//    3. contract-run                  契約例の実行検査（commands.contract_adapter 宣言時だけ）
-//    4. commands.typecheck → lint → test（traceconfig.json の commands ブロックから。無い鍵は skip）
-//    5. commands.system                シナリオテスト（system suite）全件。宣言時だけ、4 が全部通ったあとに 1 回（ADR-0035）
-//  コマンドは traceconfig.json に宣言されたものしか走らせない。推測・発明はしない。
+//  検査の並びと実行は suite.mjs が持つ（spec-lint → trace-check → contract-run → typecheck → lint → test → system。
+//  goal-status も同じ並びを使う）。コマンドは traceconfig.json に宣言されたものしか走らせない。推測・発明はしない。
 //
 //  Stop フックの入出力（Claude Code の契約）:
 //    stdin  JSON: session_id / cwd / hook_event_name:"Stop" / stop_hook_active / stop_reason
@@ -34,12 +29,13 @@
 //         [--log .harness-gate/log.jsonl] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]
 //  環境変数 STOP_GATE_TOOLS_DIR は同梱ツールの探索先（<self dir>/..）を差し替える（テスト用）。
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
+import { runSuite, tailLines } from "./suite.mjs";
 
 const USAGE =
 	"usage: stop-gate.mjs [--docs docs] [--config traceconfig.json] [--log <path>] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]";
@@ -122,66 +118,6 @@ function fingerprint(root, stateDir) {
 	return createHash("sha256").update(head.stdout).update("\0").update(status.stdout).update("\0").update(diff.stdout).digest("hex");
 }
 
-//  ---- 検査の実行 ------------------------------------------------------------
-
-//  1 ステップ実行。戻り: { name, ok, code, signal, timedOut, output }
-function runStep(name, cmd, root, timeoutSec) {
-	const r = spawnSync(cmd, { cwd: root, shell: true, timeout: timeoutSec * 1000, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-	const timedOut = r.error?.code === "ETIMEDOUT" || !!r.signal;
-	const output = (r.stdout ?? "") + (r.stderr ?? "") + (r.error && !timedOut ? `\n${r.error.message}` : "");
-	return { name: timedOut ? `timeout:${name}` : name, ok: !timedOut && r.status === 0, code: r.status, signal: r.signal, timedOut, output };
-}
-
-const tailLines = (text, n) => {
-	const lines = text.replace(/\s+$/, "").split(/\r?\n/);
-	return lines.slice(Math.max(0, lines.length - n));
-};
-
-function readCommands(configPath) {
-	if (!existsSync(configPath)) return {};
-	const cfg = JSON.parse(readFileSync(configPath, "utf8"));
-	return cfg.commands && typeof cfg.commands === "object" ? cfg.commands : {};
-}
-
-function runSuite(root, opts, toolsDir, configPath) {
-	const q = (p) => `"${p.replace(/"/g, '\\"')}"`;
-	const failures = [];
-	const skipped = [];
-	let ran = 0;
-	const run = (name, cmd) => {
-		ran++;
-		const r = runStep(name, cmd, root, opts.timeout);
-		if (!r.ok) failures.push(r);
-		return r.ok;
-	};
-	const skip = (name, why) => {
-		skipped.push(name);
-		console.log(`[stop-gate] skip: ${why}`);
-	};
-
-	//  1–3: 全部走らせて失敗を集める
-	run("spec-lint", `node ${q(join(toolsDir, "spec-lint", "spec-lint.mjs"))} validate --docs ${q(opts.docs)}`);
-
-	const hasConfig = existsSync(configPath);
-	if (hasConfig) run("trace-check", `node ${q(join(toolsDir, "trace-check", "trace-check.mjs"))} --root ${q(root)} --config ${q(configPath)}`);
-	else skip("trace-check", "traceconfig.json 無し");
-
-	const commands = hasConfig ? readCommands(configPath) : {};
-	if (commands.contract_adapter) run("contract-run", `node ${q(join(toolsDir, "contract-run", "contract-run.mjs"))}`);
-	else skip("contract-run", "commands.contract_adapter 未宣言 — 契約の実行検査は行われていない");
-
-	//  4–5: 宣言されたコマンドを順に。最初の失敗で止める（型が通らないのに test を回しても意味がない。
-	//  system はブラウザ / シミュレータを起動する最も重い検査なので最後に置き、default suite が赤なら走らせない）
-	for (const k of ["typecheck", "lint", "test", "system"]) {
-		if (!commands[k]) {
-			skip(k, k === "system" ? "commands.system 未宣言 — シナリオテストは走っていない（CI に任せるなら宣言しない）" : `commands.${k} 未宣言`);
-			continue;
-		}
-		if (!run(k, commands[k])) break;
-	}
-	return { failures, skipped, ran };
-}
-
 //  ---- 本体 ----------------------------------------------------------------
 
 function main() {
@@ -247,7 +183,7 @@ function main() {
 		//  6. 検査
 		const toolsDir = process.env.STOP_GATE_TOOLS_DIR || join(dirname(fileURLToPath(import.meta.url)), "..");
 		const configPath = resolve(root, opts.config);
-		const { failures, skipped, ran } = runSuite(root, opts, toolsDir, configPath);
+		const { failures, skipped, ran } = runSuite(root, opts, toolsDir, configPath, { onSkip: (_step, why) => console.log(`[stop-gate] skip: ${why}`) });
 
 		//  7. 全部通過
 		if (failures.length === 0) {

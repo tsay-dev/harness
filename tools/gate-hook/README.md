@@ -70,6 +70,9 @@ model as the reason to continue. The model then fixes what failed and tries to s
 | 4 | `commands.typecheck` → `commands.lint` → `commands.test` | each key that is declared (else `skip: commands.<k> 未宣言`) | stops at the first failure |
 | 5 | `commands.system` (the scenario suite — browser / simulator / device — once, whole) | declared, and step 4 passed (else `skip: commands.system 未宣言`) | collected |
 
+The list itself lives in `suite.mjs`, shared with `../goal-status/` (which reports the same results per
+GOAL instead of blocking), so the two can never run different lists.
+
 Steps 1–3 always run so that every failure is reported at once. Step 4 stops early because running
 tests on code that does not typecheck is noise, and step 5 is the most expensive check, so it runs
 only after the default suite is green. A host whose scenario suite is too slow to run on every stop

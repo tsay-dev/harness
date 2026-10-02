@@ -50,6 +50,8 @@
 //                                                                      予約は .trace-reservations.json に mkdir ロックで原子的に記録するので
 //                                                                      並行 Task が同時に呼んでも同じ番号は返らない。req は UC.md の表の ID も使用済み
 //    node trace-check.mjs --only C9,C12                                指定の検査項目だけ判定（producer の自己検査用）
+//    node trace-check.mjs --json                                       レポートの代わりに JSON を 1 個出力（木と、違反が名指しする ID。
+//                                                                      goal-status が読む。終了コードは変わらない）
 //
 //  終了コード: 0 = 新規違反なし / 1 = 新規違反あり / 2 = 使い方エラー
 //
@@ -77,6 +79,12 @@ function frontmatter(path) {
 		if (m) fm[m[1]] = m[2].replace(/\s+#.*$/, "").trim();
 	}
 	return fm;
+}
+
+//  本文の最初の引用行（GOAL の願い・REQ の EARS 文）
+function firstQuote(path) {
+	for (const line of read(path).split(/\r?\n/)) if (line.startsWith("> ")) return line.slice(2).trim();
+	return "";
 }
 
 function listDirs(dir) {
@@ -139,9 +147,10 @@ class Corpus {
 		this.goals = {}; //  id -> { status, dir }
 		this.ucs = {}; //  id -> { goal, actor, status, phase, dir, goalDir, file }
 		this.reqs = {}; //  id -> { uc, status, dir, goalDir, file, hasPolicy, classes }
-		this.pathViolations = [];
+		this.pathViolations = []; //  { ids, msg }。ids ＝ その違反が名指しする ID（木の上の帰属先）
 		const goalsDir = p(cfg, "docs.goals_dir");
 		const r = (x) => rel(cfg, x);
+		const bad = (id, msg) => this.pathViolations.push({ ids: id ? [id] : [], msg });
 
 		for (const gdir of listDirs(goalsDir)) {
 			const name = basename(gdir);
@@ -150,40 +159,37 @@ class Corpus {
 			const dirGoal = m ? m[1] : null;
 			const gfile = join(gdir, "GOAL.md");
 			if (!m || !existsSync(gfile)) {
-				this.pathViolations.push(`${r(gdir)}: GOAL-nn で始まる名前と直下の GOAL.md が必要`);
+				bad(dirGoal, `${r(gdir)}: GOAL-nn で始まる名前と直下の GOAL.md が必要`);
 				continue;
 			}
 			const gfm = frontmatter(gfile);
-			if (gfm.id !== dirGoal)
-				this.pathViolations.push(`${r(gfile)}: frontmatter id (${gfm.id}) がディレクトリ名 (${dirGoal}) と一致しない`);
-			this.goals[gfm.id || dirGoal] = { status: gfm.status || "active", dir: gdir };
+			const gid = gfm.id || dirGoal;
+			if (gfm.id !== dirGoal) bad(gid, `${r(gfile)}: frontmatter id (${gfm.id}) がディレクトリ名 (${dirGoal}) と一致しない`);
+			this.goals[gid] = { status: gfm.status || "active", dir: gdir };
 
 			//  旧形式（ゴール直下の UC-*.md / REQ-*.md）は配置違反
 			for (const f of listFiles(gdir, (n) => /^(UC|REQ)-\d+.*\.md$/.test(n)))
-				this.pathViolations.push(`${r(f)}: UC / REQ はゴール直下ではなく UC ディレクトリ配下に置く`);
+				bad(gid, `${r(f)}: UC / REQ はゴール直下ではなく UC ディレクトリ配下に置く`);
 
 			for (const udir of listDirs(gdir)) {
 				const um = basename(udir).match(UC_DIR_RE);
 				const dirUc = um ? um[1] : null;
 				const ufile = join(udir, "UC.md");
 				if (!um || !existsSync(ufile)) {
-					this.pathViolations.push(`${r(udir)}: UC-nnn で始まる名前と直下の UC.md が必要`);
+					bad(gid, `${r(udir)}: UC-nnn で始まる名前と直下の UC.md が必要`);
 					continue;
 				}
 				const ufm = frontmatter(ufile);
-				if (ufm.id !== dirUc)
-					this.pathViolations.push(`${r(ufile)}: frontmatter id (${ufm.id}) がディレクトリ名 (${dirUc}) と一致しない`);
-				if (ufm.goal !== dirGoal)
-					this.pathViolations.push(`${r(ufile)}: goal (${ufm.goal}) が配置ディレクトリ (${dirGoal}) と一致しない`);
 				const uid = ufm.id || dirUc;
+				if (ufm.id !== dirUc) bad(uid, `${r(ufile)}: frontmatter id (${ufm.id}) がディレクトリ名 (${dirUc}) と一致しない`);
+				if (ufm.goal !== dirGoal) bad(uid, `${r(ufile)}: goal (${ufm.goal}) が配置ディレクトリ (${dirGoal}) と一致しない`);
 				this.ucs[uid] = { goal: ufm.goal, actor: ufm.actor || "", status: ufm.status || "active", phase: ufm.phase || "", dir: udir, goalDir: gdir, file: ufile };
 
 				for (const f of listFiles(udir, (n) => /^REQ-\d+\.md$/.test(n))) {
 					const fm = frontmatter(f);
 					const stem = basename(f, ".md");
 					const rid = fm.id || stem;
-					if (fm.id && fm.id !== stem)
-						this.pathViolations.push(`${r(f)}: frontmatter id (${fm.id}) がファイル名 (${stem}) と一致しない`);
+					if (fm.id && fm.id !== stem) bad(rid, `${r(f)}: frontmatter id (${fm.id}) がファイル名 (${stem}) と一致しない`);
 					const text = read(f);
 					const idx = text.indexOf(POLICY_HEADING);
 					const classes = idx >= 0 ? [...text.slice(idx).matchAll(CLASS_DECL_RE)].map((x) => x[1]) : [];
@@ -194,9 +200,8 @@ class Corpus {
 		//  REQ の uc が、自身の配置ディレクトリの UC を指しているか
 		for (const [rid, rq] of Object.entries(this.reqs)) {
 			const uc = this.ucs[rq.uc || ""];
-			if (!uc) this.pathViolations.push(`${rid}: uc (${rq.uc}) が未定義`);
-			else if (uc.dir !== rq.dir)
-				this.pathViolations.push(`${rid}: uc (${rq.uc}) は ${basename(uc.dir)}/ 配下だが、REQ は ${basename(rq.dir)}/ に配置されている`);
+			if (!uc) bad(rid, `${rid}: uc (${rq.uc}) が未定義`);
+			else if (uc.dir !== rq.dir) bad(rid, `${rid}: uc (${rq.uc}) は ${basename(uc.dir)}/ 配下だが、REQ は ${basename(rq.dir)}/ に配置されている`);
 		}
 	}
 }
@@ -520,29 +525,32 @@ function runChecks(cfg) {
 	const referencedGoals = new Set(Object.values(corpus.ucs).filter((u) => u.status !== "withdrawn").map((u) => u.goal));
 
 	const activeReqs = Object.keys(corpus.reqs).filter((r) => corpus.reqs[r].status === "active").sort();
+	//  違反は { check, ids, text }。text は従来どおりの 1 行（表示と baseline の鍵）。
+	//  ids はその違反が名指しする ID で、--json の帰属に使う（文面から推測させない）。木に帰属しない違反は []
 	const failures = [];
+	const fail = (check, ids, msg) => failures.push({ check, ids, text: `[${check}] ${msg}` });
 
-	for (const req of activeReqs) if (!reqTests[req]) failures.push(`[C1] ${req} を被覆するテストが存在しない（未検証の要件）`);
-	for (const req of activeReqs) if (!corpus.reqs[req].hasPolicy) failures.push(`[C2] ${req} のファイルに「${POLICY_HEADING}」セクションがない`);
-	for (const req of Object.keys(reqTests).sort()) if (!(req in corpus.reqs)) failures.push(`[C3] テストが未定義の ${req} を @covers している`);
-	for (const br of Object.keys(brs).sort()) if (!referencedBrs.has(br)) failures.push(`[C4] ${br} がどの UC / REQ からも参照されていない（死んだ規則）`);
+	for (const req of activeReqs) if (!reqTests[req]) fail("C1", [req], `${req} を被覆するテストが存在しない（未検証の要件）`);
+	for (const req of activeReqs) if (!corpus.reqs[req].hasPolicy) fail("C2", [req], `${req} のファイルに「${POLICY_HEADING}」セクションがない`);
+	for (const req of Object.keys(reqTests).sort()) if (!(req in corpus.reqs)) fail("C3", [req], `テストが未定義の ${req} を @covers している`);
+	for (const br of Object.keys(brs).sort()) if (!referencedBrs.has(br)) fail("C4", [br], `${br} がどの UC / REQ からも参照されていない（死んだ規則）`);
 	const known = new Set([...Object.keys(corpus.reqs), ...Object.keys(brs), ...Object.keys(corpus.ucs)]);
 	for (const ident of Object.keys(implementsMap).sort())
-		if (!known.has(ident)) failures.push(`[C5] コードが未定義の ${ident} を参照（${[...implementsMap[ident]].sort().join(", ")}）`);
-	for (const v of checkLayering(cfg)) failures.push(`[C6] ${v}`);
-	for (const v of checkContractConformance(cfg)) failures.push(`[C7] ${v}`);
+		if (!known.has(ident)) fail("C5", [ident], `コードが未定義の ${ident} を参照（${[...implementsMap[ident]].sort().join(", ")}）`);
+	for (const v of checkLayering(cfg)) fail("C6", [], v);
+	for (const v of checkContractConformance(cfg)) fail("C7", [], v);
 	for (const [goal, g] of Object.entries(corpus.goals).sort())
-		if (g.status === "active" && !referencedGoals.has(goal)) failures.push(`[C8] ${goal} (active) を実現する UC が存在しない`);
-	for (const v of corpus.pathViolations) failures.push(`[C9] ${v}`);
+		if (g.status === "active" && !referencedGoals.has(goal)) fail("C8", [goal], `${goal} (active) を実現する UC が存在しない`);
+	for (const v of corpus.pathViolations) fail("C9", v.ids, v.msg);
 
 	//  C10: 宣言クラスの下限被覆 / クラス未宣言
 	for (const req of activeReqs) {
 		const classes = corpus.reqs[req].classes;
 		if (classes.length === 0) {
-			failures.push(`[C10] ${req} に分割クラスが宣言されていない（検証方針に \`#name\` を列挙すること）`);
+			fail("C10", [req], `${req} に分割クラスが宣言されていない（検証方針に \`#name\` を列挙すること）`);
 			continue;
 		}
-		for (const k of classes) if (!coverage.has(`${req}#${k}`)) failures.push(`[C10] ${req}#${k} を被覆するテストが存在しない（未検証の分割クラス）`);
+		for (const k of classes) if (!coverage.has(`${req}#${k}`)) fail("C10", [req], `${req}#${k} を被覆するテストが存在しない（未検証の分割クラス）`);
 	}
 
 	//  C11: 生成上限 — 全テストは宣言済みクラスを指す
@@ -551,17 +559,17 @@ function runChecks(cfg) {
 		if (!(c.req in corpus.reqs)) continue; //  C3 で報告済み
 		const declared = corpus.reqs[c.req].classes;
 		const w = c.where.join(", ");
-		if (c.klass === null) failures.push(`[C11] ${w}: クラス指定がない（@covers ${c.req}#<class> 形式にすること）`);
+		if (c.klass === null) fail("C11", [c.req], `${w}: クラス指定がない（@covers ${c.req}#<class> 形式にすること）`);
 		else if (!declared.includes(c.klass))
-			failures.push(`[C11] ${w}: 未宣言のクラス ${c.req}#${c.klass} を指している。テストを増やす前に検証方針へクラスを宣言すること（生成上限）`);
+			fail("C11", [c.req], `${w}: 未宣言のクラス ${c.req}#${c.klass} を指している。テストを増やす前に検証方針へクラスを宣言すること（生成上限）`);
 	}
 	//  C11 の派生: @covers を持たないテスト関数（tests.test_pattern があるときだけ。注釈忘れは上限にも下限にも映らない）
 	const unannotated = collectUnannotatedTests(cfg);
 	if (unannotated) {
 		for (const w of unannotated.missing)
-			failures.push(`[C11] ${w}: @covers の無いテスト（tests.test_pattern に一致）。仕様外なら tests.exempt_pattern の印を書く`);
+			fail("C11", [], `${w}: @covers の無いテスト（tests.test_pattern に一致）。仕様外なら tests.exempt_pattern の印を書く`);
 		for (const w of unannotated.orphans)
-			failures.push(`[C11] ${w}: どのテストにも属さない @covers（tests.covers_placement: ${unannotated.placement} ＝ ${unannotated.placement === "before" ? "テスト印の直前のコメント" : "テスト印の行から本体の先頭"}に置く）`);
+			fail("C11", [], `${w}: どのテストにも属さない @covers（tests.covers_placement: ${unannotated.placement} ＝ ${unannotated.placement === "before" ? "テスト印の直前のコメント" : "テスト印の行から本体の先頭"}に置く）`);
 	}
 
 	//  C13: DB で強制する規則にはスキーマ側の制約（@implements）が要る。schema 未設定なら判定しない
@@ -570,7 +578,7 @@ function runChecks(cfg) {
 			const fm = frontmatter(f);
 			if (!fm.id || fm.status === "withdrawn" || !DB_ENFORCED_RE.test(fm.enforced_at || "")) continue;
 			if (!schemaImplements[fm.id])
-				failures.push(`[C13] ${fm.id} は enforced_at に database を含むが、スキーマ源（${(cfg.schema.files || cfg.schema.dirs || []).join(", ")}）から @implements されていない（制約のコメントに @implements ${fm.id} を書く）`);
+				fail("C13", [fm.id], `${fm.id} は enforced_at に database を含むが、スキーマ源（${(cfg.schema.files || cfg.schema.dirs || []).join(", ")}）から @implements されていない（制約のコメントに @implements ${fm.id} を書く）`);
 		}
 	}
 
@@ -580,10 +588,10 @@ function runChecks(cfg) {
 	if (hasSource) {
 		for (const req of activeReqs)
 			if (!implementsMap[req])
-				failures.push(`[C14] ${req} を @implements する実装が存在しない（active な要件はソースまたはスキーマ源のユニットに注釈すること）`);
+				fail("C14", [req], `${req} を @implements する実装が存在しない（active な要件はソースまたはスキーマ源のユニットに注釈すること）`);
 		for (const br of Object.keys(brs).sort())
 			if (brs[br] === "active" && !implementsMap[br])
-				failures.push(`[C14] ${br} を @implements する実装が存在しない（active な規則はソースまたはスキーマ源のユニットに注釈すること）`);
+				fail("C14", [br], `${br} を @implements する実装が存在しない（active な規則はソースまたはスキーマ源のユニットに注釈すること）`);
 	}
 
 	//  C15: 人間アクターの active な UC はシナリオテスト（system suite の @scenario UC-nnn）を 1 件以上持つ。
@@ -596,15 +604,15 @@ function runChecks(cfg) {
 			const u = corpus.ucs[uid];
 			if (u.status !== "active" || !isHumanActor(kinds, u.actor)) continue;
 			if (!scenarios[uid])
-				failures.push(`[C15] ${uid} (active、アクター ${u.actor || "未記載"}) にシナリオテストが存在しない（system suite に @scenario ${uid} を持つテストを 1 本置く）`);
+				fail("C15", [uid], `${uid} (active、アクター ${u.actor || "未記載"}) にシナリオテストが存在しない（system suite に @scenario ${uid} を持つテストを 1 本置く）`);
 		}
 		for (const uid of Object.keys(scenarios).sort())
-			if (!(uid in corpus.ucs)) failures.push(`[C15] ${scenarios[uid].join(", ")}: 未定義の ${uid} を @scenario している`);
+			if (!(uid in corpus.ucs)) fail("C15", [uid], `${scenarios[uid].join(", ")}: 未定義の ${uid} を @scenario している`);
 	}
 
 	//  C12: 重複 ID（採番衝突）
 	for (const [ident, files] of Object.entries(collectDefinitions(cfg)).sort())
-		if (files.length > 1) failures.push(`[C12] ${ident} が複数箇所で定義されている（${files.map((f) => rel(cfg, f)).join(", ")}）`);
+		if (files.length > 1) fail("C12", [ident], `${ident} が複数箇所で定義されている（${files.map((f) => rel(cfg, f)).join(", ")}）`);
 
 	//  ---- レポート（被覆マトリクス。本出力が SSOT / 手書き禁止） ----
 	const lines = ["=".repeat(68), " トレーサビリティ検査（被覆マトリクスは本出力が SSOT / 手書き禁止）", "=".repeat(68)];
@@ -639,16 +647,38 @@ function runChecks(cfg) {
 		lines.push(`  ${files.length ? "OK " : "NG "}${br}  ${files.join(", ") || "(実装参照なし)"}`);
 	}
 	lines.push("=".repeat(68));
-	return { failures, report: lines.join("\n") };
+	return { failures, report: lines.join("\n"), corpus };
+}
+
+//  ---- JSON（派生物: レポートの機械可読な形。ファイルへコミットしない） ------------------------
+
+//  木（GOAL / UC / REQ）と違反を 1 個の JSON にする。所属は配置（どのディレクトリの下にあるか）で決める:
+//  frontmatter の goal: / uc: が壊れていても（それ自体は C9 の違反）、違反を木のどこかへ帰属できるため。
+//  成立・不成立の判定はここではしない（それは goal-status の仕事。ここは事実だけを出す）
+function toJson(cfg, corpus, failures, baselined) {
+	const goalByDir = Object.fromEntries(Object.entries(corpus.goals).map(([id, g]) => [g.dir, id]));
+	const ucByDir = Object.fromEntries(Object.entries(corpus.ucs).map(([id, u]) => [u.dir, id]));
+	const ids = (o) => Object.keys(o).sort();
+	return {
+		goals: ids(corpus.goals).map((id) => {
+			const g = corpus.goals[id];
+			return { id, status: g.status, dir: rel(cfg, g.dir), statement: firstQuote(join(g.dir, "GOAL.md")) };
+		}),
+		ucs: ids(corpus.ucs).map((id) => {
+			const u = corpus.ucs[id];
+			return { id, goal: goalByDir[u.goalDir], status: u.status, phase: u.phase, actor: u.actor, title: frontmatter(u.file).title || "", dir: rel(cfg, u.dir) };
+		}),
+		reqs: ids(corpus.reqs).map((id) => {
+			const q = corpus.reqs[id];
+			return { id, goal: goalByDir[q.goalDir], uc: ucByDir[q.dir], status: q.status, classes: q.classes };
+		}),
+		violations: failures.map((f) => ({ check: f.check, ids: f.ids, message: f.text, baselined: baselined.has(f) })),
+	};
 }
 
 //  ---- 索引（派生物: ファイルへコミットしない） ----------------------------------------
 
 function printIndex(cfg) {
-	const firstQuote = (path) => {
-		for (const line of read(path).split(/\r?\n/)) if (line.startsWith("> ")) return line.slice(2).trim();
-		return "";
-	};
 	const corpus = new Corpus(cfg);
 	const out = ["# 索引（生成物 / trace-check --index。コミット禁止）"];
 	for (const goal of Object.keys(corpus.goals).sort()) {
@@ -690,7 +720,7 @@ function printIndex(cfg) {
 const baselineKey = (f) => f.replace(/(\S):\d+(?=[,:）)]|\s|$)/g, "$1");
 
 function parseArgs(argv) {
-	const opts = { root: ".", config: null, updateBaseline: false, strict: false, index: false, next: null, reserve: 1, only: null };
+	const opts = { root: ".", config: null, updateBaseline: false, strict: false, index: false, next: null, reserve: 1, only: null, json: false };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--root") opts.root = argv[++i];
@@ -698,6 +728,7 @@ function parseArgs(argv) {
 		else if (a === "--update-baseline") opts.updateBaseline = true;
 		else if (a === "--strict") opts.strict = true;
 		else if (a === "--index") opts.index = true;
+		else if (a === "--json") opts.json = true;
 		else if (a === "--next") opts.next = argv[++i];
 		else if (a === "--reserve") opts.reserve = Number(argv[++i]);
 		else if (a === "--only") opts.only = new Set(argv[++i].split(",").map((s) => s.trim().toUpperCase()));
@@ -705,6 +736,10 @@ function parseArgs(argv) {
 			console.error(`trace-check: 不明な引数 ${a}`);
 			process.exit(2);
 		}
+	}
+	if (opts.json && (opts.updateBaseline || opts.index || opts.next)) {
+		console.error("trace-check: --json は検査の出力形式。--update-baseline / --index / --next とは併用できない");
+		process.exit(2);
 	}
 	return opts;
 }
@@ -732,12 +767,12 @@ function main() {
 		return 0;
 	}
 
-	let { failures, report } = runChecks(cfg);
-	if (opts.only) failures = failures.filter((f) => opts.only.has((f.match(/^\[(C\d+)\]/) || [])[1]));
-	if (!opts.only) console.log(report);
+	const checked = runChecks(cfg);
+	const failures = opts.only ? checked.failures.filter((f) => opts.only.has(f.check)) : checked.failures;
+	if (!opts.only && !opts.json) console.log(checked.report);
 
 	if (opts.updateBaseline) {
-		writeFileSync(baselinePath, JSON.stringify(failures.map(baselineKey), null, 2) + "\n");
+		writeFileSync(baselinePath, JSON.stringify(failures.map((f) => baselineKey(f.text)), null, 2) + "\n");
 		console.log(`\nbaseline を更新: ${failures.length} 件を記録（${basename(baselinePath)}）`);
 		return 0;
 	}
@@ -750,7 +785,7 @@ function main() {
 	const fresh = [];
 	const knownOnes = [];
 	for (const f of failures) {
-		const key = baselineKey(f);
+		const key = baselineKey(f.text);
 		if (remaining.get(key) > 0) {
 			remaining.set(key, remaining.get(key) - 1);
 			knownOnes.push(f);
@@ -758,14 +793,19 @@ function main() {
 	}
 	const resolved = [...remaining.entries()].flatMap(([b, n]) => Array(n).fill(b));
 
+	if (opts.json) {
+		console.log(JSON.stringify(toJson(cfg, checked.corpus, failures, new Set(knownOnes))));
+		return fresh.length ? 1 : 0;
+	}
+
 	if (knownOnes.length) {
 		console.log(`\nWARN（baseline 済み ${knownOnes.length} 件 / 返済対象）:`);
-		for (const f of knownOnes) console.log(`  ~ ${f}`);
+		for (const f of knownOnes) console.log(`  ~ ${f.text}`);
 	}
 	if (resolved.length) console.log(`\n解消済み ${resolved.length} 件 -> --update-baseline で baseline を縮めること`);
 	if (fresh.length) {
 		console.log(`\nFAIL（新規違反 ${fresh.length} 件）:`);
-		for (const f of fresh) console.log(`  x ${f}`);
+		for (const f of fresh) console.log(`  x ${f.text}`);
 		console.log("\n-> 上流 SSOT を更新してから再導出すること（逆流ルール R-801）");
 		return 1;
 	}
@@ -773,4 +813,6 @@ function main() {
 	return 0;
 }
 
-process.exit(main());
+//  process.exit() は使わない: stdout がパイプのとき書き込みは非同期で、即時終了すると出力が 64KB で切れる
+//  （レポート末尾の FAIL 一覧と --json が読めなくなる）。終了コードだけ置いて、書き切ってから終わらせる
+process.exitCode = main();
