@@ -71,6 +71,19 @@ apm install --target codex tsay-dev/harness/packages/rules-next
 apm install --target claude tsay-dev/harness/packages/translate-manga
 ```
 
+Cloudflare Workers + Hono + React SPA の場合は `develop-core` と `rules-cloudflare-hono-react` を選ぶ:
+
+```bash
+apm install --target codex tsay-dev/harness/packages/develop-core
+apm install --target codex tsay-dev/harness/packages/rules-cloudflare-hono-react
+```
+
+このパッケージは 13 の規約葉のみを持ち、`rules-next`・実行アセット・新しい skill / agent は含まない。D1 + Drizzle、Vite、TanStack Router / Query、Hono RPC、Zod を標準とし、DO / R2 は使用する機能でのみ適用する。
+
+標準配置は `apps/web/src/features/<feature>/` と薄い `routes/`、`apps/api/src/features/<feature>/` の routes → service → repository、`packages/shared/src/<feature>/schemas.ts`。React の feature 外部公開は `index.ts` 経由とし、Hono の root 組立から feature routes / DO への直接 import は許容する。service が develop の use-case 責務を担うため、専用 UseCase / DTO 層は必須にしない。
+
+詳細の正本は [common-coding](../packages/rules-cloudflare-hono-react/.apm/instructions/common-coding.instructions.md) と各専門葉。異なるホスト配置では役割と実ファイルの対応を先に宣言し、ホスト側の中立 `applyTo` または委譲時の明示配送を用意する。生成先の手編集や常駐ルーターで補わない。テスト入口・依存注入契約は実装前に宣言し、既定 BE テストは DO を export する Worker root を import せず、runtime 非依存の feature route factory を呼ぶ。Worker 組立と実 bindings は workerd 統合検証に分離する。
+
 対象は `claude` / `codex` / `cursor` / `grok-build` から選ぶ。複数使う場合は `--target claude,codex` のように一つのオプションへまとめる。`--target` の反復は最後の値だけが有効になる。パッケージソースで消費先を固定しない。
 
 GitHub 例はこの構成が公開された版に対して有効。ref を固定する場合は、たとえば `tsay-dev/harness/packages/rules-next#<release-tag>` と記述し、`<release-tag>` を実在する公開タグへ置き換える。存在しないリリース名を例からそのまま使わない。依存を変えたら生成された `apm.lock.yaml` と manifest の変更を確認して保存し、CI で同じ解決を使う場合は `apm install --frozen` を使う。更新は APM の `apm update` で計画を確認して行う。

@@ -1,0 +1,3 @@
+name: rules-cloudflare-hono-react
+version: 1.0.0
+description: "Vendor-neutral rules for Cloudflare Workers, Hono, React SPA, and D1 with Drizzle"

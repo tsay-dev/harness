@@ -46,7 +46,7 @@ Do not flatten `.apm/` into an invented layout that APM cannot discover. Consult
 
 ### Adding an instruction
 
-1. Choose its installation boundary first. Framework leaves belong only in `rules-next`, `rules-crow`, `rules-expo`, or `rules-swiftui`. Only platform-independent concerns such as docs and comments belong in `develop-core`.
+1. Choose its installation boundary first. Framework leaves belong only in their selected package: `rules-next`, `rules-cloudflare-hono-react`, `rules-crow`, `rules-expo`, or `rules-swiftui`. Only platform-independent concerns such as docs and comments belong in `develop-core`.
 2. Keep **one concern per leaf**. Preserve scene / platform / framework / layer specialization in instruction filenames; APM 0.30.0 discovers instruction files directly under `.apm/instructions/`. Do not transcribe the common rules into a layer leaf.
 3. Declare **`applyTo` as the neutral delivery contract**, using a comma-separated string (not a YAML array). Enumerate exactly the files the intended recipient writes: test addresses for a test designer, native schema addresses for a DB designer, production addresses for implementers. Broad globs are valid only for a rule that binds every matching address. Excessively narrow globs silently prevent delivery.
 4. Claude `paths:` is emitted by its adapter; it is not source syntax. Other providers must not be assumed to have an equivalent native lazy loader. Instructions remain available in the installed APM package for invocation-time discovery and reading.
