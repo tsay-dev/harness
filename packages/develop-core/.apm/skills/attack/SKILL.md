@@ -1,66 +1,66 @@
 ---
 name: attack
 description: >-
-  Run a red-team attack (per-slice or system-wide) in a production-equivalent environment. The main agent that invokes this skill acts as the orchestrator: it never attacks itself, it directs the `attacker` agent in this package's agent definitions. Launch only when the human explicitly asks for an attack — "/attack", "攻撃して", "レッドチームで壊して" (attack it / break it with a red team). Never launch from "開発したい" "実装して" "レビューして" alone, and never as part of the develop loop.
+  本番相当の環境でレッドチーム攻撃を行う（スライス単位またはシステム全体）。この skill を呼び出したメイン agent はオーケストレーターとして、自ら攻撃せず、このパッケージの agent 定義にある `attacker` を指揮する。人間が明示的に攻撃を依頼した場合だけ起動する。「/attack」「攻撃して」「レッドチームで壊して」が該当し、「開発したい」「実装して」「レビューして」だけでは起動せず、develop のループにも組み込まない。
 ---
 
-# orchestrator (attack)
+# オーケストレーター（attack）
 
-> **Role**: While this skill is active you are the attack orchestrator. Do not run attack scenarios or fix code yourself — direct [attacker.agent.md](../../agents/develop/attacker.agent.md) in a separate context (Task). **The agent is shared with the develop key** (there is no agents tree specific to this skill).
+> **役割**: この skill の実行中は攻撃オーケストレーターです。攻撃シナリオの実行やコード修正を自ら行わず、別コンテキスト（Task）の [attacker.agent.md](../../agents/develop/attacker.agent.md) を指揮してください。**agent は develop キーと共有します**（この skill 専用の agents ツリーはありません）。
 >
-> **Where this sits**: outside `/develop`'s definition of done. An optional weapon, only when the human says so. Never launched from develop.
+> **位置付け**: `/develop` の完了条件の外にある、人間が指示したときだけ使う任意の手段です。develop からは起動しません。
 
-## 1. Core constraints (never violate)
+## 1. 中核制約（違反禁止）
 
-- **Human-explicit only**: the AI must never decide on its own to "attack too, just in case" and enter this skill.
-- **No fixing**: attack and report only. When you break something, return it as a defect. Do not fix code, SSOT, or contracts (if a fix is needed, report it to the human and route to `/develop` if appropriate).
-- **A budget is mandatory**: always pass the attacker an attack budget (a cap on the number of attempts). Omitting it or passing "unlimited" is forbidden.
-- **Separation from develop**: passing or failing this skill has no bearing on develop's definition of done (report only).
-- **Language**: these instructions are in English, the output is not. **Report to the human in Japanese**, and write defect descriptions in Japanese. State this in every Task input. Identifiers, paths, commands, and payloads stay as they are.
+- **人間の明示指示のみ**: AI が独自に「念のため攻撃もしておこう」と判断して、この skill に入ることは禁止です。
+- **修正しない**: 攻撃と報告だけを行います。壊せたものは欠陥として返し、コード、SSOT、契約を修正してはいけません（修正が必要なら人間に報告し、適切なら `/develop` に振り分けます）。
+- **予算は必須**: 常に攻撃予算（試行数の上限）を attacker に渡します。省略と「無制限」は禁止です。
+- **develop と分離する**: この skill の成功・失敗は develop の完了条件に影響しません（報告のみ）。
+- **言語**: **人間への報告と欠陥の説明は日本語**で書きます。各 Task 入力で明示してください。識別子、パス、コマンド、ペイロードは維持します。
 
-## 2. Deciding scope (immediately on launch)
+## 2. 範囲の決定（起動直後）
 
-Decide the following from the human's instruction. If ambiguous, confirm with 🙋 before launching.
+人間の指示から次を決めます。曖昧なら起動前に 🙋 で確認してください。
 
-| Scope | `scope` passed to `attacker` | Default budget |
+| 範囲 | `attacker` に渡す `scope` | 既定の予算 |
 | --- | --- | --- |
-| a single slice / one feature | `slice` | **10** |
-| the whole system, cross-slice, NFRs | `system` | **15** |
-| both, explicitly | two Tasks, in sequence (or concurrently if there is no dependency) | as in the table |
+| 1 スライス / 1 機能 | `slice` | **10** |
+| システム全体、スライス横断、NFR | `system` | **15** |
+| 明示的に両方 | 2 つの Task を順次実行（依存がなければ並行） | 表のとおり |
 
-You may tune the budget for size, but never set it to zero or unlimited.
+規模に応じて予算を調整できますが、ゼロや無制限にはしません。
 
-## 3. Flow
+## 3. 流れ
 
 ```
-settle scope and budget
-  → launch attacker (scope: slice | system) as a Task
-  → present the report to the human (successful breaks, unattempted candidates)
-  → do not fix. Add a pointer to /develop if needed
+範囲と予算を確定
+  → attacker（scope: slice | system）を Task として起動
+  → 人間に報告を提示（壊せたもの、未試行の候補）
+  → 修正しない。必要なら /develop への案内を添える
 ```
 
-### Task input (always pass)
+### Task 入力（常に渡す）
 
-- `scope` (`slice` / `system`) and the target (for a slice: the UC directory `docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/` — `UC.md`, `REQ-*.md`, `contract.yaml` — plus the BRs it names; for the whole system: `docs/00-vision.md`, `docs/nfr/`, `docs/rules/`, and `trace-check --index` for the map)
-- Hints for the production-equivalent runtime (paths or commands, if the project's startup method is known)
-- **The attack budget**
-- On a re-attack round: the previous defect/violation list plus the change scope
+- `scope`（`slice` / `system`）と対象（スライス: UC ディレクトリ `docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/` の `UC.md`、`REQ-*.md`、`contract.yaml` と、それらが参照する BR。システム全体: `docs/00-vision.md`、`docs/nfr/`、`docs/rules/` と、地図としての `trace-check --index`）
+- 本番相当ランタイムの手掛かり（プロジェクトの起動方法が分かる場合、パスまたはコマンド）
+- **攻撃予算**
+- 再攻撃時: 前回の欠陥・違反一覧と変更範囲
 
-The attacker is the **top** tier (`x-model-tier: top` in its source; ADR-0028). Apply the tier at launch the way the develop skill's `references/playbook.md` (section *Task inputs and receipt*) describes for Claude Code, Cursor, Grok Build, and Codex; when a provider cannot honor it, report that instead of claiming it was enforced.
+attacker は **top** tier です（正本に `x-model-tier: top`、ADR-0028）。develop skill の `references/playbook.md`「Task の入力と受け取り」節にある Claude Code、Cursor、Grok Build、Codex の方法で起動時に適用します。対応できないプロバイダーでは、強制できたと主張せず制限を報告します。
 
-### On receipt
+### 受領時
 
-| Received | Exit |
+| 受け取ったもの | 終了時の処理 |
 | --- | --- |
-| list of successful breaks (empty = pass) | 🙋 present to the human. If empty, report it as "failed to break — the attack could not get through" |
-| unattempted candidates (with priority) | always present them. If high-priority ones remain, ask the human whether another round is warranted. **Silently dropping them is forbidden** |
-| cannot attack, environment missing | report what is missing and stop. Never pretend to have attacked in a fabricated environment |
+| 壊すことに成功した攻撃の一覧（空なら合格） | 🙋 人間に提示。空なら「壊せなかった — 攻撃は通らなかった」と報告 |
+| 未試行の候補（優先度付き） | 必ず提示。高優先度が残る場合は追加の周回が必要か人間に尋ねる。**黙って落とすことは禁止** |
+| 環境不足で攻撃できない | 不足を報告して停止。捏造した環境で攻撃したふりをしない |
 
-## 4. Agent wiring
+## 4. agent の接続
 
-| Agent | Purpose |
+| agent | 目的 |
 | --- | --- |
-| `attacker` (`scope: slice`) | break one slice in a production-equivalent environment |
-| `attacker` (`scope: system`) | cross-cutting: interactions, performance, security, a11y, data integrity |
+| `attacker`（`scope: slice`） | 本番相当環境で 1 スライスを壊す |
+| `attacker`（`scope: system`） | 横断的な相互作用、性能、セキュリティ、a11y、データ整合性 |
 
-The SSOT for its persona is the package-local agent source linked above. Do not duplicate mission text here.
+役割定義の SSOT は上記リンクのパッケージ内 agent 正本です。使命の本文をここに複製しません。

@@ -1,35 +1,35 @@
 ---
-description: "🎨 SwiftUI / frontend — surface-layer coding rules"
+description: "🎨 SwiftUI / フロントエンド — 表示レイヤーのコーディング規則"
 applyTo: "**/*.swift,**/Package.swift"
 ---
 
-# 🎨 SwiftUI / frontend — surface-layer coding rules
+# 🎨 SwiftUI / フロントエンド — 表示レイヤーのコーディング規則
 
-> **Scope: native iOS apps using SwiftUI.** If it does not apply, discard it.
+> **適用範囲: SwiftUI を使うネイティブ iOS アプリ。** 該当しなければ破棄する。
 >
-> **The common rules are [common/coding.md](common-coding.instructions.md)** (formatting is the tool's; never weaken types to get to green;
-> Feature-first and `App`/`Shared`; `@MainActor` and `async/await`; secrets and dependencies).
-> State and layering is [dataflow.md](frontend-dataflow.instructions.md); navigation is [routing.md](frontend-routing.instructions.md);
-> granularity and the implementers' division of work is [components.md](frontend-components.instructions.md).
-> This document defines, **on top of following those**, only the delta that binds SwiftUI's surface (how a View is written). It never restates the common side.
+> **共通規則は [common/coding.md](common-coding.instructions.md)**（書式はツールが決める、Green にするために型を弱めない、
+> Feature-first と `App` / `Shared`、`@MainActor` と `async/await`、秘密情報と依存）。
+> 状態とレイヤー構成は [dataflow.md](frontend-dataflow.instructions.md)、遷移は [routing.md](frontend-routing.instructions.md)、
+> 粒度と実装担当者の分業は [components.md](frontend-components.instructions.md)。
+> この文書は、**それらに従った上で**、SwiftUI の表示側（View の書き方）に適用する差分だけを定義する。共通側は再掲しない。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Defining the goal (what `body` can and cannot do)
+## 0. 目的の定義（`body` にできること、できないこと）
 
-A SwiftUI `body` is **a declaration that maps the current state onto an appearance**.
-Fetching data, persisting it, owning navigation, and the substance of business rules are not here.
+SwiftUI の `body` は、**現在の状態を外観に写す宣言**。
+データの取得・永続化、遷移の所有、業務規則の本体はここに置かない。
 
-`body` can be re-evaluated. Write a side effect premised on how many times or when it runs, and
-it works in a demo while breaking only on a real device, on a redraw, or in a preview.
+`body` は再評価されうる。実行回数や時機を前提とする副作用を書くと、
+デモでは動き、実機、再描画、プレビューでだけ壊れる。
 
-**This document's job is to close the loopholes that tend to open on the View surface (side effects, bloat, list accidents, missing edges).**
+**この文書の役目は、View の表示側で生じやすい抜け穴（副作用、肥大化、リストの事故、画面端の考慮漏れ）を閉じること。**
 
 ---
 
-## 1. Never write side effects in `body` or on the render path
+## 1. `body` や描画経路に副作用を書かない
 
 ```swift
 // ❌ NG: 描画のたびに走りうる
@@ -46,34 +46,34 @@ var body: some View {
 }
 ```
 
-- **Never write a direct call to networking, a Repository, or a UseCase in a View** ([dataflow.md](frontend-dataflow.instructions.md))
-- Never launch a `Task { }` inside `body` to "update while we're here". The trigger is limited to `.task` or an explicit user action, and the substance lives in the ViewModel
-- Never do heavy synchronous computation, file I/O, or a semaphore wait from `body` (it freezes main)
+- **View に通信、Repository、UseCase の直接呼び出しを書かない**（[dataflow.md](frontend-dataflow.instructions.md)）
+- 「ついでに更新する」ために `body` の中で `Task { }` を起動しない。トリガーは `.task` または明示的なユーザー操作に限り、本体は ViewModel に置く
+- `body` から重い同期計算、ファイル I/O、セマフォ待機をしない（メインが固まる）
 
-**Prefer `.task` (and `.task(id:)` where needed) over `.onAppear`.**
-Cancellation and lifecycle handling are clearer, reducing accidental updates after the screen is gone.
+**`.onAppear` より `.task`（必要なら `.task(id:)`）を優先する。**
+キャンセルとライフサイクルの扱いが明確になり、画面が消えた後の誤更新を減らせる。
 
 ---
 
-## 2. Never let a View become a giant monolith
+## 2. View を巨大な一枚岩にしない
 
-Never load a form, a list, alerts, communication state, and layout all into one file or one `body`.
+フォーム、リスト、アラート、通信状態、レイアウトを 1 ファイルまたは 1 つの `body` に詰め込まない。
 
-| Signal to split | What to do |
+| 分割の兆候 | 対処 |
 | --- | --- |
-| A section of the screen reads independently | carve it into a private child View (a `private struct` in the same file is fine) |
-| You want a reuse or preview unit | make it a separate View type within Presentation |
-| State and operations are growing | that is not a View split — doubt the ViewModel / Router design ([dataflow.md](frontend-dataflow.instructions.md)) |
+| 画面の一部分が独立して読める | private な子 View に切り出す（同じファイル内の `private struct` でよい） |
+| 再利用やプレビューの単位にしたい | Presentation 内の別の View 型にする |
+| 状態や操作が増えている | View の分割ではなく、ViewModel / Router の設計を疑う（[dataflow.md](frontend-dataflow.instructions.md)） |
 
-**Never drag a UseCase into a View through a purely visual split.**
-What a child View needs goes no further than display values and closures (or a reference to a thin ViewModel).
+**見た目だけの分割で UseCase を View に引き込まない。**
+子 View に必要なのは表示値とクロージャ（または薄い ViewModel への参照）まで。
 
 ---
 
-## 3. Lists and identity
+## 3. リストと同一性
 
-Long lists use **a lazy container: `List` / `LazyVStack` / `LazyHStack`**.
-Never build hundreds of rows at once with an ordinary `VStack` + `ForEach` (it dies on the initial render and on scroll).
+長いリストには **遅延コンテナー: `List` / `LazyVStack` / `LazyHStack`** を使う。
+通常の `VStack` + `ForEach` で数百行を一度に構築しない（初回描画やスクロールで破綻する）。
 
 ```swift
 // ❌ NG: 安定しない id、行の中でまた通信
@@ -87,31 +87,31 @@ ForEach(items, id: \.id) { item in
 }
 ```
 
-- A `ForEach`'s id is **an identifier stable in the domain** (never make `offset` or a display string the id)
-- Never start a detail fetch each time a row appears. Assemble the data a list needs on the UseCase side, or make it an explicit per-screen load
-- The model passed to a row stays within what that row displays (never hand a giant graph to every row)
+- `ForEach` の id は**ドメイン上で安定した識別子**にする（`offset` や表示文字列を id にしない）
+- 行が表示されるたびに詳細取得を始めない。リストに必要なデータは UseCase 側で揃えるか、画面ごとの明示的な読み込みにする
+- 行に渡すモデルは、その行が表示する範囲に留める（すべての行に巨大なグラフを渡さない）
 
 ---
 
-## 4. The screen's edges — safe area and the keyboard
+## 4. 画面端 — セーフエリアとキーボード
 
-Miss them and it is hard to notice in the simulator while breaking only on a real device.
+見落とすとシミュレーターでは気づきにくく、実機でだけ壊れる。
 
-- Presume the notch, the home indicator, and the Dynamic Island.
-  Use `safeAreaPadding` / `safeAreaInset` where needed, and **never fill the padding with hand-picked magic numbers alone**
-- Never add the same inset twice on a side the navigation bar or the tabs already consumed
-- Build a structure where the keyboard hides neither the submit button nor the fields, from the start, on any screen with input
-  (`ScrollView`, `safeAreaInset(edge: .bottom)`, and so on — never rebuild the layout afterwards)
+- ノッチ、ホームインジケーター、Dynamic Island を前提にする。
+  必要に応じて `safeAreaPadding` / `safeAreaInset` を使い、**手で選んだマジックナンバーだけで余白を埋めない**
+- ナビゲーションバーやタブが既に消費した側に、同じ inset を二重に足さない
+- 入力のある画面は、キーボードが送信ボタンもフィールドも隠さない構造を最初から作る
+  （`ScrollView`、`safeAreaInset(edge: .bottom)` など。後からレイアウトを作り直さない）
 
 ---
 
-## 5. Drive Previews with the Composition's fakes
+## 5. Preview は Composition と同じ形の fake で動かす
 
-Never connect a `#Preview` to the production `URLSession` or a real API.
+`#Preview` を本番の `URLSession` や実 API に接続しない。
 
-- Inject **fakes of the Repository / UseCase** for the Preview, in the same shape as the Composition
-- Never let a View start referencing a singleton or `.shared` for the sake of a Preview ([dataflow.md](frontend-dataflow.instructions.md))
-- Pass dependencies explicitly, so the preview stays "a device for checking a screen's appearance" and never becomes a substitute for integration tests
+- Preview 用に **Repository / UseCase の fake** を Composition と同じ形で注入する
+- Preview のために View から singleton や `.shared` を参照させない（[dataflow.md](frontend-dataflow.instructions.md)）
+- 依存を明示的に渡し、プレビューを「画面の外観を確認する装置」に留め、統合テストの代用品にしない
 
 ```swift
 #Preview {
@@ -127,40 +127,40 @@ Never connect a `#Preview` to the production `URLSession` or a real API.
 
 ---
 
-## 6. Accessibility is something you "emit"
+## 6. アクセシビリティは「出力する」もの
 
-A control that is only an icon or only decoration announces nothing to VoiceOver.
+アイコンだけ、装飾だけのコントロールは VoiceOver に何も伝えない。
 
-| Target | What to attach |
+| 対象 | 付けるもの |
 | --- | --- |
-| Anything pressable | that it is recognized as a button and the like (use `Button`; `accessibilityAddTraits` where needed) |
-| Something with only an icon and no wording | `accessibilityLabel` (the meaning of the action, not the icon's name) |
-| A purely decorative image | `accessibilityHidden(true)` |
-| State (selected, disabled) | express it in the accessibility state as well as in the appearance |
+| 押せるもの | ボタンなどとして認識されること（`Button` を使い、必要なら `accessibilityAddTraits`） |
+| アイコンだけで文言のないもの | `accessibilityLabel`（アイコン名ではなく操作の意味） |
+| 純粋な装飾画像 | `accessibilityHidden(true)` |
+| 状態（選択中、無効） | 外観だけでなくアクセシビリティ状態にも表す |
 
-Never use a copy of the displayed wording as an id (a wording change breaks it). Identifiers are **derived, never invented** (ADR-0037): the control that fires a contract operation carries `.accessibilityIdentifier("<operation>")` (`"createProject"`), the input for a request field `.accessibilityIdentifier("<operation>.<field>")` (`"createProject.title"`). Visible wording — `Text`, button labels, `accessibilityLabel` — is the **glossary term** verbatim (`docs/01-glossary.md`); a new term goes to the glossary through its gate, never into the View first.
+表示文言のコピーを id にしない（文言変更で壊れる）。識別子は**創作せず導出する**（ADR-0037）: 契約の operation を発火するコントロールは `.accessibilityIdentifier("<operation>")`（`"createProject"`）、request フィールドの入力は `.accessibilityIdentifier("<operation>.<field>")`（`"createProject.title"`）を付ける。見える文言、つまり `Text`、ボタンラベル、`accessibilityLabel` は**用語集の語**をそのまま使う（`docs/01-glossary.md`）。新しい語はゲートを通して用語集に追加し、View に先に書かない。
 
-> These are what VoiceOver announces and what the UC's XCUITest scenario ([system-testing.md](system-testing.instructions.md)) taps and asserts on — the scenario derives them from the same glossary and contract, so return the wording → identifier table in your report; when the two disagree, the appearance moves.
-> Deeper a11y guidance is not placed; FE unit tests are not filed.
-
----
-
-## 7. Never habitually reach for layout escape hatches
-
-- **Never use `GeometryReader` "just because".** It breaks the size children propose, and nesting it collapses layouts easily. Use it only when you can explain the measurement you need
-- Never scatter magic numbers for colors, fonts, and spacing per screen. If the project has a common design entrance (Assets, a small token set), use it. If it does not, do not stand up a whole design system on your own — match the existing style
-- Never update state every frame just so an animation "looks like it moves". Put it on SwiftUI's `animation` / `withAnimation`, and never embed heavy computation inside an animation's closure
+> これは VoiceOver が読み上げ、UC の XCUITest シナリオ（[system-testing.md](system-testing.instructions.md)）がタップ・検証する対象。シナリオは同じ用語集と契約から導出するので、報告に文言 → 識別子の表を返す。両者が一致しなければ外観側を修正する。
+> より深いアクセシビリティ指針は置かず、FE ユニットテストは作成しない。
 
 ---
 
-## ✅ Checklist before returning
+## 7. レイアウトの逃げ道を常用しない
 
-- [ ] Is there networking, heavy synchronous processing, or an unsanctioned `Task` launch in `body` or on the render path?
-- [ ] Is a View calling a UseCase / Repository / `URLSession` directly?
-- [ ] Has the screen stayed a giant monolith?
-- [ ] Is a long list in a lazy container, with a stable `ForEach` id?
-- [ ] Will the real-device layout survive the safe area and the keyboard?
-- [ ] Does a Preview depend on a real API or `.shared`?
-- [ ] Do icon buttons and the like have an `accessibilityLabel` (or an equivalent)?
-- [ ] Is every visible term the glossary term, and every operation control / request input carrying `accessibilityIdentifier` `"<operation>"` / `"<operation>.<field>"`?
-- [ ] Are you multiplying `GeometryReader` without a reason?
+- **「なんとなく」で `GeometryReader` を使わない。** 子が提案するサイズを崩し、入れ子はレイアウトを壊しやすい。必要な計測を説明できる場合だけ使う
+- 色、フォント、余白のマジックナンバーを画面ごとに散らさない。プロジェクトに共通のデザイン入口（Assets、小さなトークン集合）があれば使う。なければ独断でデザインシステム全体を立てず、既存のスタイルに合わせる
+- アニメーションを「動いて見せる」ためだけに毎フレーム状態を更新しない。SwiftUI の `animation` / `withAnimation` に任せ、アニメーションのクロージャに重い計算を埋め込まない
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] `body` や描画経路に通信、重い同期処理、許可されていない `Task` 起動がないか？
+- [ ] View が UseCase / Repository / `URLSession` を直接呼んでいないか？
+- [ ] 画面が巨大な一枚岩のままになっていないか？
+- [ ] 長いリストが遅延コンテナーにあり、`ForEach` の id が安定しているか？
+- [ ] 実機のレイアウトがセーフエリアとキーボードに耐えるか？
+- [ ] Preview が実 API や `.shared` に依存していないか？
+- [ ] アイコンボタンなどに `accessibilityLabel`（または相当するもの）があるか？
+- [ ] 見える語はすべて用語集の語であり、すべての operation コントロール / request 入力に `accessibilityIdentifier` の `"<operation>"` / `"<operation>.<field>"` が付いているか？
+- [ ] 理由なく `GeometryReader` を増やしていないか？

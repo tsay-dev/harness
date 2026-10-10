@@ -2,7 +2,7 @@
 //
 //  git-lint — ブランチ名とコミットメッセージの書式検査（harness 同梱ツール。依存ゼロの Node）
 //
-//  develop の commit.md（Cutting the branch / Format reference）が定める形のうち、
+//  develop の commit.md（ブランチを切る / 書式リファレンス）が定める形のうち、
 //  判断を要さず機械で決まる部分だけを検査する。どのユニットを選ぶべきだったか、
 //  どのブランチから切ったか、差分と名前が合っているかは判断なので見ない（ADR-0039）。
 //
@@ -39,7 +39,7 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const TAG = "[git-lint]";
-//  commit.md「The types」表と同じ閉じた語彙（test がこの一致を固定する）
+//  commit.md「type 一覧」表と同じ閉じた語彙（test がこの一致を固定する）
 const TYPES = ["feat", "fix", "docs", "refactor", "test", "perf", "style", "build", "ci", "chore"];
 //  どの unit にも属さない変更の接頭辞。unit 名としては宣言できない
 const REPO_UNIT = "repo";

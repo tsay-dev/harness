@@ -1,106 +1,106 @@
 ---
-description: "🧠 crow / backend — model / service / presenter / util (the Domain side)"
+description: "🧠 crow / バックエンド — model / service / presenter / util（Domain 側）"
 applyTo: "**/crow3_*/app/classes/**"
 ---
 
-# 🧠 crow / backend — model / service / presenter / util (the Domain side)
+# 🧠 crow / バックエンド — model / service / presenter / util（Domain 側）
 
-> **When to read this: when writing or fixing PHP under `app/classes/_common_/`**
-> (`model_<table>` / `model_<table>_<table>_service` / `model_<table>_presenter` / `common_presenter` / non-model utils).
-> Do not open it if you are only touching an action.
+> **読むタイミング：`app/classes/_common_/` 配下の PHP を作成・修正するとき**
+> （`model_<table>` / `model_<table>_<table>_service` / `model_<table>_presenter` / `common_presenter` / model 以外の util）。
+> action だけを変更するなら開かないでください。
 >
-> **The boundary is authoritative in [coding.md](backend-coding.instructions.md) §1.1** (it wins over this leaf on conflict).
-> The action side is [action.md](backend-action.instructions.md); **if you are writing a routine query that uses a raw fragment, also open [query.md](backend-query.instructions.md) §3.9**;
-> the common style is [common/coding.md](common-coding.instructions.md). **Never restate the common side or another leaf.**
+> **責務境界は [coding.md](backend-coding.instructions.md) §1.1 を正とします**（矛盾時はこの規約より優先）。
+> action 側は [action.md](backend-action.instructions.md) に従います。**raw フラグメントを使う定型クエリを書くなら、[query.md](backend-query.instructions.md) §3.9 も開いてください**。
+> 共通の書式は [common/coding.md](common-coding.instructions.md) に従います。**共通規約やほかの規約を再記載しないでください。**
 >
-> Section numbers run through the backend rules as a whole (`coding.md` §1 → `action.md` §2 → this leaf §3, §4).
+> 節番号はバックエンド規約全体で通し番号です（`coding.md` §1 → `action.md` §2 → この規約 §3、§4）。
 >
-> **Write comments in Japanese.**
+> **コメントは日本語で書いてください。**
 
 ---
 
-## 3. The model (Domain)
+## 3. model（Domain）
 
-### 3.1 Its role
+### 3.1 役割
 
-**The hand-written part** of `model_<table>` is that table's Domain address.
-Persistence (the ORM, generated members) lives alongside it through framework inheritance. That is fine.
+`model_<table>` の **手書き部分**が、そのテーブルの Domain の配置先です。
+永続化（ORM・生成メンバー）はフレームワークの継承を通じて同居します。それで構いません。
 
-> **Logic whose subject is that model (decisions, derivations, routine fetches) is defined
-> as a method on `model_<table>`. Never write it on the `module_*` side.**
+> **その model が主語となるロジック（判定・導出・定型取得）は
+> `model_<table>` のメソッドとして定義します。`module_*` 側に書かないでください。**
 
-Why: put in a module, it scatters per feature, and the same decision and the same fetch get duplicated across several `action_*`.
-Gathered onto the model, **there is exactly one place to read when you want to know that table's meaning**.
+理由：module に置くと機能ごとに散らばり、同じ判定・取得が複数の `action_*` に重複します。
+model に集約すれば、**そのテーブルの意味を知りたいときに読む場所が一つに定まります**。
 
-### 3.2 crow's generation and its extension points
+### 3.2 crow の生成と拡張点
 
-- crow **auto-generates `model_<table>`** from `db_design.txt` (its location and format are in [backend/db.md](backend-db.instructions.md)).
-  The generated output is a cache; never edit it by hand.
-- The extension point is **`app/classes/_common_/model_<table>.php`**.
-  crow injects the generated members right after the class declaration (right after the first `{`) and then loads it.
-- With no file, the standard generated class stands as-is. **An extension can be added later.**
+- crow は `db_design.txt` から **`model_<table>` を自動生成します**（配置と形式は [backend/db.md](backend-db.instructions.md)）。
+  生成物はキャッシュです。手編集しないでください。
+- 拡張点は **`app/classes/_common_/model_<table>.php`** です。
+  crow はクラス宣言直後（最初の `{` の直後）に生成メンバーを注入してから読み込みます。
+- ファイルがなければ標準の生成クラスがそのまま使われます。**拡張は後から追加できます。**
 
-### 3.3 What goes in a model
+### 3.3 model に置くもの
 
-| The nature of the logic | How to write it |
+| ロジックの性質 | 書き方 |
 | --- | --- |
-| A derived value or decision obtained from one row's state (e.g. `is_owned_by()`) | **an instance method** (a **static** to the same effect is fine if it only handles array rows) |
-| Search conditions, aggregates, and routine queries whose **subject** is that table (JOINs allowed) | **a static method** (starting from `sql_select_all()`, or assembling a `raw` fragment) |
-| A routine composition that appends related-table information onto the subject rows (attaching a skill list, and so on) | a **static** on the subject model (it never touches HTTP) |
-| Pre-save completion of values, consistency checks, post-delete cleanup | **an extension hook** (§3.7) |
+| 一行の状態から得られる導出値・判定（例：`is_owned_by()`） | **instance メソッド**（配列行だけを扱うなら同等の **static** でも可） |
+| そのテーブルが **主語**となる検索条件・集計・定型クエリ（JOIN 可） | **static メソッド**（`sql_select_all()` を起点にするか、`raw` フラグメントを組み立てる） |
+| 主語の行へ関連テーブル情報を付加する定型の合成（スキル一覧の添付など） | 主語 model の **static**（HTTP に触れない） |
+| 保存前の値補完・整合性検査・削除後の後処理 | **拡張フック**（§3.7） |
 
-Display formatting (`display_name`, how an unset date is rendered, enum displays the app adds) does **not go in a model** (→ §3.11, the presenter).
+表示整形（`display_name`、未設定日付の表現、アプリが追加する enum の表示）は **model に置きません**（→ §3.11、presenter）。
 
-### 3.4 Where routine queries go (including JOINs)
+### 3.4 定型クエリの配置（JOIN を含む）
 
-When writing a list, a candidate set, or a search with a count, put it on the model of **the subject table of the row set returned**.
+一覧・候補集合・件数付き検索を書くときは、**返す行集合の主語テーブル**の model に置きます。
 
-| How to decide | Where it goes |
+| 判断方法 | 配置先 |
 | --- | --- |
-| What the pager's `rows` is a list of | that table's `model_*` |
-| It references other tables via a JOIN or a subquery | the subject is still the above. The other tables are written as references |
-| It merely references one other model (pulling the parent with `xxx_row()`, and so on) | it may close within the referencing model |
+| pager の `rows` が何の一覧か | そのテーブルの `model_*` |
+| JOIN やサブクエリで他のテーブルを参照する | 主語は上記のまま。他のテーブルは参照として記述 |
+| 他の model 一つを参照するだけ（`xxx_row()` で親を取得するなど） | 参照元の model 内で完結してよい |
 
-**The subject of a fetch (a query) is always a table.** Even with a JOIN, the subject of the returned row set is uniquely determined, so
-**never let a routine query escape into a §3.12 service** (a service is the address for decisions and derivations, not fetches).
+**取得（クエリ）の主語は常にテーブルです。** JOIN があっても返す行集合の主語は一意に決まるため、
+**定型クエリを §3.12 の service へ逃がさないでください**（service は判定・導出の配置先であり、取得の配置先ではありません）。
 
-**Row order (the fetch order per the contract)**
+**行順（契約上の取得順）**
 
-- The row order of a list or a candidate set is authoritative in **SQL's `ORDER BY`** (the `sql_select_*` chain, or a [query.md](backend-query.instructions.md) §3.9 fragment).
-- **Never re-sort in PHP after fetching** (`usort`, `array_multisort`, and so on — in an action, a model, a presenter, or a util alike).
-- Never hold the same ordering twice, in SQL's `ORDER BY` and again on the PHP side.
-- If an order is needed after composing several results, decide that order on the SQL / fetch-query side too.
-- The FE may only reorder **in ways that do not change the contractual row order** (temporary UI grouping within one page, and the like). The FE never rebuilds the list's canonical order.
+- 一覧・候補集合の行順は **SQL の `ORDER BY`** を正とします（`sql_select_*` チェーン、または [query.md](backend-query.instructions.md) §3.9 のフラグメント）。
+- **取得後に PHP で再ソートしないでください**（`usort`、`array_multisort` など。action・model・presenter・util のいずれでも禁止）。
+- 同じ並び順を SQL の `ORDER BY` と PHP 側で二重に持たせないでください。
+- 複数結果を合成した後に順序が必要でも、SQL / 取得クエリ側でその順序を決めます。
+- FE が並べ替えてよいのは **契約上の行順を変えない範囲**だけです（一ページ内の一時的な UI グルーピングなど）。FE で一覧の正規順序を再構築しません。
 
-**What must not be done**
+**禁止事項**
 
-- Introduce a **cross-cutting query factory class** that gathers queries across tables and hoard routine fetches there.
-- Conclude "there's a JOIN, so it can't go in a model" (if the subject is unique, it goes in the model).
-- Re-sort query results in PHP (row order stays closed inside SQL).
+- テーブル横断のクエリを集める **横断クエリファクトリークラス**を導入し、そこに定型取得をため込む。
+- 「JOIN があるので model に置けない」と判断する（主語が一意なら model に置きます）。
+- PHP でクエリ結果を再ソートする（行順は SQL 内で完結させます）。
 
-**What stays in the action, fetch-wise**
+**取得に関して action に残すもの**
 
-- When to call which query, and whether to stop or return given the result.
-- Calling several subject queries **in order** within one request (orchestration).
-- The Tx boundary for updates.
+- いつ、どのクエリを呼ぶかと、結果に応じた停止・返却。
+- 一リクエスト内で複数の主語クエリを **順に**呼び出すこと（オーケストレーション）。
+- 更新の Tx 境界。
 
-### 3.5 Where row augmentation and display go
+### 3.5 行の補完と表示の配置
 
-Processing that adds fields to a row after fetching, or fixes it up for display, is split by what it is.
+取得後に行へフィールドを追加したり表示向けに整えたりする処理は、その性質で分けます。
 
-| What it is | Where it goes |
+| 性質 | 配置先 |
 | --- | --- |
-| A **business derived value or decision** obtainable from one table (the subject row) | that `model_*` |
-| **A business decision or derivation that cannot be settled without looking at several tables' state at once** | `model_<table>_<table>_service` (§3.12) |
-| **Shared display formatting** obtainable from one table (going on the contract) | `model_*_presenter` (§3.11) |
-| **Generic display formatting**, table-independent | `common_presenter` (§3.11) |
-| Routinely appending related-table data onto the subject rows | a static on the subject `model_*` (or an action calling several models in order) |
-| A heading, wording, summary, or presentation for one screen only | **the FE** feature / scene (never let it accumulate in the action) |
-| **Non-display** shared processing, table-independent (filter hygiene and the like) | **a non-model util** (§4) |
+| 一テーブル（主語の行）から得られる **業務上の導出値・判定** | その `model_*` |
+| **複数テーブルの状態を同時に見なければ決まらない業務判定・導出** | `model_<table>_<table>_service`（§3.12） |
+| 一テーブルから得られる **共通表示整形**（契約に載せる） | `model_*_presenter`（§3.11） |
+| テーブル非依存の **汎用表示整形** | `common_presenter`（§3.11） |
+| 主語の行へ関連テーブルのデータを定型的に付加する | 主語 `model_*` の static（または action が複数の model を順に呼ぶ） |
+| 一画面専用の見出し・文言・要約・表現 | **FE** の feature / scene（action にため込まない） |
+| テーブル非依存の **非表示**の共通処理（フィルター値の整備など） | **model 以外の util**（§4） |
 
-Never "add everything to a giant formatting class". When unsure, split with the table above.
+「巨大な整形クラスへすべて追加する」ことはしないでください。迷ったら上の表で分けます。
 
-### 3.6 How to write an extension file
+### 3.6 拡張ファイルの書き方
 
 ```php
 <?php
@@ -129,67 +129,67 @@ class model_user extends crow_db_table_model
 ?>
 ```
 
-- The class name is **`model_<table name>`**, inheriting **`crow_db_table_model`**.
-- **Never write `__construct()`.** When initialization is needed, use **`construct()`**
-  (called from the generated constructor).
-- **Never redefine a generated member.** Fields, `m_table_name` / `table_name` / `primary_key`,
-  `sql_select_all()` / `sql_select_one()`, the constant-related `get_<field>_keys()` / `_map()` / `_symbols()` /
-  `get_<field>_str()` / `<field>_str()`, and referenced tables' `<refer>_row()` are injected by crow.
-  **Grow a routine query under a different name rather than overriding `sql_select_all()`.**
+- クラス名は **`model_<table name>`**、継承元は **`crow_db_table_model`** です。
+- **`__construct()` は書かないでください。** 初期化が必要なら **`construct()`** を使います
+  （生成された constructor から呼ばれます）。
+- **生成メンバーを再定義しないでください。** フィールド、`m_table_name` / `table_name` / `primary_key`、
+  `sql_select_all()` / `sql_select_one()`、定数関連の `get_<field>_keys()` / `_map()` / `_symbols()` /
+  `get_<field>_str()` / `<field>_str()`、参照先テーブルの `<refer>_row()` は crow が注入します。
+  **`sql_select_all()` を上書きせず、別名で定型クエリを追加します。**
 
-### 3.7 Save and validation hooks
+### 3.7 保存・validation フック
 
-Processing tied to a save or a delete does not get sandwiched around it in the action — it goes into **the model's extension hooks**.
-crow calls them from `check_and_save()` and the like, so they take effect no matter which route did the saving.
+保存・削除に伴う処理は、action で前後に挟まず、**model の拡張フック**へ置きます。
+crow が `check_and_save()` などから呼ぶため、どの入口から保存しても効きます。
 
-| Hook | Use |
+| フック | 用途 |
 | --- | --- |
-| `validation_crow_ext()` | additional validation. On failure, `push_validation_error()` |
-| `save_crow_ext()` | extending the save. On failure, stack the error and **return `false`** |
-| `trash_crow_ext()` | extending the logical delete. Same on failure |
-| `delete_crow_ext()` | extending the physical delete. Same on failure |
+| `validation_crow_ext()` | validation の追加。失敗時は `push_validation_error()` |
+| `save_crow_ext()` | 保存の拡張。失敗時はエラーを積み、**`false` を返す** |
+| `trash_crow_ext()` | 論理削除の拡張。失敗時は同様 |
+| `delete_crow_ext()` | 物理削除の拡張。失敗時は同様 |
 
-`save_ext()` / `validation_ext()` / `trash_ext()` (the names without `_crow_`) are
-for crow's internal use. **Never define them on the app side.**
+`save_ext()` / `validation_ext()` / `trash_ext()`（`_crow_` のない名前）は
+crow 内部用です。**アプリ側では定義しないでください。**
 
-### 3.8 What must not be brought into a model
+### 3.8 model に持ち込まないもの
 
-- **Every system responsibility from [coding.md](backend-coding.instructions.md) §1.1** (I/O, **termination**, Tx boundaries, obtaining `$hdb`, auth, the session, `crow_log::error()`).
-  This is not "a principle" but **absolute**. Return abnormalities via a return value, `push_validation_error()`, or `get_last_error()`, and leave the decision to stop to the action.
-- **Display methods** (`display_name` and display derivations the app adds → §3.11, the presenter)
-- **Screen-specific concerns** (presentation, on-screen ordering → the FE. Assembling the contract response is the action's)
-- **Table-independent shared filter hygiene** (§4 — never duplicate it into each model)
-- **Re-sorting a list in PHP** (row order belongs to SQL — §3.4)
+- **[coding.md](backend-coding.instructions.md) §1.1 のすべてのシステム責務**（I/O、**終了**、Tx 境界、`$hdb` の取得、認証、セッション、`crow_log::error()`）。
+  「原則」ではなく **絶対**です。異常は戻り値・`push_validation_error()`・`get_last_error()` で返し、停止判断は action に委ねます。
+- **表示メソッド**（`display_name` とアプリが追加する表示導出 → §3.11、presenter）
+- **画面固有の関心**（表現・画面上の並べ方 → FE。契約レスポンスの組み立ては action）
+- **テーブル非依存の共通フィルター値整備**（§4 — 各 model に複製しない）
+- **PHP による一覧の再ソート**（行順は SQL の責務 — §3.4）
 
-> Because hand-written methods are independent of I/O, they are targets for PHPUnit unit tests.
-> Generated members are not tested (the carving is in [backend/testing.md](backend-testing.instructions.md)).
-> A presenter's hand-written methods are likewise unit-test targets (§3.11).
+> 手書きメソッドは I/O から独立しているため、PHPUnit のユニットテスト対象です。
+> 生成メンバーはテストしません（対象切り分けは [backend/testing.md](backend-testing.instructions.md)）。
+> presenter の手書きメソッドも同様にユニットテスト対象です（§3.11）。
 
-### 3.9 raw SQL and fragments
+### 3.9 raw SQL とフラグメント
 
-**This section has been carved out into [query.md](backend-query.instructions.md).**
-If you are building a JOIN, composite filters, or a paginated list with a `.sql` fragment, open that.
+**この節は [query.md](backend-query.instructions.md) へ分離しています。**
+`.sql` フラグメントで JOIN・複合フィルター・ページング一覧を組み立てるなら、そちらを開いてください。
 
 ---
 
-### 3.10 The SQL builder chain (the `sql_select_all()` family)
+### 3.10 SQL ビルダーチェーン（`sql_select_all()` 系）
 
-For a simple single-table fetch with simple conditions, use the **`sql_select_all()` chain**.
-Complex searches go to the raw fragments in [query.md](backend-query.instructions.md) §3.9.
+単一テーブルで単純な条件の取得には、**`sql_select_all()` のチェーン**を使います。
+複雑な検索は [query.md](backend-query.instructions.md) §3.9 の raw フラグメントにします。
 
-| Situation | Means |
+| 状況 | 方法 |
 | --- | --- |
-| One table, roughly a simple `and_where` | the `model_*::sql_select_*()` chain (called from an aliased static) |
-| A JOIN, composite filters, a paginated list | raw fragments, [query.md](backend-query.instructions.md) §3.9 |
+| 一テーブル、おおむね単純な `and_where` | `model_*::sql_select_*()` のチェーン（別名の static から呼ぶ） |
+| JOIN、複合フィルター、ページング一覧 | raw フラグメント、[query.md](backend-query.instructions.md) §3.9 |
 
-**Generated members**
+**生成メンバー**
 
-- `sql_select_all()` / `sql_select_one()` are **never overridden** (§3.6).
-- Grow routine conditions as **an aliased static such as `sql_select_active()`**.
+- `sql_select_all()` / `sql_select_one()` は **上書きしません**（§3.6）。
+- 定型条件は **`sql_select_active()` など別名の static** として追加します。
 
-**Notation**
+**表記**
 
-- Line breaks in a chain and the **semicolon on its own line** follow [common/coding.md](common-coding.instructions.md) (not restated on the backend side).
+- チェーンの改行と **セミコロンを独立した行へ置くこと**は [common/coding.md](common-coding.instructions.md) に従います（backend 側では再記載しません）。
 
 ```php
 public static function sql_select_active()
@@ -200,35 +200,35 @@ public static function sql_select_active()
 }
 ```
 
-### 3.11 The presenter (shared display values)
+### 3.11 presenter（共通表示値）
 
-**Shared display values** that go on the contract payload live in a presenter, not a model.
-Screen-specific presentation is the FE's ([frontend/viewpart-components.md](frontend-viewpart-components.instructions.md) §9).
+契約 payload に載せる **共通表示値**は model でなく presenter に置きます。
+画面固有の表現は FE の責務です（[frontend/viewpart-components.md](frontend-viewpart-components.instructions.md) §9）。
 
-#### The test — display values that go on a presenter
+#### 判断基準 — presenter に置く表示値
 
-Something satisfying **all** of the following:
+次の **すべて**を満たすものです。
 
-1. It is stable as the meaning of a table (or of a table-crossing common shape)
-2. **The same wording or shape is needed on 2+ screens, or on a channel other than a screen (email, and so on)**
-3. It goes on the contract payload as a field (the FE presents it without re-deriving it)
+1. テーブル（またはテーブル横断の共通形）の意味として安定している
+2. **同じ文言・形が二つ以上の画面、または画面以外の経路（メールなど）で必要**
+3. 契約 payload のフィールドとして載る（FE は再導出せず表示する）
 
-What does not satisfy these (that screen's heading, a layout label, a class name) → the FE.
+満たさないもの（その画面の見出し、レイアウトのラベル、クラス名）→ FE。
 
 #### `model_<table>_presenter`
 
-| Item | Content |
+| 項目 | 内容 |
 | --- | --- |
-| **Address** | `app/classes/_common_/model_<table>_presenter.php` (the class has the same name) |
-| **Input** | a `model_*` row of the subject, or an array row to the same effect. It touches no HTTP, no `$hdb`, no auth |
-| **Output** | display scalars or small arrays (the material for contract fields) |
-| **Caller** | the action, when assembling the contract response. It may use `common_presenter` internally if needed |
-| **What stays out** | business decisions, SQL, Tx, screen-specific layout, re-sorting a list |
+| **配置先** | `app/classes/_common_/model_<table>_presenter.php`（クラス名も同名） |
+| **入力** | 主語の `model_*` の行、または同等の配列行。HTTP・`$hdb`・認証に触れない |
+| **出力** | 表示用のスカラーまたは小さな配列（契約フィールドの素材） |
+| **呼び出し元** | 契約レスポンスを組み立てる action。必要なら内部で `common_presenter` を使ってよい |
+| **置かないもの** | 業務判定、SQL、Tx、画面固有のレイアウト、一覧の再ソート |
 
-A presenter reading from a model (referencing row fields) is fine. **Never call a presenter from a model / service / util.**
+presenter から model を読むこと（行のフィールド参照）は構いません。**model / service / util から presenter を呼ばないでください。**
 
-Generated APIs (`get_<field>_str()` / `<field>_str()` and the like) stay on the model as crow's generated output.
-**Display derivations the app adds** go to the presenter (never duplicate a generated member into a presenter).
+生成 API（`get_<field>_str()` / `<field>_str()` など）は crow の生成物として model に残します。
+**アプリが追加する表示導出**は presenter へ置きます（生成メンバーを presenter に複製しません）。
 
 ```php
 <?php
@@ -251,74 +251,74 @@ class model_user_presenter
 
 #### `common_presenter`
 
-| Item | Content |
+| 項目 | 内容 |
 | --- | --- |
-| **Address** | `app/classes/_common_/common_presenter.php` |
-| **Responsibility** | the single point for display formatting that belongs to no table (how an unset date is rendered, null-safe display conversion, a common **display-side** helper for looking up an enum map, and so on) |
-| **What stays out** | assembling a specific table's display name (→ `model_*_presenter`), filter hygiene and Domain decisions (→ §4 util / the model), a query factory |
+| **配置先** | `app/classes/_common_/common_presenter.php` |
+| **責務** | どのテーブルにも属さない表示整形の一元化（未設定日付の表現、null-safe な表示変換、enum マップを引く共通の **表示側**ヘルパーなど） |
+| **置かないもの** | 特定テーブルの表示名の組み立て（→ `model_*_presenter`）、フィルター値の整備と Domain 判定（→ §4 の util / model）、クエリファクトリー |
 
-[coding.md](backend-coding.instructions.md) §1's "never introduce a giant cross-cutting class" stands as a prohibition on **gathering queries or Domain logic**.
-`common_presenter` is limited to **a thin, display-only shared surface**.
+[coding.md](backend-coding.instructions.md) §1 の「巨大な横断クラスを導入しない」は、**クエリや Domain ロジックの集約**を禁止するものとして維持します。
+`common_presenter` は **薄い表示専用の共通窓口**に限定します。
 
-Common display shapes for dates and enums → `common_presenter`.
-**Non-display** matters such as the hygiene of filter values → §4 util.
-A raw map lookup used by both stays in the model's generated API or in a util; only the display wrapper goes to the presenter.
+日付や enum の共通表示形 → `common_presenter`。
+フィルター値の整備など **非表示**の事項 → §4 の util。
+両者で使う生のマップ参照は model の生成 API か util に残し、表示ラッパーだけを presenter に置きます。
 
-### 3.12 Domain services (business logic spanning several tables)
+### 3.12 ドメインサービス（複数テーブルにまたがる業務ロジック）
 
-**Business logic that cannot take a single table as its subject is never written in an action.**
-Create **a class that gathers that logic (a `model_*_service` named by concatenating the tables it spans)** and close it there.
-This is an extension of §3's Domain, and the only escape hatch that keeps business from leaking into the action (system responsibility).
+**単一テーブルを主語にできない業務ロジックは action に書きません。**
+**そのロジックをまとめるクラス（対象テーブル名を連結して名付ける `model_*_service`）**を作成し、そこで完結させます。
+§3 の Domain の拡張であり、業務を action（システム責務）へ漏らさないための唯一の逃がし先です。
 
-#### The test — when to create a service
+#### 判断基準 — service を作るとき
 
-Create a service when **all** of the following hold (if even one is missing, do not).
+次の **すべて**を満たす場合に作ります（一つでも欠ければ作りません）。
 
-1. It is a business decision or derivation that **cannot be concluded without looking at 2+ `model_*` (tables) at once**
-2. **Neither can be declared the subject** (if one can, it is a static on the subject model — §3.3 / §3.4)
-3. **It is a business rule** (not a system procedure; the procedure — call order, Tx, termination — is the action's)
+1. **二つ以上の `model_*`（テーブル）を同時に見なければ結論が出ない**業務判定・導出
+2. **どちらも主語と定められない**（定められるなら主語 model の static — §3.3 / §3.4）
+3. **業務規則である**（システムの手順ではない。手順 — 呼び出し順序・Tx・終了 — は action）
 
-Examples of when not to create one:
+作らない場合の例：
 
-| What it looks like | Its actual address |
+| 見た目 | 実際の配置先 |
 | --- | --- |
-| A list or count that pulls other tables via a JOIN | the subject `model_*` (the subject of a fetch is always unique — §3.4) |
-| Merely referencing one other table to decide (pulling the parent with `xxx_row()` and looking at it) | the referencing `model_*` |
-| Merely "calling several models in order" | `action_*` (orchestration — [action.md](backend-action.instructions.md) §2.1) |
-| Assembling display wording | the presenter (§3.11) |
-| Table-independent, non-display pure processing (filter hygiene, and so on) | a util (§4) |
+| JOIN で他のテーブルを参照する一覧・件数取得 | 主語 `model_*`（取得の主語は常に一意 — §3.4） |
+| 他のテーブル一つを参照して判定するだけ（`xxx_row()` で親を取得して見る） | 参照元 `model_*` |
+| 単に「複数の model を順に呼ぶ」 | `action_*`（オーケストレーション — [action.md](backend-action.instructions.md) §2.1） |
+| 表示文言の組み立て | presenter（§3.11） |
+| テーブル非依存の非表示純粋処理（フィルター値の整備など） | util（§4） |
 
-#### Address and shape
+#### 配置と形
 
-| Item | Content |
+| 項目 | 内容 |
 | --- | --- |
-| **Address** | `app/classes/_common_/model_<table>_<table>_service.php` (the class has the same name) |
-| **Naming** | **Concatenate the names of the tables it spans in snake_case and append `_service`.** `model_` + table name + … + `_service` (e.g. `model_project_progress_service`). **Never use a business-concept name or a coinage** (a name like `model_assignment_service` is not allowed — the file name would no longer tell you which tables it binds) |
-| **Order of table names** | **Alphabetical** (a mechanical rule preventing two differently-named services for the same combination). Never reorder them for readability or to express primacy. Because the order is determined by the name alone, **you can look up whether one already exists by name before creating it** |
-| **Inheritance** | **None** (it does not inherit `crow_db_table_model`. A plain class with no table — the same shape as `model_*_presenter`) |
-| **Input** | `model_*` rows, array rows, scalars. If it needs `$hdb`, **receive it as an argument** ([query.md](backend-query.instructions.md) §3.9) |
-| **Output** | the decision result (bool), a derived value, error wording, values to save. **It speaks only through return values** |
-| **Methods** | static pure functions as a rule. Never give it state |
-| **What stays out** | **every system responsibility from [coding.md](backend-coding.instructions.md) §1.1** (termination, Tx boundaries, `crow::get_hdb()`, `crow_request`, `crow_auth`, `crow_log::error()`), display formatting (→ the presenter), the routine query itself (→ the subject model) |
+| **配置先** | `app/classes/_common_/model_<table>_<table>_service.php`（クラス名も同名） |
+| **命名** | **対象テーブル名を snake_case で連結し、末尾に `_service` を付けます。** `model_` + テーブル名 + … + `_service`（例：`model_project_progress_service`）。**業務概念名や造語は使わないでください**（`model_assignment_service` のような名前は禁止 — ファイル名から対象テーブルが分からなくなります） |
+| **テーブル名の順序** | **アルファベット順**（同じ組み合わせに別名の service ができるのを防ぐ機械的規則）。読みやすさや主従を表すために並べ替えないでください。名前だけで順序が決まるため、**作成前に既存クラスの有無を名前で検索できます** |
+| **継承** | **なし**（`crow_db_table_model` を継承しません。テーブルを持たない通常のクラス — `model_*_presenter` と同じ形） |
+| **入力** | `model_*` の行、配列行、スカラー。`$hdb` が必要なら **引数で受け取ります**（[query.md](backend-query.instructions.md) §3.9） |
+| **出力** | 判定結果（bool）、導出値、エラー文言、保存する値。**戻り値だけで伝えます** |
+| **メソッド** | 原則として static の純粋関数。状態を持たせない |
+| **置かないもの** | **[coding.md](backend-coding.instructions.md) §1.1 のすべてのシステム責務**（終了、Tx 境界、`crow::get_hdb()`、`crow_request`、`crow_auth`、`crow_log::error()`）、表示整形（→ presenter）、定型クエリ自体（→ 主語 model） |
 
-**One class = one combination of tables.** Since the name expresses the set of tables:
+**一クラス = 一つのテーブルの組み合わせ。** 名前がテーブルの集合を表すため：
 
-- **If a service for the same combination already exists, do not create one — add the method there** (if `model_progress_project_service` exists, every progress × project decision goes there).
-- A different combination of tables means a different class (`model_progress_project_service` and `model_project_user_service` are separate things).
-- **When an existing method starts looking at another table, move that method to the correctly named class**
-  (when `model_progress_project_service::can_edit()` starts looking at the user table too, move it to
-  `model_progress_project_user_service`). Since the name expresses the set of tables, this is the only consistent handling.
-  **Never grow the tables while leaving it in the original class** — the moment the name diverges from the content, the rule for deciding where things go stops working entirely.
-  And never push the decision back into the action because moving it is tedious.
-- **When 4 or more table names string together, doubt that it is really one decision.** Usually two or more decisions are mixed in, or
-  the subject is really one table (→ `model_*`). Never escape into a business-concept name to shorten it — **split it and rethink**.
+- **同じ組み合わせの service が既にあれば、新規作成せず、そのクラスにメソッドを追加します**（`model_progress_project_service` があれば、progress × project の判定はすべてそこへ置きます）。
+- テーブルの組み合わせが異なれば別クラスです（`model_progress_project_service` と `model_project_user_service` は別）。
+- **既存メソッドが別のテーブルも見るようになったら、そのメソッドを正しい名前のクラスへ移します**
+  （`model_progress_project_service::can_edit()` が user テーブルも見るようになったら、
+  `model_progress_project_user_service` へ移します）。名前がテーブルの集合を表すため、これが唯一の整合した扱いです。
+  **元のクラスに残したまま対象テーブルを増やさないでください**。名前と内容がずれた瞬間、配置の判断規則がすべて崩れます。
+  移動が面倒だからと判定を action へ戻すこともしません。
+- **テーブル名が四つ以上連なる場合、本当に一つの判定かを疑います。** 通常は二つ以上の判定が混在しているか、
+  実は一テーブルが主語です（→ `model_*`）。短くするために業務概念名へ逃げず、**分割して再検討します**。
 
-The call direction is **action → service → model** (reading).
-**Never call a service from a model / presenter / util** (avoiding cycles and code where the subject is unclear).
+呼び出し方向は **action → service → model**（読み取り）です。
+**model / presenter / util から service を呼ばないでください**（循環と、主語不明のコードを避けるため）。
 
-#### Example
+#### 例
 
-A decision spanning `project` × `assign` × `user` (alphabetically: assign → project → user):
+`project` × `assign` × `user` にまたがる判定（アルファベット順：assign → project → user）：
 
 ```php
 <?php
@@ -355,39 +355,39 @@ if( model_assign_project_user_service::can_edit_progress
 }
 ```
 
-#### What not to do
+#### 禁止事項
 
-- **Stand a class up under a business-concept name or a coinage** (`model_assignment_service`, `model_billing_service`, and so on). The name must be **the concatenation of the tables it spans**
-- **Turn a service into "a cross-cutting class that takes anything"** ([coding.md](backend-coding.instructions.md) §1). Never gather decisions over different table combinations into the same class
-- Promote a single-table decision into a service (the subject model thins out and the meaning scatters)
-- Bring routine queries, SQL, Tx, or termination into a service
-- **Settle for hardcoding a multi-table decision into the action** (the reason this section exists; this is the biggest deviation)
+- **業務概念名や造語でクラスを作る**（`model_assignment_service`、`model_billing_service` など）。名前は必ず **対象テーブル名の連結**にする
+- **service を「何でも受ける横断クラス」にする**（[coding.md](backend-coding.instructions.md) §1）。異なるテーブルの組み合わせの判定を同じクラスへ集めない
+- 単一テーブルの判定を service へ昇格させる（主語 model が薄くなり、意味が散らばる）
+- service に定型クエリ、SQL、Tx、終了を持ち込む
+- **複数テーブルの判定を action にハードコードして済ませる**（この節の存在理由であり、最大の逸脱）
 
-> A service's hand-written methods are also **PHPUnit unit-test targets** ([backend/testing.md](backend-testing.instructions.md)).
-> As long as [coding.md](backend-coding.instructions.md) §1.1 is observed, they can be tested just by passing row objects or arrays.
+> service の手書きメソッドも **PHPUnit のユニットテスト対象**です（[backend/testing.md](backend-testing.instructions.md)）。
+> [coding.md](backend-coding.instructions.md) §1.1 を守れば、行オブジェクト・配列を渡すだけでテストできます。
 
 ---
 
-## 4. Non-model utils (shared, non-display, belonging to no table)
+## 4. model 以外の util（共通・非表示・どのテーブルにも属さない）
 
-Only processing that **belongs to no `model_<table>`'s Domain** and that **is not display**
-goes into a non-model class under `app/classes/_common_/`.
+**どの `model_<table>` の Domain にも属さず**、かつ **表示ではない**処理だけを、
+`app/classes/_common_/` 配下の model 以外のクラスに置きます。
 
-| May go here | Stays out (and where it goes) |
+| 置いてよいもの | 置かないもの（と配置先） |
 | --- | --- |
-| Hygiene of filter values shared across searches over several types or tables (forcing types, deciding the unspecified sentinel, normalizing for a keyword LIKE, and so on) | The routine query itself, whose subject is a specific table (→ the subject model) |
-| Table-independent acceptance / parsing, where it is non-display | **Decisions and derivations that are business rules** (a model for one table, a §3.12 service for several). A util does not know the business |
-| | **Generic display formatting**, table-independent (→ `common_presenter`) |
-| Services not tied to a table, such as the sending side of email assembly or an external API client (the material for display wording comes from the presenter) | Shared display values obtainable from one table (→ `model_*_presenter`) |
-| | Screen-specific presentation and on-screen ordering (→ the FE). Assembling the contract response (→ the action) |
+| 複数の種別・テーブルの検索で共通のフィルター値整備（型の確定、未指定を示す値の決定、キーワード LIKE の正規化など） | 特定テーブルを主語とする定型クエリ自体（→ 主語 model） |
+| テーブル非依存の受理・parse で非表示のもの | **業務規則としての判定・導出**（一テーブルなら model、複数なら §3.12 の service）。util は業務を知らない |
+| | テーブル非依存の **汎用表示整形**（→ `common_presenter`） |
+| メール組み立ての送信側や外部 API クライアントなど、テーブルに結びつかないサービス（表示文言の素材は presenter から受け取る） | 一テーブルから得られる共通表示値（→ `model_*_presenter`） |
+| | 画面固有の表現と画面上の並べ方（→ FE）。契約レスポンスの組み立て（→ action） |
 
-**Keep a single decision point.** Never copy the shared hygiene above into each model
-(duplicated, behavior diverges per route and search breaks all at once).
+**判定点を一つに保ちます。** 上記の共通整備処理を各 model へ複写しないでください
+（重複すると入口ごとに挙動が分岐し、検索が一斉に壊れます）。
 
-The model side holds "its own table's permitted keys, fragment names, and the meaning of the WHERE",
-and delegates to the util only when shared hygiene is needed.
+model 側は「自テーブルの許可キー・フラグメント名・WHERE の意味」を持ち、
+共通の値整備が必要なときだけ util へ委譲します。
 
-Do not force something into one of the models. Conversely, do not let a fetch with a unique subject escape into a util.
-Do not put display formatting into a util (§3.11).
+いずれかの model に無理に押し込まないでください。逆に、主語が一意の取得を util へ逃がさないでください。
+util に表示整形を置かないでください（§3.11）。
 
 ---

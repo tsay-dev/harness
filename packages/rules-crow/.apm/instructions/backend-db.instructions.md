@@ -1,28 +1,28 @@
 ---
-description: "🗄️ crow / backend — the format and location of the DB design (`db_design.txt`)"
+description: "🗄️ crow / バックエンド — DB 設計（`db_design.txt`）の形式と配置"
 applyTo: "**/crow3_*/**/db_design.txt"
 ---
 
-# 🗄️ crow / backend — the format and location of the DB design (`db_design.txt`)
+# 🗄️ crow / バックエンド — DB 設計（`db_design.txt`）の形式と配置
 
-> In crow, the **single SSOT for DB design** is a text file in crow's own format, `db_design.txt`.
-> crow **generates migrations directly from this file** (the equivalent of `schema.prisma` for Prisma in TypeScript).
-> Therefore develop's DB design deliverable (the output of `implementer` in `mode: schema`) is written **into `db_design.txt` itself**.
-> The procedure rests on the develop skill's `references/playbook.md` (section *Where docs artifacts live*) and `references/bundles.md` (handing over framework rules).
+> crow の **DB 設計の唯一の SSOT** は、crow 独自形式のテキストファイル `db_design.txt` です。
+> crow は **このファイルから直接マイグレーションを生成します**（TypeScript の Prisma における `schema.prisma` に相当）。
+> したがって、develop の DB 設計成果物（`mode: schema` の `implementer` の出力）は **`db_design.txt` 自体に書き込みます**。
+> 手順は develop skill の `references/playbook.md`（*docs 成果物の配置* 節）と `references/bundles.md`（フレームワーク規約の受け渡し）に従います。
 >
-> **Write the content in Japanese** (comments and any descriptive text in the file).
+> **内容を日本語で書いてください**（ファイル内のコメントと説明文）。
 
-## Location (where to write it)
+## 配置（どこに書くか）
 
-- **`db_design.txt`** (the path the crow project prescribes; the source of migrations).
-- **Never write a docs draft** (`docs/db/schema.md` and the like). In crow the native format is the SSOT, and the host declares it as `schema.files: ["…/db_design.txt"]` in `traceconfig.json` so that `trace-check` C13 can read the `@implements BR-nnn` comments on rule-enforcing definitions.
+- **`db_design.txt`**（crow プロジェクトが定めるパス。マイグレーションの生成元）。
+- **docs の草案を作らないでください**（`docs/db/schema.md` など）。crow ではネイティブ形式が SSOT です。利用先は `traceconfig.json` の `schema.files: ["…/db_design.txt"]` にそのファイルを宣言し、`trace-check` C13 が規則を強制する定義の `@implements BR-nnn` コメントを読めるようにします。
 
-## Format (how to write it)
+## 形式（どう書くか）
 
-- Written in crow's own format. **The concrete field notation, types, and how relations are written follow the crow version of the target project** (this leaf defines where to write it and as what SSOT; for the syntax itself, consult that project's crow documentation or its existing `db_design.txt`).
-- If a `db_design.txt` already exists, update it **as a diff**, imitating its notation and naming (do not break existing conventions).
+- crow 独自形式で記述します。**具体的なフィールド表記・型・リレーションの書き方は、対象プロジェクトの crow のバージョンに従います**（この規約は記述先と SSOT の位置づけを定義します。構文自体はそのプロジェクトの crow ドキュメントか既存の `db_design.txt` を参照してください）。
+- `db_design.txt` が既にある場合は、表記と命名を踏襲して **差分として更新します**（既存の慣例を壊さないでください）。
 
-## Never split the SSOT (most important)
+## SSOT を分裂させない（最重要）
 
-- **Treat `db_design.txt` as the single SSOT; never transcribe it into a second copy such as `schema.md`.** Duplication quietly breeds inconsistency between the migrations and the design document.
-- The soundness of a DB design (normalization, boundaries, relations) cannot be refuted by machine → follow develop's **🙋 human gate** (the schema implementer stops at a draft; the orchestrator settles it on human confirmation). **The file being settled is `db_design.txt`.** If the native format has no draft/fixed status field, settlement is established by the orchestrator's human approval (do not force a status field into the file).
+- **`db_design.txt` を唯一の SSOT とし、`schema.md` などの別の複製へ転記しないでください。** 重複はマイグレーションと設計文書の不整合を静かに生みます。
+- DB 設計の妥当性（正規化・境界・リレーション）は機械で反証できません → develop の **🙋 人間ゲート**に従います（schema implementer は草案で停止し、オーケストレーターが人間の確認を受けて確定します）。**確定するファイルは `db_design.txt` です。** ネイティブ形式に draft/fixed の status フィールドがなければ、オーケストレーターによる人間の承認をもって確定とします（ファイルに status フィールドを無理に追加しないでください）。

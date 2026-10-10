@@ -1,52 +1,52 @@
 ---
-description: "🚦 crow / backend — the action (use case)"
+description: "🚦 crow / バックエンド — action（ユースケース）"
 applyTo: "**/crow3_*/**/module_*.php"
 ---
 
-# 🚦 crow / backend — the action (use case)
+# 🚦 crow / バックエンド — action（ユースケース）
 
-> **When to read this: when writing or fixing `action_*` / `preload()` in a `module_*`.**
-> Do not open it if you are only touching other addresses.
+> **読むタイミング：`module_*` 内の `action_*` / `preload()` を作成・修正するとき。**
+> ほかの配置だけを変更するなら開かないでください。
 >
-> **The boundary is authoritative in [coding.md](backend-coding.instructions.md) §1.1** (it wins over this leaf on conflict).
-> How to write the Domain side is [model.md](backend-model.instructions.md); raw SQL fragments are [query.md](backend-query.instructions.md);
-> the common style is [common/coding.md](common-coding.instructions.md). **Never restate the common side or another leaf.**
+> **責務境界は [coding.md](backend-coding.instructions.md) §1.1 を正とします**（矛盾時はこの規約より優先）。
+> Domain 側の書き方は [model.md](backend-model.instructions.md)、raw SQL フラグメントは [query.md](backend-query.instructions.md)、
+> 共通の書式は [common/coding.md](common-coding.instructions.md) に従います。**共通規約やほかの規約を再記載しないでください。**
 >
-> Section numbers run through the backend rules as a whole (`coding.md` §1 → this leaf §2 → `model.md` §3, §4).
+> 節番号はバックエンド規約全体で通し番号です（`coding.md` §1 → この規約 §2 → `model.md` §3、§4）。
 >
-> **Write comments in Japanese.**
+> **コメントは日本語で書いてください。**
 
 ---
 
-## 2. The action (use case)
+## 2. action（ユースケース）
 
-### 2.1 Its role
+### 2.1 役割
 
-An `action_*` in a `module_*` holds only **the procedure for one request**.
-The role corresponds to Clean Architecture's Use Case / Interactor and DDD's Application Service, but
-**no Interactor layer is introduced into crow**. Domain's address remains `model_*`.
+`module_*` 内の `action_*` は **一リクエストの手順だけ**を持ちます。
+Clean Architecture の Use Case / Interactor、DDD の Application Service に相当しますが、
+**crow に Interactor 層は導入しません**。Domain の配置先は `model_*` のままです。
 
-**An action writes only "state the input → delegate → state the output".**
-An action is a use-case orchestrator, **not a workshop**.
+**action が書くのは「入力を明示 → 委譲 → 出力を明示」だけです。**
+action はユースケースのオーケストレーターであり、**加工場ではありません**。
 
-Reading an `action_*` top to bottom, the following three must be visible from **the action body's local variables and the `exit_*` calls directly visible in the body**.
+`action_*` を上から下へ読むとき、次の三つが **action 本文のローカル変数と、本文から直接見える `exit_*` 呼び出し**から分かる必要があります。
 
-1. **What it took as input** — the `$i_*` from the request, plus values the server adds such as auth
-2. **What it outputs** — the contractual keys and shapes passed to the body's `exit_ok` / `exit_ng`
-3. **What it did in between** — business goes to `model_*` or the routine query; display goes to the presenter. The action itself holds neither the substance of a decision nor display formatting
+1. **何を入力として受けたか** — リクエスト由来の `$i_*` と、認証などサーバーが補う値
+2. **何を出力するか** — 本文の `exit_ok` / `exit_ng` に渡す契約上のキーと形
+3. **その間に何をしたか** — 業務は `model_*` または定型クエリへ、表示は presenter へ。action 自身には判定の実質も表示整形も持たせません
 
-The skeleton (the mandatory reading order):
+骨格（必須の読み順）：
 
-1. **Open the input** — write `crow_request::*` directly at the top of the action and line up the `$i_*` you use
-2. **Gate acceptance** — ask `model_*` (or a [model.md](backend-model.instructions.md) §4 util if table-independent) for validation and permissions, and **on NG call `exit_ng` in the action body**
-3. **Ask for the fetch or update** — the subject `model_*`'s routine query or save. With several, the action holds only the ordering and the Tx
-4. **Ask for display values** — shared display values that go on the contract come from `model_*_presenter` / `common_presenter` ([model.md](backend-model.instructions.md) §3.11)
-5. **Close the output** — line the contractual keys up on the spot in the body's `exit_ok`
+1. **入力を開く** — action 冒頭に `crow_request::*` を直接書き、使う `$i_*` を並べます
+2. **受理をゲートする** — validation と権限は `model_*`（テーブル非依存なら [model.md](backend-model.instructions.md) §4 の util）へ問い、**NG 時は action 本文で `exit_ng` を呼びます**
+3. **取得・更新を頼む** — 主語となる `model_*` の定型クエリまたは保存。複数なら action は順序と Tx だけを持ちます
+4. **表示値を頼む** — 契約に載せる共通表示値は `model_*_presenter` / `common_presenter` から取得します（[model.md](backend-model.instructions.md) §3.11）
+5. **出力を閉じる** — 本文の `exit_ok` に契約キーをその場で並べます
 
-The delegation in one sentence:
+委譲を一文で表すと：
 
-> All an action may keep is **choosing whom to call and in what order, and deciding from the result whether to stop or return.**
-> "How to decide", "how to order", and "how to turn it into a display string" are each asked of `model_*`, SQL, and the presenter.
+> action に残してよいのは **誰をどの順序で呼ぶかの選択と、結果を受けて停止・返却を決めることだけです。**
+> 「どう判定するか」「どう並べるか」「どう表示文字列へ変換するか」は、それぞれ `model_*`、SQL、presenter に頼みます。
 
 ```php
 public function action_get_xxx_rows()
@@ -80,23 +80,23 @@ public function action_get_xxx_rows()
 }
 ```
 
-### 2.2 What goes in an action
+### 2.2 action に置くもの
 
-| Goes in | Stays out |
+| 置くもの | 置かないもの |
 | --- | --- |
-| Reading the request (written directly at the top) and the response | A decision or derived value obtainable from one row / one table (→ the model) |
-| **Every system responsibility from [coding.md](backend-coding.instructions.md) §1.1** (termination, Tx boundaries, obtaining `$hdb`, auth, fatal logging) | **A business decision or derivation spanning several tables** (→ a [model.md](backend-model.instructions.md) §3.12 service) |
-| **Flow control** for auth and permission checks (stopping or continuing in the body given the result) | Assembling routine queries for lists and candidate sets (→ the subject model) |
-| The update order across models, and transactions | Pre-save completion, consistency, and post-delete cleanup (→ model hooks) |
-| Assembling **the contract response** (the keys of `exit_ok` stated explicitly) | Deriving shared display values (→ the presenter). Screen-specific presentation and ordering (→ the FE) |
-| Lining up calls to several models / presenters **in order, as one request** | Table-independent shared pure processing (→ a [model.md](backend-model.instructions.md) §4 util) |
-| | A thin bundling helper that merely hides `crow_request`; a decorative helper that only copies things through |
+| リクエストの読み取り（冒頭に直接記述）とレスポンス | 一行 / 一テーブルから得られる判定・導出値（→ model） |
+| **[coding.md](backend-coding.instructions.md) §1.1 のすべてのシステム責務**（終了、Tx 境界、`$hdb` の取得、認証、致命的ログ） | **複数テーブルにまたがる業務判定・導出**（→ [model.md](backend-model.instructions.md) §3.12 の service） |
+| 認証・権限チェックの **進行制御**（結果に応じて本文で停止・継続） | 一覧・候補集合の定型クエリの組み立て（→ 主語 model） |
+| model 間の更新順序とトランザクション | 保存前の値補完・整合性・削除後の後処理（→ model フック） |
+| **契約レスポンス**の組み立て（`exit_ok` のキーを明示） | 共通表示値の導出（→ presenter）。画面固有の表現・並べ方（→ FE） |
+| 複数の model / presenter 呼び出しを **一リクエストとして順に**並べること | テーブル非依存の共通純粋処理（→ [model.md](backend-model.instructions.md) §4 の util） |
+| | `crow_request` を隠すだけの薄い集約ヘルパー。単に値を通すだけの飾りのヘルパー |
 
-### 2.3 The model decides; the action handles the result
+### 2.3 model が判定し、action が結果を扱う
 
-**A decision itself — "is this the owner?" — is Domain (model / service).**
-The action **takes that bool or result** and decides in its body whether to `exit_ng`.
-This is the concrete form of [coding.md](backend-coding.instructions.md) §1.1's absolute rule 1 — **the Domain returns a truth value; it does not stop.**
+**「所有者か？」という判定そのものは Domain（model / service）の責務です。**
+action は **その bool または結果を受け取り**、本文で `exit_ng` するかを決めます。
+これは [coding.md](backend-coding.instructions.md) §1.1 の絶対規則 1 の具体形です。**Domain は真偽値を返し、停止しません。**
 
 ```php
 //  model（Domain）— 判定
@@ -112,36 +112,36 @@ if( ! $row->is_owned_by($user_id) )
 }
 ```
 
-Only when several actions want to share the same "look at the result and stop" shape may you
-collect it into a thin helper inside the module.
-The helper **returns only the decision result (a bool, a message, and so on)**, and **`exit_*` stays in the action body**
-(so the exits are traceable from the body). Never hardcode decision logic into a helper or an action.
+同じ「結果を見て停止する」形を複数の action で共有したい場合に限り、
+module 内の薄いヘルパーへまとめても構いません。
+ヘルパーは **判定結果（bool、メッセージなど）だけを返し**、**`exit_*` は action 本文に残します**
+（本文から終了経路を追えるようにするため）。ヘルパーや action に判定ロジックをハードコードしないでください。
 
-Never put `crow_request` / `app::exit_*` / auth into a model
-(it kills unit testing and reuse).
+model に `crow_request` / `app::exit_*` / 認証を入れないでください
+（ユニットテストと再利用を壊します）。
 
-### 2.4 Naming
+### 2.4 命名
 
-An `action_*` takes the form **`action_<verb>_<resource>`**.
+`action_*` は **`action_<verb>_<resource>`** の形式にします。
 
-| Verb | Example use |
+| 動詞 | 使用例 |
 | --- | --- |
-| `get` | fetching a list, a single row, a count |
-| `create` | creating something new |
-| `update` | updating (a partial update uses the same verb) |
-| `delete` | deleting |
+| `get` | 一覧・一行・件数の取得 |
+| `create` | 新規作成 |
+| `update` | 更新（部分更新も同じ動詞） |
+| `delete` | 削除 |
 
-Examples: `action_get_progress_rows` / `action_update_progress` / `action_create_project` / `action_delete_progress`
+例：`action_get_progress_rows` / `action_update_progress` / `action_create_project` / `action_delete_progress`
 
-### 2.5 How to receive the request
+### 2.5 リクエストの受け取り方
 
-Follow the **`i_` prefix** from [common/coding.md](common-coding.instructions.md).
-Always prefix a variable derived from a request parameter with `i_`.
+[common/coding.md](common-coding.instructions.md) の **`i_` 接頭辞**に従います。
+リクエストパラメーター由来の変数には必ず `i_` を付けます。
 
-| How to read it | When to use it |
+| 読み取り方法 | 使用場面 |
 | --- | --- |
-| `crow_request::get_int($key, $default)` | numbers such as IDs and `page_no`. State the default explicitly |
-| `crow_request::get($key, $default)` | a `filters` array, a string, a structure |
+| `crow_request::get_int($key, $default)` | ID・`page_no` などの数値。既定値を明示する |
+| `crow_request::get($key, $default)` | `filters` 配列、文字列、構造体 |
 
 ```php
 $i_page_no = crow_request::get_int('page_no', 1);
@@ -149,47 +149,47 @@ $i_filters = crow_request::get('filters', []);
 $i_progress_id = crow_request::get_int('progress_id', 0);
 ```
 
-- Reading the input is **written directly at the top of the action**.
-- **Do not place a thin bundling helper that merely hides `crow_request`** (e.g. a `*_list_request()` that only groups the gets).
-- Never **re-read** a key you already read from `crow_request` somewhere else (use only the `$i_*` from the top).
-- If validation needs an array, assemble it on the spot inside the action and pass it to validate, or pass individual arguments to validate.
-- A meaningful validate / parse (arguments → an accepted value or an error message) may remain.
-  If it is the table's meaning, `model_*`; if table-independent, a [model.md](backend-model.instructions.md) §4 util. **Reading the request itself stays in the action.**
+- 入力の読み取りは **action 冒頭に直接書きます**。
+- **`crow_request` を隠すだけの薄い集約ヘルパーを置かないでください**（get をまとめるだけの `*_list_request()` など）。
+- `crow_request` から読んだキーを別の場所で **再度読み取らないでください**（冒頭の `$i_*` だけを使います）。
+- validation に配列が必要なら、action 内でその場で組み立てて validate に渡すか、個別の引数を渡します。
+- 意味のある validate / parse（引数 → 受理した値またはエラーメッセージ）は残して構いません。
+  テーブルの意味なら `model_*`、テーブル非依存なら [model.md](backend-model.instructions.md) §4 の util に置きます。**リクエストの読み取り自体は action に残します。**
 
-### 2.6 How to return the response
+### 2.6 レスポンスの返し方
 
-**Ajax / API actions** basically **terminate with `app::exit_ok` / `app::exit_ng`** on both success and failure.
+**Ajax / API action** は、原則として成功・失敗ともに **`app::exit_ok` / `app::exit_ng` で終了します**。
 
-| Result | How to return it |
+| 結果 | 返し方 |
 | --- | --- |
-| Success (with data) | `app::exit_ok($payload)` |
-| Success (no data) | `app::exit_ok()` |
-| Failure | `app::exit_ng($message)` |
+| 成功（データあり） | `app::exit_ok($payload)` |
+| 成功（データなし） | `app::exit_ok()` |
+| 失敗 | `app::exit_ng($message)` |
 
-**Actions for screen transitions** may also use `return` or a redirect.
-Mixing them across purposes is fine, but **never mix exit_* and return within one action**
-(so a reader can trace that action's exits).
+**画面遷移用の action** は `return` や redirect も使えます。
+用途によって使い分けて構いませんが、**一つの action 内で exit_* と return を混在させないでください**
+（その action の終了経路を読者が追えるようにするため）。
 
-- Write nothing after `exit_ok` / `exit_ng` (unreachable).
-- Do not make exceptions the main path of an action (crow's convention centers on exit_*).
-- **State and line up the contract fields on the spot in the `exit_ok` payload.**
-  Never return by dumping a giant shared `to_rows` result in a way that hides the contractual keys.
-  Shared display values are put onto contractual keys from the presenter's output ([model.md](backend-model.instructions.md) §3.11).
+- `exit_ok` / `exit_ng` の後には何も書きません（到達不能）。
+- 例外を action の主経路にしないでください（crow の慣例は exit_* を中心とします）。
+- **`exit_ok` の payload に、その場で契約フィールドを明示して並べます。**
+  巨大な共通 `to_rows` の結果をそのまま返して契約キーを隠さないでください。
+  共通表示値は presenter の出力から契約キーへ載せます（[model.md](backend-model.instructions.md) §3.11）。
 
-### 2.7 Layering error messages
+### 2.7 エラーメッセージの層分け
 
-User-facing wording **splits its role between the model and the action**.
+ユーザー向けの文言は **model と action の間で役割を分けます**。
 
-| Kind | Where it goes | How the action uses it |
+| 種類 | 配置先 | action での使い方 |
 | --- | --- | --- |
-| Derived from a business rule (conflicts, invalid state, the reason a save failed) | **the model** (`build_*_message()` or a row's `get_last_error()`) | `app::exit_ng($row->get_last_error())` and the like — **just receive it from the model and pass it on** |
-| A generic boilerplate for a failed fetch ("the target was not found") | a short boilerplate may live in the action | a row that cannot be fetched, an ID of 0 — **failures visible at the action's entrance** |
-| Permission / out-of-scope | unify the wording in either the action or the model's message builder | the model decides, the action stops (§2.3) |
+| 業務規則に由来するもの（競合、不正状態、保存失敗の理由） | **model**（`build_*_message()` または行の `get_last_error()`） | `app::exit_ng($row->get_last_error())` など — **model から受け取り、そのまま渡すだけ** |
+| 取得失敗の汎用定型文（「対象が見つからない」） | 短い定型文なら action に置いてよい | 行が取得できない、ID が 0 など — **action の入口で分かる失敗** |
+| 権限 / 担当外 | action または model のメッセージビルダーのどちらかに文言を統一 | model が判定し、action が停止する（§2.3） |
 
-**What not to do**
+**禁止事項**
 
-- Hardcode a business message into the action and end up maintaining the same meaning twice, in the model and here.
-- Invent different wording in the action when the model is already returning `get_last_error()`.
+- 業務メッセージを action にハードコードし、同じ意味を model とここで二重に保守する。
+- model が既に `get_last_error()` を返しているのに、action で別の文言を作る。
 
 ```php
 //  保存失敗 — model のエラーをそのまま返す
@@ -211,30 +211,30 @@ if( $progress_row === false )
 }
 ```
 
-### 2.8 Transactions
+### 2.8 トランザクション
 
-Open a Tx **only when several models are saved or updated within one request**.
-A single model's `check_and_save()` alone needs **no begin**.
+Tx を開くのは **一リクエスト内で複数の model を保存・更新するときだけ**です。
+単一 model の `check_and_save()` だけなら **begin は不要**です。
 
-| Operation | Where it goes |
+| 操作 | 配置先 |
 | --- | --- |
-| `$hdb->begin()` / `commit()` / `rollback()` | **the action only** (a system responsibility, [coding.md](backend-coding.instructions.md) §1.1) |
-| Deciding success across several side effects (`can_commit_*`) | **the Domain** (a pure function; it touches no DB). If the subject is one table, `model_*`; **if no subject can be determined, `model_<table>_<table>_service` ([model.md](backend-model.instructions.md) §3.12)** |
-| The save itself and its hooks | the model (never open a Tx inside a hook) |
+| `$hdb->begin()` / `commit()` / `rollback()` | **action だけ**（システム責務、[coding.md](backend-coding.instructions.md) §1.1） |
+| 複数の副作用をまたぐ成功判定（`can_commit_*`） | **Domain**（純粋関数。DB に触れない）。主語が一テーブルなら `model_*`、**主語が決まらなければ `model_<table>_<table>_service`（[model.md](backend-model.instructions.md) §3.12）** |
+| 保存自体とフック | model（フック内で Tx を開かない） |
 
-**The flow**
+**流れ**
 
-1. Entrance gates (fetch, permissions) may come **before begin**.
-2. If several saves are needed, `$hdb = crow::get_hdb();` → `$hdb->begin();`
-3. Save each model. On failure: **`rollback()` → cleanup → `exit_ng`**
-4. With several side effects, decide before commit whether all succeeded via **`model_*::can_commit_*()`**
-5. On NG, `rollback()` → cleanup → `exit_ng`
-6. On OK, `$hdb->commit();` → `exit_ok`
+1. 入口のゲート（取得・権限）は **begin の前**に置いて構いません。
+2. 複数の保存が必要なら `$hdb = crow::get_hdb();` → `$hdb->begin();`
+3. 各 model を保存します。失敗時は **`rollback()` → 後処理 → `exit_ng`**
+4. 複数の副作用がある場合、commit の前に **`model_*::can_commit_*()`** で全成功を判定します
+5. NG なら `rollback()` → 後処理 → `exit_ng`
+6. OK なら `$hdb->commit();` → `exit_ok`
 
-**rollback (mandatory)**
+**rollback（必須）**
 
-After `begin()`, **always `rollback()`** before an `exit_ng`.
-Cleanup outside the Tx (releasing a device, and so on) also happens **in the action**.
+`begin()` の後は、`exit_ng` の前に **必ず `rollback()`** します。
+Tx 外の後処理（デバイス解放など）も **action 内**で行います。
 
 ```php
 $hdb = crow::get_hdb();
@@ -260,40 +260,40 @@ model_progress::release_pair_write_serializer();
 app::exit_ok();
 ```
 
-**The role of `can_commit_*`**
+**`can_commit_*` の役割**
 
-- A pure decision that **cross-checks several save / side-effect results (success, zero rows, false) in one place**.
-- It lives in the model so that if-chains are not scattered through the action and **no intermediate state (only one side succeeded) is created**.
-- The decision logic itself ("is zero rows a success?") is also the model's.
+- **複数の保存・副作用の結果（成功、0 行、false）を一か所で突き合わせる**純粋判定です。
+- action に if の連鎖を散在させず、**中間状態（片側だけ成功）を作らない**ために model に置きます。
+- 判定ロジック自体（「0 行は成功か？」）も model の責務です。
 
-**What not to do**
+**禁止事項**
 
-- Call `begin` / `commit` / `rollback` inside a model hook.
-- `exit_ng` after `begin` without rolling back.
-- Call `begin` out of habit every time when there is only a single save.
+- model フック内で `begin` / `commit` / `rollback` を呼ぶ。
+- `begin` の後、rollback せずに `exit_ng` する。
+- 単一保存だけなのに、習慣で毎回 `begin` する。
 
-### 2.9 Auth and permission gates
+### 2.9 認証・権限のゲート
 
-#### Login required (the module entrance)
+#### ログイン必須（module の入口）
 
-**Whether the user is logged in** is confirmed in the `module_*` base's **`preload()`**.
-Do not repeat `crow_auth::is_logined()` in each `action_*`.
+**ログイン済みか**は `module_*` の基底の **`preload()`** で確認します。
+各 `action_*` で `crow_auth::is_logined()` を繰り返さないでください。
 
-| Situation | How to return |
+| 状況 | 返し方 |
 | --- | --- |
-| Not logged in + a normal request | `redirect` to the login screen (`preload` returns `false`) |
-| Not logged in + Ajax | `app::exit_unauthorized()` and the like (401 + JSON) |
+| 未ログイン + 通常リクエスト | ログイン画面へ `redirect`（`preload` は `false` を返す） |
+| 未ログイン + Ajax | `app::exit_unauthorized()` など（401 + JSON） |
 
-`preload()` is **the entrance gate for the whole module** (session extension, array-input guards, and the like may live here too).
-**The assignment scope for an individual resource** ("may this row be touched?") is decided by the action + the model (below).
+`preload()` は **module 全体の入口ゲート**です（セッション延長、配列入力ガードなどもここに置けます）。
+**個別リソースの担当スコープ**（「この行に触れてよいか？」）は action + model で判定します（下記）。
 
-#### Assignment scope and permissions (per resource)
+#### 担当スコープと権限（リソース単位）
 
-| Layer | Responsibility |
+| 層 | 責務 |
 | --- | --- |
-| **model** | the **meaning** of the scope (`is_in_assigned_scope($row, $user_id)` and the like) |
-| **action** | **stopping** based on the model's result (`exit_ng`) |
-| **module base** | a **thin wrapper** calling the model (`$this->is_*`) is fine. Never write decision logic here |
+| **model** | スコープの **意味**（`is_in_assigned_scope($row, $user_id)` など） |
+| **action** | model の結果に基づく **停止**（`exit_ng`） |
+| **module 基底** | model を呼ぶ **薄いラッパー**（`$this->is_*`）は可。判定ロジックは書かない |
 
 ```php
 //  model — 担当スコープの意味
@@ -309,37 +309,37 @@ if( model_progress::is_in_assigned_scope($org_row, crow_auth::get_logined_id()) 
 }
 ```
 
-#### Error messages
+#### エラーメッセージ
 
-Unify the wording for a permission NG **in either the action or the model's `build_*_message()`**
-(e.g. "担当外のため操作できません。").
-Do not invent different wording per action.
+権限 NG の文言は **action または model の `build_*_message()` のどちらかに**統一します
+（例：「担当外のため操作できません。」）。
+action ごとに別の文言を作らないでください。
 
-#### What not to do
+#### 禁止事項
 
-- `exit_ng` / `redirect` inside a model.
-- Copy-paste the login check into each action (duplicating it when `preload` exists).
-- Hardcode the scope decision into the action (the meaning goes to the model).
+- model 内で `exit_ng` / `redirect` する。
+- 各 action にログインチェックをコピーする（`preload` があるのに重複させる）。
+- スコープ判定を action にハードコードする（意味は model に置く）。
 
-### 2.10 Logging (warning / error)
+### 2.10 ログ（warning / error）
 
-Depending on crow's error-handler configuration, **`crow_log::error` can exit the request**.
-Split by log level and location, and do not let the domain layer fire fatal logs freely.
+crow のエラーハンドラー設定によって、**`crow_log::error` はリクエストを終了し得ます**。
+レベルと配置先で分け、ドメイン層に致命的ログを自由に出させないでください。
 
-| Level | Use | Where it goes |
+| レベル | 用途 | 配置先 |
 | --- | --- | --- |
-| **warning** | business divergence, unexpected input, a recoverable abnormality (an enum divergence, a row of an unexpected type) | **model / service / presenter / util** (the only record the Domain may emit) |
-| **error** | cannot continue, a misconfiguration, a fatal that should never happen | **the action's entrance / preload only.** **Never call it** from the Domain (model / service / presenter / util) — `crow_log::error()` can exit, so it violates [coding.md](backend-coding.instructions.md) §1.1's absolute rule 1 |
+| **warning** | 業務上の不一致、想定外入力、回復可能な異常（enum の不一致、想定外の型の行） | **model / service / presenter / util**（Domain が出してよい唯一の記録） |
+| **error** | 継続不能、設定不備、起こるべきでない致命的異常 | **action の入口 / preload だけ。** Domain（model / service / presenter / util）からは **呼び出し禁止** — `crow_log::error()` は終了し得るため、[coding.md](backend-coding.instructions.md) §1.1 の絶対規則 1 に違反 |
 
-**Enum divergence, a DB value absent from a map**
+**enum の不一致、マップにない DB 値**
 
-- Fall back to a default on the presenter side for display, while **recording the divergence with `crow_log::warning()`** (in exactly one of model / util / presenter).
-- **Never warn about the same divergence repeatedly within one request** (record it once).
+- 表示は presenter 側で既定値へフォールバックしつつ、**`crow_log::warning()` で不一致を記録します**（model / util / presenter のどれか一か所）。
+- **同一リクエスト内で同じ不一致を繰り返し warning にしないでください**（一度だけ記録）。
 
-**What not to do**
+**禁止事項**
 
-- Call `crow_log::error()` from the Domain (model / service / presenter / util) (an exit risk — [coding.md](backend-coding.instructions.md) §1.1).
-- Swallow it (returning a default with no log at all) — record a divergence as a warning.
-- Have the action log the fine details of the success path (it becomes noise).
+- Domain（model / service / presenter / util）から `crow_log::error()` を呼ぶ（終了の危険 — [coding.md](backend-coding.instructions.md) §1.1）。
+- 握りつぶす（ログなしで既定値を返す）— 不一致は warning で記録します。
+- action に成功経路の細部をログ出力させる（ノイズになります）。
 
 ---

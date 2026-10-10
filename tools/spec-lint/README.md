@@ -1,141 +1,131 @@
 # spec-lint
 
-A zero-dependency Node tool bundled with the harness that mechanically verifies the **format and lifecycle** of
-the docs SSOT (the singletons, GOAL / UC / REQ, BR / NFR / ADR, the boundary contracts).
+harness に同梱する依存なしの Node ツール。docs の SSOT（単一文書、GOAL / UC / REQ、
+BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械的に検証する。
 
-- **The layout it verifies**: `docs/00-vision.md` `01-glossary.md` `02-actors.md` (+ optional
-  `goals-backlog.md`, `design.md`, `verification/GLOBAL.md`, `verification/DEFERRED.md` — the ledger of
-  reviewer findings that cannot be machine-judged, rows only), `docs/goals/GOAL-nn-<slug>/GOAL.md`,
-  `…/UC-nnn-<slug>/` (`UC.md`, `REQ-nnn.md`, `contract.yaml`), `docs/rules/BR-nnn.md`, `docs/nfr/NFR-nnn.md`,
-  `docs/adr/ADR-nnnn-<slug>.md`, `docs/_shared/components.yaml`
-- **The format it verifies**: the SSOT is the templates in `../../templates/develop/`. Required frontmatter
-  keys (a key whose template comment says `optional` is optional), required sections, and the contract's
-  required `x-` keys are **derived from the templates** (revise the format by editing the template and the
-  lint follows). The closed vocabularies live here because only executable code can enforce them:
-  `status` (`draft|active|withdrawn` on nodes, `draft|frozen|living` on singletons, `living` only on
-  `DEFERRED.md`, `proposed|accepted|superseded` on ADRs, `draft|fixed` on contracts), `phase`
-  (`定義|構造|実装|検証|完了`), `pattern` (the 5 EARS patterns),
-  `transport` (`http|sdk|local-store|deeplink|push|device|internal` — `internal` is an in-process boundary the host
-  has decided, in an ADR, to contract explicitly; the default under R-1204 is that such a boundary is not an operation)
-  / `direction`
-- **Traceability is not its job**: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter
-  (C9), and numbering collisions are `../trace-check/`'s 15 checks
-- **Scope of contract verification**: a contract is **not OpenAPI** — it is the harness's own boundary-contract
-  format (why: `docs/adr/ADR-0001`). This tool parses it with a hand-written parser for a deliberately narrow
-  YAML subset (why: `docs/adr/ADR-0002`) and checks structure: `transport` / `direction` / `owned` validity,
-  `wire` only on `http`, `entry` only on `deeplink` / `push`, `source` required when `owned: false`, `auth`
-  explicit on every operation and resolving in `_shared`, `errors[].code` closed to `_shared` `errorCodes`, a
-  `requires` with no matching `PERMISSION_DENIED`, `errors: []` accepted as the declaration "no failure path"
-  (then no failure example is demanded; an omitted `errors` is not that declaration), success `examples`
-  agreeing with the declared `request` (a failure example may carry forbidden keys — it is a counter-example),
-  the operation's keys closed to the 13 the template uses, and — once `fixed` — every declared error code
-  returned by at least one example.
-  **Because the checker decides all of this, no agent needs to read a contract in full to judge conformance**
-- **How it is used**: producers invoke it directly to machine-verify their deliverables. Wiring `gate` into a
-  commit-msg hook is also possible (optional, on each project's side)
+- **検証する配置**: `docs/00-vision.md` `01-glossary.md` `02-actors.md`（任意で
+  `goals-backlog.md`、`design.md`、`verification/GLOBAL.md`、`verification/DEFERRED.md` —
+  機械判定できない reviewer 指摘の台帳。行のみ）、`docs/goals/GOAL-nn-<slug>/GOAL.md`、
+  `…/UC-nnn-<slug>/`（`UC.md`、`REQ-nnn.md`、`contract.yaml`）、`docs/rules/BR-nnn.md`、`docs/nfr/NFR-nnn.md`、
+  `docs/adr/ADR-nnnn-<slug>.md`、`docs/_shared/components.yaml`。
+- **検証する書式**: SSOT は `../../templates/develop/` のテンプレート。必須 frontmatter キー
+  （テンプレートのコメントに `optional` とあるキーは任意）、必須節、契約の必須 `x-` キーを
+  **テンプレートから導出**する（テンプレートを編集して書式を改めれば lint が追従）。
+  閉じた語彙は実行コードだけが保証できるため、ここに置く:
+  `status`（ノードは `draft|active|withdrawn`、単一文書は `draft|frozen|living`、
+  `DEFERRED.md` は `living` のみ、ADR は `proposed|accepted|superseded`、契約は `draft|fixed`）、
+  `phase`（`定義|構造|実装|検証|完了`）、`pattern`（五つの EARS パターン）、
+  `transport`（`http|sdk|local-store|deeplink|push|device|internal` — `internal` は利用プロジェクトが
+  ADR で明示的に契約化を決めたプロセス内境界。R-1204 の既定ではその境界は操作ではない）/ `direction`。
+- **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
+  （C9）、採番衝突は `../trace-check/` の 15 検査の担当。
+- **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
+  意図的に狭い YAML 部分集合用の手書き parser（理由: `docs/adr/ADR-0002`）で構造を検査する:
+  `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、`entry` は `deeplink` / `push` のみ、
+  `owned: false` なら `source` 必須、全操作に明示した `auth` が `_shared` に解決すること、
+  `errors[].code` が `_shared` の `errorCodes` に閉じていること、対応する `PERMISSION_DENIED` のない `requires`、
+  `errors: []` を「失敗経路なし」の宣言として受理すること（失敗例は要求しない。`errors` の省略はその宣言ではない）、
+  成功 `examples` が宣言 `request` と一致すること（失敗例は反例なので禁止キーを含んでよい）、
+  操作キーがテンプレートの 13 個に閉じていること、`fixed` 後は全宣言エラーコードを少なくとも一例が返すこと。
+  **検査器がすべて判定するため、準拠判定のために agent が契約を全文読む必要はない。**
+- **使い方**: 作成者が直接実行して成果物を機械検証する。`gate` を commit-msg hook に接続してもよい
+  （任意。各プロジェクト側で設定）。
 
 ```bash
-node spec-lint.mjs validate [--docs docs]     # format + lifecycle invariants + docs hygiene
-node spec-lint.mjs validate --ignore-legacy-layout   # keep checking the new layout while docs/specs/ still exists (mid-migration)
-node spec-lint.mjs validate --update-baseline # ledger today's errors in .spec-baseline.json; from then on only NEW errors fail
-node spec-lint.mjs validate --strict          # ignore the baseline (everything fails)   [--baseline <file> to relocate it]
-node spec-lint.mjs gate --message <file>       # verify a commit's UC: trailer (UC / REQs active, contract fixed) — never uses the baseline
-node spec-lint.mjs gate --uc UC-012            # the same for one UC   [--unit <name> at a monorepo root]
+node spec-lint.mjs validate [--docs docs]     # 書式 + ライフサイクル不変条件 + docs の健全性
+node spec-lint.mjs validate --ignore-legacy-layout   # docs/specs/ が残る移行中も新配置を検査
+node spec-lint.mjs validate --update-baseline # 現在のエラーを .spec-baseline.json に記録。以後は新規エラーのみ失敗
+node spec-lint.mjs validate --strict          # ベースラインを無視（全エラーで失敗）[--baseline <file> で配置変更]
+node spec-lint.mjs gate --message <file>       # コミットの UC: trailer を検証（UC / REQs が active、契約が fixed）。ベースラインは使わない
+node spec-lint.mjs gate --uc UC-012            # 一 UC に同じ検査 [モノレポ直下では --unit <name>]
 node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
 ```
 
-Exit codes: `0`=OK / `1`=violation / `2`=usage error. Node only (no external dependencies).
-In a monorepo host (`traceconfig.json` declares `git.units`, run from the repository root) docs and UC numbers are
-per unit, so `gate` looks the UC up in one unit's `docs/`: `--message` takes the unit from the commit header's
-`scope`, `--uc` takes it from `--unit`. A commit that carries `UC:` with a scope that is not a declared unit
-(`repo`, none) fails; a commit without the trailer passes untouched, as everywhere (ADR-0040).
-Regression tests: `node --test "tools/spec-lint/test/*.test.mjs"` (a minimal docs tree is written to a temp dir per case).
-On detecting the old layout (`docs/specs/F-xxx-<slug>/`) it prompts for `/docs-migrate` and returns `1` — unless
-`--ignore-legacy-layout` is given, in which case the old directory is a warning and the new layout is checked in full.
+終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー。Node のみ（外部依存なし）。
+モノレポの利用プロジェクト（`traceconfig.json` が `git.units` を宣言し、repository 直下から実行）では docs と
+UC 番号は単位ごと。`gate` は一単位の `docs/` を検索する。`--message` はコミットヘッダーの `scope` から、
+`--uc` は `--unit` から単位を取る。宣言済み単位でない scope（`repo`、なし）で `UC:` を持つコミットは失敗する。
+trailer のないコミットは、ほかと同様、そのまま通す（ADR-0040）。
+回帰テスト: `node --test "tools/spec-lint/test/*.test.mjs"`（ケースごとに一時ディレクトリへ最小 docs ツリーを書く）。
+旧配置（`docs/specs/F-xxx-<slug>/`）検出時は `/docs-migrate` を案内して `1` を返す。
+`--ignore-legacy-layout` 指定時は旧ディレクトリを警告にし、新配置を完全に検査する。
 
-## The baseline ratchet
+## ベースラインの歯止め
 
-The same semantics as trace-check's: `--update-baseline` records every current error (keyed by file without line
-number + message, so unrelated edits that shift lines do not turn a known error into a new one; equal keys are
-compared by count, so one more error of an already-ledgered kind is still new); a later `validate`
-prints known errors as `known` and fails only on new ones; `--update-baseline` again shrinks the ledger once errors
-are repaid. Use it for an existing project's first adoption and for the known red of a migration (`fixed` contracts
-whose REQs are still `draft`, old-format files not yet converted). The ledger only shrinks (R-804) except at the
-points `/docs-migrate` names. The `gate` command ignores the baseline — an implementation start is never excused.
+trace-check と同じ意味を持つ。`--update-baseline` は現在の全エラーを記録する（キーは行番号を除くファイル +
+メッセージ。無関係な編集で行がずれても既知エラーは新規にならない。同じキーは件数で比較するため、
+記録済み種類でも一件増えれば新規）。以後の `validate` は既知を `known` と表示し、新規だけで失敗する。
+解消後に再度 `--update-baseline` で台帳を縮める。既存プロジェクトの初回導入と移行中の既知の赤
+（REQ がまだ `draft` の `fixed` 契約、未変換の旧書式ファイル）に使う。台帳は `/docs-migrate` が指定する
+箇所以外では縮むだけ（R-804）。`gate` はベースラインを無視し、実装開始を免除してはならない。
 
-## convert (old OpenAPI contract → harness contract)
+## convert（旧 OpenAPI 契約 → harness 契約）
 
-`convert` is the mechanical half of the format change decided in `docs/adr/ADR-0001`: it reads an OpenAPI 3.x
-contract with the lenient parser (block scalars folded), preserves the shape, and writes a harness contract:
-`paths.*.<method>` (`operationId`) → `operations.<name>` with `transport: http` and `wire`; path / query
-`parameters` + `requestBody` → one `request` object; the first 2xx → `response`; each 4xx / 5xx → `errors[]`
-(`code` from `x-error-code`, else the response schema's `code` `const` / `enum`, else a status default such as
-`INVALID_INPUT` for 400); `example(s)` → `examples`; `components.schemas` → the contract's own top-level `schemas:`
-with `$ref` rewritten to `#/schemas/<Name>`; `security` → `auth` (`[]` = `none`); `x-status` carried over.
-Every judgment it cannot make — the direction (`--direction`, default `outbound` = this app calls the API; a server's
-own API is `inbound`), a missing `security`, a guessed error code, a missing `summary`, the UC (`--uc`) — is left as a
-`# convert:` note at the end of the file and printed to stderr. An operation with no 4xx in the old contract comes out
-with `errors: []` (no failure path is invented). The result is meant to pass `validate` after the notes are resolved.
+`convert` は `docs/adr/ADR-0001` で決めた書式変更の機械処理部分。緩い parser（block scalar を畳む）で
+OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
+`paths.*.<method>`（`operationId`）→ `transport: http` と `wire` 付きの `operations.<name>`、path / query
+`parameters` + `requestBody` → 一つの `request` object、最初の 2xx → `response`、各 4xx / 5xx → `errors[]`
+（`code` は `x-error-code`、なければ response schema の `code` の `const` / `enum`、なければ 400 の
+`INVALID_INPUT` などステータス既定値）、`example(s)` → `examples`、`components.schemas` → 契約の最上位
+`schemas:`（`$ref` を `#/schemas/<Name>` に書き換え）、`security` → `auth`（`[]` = `none`）、`x-status` は引き継ぐ。
+判断できないもの — direction（`--direction`、既定 `outbound` = このアプリが API を呼ぶ。サーバー自身の API は
+`inbound`）、欠落した `security`、推測したエラーコード、欠落した `summary`、UC（`--uc`）— はすべて
+ファイル末尾の `# convert:` 注記として残し、stderr に表示する。旧契約に 4xx がない操作は `errors: []` にする
+（失敗経路を創作しない）。注記を解消後に `validate` を通すことを意図した結果。
 
-## What it treats as an error (lifecycle and reference invariants)
+## エラーとして扱うもの（ライフサイクルと参照の不変条件）
 
-- Missing required frontmatter / required sections / required `x-` keys; a status outside its vocabulary
-- Directory-name violations (`GOAL-nn-<slug>`, `UC-nnn-<slug>`, `ADR-nnnn-<slug>.md`), an `id` that disagrees
-  with the directory or file name, a duplicate GOAL / UC id, a missing `GOAL.md` / `UC.md`, a UC or REQ placed
-  directly under a goal
-- A REQ with zero or more than one EARS blockquote (one requirement, one sentence — R-401), a `pattern` outside
-  the 5 EARS patterns, a `uc:` that disagrees with the directory
-- A settled UC whose state × event table has an empty cell (R-501), or whose exception sweep lacks one of the 4
-  axes (R-502)
-- A settled document still carrying template placeholders (`UC-000`, `YYYY-MM-DD`, `<...>` …). A `<...>` counts
-  when it is a string the templates themselves use, or a non-ASCII `<…>` not glued to a following word (`<言語>.lproj`
-  is a meta-variable, not a hole); HTML comments, code spans / fences, and YAML comments are never scanned. A REQ's
-  `## 検証方針` is exempt — its content is trace-check's C2 / C10
-- A contract `fixed` while its UC is `draft` or while any of its REQs is still `draft`; a UC `draft` whose
-  `phase` has advanced past `定義`; an `x-spec` or `$ref` that does not resolve; an ADR whose `supersedes`
-  does not exist
-- Syntax outside the accepted YAML subset: anchors / aliases (`&` / `*`), block scalars (`|` / `>`), tabs,
-  duplicate keys; a contract still in OpenAPI form, or `api-contract.yaml` left in a UC directory
-- An operation missing `transport` / `direction` / `owned` / `auth` / `summary`, or holding a field that does
-  not belong to its transport; `operations: {}` with no `x-no-boundary` reason
-- An operation holding a key outside the closed set `transport` / `direction` / `owned` / `source` / `auth` /
-  `summary` / `wire` / `entry` / `requires` / `request` / `response` / `errors` / `examples` — the 13 keys
-  `templates/develop/contract.yaml` uses. `x-*` is rejected at the operation level too: rules belong to UC / REQ /
-  BR and the evaluation order is the order of `errors` (R-1207). Each `errors[]` item is likewise closed to
-  `code` / `when` / `wire`
-- A `fixed` contract declaring an error code that no `examples.<case>.error` returns (`errors` ⊆ `examples`, the
-  reverse of the existing "every failure example names a declared code"; `errors: []` is exempt). A failure path
-  without an example cannot be executed by a test
-- `docs/verification/DEFERRED.md` (optional): `status` other than `living`; a row that does not have exactly 7
-  cells; an `ID` not matching `DEF-nnn` or duplicated; a `起票日` that is not `YYYY-MM-DD` or lies in the future; an
-  empty `出所` / `対象` / `指摘` / `理由`; a `昇格先` outside `spec-lint | trace-check | contract-run | test | typecheck |
-  lint | hook | 未定`. A table with only its header row is valid
+- 必須 frontmatter / 必須節 / 必須 `x-` キーの欠落、語彙外の status。
+- ディレクトリ名の違反（`GOAL-nn-<slug>`、`UC-nnn-<slug>`、`ADR-nnnn-<slug>.md`）、ディレクトリや
+  ファイル名に合わない `id`、重複 GOAL / UC id、`GOAL.md` / `UC.md` 欠落、ゴール直下の UC / REQ。
+- EARS 引用ブロックがゼロまたは複数の REQ（一要件一文 — R-401）、五つの EARS パターン外の `pattern`、
+  ディレクトリに合わない `uc:`。
+- 確定 UC の状態 × イベント表の空セル（R-501）、または例外系走査の四軸の欠落（R-502）。
+- 確定文書に残るテンプレートプレースホルダー（`UC-000`、`YYYY-MM-DD`、`<...>` など）。`<...>` は
+  テンプレートが使う文字列、または後続語に接着していない非 ASCII の `<…>` を数える（`<言語>.lproj` は
+  メタ変数であり空欄ではない）。HTML コメント、コード span / fence、YAML コメントは走査しない。
+  REQ の `## 検証方針` は除外し、内容は trace-check の C2 / C10 が扱う。
+- UC またはいずれかの REQ が `draft` の `fixed` 契約、`phase` が `定義` を超えた `draft` UC、
+  解決しない `x-spec` / `$ref`、存在しない ADR の `supersedes`。
+- 受理する YAML 部分集合外の構文: anchors / aliases（`&` / `*`）、block scalars（`|` / `>`）、tabs、
+  重複キー。OpenAPI 書式のままの契約、UC ディレクトリに残る `api-contract.yaml`。
+- `transport` / `direction` / `owned` / `auth` / `summary` 欠落、transport に属さないフィールドを持つ操作、
+  `x-no-boundary` の理由がない `operations: {}`。
+- 閉じた集合 `transport` / `direction` / `owned` / `source` / `auth` / `summary` / `wire` / `entry` /
+  `requires` / `request` / `response` / `errors` / `examples` — `templates/develop/contract.yaml` の 13 キー —
+  以外を持つ操作。操作レベルの `x-*` も拒否する。規則は UC / REQ / BR に属し、評価順序は `errors` の順序
+  （R-1207）。各 `errors[]` 項目も `code` / `when` / `wire` に閉じる。
+- `fixed` 契約に、どの `examples.<case>.error` も返さない宣言エラーコードがある（`errors` ⊆ `examples`。
+  既存の「全失敗例は宣言済みコードを指定する」の逆。`errors: []` は除外）。例のない失敗経路はテストで実行できない。
+- `docs/verification/DEFERRED.md`（任意）: `living` 以外の `status`、セルがちょうど七つでない行、
+  `DEF-nnn` に一致しない / 重複した `ID`、`YYYY-MM-DD` でない / 未来の `起票日`、空の `出所` / `対象` /
+  `指摘` / `理由`、`spec-lint | trace-check | contract-run | test | typecheck | lint | hook | 未定` 外の `昇格先`。
+  ヘッダー行だけの表は有効。
 
-Hosts adopting these rules on contracts written before them run `validate --update-baseline` once so the existing
-material is ledgered and only new violations fail from then on (R-804's exception for the first application of a
-check to pre-existing material). `gate` still ignores the baseline.
+導入前に書かれた契約へこれらの規則を適用する利用プロジェクトは、一度 `validate --update-baseline` を実行して
+既存資料を台帳に記録し、以後は新規違反のみで失敗させる（既存資料への初回検査適用に対する R-804 の例外）。
+`gate` は引き続きベースラインを無視する。
 
-## Docs-hygiene detection (all warnings)
+## docs の健全性の検出（すべて警告）
 
-Warns on signs that a document is drifting from "present-tense invariants" into a dumping ground (the SSOT for
-the negative lists is each producer's craft):
+文書が「現在形の不変条件」から情報の投げ込み場所へ変質する兆候を警告する（禁止リストの SSOT は各作成者の専門技術）。
 
-| Detection | Target | What it means |
+| 検出 | 対象 | 意味 |
 | --- | --- | --- |
-| Dates in parentheses in the body (`（2026-01-01 改訂` and the like; a date followed by a particle — `（2026-02-29 は不正` — is a value under discussion, not history; code spans are skipped) | all | git holds the history. Integrate the body into the present tense |
-| Implementation anchors (code file paths) | UC / REQ (not BR — a BR legitimately says "値の SSOT は `<path>`", R-102) | The code is the SSOT. Written into docs, it rots |
-| Internal API references (`Class::method`) | UC / REQ | Written in the vocabulary of observable behavior |
-| A "known issues / residual risks / backlog" section | UC / REQ | Open items are pushed out to issue tracking |
-| Bloat (UC over 8,000 chars / REQ over 2,500 / BR over 2,500 / contract over 400 lines) | all | Measured in characters, not lines (a 1,000-character line slips under a line count) |
-| An EARS sentence over 200 characters | REQ | Several requirements compressed into one (R-401) |
-| Over 10 references to other UCs **in the prose** (table rows — `不可: UC-010` cells included — and the 事前条件 section are not counted: an ID there is a reference by design, not a copy) | UC | Suspected duplication of the referenced behavior. Extract a BR (R-105) |
-| An NFR without a measurement, a BR without `**意図**` | NFR / BR | R-104 / the rule holds existence and intent |
-| A long `description` (over 8 lines or 200 characters) | contract | Purpose, rules, and UI explanation belong to UC / REQ. A contract holds a one-line `summary` and short notes (an `x-*` under an operation is no longer a warning — the closed key set above rejects it) |
-| A `DEFERRED.md` row older than 30 days | DEFERRED | A finding that has waited this long is decided one way or the other: promote it to a machine check or resolve it |
-| Three or more `DEFERRED.md` rows naming the same `対象`, or a `対象` path that does not exist relative to the host root | DEFERRED | Recurrence is the signal that a machine check is worth writing; a vanished target means the row is stale (delete it if resolved) |
-| A UC `active` with no `contract.yaml` | UC | Declare zero boundaries (`operations: {}` + `x-no-boundary`) rather than omitting the file |
-| A UC whose exception sweep derives cases but whose contract has no `errors` (a 導出 cell starting with `なし` / `—` / `-`, reason or not, counts as no derivation) | contract | The failure path has no shape at the boundary |
-| `PRD.md` present, singletons missing | docs root | The old layout's remains; `/docs-migrate` |
+| 本文の括弧内の日付（`（2026-01-01 改訂` など。助詞が続く日付 — `（2026-02-29 は不正` — は履歴でなく検討対象の値。コード span は除外） | すべて | 履歴は git が持つ。本文を現在形に統合する |
+| 実装への参照点（コードのファイルパス） | UC / REQ（BR は除外。BR の「値の SSOT は `<path>`」は正当、R-102） | コードが SSOT。docs に書くと腐敗する |
+| 内部 API 参照（`Class::method`） | UC / REQ | 観測可能な動作の語彙で書く |
+| 「既知の問題 / 残留リスク / バックログ」節 | UC / REQ | 未解決項目は issue 管理へ出す |
+| 肥大化（UC 8,000 字超 / REQ 2,500 字超 / BR 2,500 字超 / 契約 400 行超） | すべて | 行でなく文字数を測る（一行 1,000 字は行数をすり抜ける） |
+| 200 字を超える EARS 文 | REQ | 複数要件を一つに圧縮している（R-401） |
+| **文章内**の他 UC 参照が 10 超（表の行 — `不可: UC-010` セルも — と事前条件節は数えない。設計上の参照であって写しではない） | UC | 参照先の動作の重複が疑わしい。BR に抽出する（R-105） |
+| 測定のない NFR、`**意図**` のない BR | NFR / BR | R-104 / 規則は存在と意図を持つ |
+| 長い `description`（8 行または 200 字超） | 契約 | 目的、規則、UI 説明は UC / REQ。契約は一行 `summary` と短い注記を持つ（操作配下の `x-*` は警告ではなく、上記の閉じたキー集合が拒否） |
+| 30 日を超えた `DEFERRED.md` 行 | DEFERRED | ここまで待った指摘は機械検査へ昇格するか、解消するかを判断する |
+| 同じ `対象` の `DEFERRED.md` 行が三つ以上、または利用プロジェクト直下からの `対象` パスが存在しない | DEFERRED | 再発は機械検査を書く価値の兆候。対象の消失は行が古いことを示す（解消済みなら削除） |
+| `contract.yaml` のない `active` UC | UC | ファイルを省略せず、境界ゼロ（`operations: {}` + `x-no-boundary`）を宣言する |
+| 例外系走査でケースを導出する UC なのに契約に `errors` がない（理由の有無にかかわらず `なし` / `—` / `-` で始まる導出セルは導出なしと数える） | 契約 | 失敗経路が境界の形状を持たない |
+| `PRD.md` があり、単一文書が欠落 | docs 直下 | 旧配置の残骸。`/docs-migrate` |
 
-Why these are not errors: so that an existing project's `validate` does not die instantly (cleanup happens
-progressively, at the opportunities differential updates provide).
+エラーにしない理由: 既存プロジェクトの `validate` が即座に終了しないようにするため
+（差分更新の機会に段階的に整理する）。

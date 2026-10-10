@@ -1,37 +1,37 @@
 ---
-description: "📐 Expo — common coding rules (all layers)"
+description: "📐 Expo — 共通コーディング規約（全レイヤー）"
 applyTo: "**/*.tsx,**/*.ts,**/app.json,**/app.config.*,**/eas.json"
 ---
 
-# 📐 Expo — common coding rules (all layers)
+# 📐 Expo — 共通コーディング規約（全レイヤー）
 
-> **Scope: React Native apps on Expo (expo-router).**
-> This document fires on file extension, so it can be injected into non-Expo TypeScript / React projects too.
-> **If the target is not Expo, treat this document as inapplicable** and discard it.
+> **対象: Expo（expo-router）の React Native アプリ。**
+> この文書は拡張子で適用されるため、Expo 以外の TypeScript / React プロジェクトにも注入され得る。
+> **対象が Expo でなければ、この文書は適用外として扱い**、破棄する。
 >
-> What this document holds is only **what is true across layers**. The rules for the surface (the RN runtime, styling, screens) are in
-> [frontend/coding.md](frontend-coding.instructions.md), and those are **a delta on this document**.
-> **Never copy the common rules into a layer leaf** (the SSOT is here, in one place).
+> この文書が持つのは **レイヤーをまたいで成立する規約**だけである。表層（RN runtime、styling、画面）の規約は
+> [frontend/coding.md](frontend-coding.instructions.md) にあり、**この文書との差分**である。
+> **共通規約をレイヤーの末端文書へコピーしない**（SSOT はここ一か所）。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Formatting is decided by tools, not by this document
+## 0. 整形はこの文書ではなくツールが決める
 
-Indentation, line breaks, quotes, semicolons, and import order are **authoritative in the project's lint / format command**,
-and this document defines none of them. Never align columns by hand. **Run the format command before returning.**
+インデント、改行、引用符、セミコロン、import 順序の **正本はプロジェクトの lint / format コマンド**であり、
+この文書では定義しない。手作業で列を揃えない。**返却前に format コマンドを実行する。**
 
-When a rule conflicts, the tool's output wins (that is all a human looks at too).
+規約が衝突したらツールの出力を優先する（人間が見るのもそれだけである）。
 
 ---
 
-## 1. Never weaken types to get to green
+## 1. 成功させるために型を弱めない
 
-**Never write `as any` / a non-null assertion (`!`) / `@ts-expect-error` / `eslint-disable` "to make a type error go away".**
+**「型エラーを消すため」に `as any` / 非 null アサーション（`!`）/ `@ts-expect-error` / `eslint-disable` を書かない。**
 
-Needing to write one is a signal that **either the type or the contract is wrong**.
-Suppress it silently and downstream work piles up on a wrong premise, landing somewhere else at runtime.
+書く必要があることは **型か契約のどちらかが間違っている**という兆候である。
+黙って抑制すると、その先の作業が誤った前提の上に積み重なり、実行時に別の場所へ現れる。
 
 ```ts
 //  NG: 契約が合っていないのを型で押し潰している
@@ -41,19 +41,19 @@ const user = res.data as any;
 const id = params.id!;
 ```
 
-**When you want to suppress something, stop implementing and report "what conflicts with what"** (per each implementer's output contract).
-Never rewrite the contract yourself to make things line up.
+**抑制したくなったら実装を止め、「何と何が衝突しているか」を報告する**（各実装者の出力契約に従う）。
+辻褄を合わせるために自分で契約を書き換えない。
 
-The only exception is **when an external library's type definitions differ from its actual behavior**, and then leave the reason in a comment.
+唯一の例外は **外部ライブラリの型定義と実際の挙動が異なる場合**であり、その場合は理由をコメントに残す。
 
 ---
 
-## 2. The shape of a module
+## 2. モジュールの形
 
-### Do not use default exports
+### default export を使わない
 
-The importing side is free to name it anything, so the same thing ends up with a different name at every call site.
-**Standardize on named exports.**
+import 側が自由に名前を付けられるため、同じものが呼び出し先ごとに違う名前になる。
+**named export に統一する。**
 
 ```ts
 //  NG
@@ -63,54 +63,54 @@ export default function UserCard() {}
 export function UserCard() {}
 ```
 
-> **The one exception: expo-router's route files (`app/**`) require `export default`.**
-> The framework resolves them as screens, so a named export **leaves the route empty**.
-> Details in [frontend/routing.md](frontend-routing.instructions.md).
+> **唯一の例外: expo-router の route ファイル（`app/**`）は `export default` を要求する。**
+> フレームワークが画面として解決するため、named export では **ルートが空になる**。
+> 詳細は [frontend/routing.md](frontend-routing.instructions.md) にある。
 
-### Do not create barrels
+### barrel を作らない
 
-Never place an `index.ts` that only re-exports. It is a breeding ground for circular imports and adds wiring the bundler does not need.
+再 export だけを行う `index.ts` を置かない。循環 import の温床となり、bundler に不要な配線を増やす。
 
-On top of that, **under `app/` an `index.ts` is a route in itself**, so placing one as a barrel grows an extra screen.
+さらに **`app/` 配下では `index.ts` 自体がルート**なので、barrel として置くと余分な画面が増える。
 
-### Do not stack relative paths
+### 相対パスを積み重ねない
 
-Never write `../../../`; use tsconfig's path alias (`@/` by default in Expo).
-This prevents every link breaking the moment a file moves.
-
----
-
-## 3. Environment variables and secrets
-
-**Environment variables prefixed `EXPO_PUBLIC_`, and `extra` in `app.config.ts`,
-are baked into the client bundle at build time — that is, published.**
-
-A distributed app's bundle can be extracted, so nothing put there is a secret.
-
-- An API base URL, a feature flag, a public key → fine to put there
-- An API secret, a signing key, an admin token → **never put them there**
-
-If processing that requires a secret becomes necessary, that processing cannot live on the client.
-**Stop implementing and report** (never decide the server-side design yourself).
+`../../../` を書かず、tsconfig のパスエイリアス（Expo の既定では `@/`）を使う。
+ファイルを移動した瞬間に参照がすべて壊れることを防ぐ。
 
 ---
 
-## 4. The boundary on adding dependencies
+## 3. 環境変数と秘密情報
 
-**Never add a package containing native code on your own.**
+**`EXPO_PUBLIC_` を接頭辞に持つ環境変数と `app.config.ts` の `extra` は
+build 時に client bundle へ埋め込まれる。つまり公開される。**
 
-Adding one means it does not work in existing dev builds, in Expo Go, or in already-distributed builds — **a native rebuild is required**.
-`npm install` succeeding is no proof it works (only the JS side got resolved).
+配布済みアプリの bundle は取り出せるため、そこへ置いたものは秘密情報ではない。
 
-When a dependency addition becomes necessary, **report what you want to add and why, and stop.**
-Using a dependency already in the project is not restricted.
+- API のベース URL、feature flag、公開鍵 → 置いてよい
+- API の秘密情報、署名鍵、管理者 token → **置かない**
+
+秘密情報を必要とする処理が必要になった場合、その処理は client に置けない。
+**実装を止めて報告する**（サーバー側の設計を自分で決めない）。
 
 ---
 
-## ✅ Checklist before returning
+## 4. 依存追加の境界
 
-- [ ] Did you run the lint / format command?
-- [ ] Did you add `as any` / `!` / `@ts-expect-error` / `eslint-disable` to get to green?
-- [ ] Are you using `export default` outside `app/`?
-- [ ] Did you put a value that could be a secret into `EXPO_PUBLIC_` / `extra`?
-- [ ] Did you add a native dependency without permission?
+**native code を含む package を独断で追加しない。**
+
+追加すると既存の dev build、Expo Go、配布済み build で動かなくなる。**native の再 build が必要**である。
+`npm install` の成功は動作の証拠ではない（JS 側が解決されただけ）。
+
+依存追加が必要になったら **何を、なぜ追加したいかを報告し、止まる**。
+プロジェクトに既に存在する依存の利用は制限しない。
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] lint / format コマンドを実行したか？
+- [ ] 成功させるために `as any` / `!` / `@ts-expect-error` / `eslint-disable` を追加していないか？
+- [ ] `app/` の外で `export default` を使っていないか？
+- [ ] 秘密情報かもしれない値を `EXPO_PUBLIC_` / `extra` に置いていないか？
+- [ ] 許可なしに native 依存を追加していないか？

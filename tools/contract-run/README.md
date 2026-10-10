@@ -1,77 +1,75 @@
 # contract-run
 
-A zero-dependency Node tool bundled with the harness that **executes** the boundary contracts against the
-host implementation. `../spec-lint/` proves a contract has the right *format*; `../trace-check/` proves the
-*references* between docs and code resolve; this tool closes the remaining gap — that the implementation
-actually answers the way the contract says it does.
+harness に同梱する依存なしの Node ツール。利用プロジェクトの実装に対して境界契約を**実行**する。
+`../spec-lint/` は契約の*書式*、`../trace-check/` は docs とコードの*参照*の解決を証明する。
+このツールは残る隔たり、すなわち実装が契約どおりに応答することを確認する。
 
-## What it checks
+## 検査内容
 
-Every `fixed` contract (`docs/goals/**/UC-*/contract.yaml`) already carries `examples` with real values: at
-least one success and, for every `errors[].code`, one failure per operation (spec-lint enforces this). Those
-examples are the fixtures. contract-run feeds each one to the implementation through a **host-written
-adapter process**, and judges the reply against the example:
+すべての `fixed` 契約（`docs/goals/**/UC-*/contract.yaml`）は、操作ごとに実値の `examples` を持つ。
+少なくとも成功例一つと、各 `errors[].code` の失敗例一つがある（spec-lint が保証）。それらを fixture とする。
+contract-run は各例を**利用プロジェクトが書いたアダプタープロセス**で実装へ渡し、応答を例に照らして判定する。
 
-- a success example (`response:` and no `error:`) must come back as a response whose shape contains the
-  example's response (subset match, see below)
-- a failure example (`error: CODE`) must come back as an error with exactly that code
+- 成功例（`response:` があり `error:` がない）は、例の response を含む形状の response を返す必要がある
+  （部分集合の一致。下記参照）。
+- 失敗例（`error: CODE`）は、正確にそのコードの error を返す必要がある。
 
-So the contract ↔ implementation link is checked by machine instead of by an agent reading both. What it
-does **not** check is meaning: a `response: { status: ok }` that matches proves the shape, not that the REQ
-behind it is satisfied. That remains the job of the tests declared in each REQ's `## 検証方針`.
+これにより、agent が両方を読む代わりに機械で契約 ↔ 実装の接続を検査する。意味は検査しない。
+一致する `response: { status: ok }` は形状を証明するが、その背後の REQ の充足は証明しない。
+それは各 REQ の `## 検証方針` に宣言したテストの担当。
 
-## Usage
+## 使い方
 
 ```bash
 node tools/contract-run/contract-run.mjs [--root <host root>] [--config traceconfig.json] [--docs docs]
                                           [--uc UC-012 ...] [--all] [--include-external] [--json] [--timeout 120]
 ```
 
-| Flag | Meaning |
+| フラグ | 意味 |
 | --- | --- |
-| `--root` | Host root (default: the current directory). The adapter runs with this as its cwd |
-| `--config` | `traceconfig.json` to read (default: `<root>/traceconfig.json`). Missing config is exit `2`; the tool never scans for it |
-| `--docs` | Docs directory relative to root (default: `docs`); contracts are found under `<docs>/goals/**/UC-*/contract.yaml` |
-| `--uc` | Only contracts whose `x-uc` matches (repeatable, or comma-separated) |
-| `--all` | Run `draft` contracts too (default: only `x-status: fixed`) |
-| `--include-external` | Run `owned: false` operations too (default: only `owned: true`). External boundaries are transcribed, not ours, so they are opt-in |
-| `--json` | Print `{ results: [{uc, operation, case, verdict, detail}], summary: {pass, fail, skip} }` instead of text |
-| `--timeout` | Seconds for the whole run, adapter included (default `120`) |
+| `--root` | 利用プロジェクト直下（既定: 現在のディレクトリ）。アダプターはここを cwd に実行 |
+| `--config` | 読む `traceconfig.json`（既定: `<root>/traceconfig.json`）。設定欠落は exit `2`。探索はしない |
+| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は `<docs>/goals/**/UC-*/contract.yaml` 配下で探す |
+| `--uc` | `x-uc` が一致する契約だけ（繰り返し指定、またはカンマ区切り） |
+| `--all` | `draft` 契約も実行（既定: `x-status: fixed` のみ） |
+| `--include-external` | `owned: false` 操作も実行（既定: `owned: true` のみ）。外部境界は写しであり自身のものではないため明示選択 |
+| `--json` | テキストの代わりに `{ results: [{uc, operation, case, verdict, detail}], summary: {pass, fail, skip} }` を表示 |
+| `--timeout` | アダプターを含む全実行の秒数（既定 `120`） |
 
-Text output is one line per example, then a summary:
+テキスト出力は例ごとに一行、続いて集計:
 
 ```
 pass  UC-012 createItem.ok
 fail  UC-012 createItem.ok  items[0].status: 期待 "ok" / 実際 "pending"
 pass  UC-012 createItem.invalid  error INVALID_INPUT
-skip  UC-012 openItem.ok  reachable only through XCTest
+skip  UC-012 openItem.ok  XCTest 経由でのみ到達可能
 pass 2 / fail 1 / skip 1 (skipped は検査されていない)
 ```
 
-Exit codes: `0` = no `fail` (skips are allowed and listed) / `1` = at least one `fail` / `2` = configuration
-or adapter error (missing `traceconfig.json`, an unparsable contract, adapter crashed / timed out / broke the
-protocol). Operations under `operations: {}` are skipped silently. An example with neither `response` nor
-`error` is itself reported as `fail` (a malformed example; it is never sent to the adapter).
+終了コード: `0` = `fail` なし（skip は許可して一覧化） / `1` = 一つ以上の `fail` /
+`2` = 設定またはアダプターエラー（`traceconfig.json` 欠落、解析不能な契約、アダプターの異常終了 /
+タイムアウト / プロトコル違反）。`operations: {}` の操作は表示せずスキップする。
+`response` も `error` もない例は、それ自体を `fail` として報告する（不正な例。アダプターへは送らない）。
 
-When `commands.contract_adapter` is **not declared**, the tool prints
+`commands.contract_adapter` が**未宣言**なら、次を表示する:
 
 ```
 [contract-run] commands.contract_adapter 未宣言: 契約の実行検査は行われていない
 ```
 
-and exits `0`. That line is a **skip, not a pass** — nothing was executed. It exists so a host can adopt the
-rest of the harness before it has written an adapter, without pretending the link is verified.
+そして `0` で終了する。この行は**スキップであり成功ではない**。何も実行していない。
+利用プロジェクトがアダプター作成前に harness の残りを導入でき、接続が検証済みだと装わないためのもの。
 
-## The adapter contract
+## アダプターの契約
 
-The adapter is the only thing that knows how to reach the host's implementation. contract-run:
+アダプターだけが利用プロジェクトの実装への到達方法を知る。contract-run は:
 
-1. spawns `commands.contract_adapter` **once per run** (`shell: true`, `cwd` = host root),
-2. writes **one JSON line per example** to its stdin, in contract order, then closes stdin,
-3. reads its stdout **line by line**, matching replies to requests by `id`,
-4. waits for it to exit.
+1. `commands.contract_adapter` を**一実行につき一度**起動する（`shell: true`、`cwd` = 利用プロジェクト直下）。
+2. **例ごとに JSON 一行**を契約順で stdin に書き、stdin を閉じる。
+3. stdout を**一行ずつ**読み、`id` でリクエストと応答を対応付ける。
+4. 終了を待つ。
 
-Request line (one per example):
+リクエスト行（例ごとに一つ）:
 
 ```json
 {"id":1,"uc":"UC-012","operation":"createItem","transport":"http","direction":"outbound","owned":true,
@@ -79,80 +77,78 @@ Request line (one per example):
  "request":{"title":"abc"},"case":"ok"}
 ```
 
-`wire`, `entry`, and `request` are `null` when the contract does not have them. `auth` is the scheme name from
-the contract (`none` or a `_shared` `authSchemes` key).
+契約に `wire`、`entry`、`request` がない場合は `null`。`auth` は契約の scheme 名
+（`none` または `_shared` の `authSchemes` キー）。
 
-Reply line — exactly one of the three, with the request's `id`:
+応答行 — リクエストの `id` を付け、次の三つのうち正確に一つ:
 
 ```json
 {"id":1,"response":{"id":42,"status":"ok"}}
 {"id":1,"error":"INVALID_INPUT"}
-{"id":1,"skip":"reachable only through XCTest"}
+{"id":1,"skip":"XCTest 経由でのみ到達可能"}
 ```
 
-Rules:
+規則:
 
-- Replies may arrive in any order, but every request needs exactly one reply. A missing, unknown, or duplicated
-  `id`, a non-JSON line on stdout, a reply with none of `response` / `error` / `skip`, or a non-zero exit is an
-  **adapter error**: exit `2`, with the last 20 lines of the adapter's stderr echoed for diagnosis.
-- Anything the adapter prints for itself must go to **stderr**; stdout is the protocol channel.
-- `skip` carries a one-line reason. It is counted and listed, never treated as a pass.
-- The adapter does not need to read the contract; everything it needs to dispatch is in the request line.
+- 応答順序は任意だが、各リクエストには正確に一つの応答が必要。欠落 / 未知 / 重複の `id`、
+  stdout の非 JSON 行、`response` / `error` / `skip` が一つもない応答、非ゼロ終了は**アダプターエラー**。
+  exit `2` とし、診断用にアダプター stderr の末尾 20 行を表示する。
+- アダプター自身の出力は **stderr** へ。stdout はプロトコルの経路。
+- `skip` には一行の理由を入れる。件数と一覧を示し、成功として扱ってはならない。
+- アダプターは契約を読む必要がない。振り分けに必要なすべてをリクエスト行が持つ。
 
-## Writing an adapter
+## アダプターの作成
 
-The adapter is host code and lives in the host repository (e.g. `scripts/contract-adapter.ts`). It is a
-small dispatcher: read stdin line by line, pick the implementation by `operation` (and `uc` if names repeat
-across UCs), call it, map the outcome to a reply. Guidance by stack:
+アダプターは利用プロジェクトのコードで、その repository に置く（例: `scripts/contract-adapter.ts`）。
+小さな振り分け器として、stdin を一行ずつ読み、`operation`（UC 間で名前が重複するなら `uc` も）で実装を選び、
+呼び出して結果を応答に変換する。スタックごとの指針:
 
-- **Next.js** — import the route handler or server action directly and call it **in-process**: build a
-  `Request` (or the action's argument) from `request`, run against an in-memory or transactional test
-  database so examples do not depend on each other, and read the JSON body into `response`. Map a thrown
-  domain error, or a returned error body, to the contract `code` (the host already has a single error-code
-  source — `traceconfig.json`'s `contract.error_source` — so the mapping is usually a one-liner). Do not
-  start the dev server and hit it over HTTP; the point is the shape of the boundary, not the network.
-- **PHP (Crow / plain)** — bootstrap the framework once, include the module that owns the operation, and call
-  its action function with the decoded `request`. Capture the returned array / thrown exception and map it
-  to `response` / `error`. Use a transaction that is rolled back per example, or a throwaway database.
-- **Swift / SwiftUI** — when an operation can be reached from a plain executable target (a use-case type in
-  a SwiftPM library), call it there. When it can **only** be reached through XCTest (UI-bound code, device
-  capabilities), reply `skip` with that reason for those operations. contract-run lists the skips; they are
-  visible, not hidden, and a reviewer decides whether that debt is acceptable.
-- **External boundaries** (`owned: false`) — run them only under `--include-external`, against a recorded
-  fixture or a sandbox account, never against production. Reply `skip` when neither exists.
+- **Next.js** — route handler または server action を直接 import し、**プロセス内**で呼ぶ。
+  `request` から `Request`（または action の引数）を構築し、例同士が依存しないようメモリー内または
+  トランザクション内のテスト DB で実行し、JSON body を `response` に読む。throw された domain error や
+  エラー body を契約 `code` に変換する（利用プロジェクトには既に単一エラーコード正本 — `traceconfig.json` の
+  `contract.error_source` — があるので、通常は一行の対応）。開発サーバーを起動して HTTP で呼ばない。
+  目的はネットワークでなく境界の形状。
+- **PHP（Crow / 素の PHP）** — フレームワークを一度初期化し、操作を所有するモジュールを読み込み、
+  デコードした `request` で action 関数を呼ぶ。返った配列 / throw された例外を捕捉して `response` / `error` に
+  変換する。例ごとにロールバックするトランザクションか使い捨て DB を使う。
+- **Swift / SwiftUI** — 通常の実行可能 target（SwiftPM ライブラリの use-case 型）から到達できる操作はそこで呼ぶ。
+  XCTest **のみ**で到達できる操作（UI に結合したコード、デバイス機能）は、その理由で `skip` を返す。
+  contract-run が一覧化し、隠さず可視化する。その負債を許容するかは reviewer が判断する。
+- **外部境界**（`owned: false`）— `--include-external` の場合だけ記録済み fixture または sandbox アカウントで実行し、
+  本番には接続してはならない。どちらもなければ `skip` を返す。
 
-An adapter that answers every example with `skip` is legal and useless; the summary line makes that visible.
+全例に `skip` を返すアダプターも合法だが役に立たない。集計行がそれを可視化する。
 
-## Judgment rules
+## 判定規則
 
-For a **success example** the reply must be a `response`, and `subset(example.response, reply.response)` must
-hold:
+**成功例**の応答は `response` であり、`subset(example.response, reply.response)` が成立しなければならない:
 
-- primitives (string / number / boolean / null) must be strictly equal (`===`),
-- arrays must have the **same length**, and each element must be a subset of the element at the same index,
-- objects: every key of the example must be present in the reply and be a subset of it; **extra keys in the
-  reply are allowed** (the contract's `additionalProperties` is spec-lint's concern, not this tool's).
+- プリミティブ（string / number / boolean / null）は厳密に等しい（`===`）。
+- 配列は**同じ長さ**で、各要素が同じ index の要素の部分集合。
+- object は例の全キーが応答に存在し、その部分集合であること。**応答の追加キーは許可**する
+  （契約の `additionalProperties` は spec-lint の関心であり、このツールの対象ではない）。
 
-The first mismatch is reported by path: `items[0].status: 期待 "ok" / 実際 "pending"`; a missing key shows as
-`実際 (無し)`; a length mismatch as `期待 長さ 2 / 実際 長さ 3`. An `error` reply to a success example fails
-with `期待: 正常 / 実際: error CODE`.
+最初の不一致をパスで報告する: `items[0].status: 期待 "ok" / 実際 "pending"`。
+欠落キーは `実際 (無し)`、長さの不一致は `期待 長さ 2 / 実際 長さ 3`。
+成功例への `error` 応答は `期待: 正常 / 実際: error CODE` で失敗する。
 
-For a **failure example** the reply must be an `error` with the **same code**. A `response` reply fails
-(`期待: error CODE / 実際: 正常`); a different code fails (`期待: error A / 実際: error B`).
+**失敗例**の応答は**同じコード**の `error` でなければならない。`response` は失敗
+（`期待: error CODE / 実際: 正常`）。異なるコードも失敗（`期待: error A / 実際: error B`）。
 
-## Relationship to the other checks
+## ほかの検査との関係
 
-| Tool | Proves | Does not prove |
+| ツール | 証明するもの | 証明しないもの |
 | --- | --- | --- |
-| `spec-lint` | the contract's format and lifecycle (vocabularies, `examples` present and consistent with `request`) | that any code exists |
-| `trace-check` | references resolve: `@covers` / `@implements`, error codes ⊆ `_shared` `errorCodes` (C7), layering | that the code behaves |
-| **`contract-run`** | the implementation answers each example with the contracted **shape** and **code** | the **meaning** of a REQ |
-| tests (`## 検証方針`) | the REQ's semantics per partition class | — |
+| `spec-lint` | 契約の書式とライフサイクル（語彙、`examples` の存在と `request` との整合） | コードの存在 |
+| `trace-check` | 参照の解決: `@covers` / `@implements`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、層 | コードの動作 |
+| **`contract-run`** | 実装が各例に契約の**形状**と**コード**で応答すること | REQ の**意味** |
+| テスト（`## 検証方針`） | 分割クラスごとの REQ の意味 | — |
 
-contract-run executes shapes. A green run plus green tests plus zero trace-check violations is the state
-"docs and implementation agree within what machines can check".
+contract-run は形状を実行する。正常な実行 + テスト成功 + trace-check 違反ゼロは、
+「機械で確認できる範囲で docs と実装が一致する」状態。
 
-## Declaration in `traceconfig.json`
+## `traceconfig.json` への宣言
 
 ```json
 "commands": {
@@ -163,18 +159,17 @@ contract-run executes shapes. A green run plus green tests plus zero trace-check
 }
 ```
 
-The `commands` block is read by `tools/gate-hook` (the terminal gate) and by this tool only; trace-check
-ignores it. Omit `contract_adapter` until the adapter exists — the tool then says so instead of guessing.
+`commands` ブロックは `tools/gate-hook`（最終ゲート）とこのツールだけが読み、trace-check は無視する。
+アダプターができるまで `contract_adapter` を省略する。その場合は推測せず、未宣言を表示する。
 
-## Limits
+## 制約
 
-- The adapter is host code: its correctness (right handler, isolated data, honest error mapping) is the host's
-  responsibility. contract-run trusts what it is told.
-- There is **no baseline file**. Execution results are not debt to be ledgered; a `fail` is fixed at the source
-  (contract or implementation) or the example is wrong.
-- Skips are visible debt. They keep the exit code at `0` so adoption is incremental, but the summary always
-  says how many examples were not executed.
-- One process per run: the adapter is expected to handle every example in one lifetime. If examples must be
-  isolated from each other, the adapter does the isolation (transaction per line, fresh in-memory store).
-- The YAML reader is the same strict subset as spec-lint's (anchors, aliases, and block scalars are errors). A
-  contract that spec-lint rejects is exit `2` here, not a `fail`.
+- アダプターは利用プロジェクトのコード。正しさ（正しいハンドラー、分離データ、誠実なエラー変換）は
+  利用プロジェクトの責任。contract-run は伝えられた内容を信頼する。
+- **ベースラインファイルはない。** 実行結果は台帳化する負債ではない。`fail` は正本（契約または実装）で
+  直すか、例が誤っている。
+- skip は可視化した負債。段階的導入のため終了コードを `0` に保つが、集計は未実行の例の数を必ず示す。
+- 一実行一プロセス。アダプターは一つの寿命で全例を扱う。例間の分離が必要ならアダプターが行う
+  （一行ごとのトランザクション、新規メモリー内ストア）。
+- YAML reader は spec-lint と同じ厳格な部分集合（anchors、aliases、block scalars はエラー）。
+  spec-lint が拒否する契約は、ここでは `fail` でなく exit `2`。

@@ -1,62 +1,62 @@
 ---
-description: "🧱 SwiftUI / frontend — View granularity and the division of work"
+description: "🧱 SwiftUI / フロントエンド — View の粒度と分業"
 applyTo: "**/*.swift,**/Package.swift"
 ---
 
-# 🧱 SwiftUI / frontend — View granularity and the division of work
+# 🧱 SwiftUI / フロントエンド — View の粒度と分業
 
-> **Scope: native iOS apps using SwiftUI.** If it does not apply, discard it.
+> **適用範囲: SwiftUI を使うネイティブ iOS アプリ。** 該当しなければ破棄する。
 >
-> Surface notation is [coding.md](frontend-coding.instructions.md); state and layering is [dataflow.md](frontend-dataflow.instructions.md);
-> where screens live is [routing.md](frontend-routing.instructions.md).
-> This document defines **how to split a set of Views and who writes which part**.
+> 表示側の表記は [coding.md](frontend-coding.instructions.md)、状態とレイヤー構成は [dataflow.md](frontend-dataflow.instructions.md)、
+> 画面の配置は [routing.md](frontend-routing.instructions.md)。
+> この文書は**複数の View をどう分割し、誰がどの部分を書くか**を定義する。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 1. The layer is the responsibility; the location is the scope of sharing (two separate axes)
+## 1. レイヤーは責務、配置は共有範囲（別々の 2 軸）
 
-**Never conflate the layer (what it may know) with the location (where it goes).**
-The layer is determined by responsibility; the location by "how many places use it right now".
-The Feature-first folder convention itself has its SSOT in [common/coding.md](common-coding.instructions.md).
+**レイヤー（何を知ってよいか）と配置（どこに置くか）を混同しない。**
+レイヤーは責務で、配置は「現時点で何か所が使うか」で決まる。
+Feature-first のフォルダー規約自体の正本は [common/coding.md](common-coding.instructions.md)。
 
-### Layer = responsibility (inside Presentation)
+### レイヤー = 責務（Presentation 内）
 
-| Layer | Responsibility | Examples |
+| レイヤー | 責務 | 例 |
 | --- | --- | --- |
-| **ui** (atoms) | the smallest unit of appearance, decomposed no further. Knows neither business nor UseCases | `PrimaryButton` `Avatar` `FormTextField` |
-| **parts** (molecules) | a reusable grouping of ui. Holds local UI state but knows no business | `SearchBar` `EmptyState` `ErrorBanner` |
-| **feature** (organisms) | a grouping that knows the business. May touch the ViewModel / Router | `LoginFormView` `UserListView` |
-| **root** (wiring) | the Feature's entrance. Only the `NavigationStack` connection and handing over dependencies | `LoginRootView` |
+| **ui**（atoms） | これ以上分割しない外観の最小単位。業務も UseCase も知らない | `PrimaryButton` `Avatar` `FormTextField` |
+| **parts**（molecules） | ui の再利用可能なまとまり。局所的な UI 状態を持つが業務は知らない | `SearchBar` `EmptyState` `ErrorBanner` |
+| **feature**（organisms） | 業務を知るまとまり。ViewModel / Router に触れてよい | `LoginFormView` `UserListView` |
+| **root**（配線） | Feature の入口。`NavigationStack` の接続と依存の受け渡しだけ | `LoginRootView` |
 
-**A reusable component knows no business domain.** The moment `PrimaryButton` starts knowing about "orders", it is a `feature`.
-Name the arguments in that layer's vocabulary too (never bring business terms into a `ui` component's arguments).
+**再利用可能なコンポーネントは業務ドメインを知らない。** `PrimaryButton` が「注文」を知り始めた瞬間、それは `feature` になる。
+引数もそのレイヤーの語彙で命名する（`ui` コンポーネントの引数に業務用語を持ち込まない）。
 
-### Location = the scope of sharing
+### 配置 = 共有範囲
 
-**Put it at the smallest place covering the range actually in use.** While only one screen uses it, do not promote it to `Shared/`.
-**Carve it out the moment a second site appears, and raise the location along with it.**
+**実際の利用範囲を覆う最小の場所に置く。** 1 画面だけが使う間は `Shared/` に昇格させない。
+**2 か所目が現れた瞬間に切り出し、配置も引き上げる。**
 
-**Search for an existing one before you start writing.** Never create a state where the same appearance is defined separately
-(never incur, from the outset, the maintenance cost of fixing several files to change a button's corner radius).
+**書き始める前に既存のものを探す。** 同じ外観を別々に定義した状態を作らない
+（ボタンの角丸を変えるために複数ファイルを直す保守コストを、最初から生じさせない）。
 
-> **The harness does not pin directory names beyond this.**
-> Whether to use `Presentation/UI` or keep it flat may be recorded in the project's `CLAUDE.md`.
-> **The separation itself (ui / parts / feature / root) and the condition for promoting to Shared are pinned.**
+> **harness はこれ以上ディレクトリ名を固定しない。**
+> `Presentation/UI` を使うか、平らに保つかはプロジェクトの `CLAUDE.md` に記録してよい。
+> **分離自体（ui / parts / feature / root）と Shared への昇格条件は固定する。**
 
 ---
 
-## 2. The boundary between the UI implementer and the logic implementer
+## 2. UI 実装担当者とロジック実装担当者の境界
 
-**This separation is develop's requirement, not optional.** Appearance and logic are handled by implementers in separate contexts,
-split because their oracles differ (the human eyeball for appearance, machine tests for logic).
+**この分離は develop の要件であり、任意ではない。** 外観とロジックは別コンテキストの実装担当者が扱う。
+oracle が異なるために分ける（外観は人間の目、ロジックは機械テスト）。
 
-### The split you always create structurally
+### 必ず構造として作る分離
 
-**root = wiring; presentational = display.**
-A Feature's entrance (`LoginRootView`, and so on) stays on receiving the Router / ViewModel and connecting the `NavigationStack`,
-and **the substance of the screen's appearance lives in the Views below it** ([routing.md](frontend-routing.instructions.md)).
+**root = 配線、presentational = 表示。**
+Feature の入口（`LoginRootView` など）は Router / ViewModel の受け取りと `NavigationStack` の接続に留め、
+**画面の外観の本体はその下の View に置く**（[routing.md](frontend-routing.instructions.md)）。
 
 ```swift
 // ✅ root — 配線だけ
@@ -77,81 +77,81 @@ struct LoginFormView: View {
   @Bindable var viewModel: LoginViewModel
 
   var body: some View {
-    // レイアウトと控件。通信・Repository は知らない
+    // レイアウトとコントロール。通信・Repository は知らない
   }
 }
 ```
 
-### As a result, ownership divides mechanically
+### 結果として所有が機械的に分かれる
 
-| Implementer | What it writes | What it does not write |
+| 実装担当者 | 書くもの | 書かないもの |
 | --- | --- | --- |
-| **The UI implementer** | presentational Views (**display determined by the values and closures passed in**) and styling | **Never imports a UseCase / Repository / `URLSession`.** Data flows in as contract-conformant fixed mocks in the arguments. Previews use fake DI too ([coding.md](frontend-coding.instructions.md)) |
-| **The logic implementer** | the ViewModel / Router / UseCase connection, the wiring at root, Domain / Data | **Never rebuilds the visual structure or the styling** (it maps onto the existing View's arguments) |
+| **UI 実装担当者** | presentational View（**渡された値とクロージャで表示が決まる**）とスタイリング | **UseCase / Repository / `URLSession` を import しない。** データは契約に適合する固定モックとして引数に流れ込む。Preview も fake DI を使う（[coding.md](frontend-coding.instructions.md)） |
+| **ロジック実装担当者** | ViewModel / Router / UseCase の接続、root の配線、Domain / Data | **見た目の構造やスタイリングを作り直さない**（既存 View の引数に写像する） |
 
-### The argument (props) type is the contract between the two
+### 引数（props）の型が両者の契約
 
-**The UI side defines the View's inputs (initializer arguments, the model types passed in), and the logic side maps onto them.**
-The logic side never rewrites a View into "arguments that suit me".
+**UI 側が View の入力（initializer の引数、渡すモデル型）を定義し、ロジック側がそこに写像する。**
+ロジック側は View を「自分に都合のよい引数」に書き換えない。
 
-**When either side finds it insufficient, that side stops implementing and reports** (per each implementer's output contract).
-Changing one side for your own convenience makes the other side's green a lie.
-
----
-
-## 3. UI states are expressed as arguments (or a thin binding)
-
-**loading / empty / error / no-permission / boundary (long text, 0 rows, a huge number) are expressed as inputs, from the display side's view.**
-The UI side **does not know where that state came from.**
-
-- `ui` / `parts` close, as far as possible, on **values and closures alone** (never holding a ViewModel directly)
-- A `feature` may hold a ViewModel. But keep it in a shape where the View need not know the ViewModel's contents (the UseCase)
-- The logic side's job stays closed on "mapping the UseCase's result and progress into the form the View receives"
-
-Once that breaks and the UI side starts knowing about communication, the separation of **confirming the appearance first** stops holding.
+**どちらかが不足を見つけたら、その側は実装を止めて報告する**（各実装担当者の出力契約に従う）。
+自分の都合で片側を変えると、もう片側の Green が嘘になる。
 
 ---
 
-## 4. Dependencies run one way, downward
+## 3. UI 状態は引数（または薄い binding）で表す
 
-Depend only in the direction `root → feature → parts → ui`. **Never create backflow or cross-links.**
+**loading / empty / error / no-permission / boundary（長文、0 行、巨大な数）は、表示側から見ると入力として表す。**
+UI 側は**その状態がどこから来たかを知らない。**
 
-- A lower layer never imports an upper layer
-- Layers at the same level never import each other (that becomes a cycle)
-- Child-to-parent notification takes the form of **calling a closure the parent passed** (the child does not know the parent's type)
-- Dependency on the CA layers (Domain / Data) follows [dataflow.md](frontend-dataflow.instructions.md). Never touch a Domain implementation or Data from `ui` / `parts`
+- `ui` / `parts` はできる限り**値とクロージャだけ**で閉じる（ViewModel を直接保持しない）
+- `feature` は ViewModel を保持してよい。ただし View が ViewModel の中身（UseCase）を知らなくてよい形を保つ
+- ロジック側の仕事は「UseCase の結果と進捗を、View が受け取る形へ写像する」で閉じる
 
----
-
-## 5. A list row stays a display component
-
-Lazy containers for variable-length lists and stable ids have their SSOT in [coding.md](frontend-coding.instructions.md).
-This document only adds the division of work.
-
-- **Keep row Views in `ui` / `parts`.** Never launch a UseCase inside a row
-- The data a list needs is assembled by the parent feature / ViewModel before being passed down
-- The model passed to a row stays within what that row displays
+これが崩れて UI 側が通信を知り始めると、**先に外観を確認する**分離が成立しなくなる。
 
 ---
 
-## 6. Never duplicate visual tokens
+## 4. 依存は下向きの一方向
 
-- Colors, spacing, corner radii, and letter-spacing go into the project's common entrance if it has one; never scatter raw values per screen
-- Never write the same visual style definition in two Views
-- **A reusable `ui` layer component carries no outer spacing.**
-  Every placement would need an override and it stops being reusable. Outer spacing is **decided by the parent**
+依存は `root → feature → parts → ui` の向きだけ。**逆流や横の結合を作らない。**
+
+- 下位レイヤーは上位レイヤーを import しない
+- 同じレベルのレイヤー同士は import しない（循環になる）
+- 子から親への通知は**親が渡したクロージャの呼び出し**で行う（子は親の型を知らない）
+- CA のレイヤー（Domain / Data）への依存は [dataflow.md](frontend-dataflow.instructions.md) に従う。`ui` / `parts` から Domain の実装や Data に触れない
 
 ---
 
-## ✅ Checklist before returning
+## 5. リストの行は表示コンポーネントに留める
 
-- [ ] Did you search for an existing View with the same appearance before starting?
-- [ ] Does a reusable component know the business domain?
-- [ ] Have you promoted something used in one place only to `Shared/`?
-- [ ] Have you written too much of the appearance's substance into root? (does it stay on wiring?)
-- [ ] (UI implementer) Are you importing a UseCase / Repository / `URLSession`?
-- [ ] (Logic implementer) Are you rebuilding the visual structure and the styling?
-- [ ] Are UI states (loading / empty / error / permission / boundary) expressed as inputs on the display side?
-- [ ] Do dependencies run one way, downward?
-- [ ] Does a list row carry networking or a UseCase?
-- [ ] Does the `ui` layer carry outer spacing?
+可変長リストの遅延コンテナーと安定した id の正本は [coding.md](frontend-coding.instructions.md)。
+この文書では分業だけを追加する。
+
+- **行 View は `ui` / `parts` に置く。** 行の中で UseCase を起動しない
+- リストに必要なデータは親の feature / ViewModel が揃えてから渡す
+- 行に渡すモデルは、その行が表示する範囲に留める
+
+---
+
+## 6. 見た目のトークンを重複させない
+
+- 色、余白、角丸、字間は、プロジェクトに共通の入口があればそこに置く。画面ごとに生の値を散らさない
+- 同じ見た目のスタイル定義を 2 つの View に書かない
+- **再利用可能な `ui` レイヤーのコンポーネントは外側の余白を持たない。**
+  配置ごとに上書きが必要になり、再利用できなくなる。外側の余白は**親が決める**
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] 開始前に同じ外観の既存 View を探したか？
+- [ ] 再利用可能なコンポーネントが業務ドメインを知っていないか？
+- [ ] 1 か所でしか使わないものを `Shared/` に昇格させていないか？
+- [ ] root に外観の本体を書きすぎていないか？（配線に留まっているか？）
+- [ ] （UI 実装担当者）UseCase / Repository / `URLSession` を import していないか？
+- [ ] （ロジック実装担当者）見た目の構造やスタイリングを作り直していないか？
+- [ ] UI 状態（loading / empty / error / permission / boundary）が表示側では入力として表されているか？
+- [ ] 依存は下向きの一方向か？
+- [ ] リストの行が通信や UseCase を持っていないか？
+- [ ] `ui` レイヤーが外側の余白を持っていないか？

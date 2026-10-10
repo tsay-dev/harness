@@ -1,22 +1,22 @@
 ---
 name: produce-video
-description: 企画から動画の制作定義一式（台本・素材プロンプト・コマ定義・タイムライン・公開パッケージ・多言語素材）を生成する。このスキルを起動したメインエージェントは中立の orchestrator として振る舞い、自分では書かず・判定せず、this package's agent definitions の researcher / fact-checker / script-writer / asset-generator / publisher / localizer / judge を起動する。事実が中身のテーマでは出典付きで調べ、集めた本人でない検証者が出典を開き直す。多言語（brief.yaml の languages:）ではマスターのタイムラインを固定し、言語ごとの訳を独立レビュアーが突き合わせる。画像・音声・動画の実体は生成せず、出力はプロンプトと定義まで（channel/ は読み取りのみ・更新は差分提案）。「ショート動画を作りたい」「動画の台本を書いて」「YouTube ショート／TikTok／Reels の企画を形にしたい」「解説動画の構成を作って」「サムネとタイトルを考えて」「動画を多言語で出したい」「翻訳ナレーションを作って」ときは必ずこのスキルを使う。動画・台本・シーン・ナレーション・テロップ・サムネ・タイムライン・多言語化のいずれかが話題に出たら、明示的に「スキルを使って」と言われなくても起動を検討する。
+description: 企画から動画の制作定義一式（台本・素材プロンプト・コマ定義・タイムライン・公開パッケージ・多言語素材）を生成する。このスキルを起動したメインエージェントは中立のオーケストレータとして振る舞い、自分では書かず・判定せず、このパッケージのエージェント定義の researcher / fact-checker / script-writer / asset-generator / publisher / localizer / judge を起動する。事実が中身のテーマでは出典付きで調べ、集めた本人でない検証者が出典を開き直す。多言語（brief.yaml の languages:）ではマスターのタイムラインを固定し、言語ごとの訳を独立レビュアーが突き合わせる。画像・音声・動画の実体は生成せず、出力はプロンプトと定義まで（channel/ は読み取りのみ・更新は差分提案）。「ショート動画を作りたい」「動画の台本を書いて」「YouTube ショート／TikTok／Reels の企画を形にしたい」「解説動画の構成を作って」「サムネとタイトルを考えて」「動画を多言語で出したい」「翻訳ナレーションを作って」ときは必ずこのスキルを使う。動画・台本・シーン・ナレーション・テロップ・サムネ・タイムライン・多言語化のいずれかが話題に出たら、明示的に「スキルを使って」と言われなくても起動を検討する。
 ---
 
-> **External executable assets:** tools and templates are not APM dependencies. Resolve `HARNESS_ROOT` to the separate harness checkout (normally `.harness`, or this repository root when editing harness); use that absolute path in the commands and template references below. If required assets are absent, obtain the checkout before running the procedure.
+> **外部の実行資産:** ツールとテンプレートは APM の依存関係ではない。`HARNESS_ROOT` を別途用意した harness のチェックアウト（通常は `.harness`。harness を編集するときはこのリポジトリのルート）に解決し、以下のコマンドとテンプレート参照にはその絶対パスを使う。必要な資産が無ければ、手順を実行する前にチェックアウトを取得する。
 
 
-# 🎬 produce-video — 動画制作定義の指揮者（orchestrator）
+# 🎬 produce-video — 動画制作定義の指揮者（オーケストレータ）
 
-> **このスキルを起動した時点で、あなた（メインエージェント）は中立の orchestrator である。**
-> あなたは書かない・判定しない。**専門サブエージェント（the package-local agent sources linked below）を Task ツール（Codex では `spawn_agent`。識別子は `produce-video-script-writer` / `produce-video-asset-generator` / `produce-video-publisher` / `produce-video-localizer` / `produce-video-localization-judge` / `produce-video-judge`）で起動し、成果物を突き合わせて引き渡す指揮者**に徹する。Grok Build では `workflow` ツールの都度の inline スクリプトで起動する。`agent()` または `parallel()` の `agent_type` にその識別子を渡し、`fork_context` は付けない。同時に出せるバッチは `parallel()` の 1 回。人間ゲートの前後は親に戻り、ゲートをスクリプトに入れない。`.grok/workflows/` には保存しない。文法はセッションの `create-workflow` スキルに従い、拒否されたらそこを読んで直す。`spawn_subagent` で専門エージェントを起動したことにしない。`workflow` または `agent_type` が無いときは general-purpose に落とさず、起動できなかったと報告して止める。子は親モデルを継承する。
-> 型（なぜ・何を・書式）の SSOT は rules（the package-local `.apm/instructions/` primitives）。**どの葉に何が書いてあるかは本 SKILL の関心ではない**——葉を読むのは、それを渡された agent である。
-> 各 agent の craft（構成・言い回し・画作り）は agent body が SSOT。本 SKILL は**どう回すか**だけを持ち、rules も agent body も複製しない（**参照は rules → skill の一方通行**）。
+> **このスキルを起動した時点で、あなた（メインエージェント）は中立のオーケストレータである。**
+> あなたは書かない・判定しない。**専門サブエージェント（以下にリンクしたパッケージ内のエージェント定義ソース）を Task ツール（Codex では `spawn_agent`。識別子は `produce-video-script-writer` / `produce-video-asset-generator` / `produce-video-publisher` / `produce-video-localizer` / `produce-video-localization-judge` / `produce-video-judge`）で起動し、成果物を突き合わせて引き渡す指揮者**に徹する。Grok Build では `workflow` ツールの都度のインラインスクリプトで起動する。`agent()` または `parallel()` の `agent_type` にその識別子を渡し、`fork_context` は付けない。同時に出せるバッチは `parallel()` の 1 回。人間ゲートの前後は親に戻り、ゲートをスクリプトに入れない。`.grok/workflows/` には保存しない。文法はセッションの `create-workflow` スキルに従い、拒否されたらそこを読んで直す。`spawn_subagent` で専門エージェントを起動したことにしない。`workflow` または `agent_type` が無いときは general-purpose に落とさず、起動できなかったと報告して止める。子は親モデルを継承する。
+> 型（なぜ・何を・書式）の SSOT はルール（パッケージ内の `.apm/instructions/` プリミティブ）。**どの葉に何が書いてあるかは本 SKILL の関心ではない**——葉を読むのは、それを渡されたエージェントである。
+> 各エージェントの専門手順（構成・言い回し・画作り）はエージェント本文が SSOT。本 SKILL は**どう回すか**だけを持ち、ルールもエージェント本文も複製しない（**参照はルール → スキルの一方通行**）。
 
 ## 🔒 このスキルが踏み越えない線
 
 - **画像生成・TTS・レンダリングを実行しない。** 出すのは**プロンプトと定義だけ**。
-  実体化は `/render-media` (install that optional package separately) の仕事で、**別のスキルである**——
+  実体化は `/render-media` （任意のパッケージとして別途インストールする） の仕事で、**別のスキルである**——
   企画は純粋関数にできるが生成はできない（外部サービス・課金・非決定性）。
   混ぜると企画側まで再現しなくなる。
 - **調べるのは researcher 1体だけ。** 台本より下流の工程は誰も調べない。事実は `research.md` か
@@ -40,7 +40,7 @@ description: 企画から動画の制作定義一式（台本・素材プロン�
 
 | 役割 | 実体 | 担当 |
 | --- | --- | --- |
-| **orchestrator（中立）** | このスキルを起動したあなた（インライン） | 入力確定・起動・スクリプト実行・分岐・引き渡し。**自分では書かない・判定しない** |
+| **オーケストレータ（中立）** | このスキルを起動したあなた（インライン） | 入力確定・起動・スクリプト実行・分岐・引き渡し。**自分では書かない・判定しない** |
 | **researcher** | [`agents/produce-video/researcher.md`](../../agents/produce-video/produce-video-researcher.agent.md) | 出典付きの事実収集。**外部を調べる唯一の主体** |
 | **fact-checker** | [`agents/produce-video/fact-checker.md`](../../agents/produce-video/produce-video-fact-checker.agent.md) | 出典を開き直す反証。**事実を集めていない別コンテキスト必須** |
 | **comedian** | [`agents/produce-video/comedian.md`](../../agents/produce-video/produce-video-comedian.agent.md) | 構成案を3つ。**面白さを作る唯一の主体**。選ぶのは人間 |
@@ -55,9 +55,9 @@ L2/L3 は**エージェントではなくスクリプト**が作る（`tools/pro
 
 ## 起動前のインストール確認
 
-Task に渡す agent / instruction は、ホストにインストールされた版である。GitHub や別 checkout だけを更新しても、ホストの APM 依存は更新されない。起動前に `apm.lock.yaml` と、上のリンクが解決する `apm_modules/` 内の agent ファイルを確認する。期待した変更がない場合はホストの依存 revision を明示して `apm install` を実行し、更新後の実ファイルを再確認する。legacy 利用者は選択した package と checkout を確認し、同じ `init.sh` コマンドで再生成する。APM と legacy を混ぜない。
+Task に渡すエージェント / instruction は、ホストにインストールされた版である。GitHub や別チェックアウトだけを更新しても、ホストの APM 依存は更新されない。起動前に `apm.lock.yaml` と、上のリンクが解決する `apm_modules/` 内のエージェントファイルを確認する。期待した変更がない場合はホストの依存リビジョンを明示して `apm install` を実行し、更新後の実ファイルを再確認する。従来方式利用者は選択したパッケージとチェックアウトを確認し、同じ `init.sh` コマンドで再生成する。APM と従来方式を混ぜない。
 
-## 実行台本（orchestrator の回し方）
+## 実行台本（オーケストレータの回し方）
 
 段階＝ファイル成果物。**成果物が在れば済み、無ければ未了**であり、途中から再実行できる。進捗台帳は持たない。
 
@@ -66,7 +66,7 @@ Task に渡す agent / instruction は、ホストにインストールされた
 2. **調査（動画の中身が事実であるときだけ）。** `research.md` が既に在るなら飛ばす。
    1. **researcher を Task 起動。** テーマと `brief.yaml` のパスを渡し、出典付きの `research.md` を返させる。
       **`brief.yaml` を渡すのは、調査を打ち切ってよい必要量が尺から導かれるためである**
-      （導き方は researcher が受け取る rules が持つ）。渡さないと止め時が回ごとにブレる。
+      （導き方は researcher が受け取るルールが持つ）。渡さないと止め時が回ごとにブレる。
    2. **fact-checker を Task 起動（別コンテキスト必須）。** 渡すのは `research.md` / `brief.yaml` /
       `channel/identity.md` の**パスだけ**。出典を開き直した結果 `research-review.md` が返る。
    **落とされた事実・格下げされた確度は、この後の全工程で効く。** 台本の前に検証を置くのは、
@@ -101,11 +101,11 @@ Task に渡す agent / instruction は、ホストにインストールされた
    - 各体には**自分の担当分だけ**を渡す（`asset-generator` には担当 `scene_id` を1つ）。
 
 7. **judge を Task 起動（別コンテキスト必須）。** 渡すのは `brief.yaml` / `script.md` / `assets/` / `channel/` の**パスだけ**
-   （producer の思考過程は渡さない）。`review.md` が返る。
+   （制作者の思考過程は渡さない）。`review.md` が返る。
    `brief.yaml` を渡すのは、**台本の主張が企画の `points:` から導けるか**を突き合わせられる主体が judge だけだからである。
 
 8. **分岐。**
-   - **差し戻し（objective）** … 該当 `scene_id` の素材ファイルを消し、**そのシーンだけ** `asset-generator` を再起動する。
+   - **差し戻し（客観的）** … 該当 `scene_id` の素材ファイルを消し、**そのシーンだけ** `asset-generator` を再起動する。
      **差し戻しは1巡まで。** 2巡目も割れるなら `⚠` として人間へ回す（判断が割れるものは何度回しても収束しない）。
    - **⚠ 人間判断** … `review.md` に残したまま人間へ委ねる。**黙って1つに丸めない。**
 
@@ -127,7 +127,7 @@ Task に渡す agent / instruction は、ホストにインストールされた
        `i18n/<lang>.redo.md` が在れば、その中身をその言語の担当に渡し、渡し終えたら消す。
     3. **localization-judge を言語の数だけ Task 起動（別コンテキスト必須）。** 渡すのは原文と `i18n/<lang>.json` の**パスだけ**。
        `i18n/<lang>.review.md` が返る。
-    4. **分岐。** objective な誤り（誤訳・確度の変質・禁止表現）は該当言語のファイルを消して localizer を再起動する。
+    4. **分岐。** 客観的な誤り（誤訳・確度の変質・禁止表現）は該当言語のファイルを消して localizer を再起動する。
        **差し戻しは1巡まで。** 解釈が割れるものは `⚠` のまま人間へ。
 
 11. **引き渡し。** 成果物一覧と、人間の仕事（下記）を明示する。
@@ -148,14 +148,14 @@ Task に渡す agent / instruction は、ホストにインストールされた
 | `review.md` | 反証レビュー＋`channel/` への差分提案 | judge |
 | `i18n/<lang>.json` | 多言語素材（`languages:` があるときだけ。1言語1ファイル） | localizer |
 | `i18n/<lang>.review.md` | 訳の反証レビュー（同上） | localization-judge |
-| `channel-draft.md` | `channel/` が無いときだけ出るブートストラップ草案 | orchestrator（🙋 承認待ちで停止） |
+| `channel-draft.md` | `channel/` が無いときだけ出るブートストラップ草案 | オーケストレータ（🙋 承認待ちで停止） |
 
 ## 引き渡し（何が済み・何が人間の仕事か）
 
 - ✅ 済: 台本と尺配分・全シーンの素材プロンプト・コマ定義とタイムライン・公開パッケージ・**独立サブエージェント（judge）による**横断レビュー・（多言語の回は）言語別素材と**独立レビュアーによる**訳の反証
 - ⏳ 人間: `⚠` の判断、**タイトル3案からの選択**（言語ごと）、`review.md` の `channel/` 差分提案の承認・反映、（多言語の回は）`i18n/<lang>.review.md` の確認
-- ▶️ 次: 実体化は `/render-media` (install that optional package separately)。このスキルの出力をそのまま入力に取る
-- **AI 出力は必ず人間チェックを通す前提。** skill は実体を作らず、`channel/` を書き換えない。
+- ▶️ 次: 実体化は `/render-media` （任意のパッケージとして別途インストールする）。このスキルの出力をそのまま入力に取る
+- **AI 出力は必ず人間チェックを通す前提。** スキルは実体を作らず、`channel/` を書き換えない。
 
 ## ✅ 着手前チェックリスト
 

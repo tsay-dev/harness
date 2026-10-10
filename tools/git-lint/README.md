@@ -1,78 +1,74 @@
 # git-lint
 
-A zero-dependency Node tool bundled with the harness that checks **branch names and commit-message
-headers** against the form the develop skill's `commit.md` prescribes (*Cutting the branch* and the format
-reference). It decides only what needs no judgment. Which unit a slice belongs to, which branch it was cut
-from, and whether the diff matches the name stay with the orchestrator and the reviewer (ADR-0039).
+harness に同梱する依存なしの Node ツール。develop skill の `commit.md` が定める書式
+（*ブランチを切る*と書式リファレンス）に従って**ブランチ名とコミットメッセージのヘッダー**を検査する。
+判断不要なことだけを判定する。スライスの所属単位、分岐元、差分と名前の一致は
+orchestrator と reviewer が判断する（ADR-0039）。
 
-## What the host declares
+## 利用プロジェクトが宣言するもの
 
-The check runs only where the host's `traceconfig.json` has a `git` block. Without it the tool prints that
-nothing was checked and exits `0` — a skip, never a pass.
+利用プロジェクトの `traceconfig.json` に `git` ブロックがある場合だけ検査する。
+なければ未検査と表示して `0` で終了する。スキップであり、成功ではない。
 
 ```jsonc
-"git": {}                                             // single unit: branches are <type>/<topic>
-"git": { "units": { "app-a": "apps/a", "ui": "packages/ui" } }   // monorepo: <unit>/<topic>, scope is a unit
-"git": { "exempt_branches": ["dependabot/**"] }        // branches left unchecked (globs: ** / * / ?)
+"git": {}                                             // 単一単位: ブランチは <type>/<topic>
+"git": { "units": { "app-a": "apps/a", "ui": "packages/ui" } }   // モノレポ: <unit>/<topic>。scope は単位
+"git": { "exempt_branches": ["dependabot/**"] }        // 検査しないブランチ（glob: ** / * / ?）
 ```
 
-- `units` maps a unit name (lowercase ASCII kebab-case) to its directory. It is also where the orchestrator
-  reads the units from, and where `spec-lint gate` finds the docs of the unit a commit's `scope` names
-  (ADR-0040); nothing infers them from the layout. `repo` is reserved for changes that belong to
-  no unit and cannot be declared. A unit whose directory is missing is a configuration error (the
-  declaration is stale).
-- `exempt_branches` is for branches no agent or human of the project names (bots). A matching branch skips
-  both checks and is reported as "not checked".
+- `units` は単位名（小文字 ASCII の kebab-case）とディレクトリの対応。orchestrator はここから単位を読み、
+  `spec-lint gate` はコミットの `scope` が指定する単位の docs をここから見つける（ADR-0040）。
+  配置から推測しない。`repo` は単位に属さない変更用の予約名で、宣言できない。
+  単位のディレクトリが存在しない場合は設定エラー（宣言が古い）。
+- `exempt_branches` はプロジェクトの agent や人間が命名しないブランチ（bot）向け。
+  一致したブランチは両検査をスキップし、「未検査」と報告する。
 
-## What it checks
+## 検査内容
 
-| Code | Rule |
+| コード | 規則 |
 | --- | --- |
-| `B1` | The branch is `<prefix>/<topic>` — exactly one slash. The default branch and a bare unit name fail here |
-| `B2` | `<prefix>` is a declared unit or `repo` (monorepo), or a commit `type` (single unit) |
-| `B3` | `<topic>` is lowercase ASCII kebab-case, two to five words |
-| `M1` | The header is `<type>(<scope>): <subject>` and `type` is in the closed list (`feat` `fix` `docs` `refactor` `test` `perf` `style` `build` `ci` `chore`) |
-| `M2` | The subject has no trailing period (`.` or `。`) |
-| `M3` | In a monorepo, `scope` is required and is a declared unit or `repo` |
+| `B1` | ブランチは `<prefix>/<topic>`。スラッシュはちょうど一つ。既定ブランチや単位名だけは失敗 |
+| `B2` | `<prefix>` は宣言済み単位か `repo`（モノレポ）、またはコミット `type`（単一単位） |
+| `B3` | `<topic>` は小文字 ASCII の kebab-case、二〜五単語 |
+| `M1` | ヘッダーは `<type>(<scope>): <subject>`。`type` は閉じた一覧（`feat` `fix` `docs` `refactor` `test` `perf` `style` `build` `ci` `chore`） |
+| `M2` | subject の末尾にピリオド（`.` または `。`）がない |
+| `M3` | モノレポでは `scope` が必須で、宣言済み単位か `repo` |
 
-A header starting with `Merge ` or `Revert "` is text git writes; it is listed and not checked. The `type`
-list is the same as the table in `commit.md`, and the test suite fails when the two drift apart.
+`Merge ` または `Revert "` で始まるヘッダーは git が書く文言なので、一覧に示すが検査しない。
+`type` 一覧は `commit.md` の表と同じ。両者がずれるとテストスイートが失敗する。
 
-## Usage
+## 使い方
 
 ```bash
 node git-lint.mjs branch  [--name <branch>] [--root <host root>] [--config traceconfig.json]
 node git-lint.mjs message (--file <path> | --range <base>..<head>) [--branch <name>] [--root ...] [--config ...]
 ```
 
-| Flag | Meaning |
+| フラグ | 意味 |
 | --- | --- |
-| `--name` | The name to check. Defaults to the current branch; required on a detached HEAD (a CI checkout) |
-| `--file` | A commit-message file, as a commit-msg hook passes it (`#` lines are ignored) |
-| `--range` | Every commit in the range, merge commits excluded |
-| `--branch` | The name matched against `exempt_branches`. Defaults to the current branch |
+| `--name` | 検査する名前。既定は現在のブランチ。detached HEAD（CI checkout）では必須 |
+| `--file` | commit-msg hook が渡すコミットメッセージファイル（`#` 行は無視） |
+| `--range` | 範囲内の全コミット。merge コミットは除外 |
+| `--branch` | `exempt_branches` と照合する名前。既定は現在のブランチ |
 
-Exit codes: `0` = no violation (including "not declared" and "exempt", both stated on the line) / `1` =
-violation / `2` = configuration or usage error. There is no baseline: a name or a message is fixed on the
-spot.
+終了コード: `0` = 違反なし（「未宣言」と「除外」も含み、どちらも行に明示） / `1` = 違反 /
+`2` = 設定または使用法エラー。ベースラインはない。名前やメッセージはその場で直す。
 
-Regression tests: `node --test "tools/git-lint/test/*.test.mjs"` (a minimal host is written to a temp dir
-per case).
+回帰テスト: `node --test "tools/git-lint/test/*.test.mjs"`（ケースごとに一時ディレクトリへ最小構成の利用プロジェクトを書く）。
 
-## Where it runs
+## 実行する場所
 
-- **CI — the one that cannot be bypassed.** The reusable workflow `.github/workflows/spec-gate.yml` runs
-  both commands on every pull request (the head branch name, and each commit between base and head). A
-  host that already calls that workflow needs only the `git` block. To make a failure block the merge, the
-  host protects its default branch and requires the status check the workflow reports (shown as
-  `spec-gate / spec-gate` when the calling job is named `spec-gate`). Branch protection is the host's
-  setting; the harness does not install it. Where the host cannot protect the branch (its plan does not
-  offer protection for that repository), the check still runs and shows red on the pull request but
-  nothing stops the merge: the stop is then the rule in `commit.md` — never merge a pull request whose
-  checks are not all green — which binds the orchestrator and, by agreement, the humans.
-- **The orchestrator**, right after cutting a branch (`commit.md`). This is the cheap place to catch a
-  wrong name: in CI the fix is a new branch and a new pull request.
-- **Local hooks**, optional and per clone:
+- **CI — 回避できない検査。** 再利用 workflow `.github/workflows/spec-gate.yml` が全 pull request で
+  両コマンドを実行する（head ブランチ名と base〜head の各コミット）。既にその workflow を呼ぶ
+  利用プロジェクトは `git` ブロックだけ追加すればよい。失敗で merge を阻止するには、既定ブランチを
+  保護し、workflow の報告する status check を必須にする（呼び出し job が `spec-gate` の場合は
+  `spec-gate / spec-gate` と表示）。ブランチ保護は利用プロジェクトの設定であり、harness は設定しない。
+  プラン上その repository のブランチを保護できない場合、検査は実行され pull request に赤を示すが、
+  merge を阻止するものはない。その場合の阻止は `commit.md` の「すべての検査が正常でない pull request を
+  merge してはならない」という規則であり、orchestrator と合意した人間を拘束する。
+- **orchestrator** はブランチを切った直後に実行する（`commit.md`）。誤った名前を低コストで検出できる。
+  CI で直す場合は新しいブランチと pull request が必要。
+- **ローカル hooks** は任意で clone ごとに設定:
 
   ```bash
   # .git/hooks/commit-msg
@@ -81,10 +77,10 @@ per case).
   node .harness/tools/git-lint/git-lint.mjs branch
   ```
 
-## What it does not check
+## 検査しないもの
 
-- That the prefix is the *right* unit (the app where the slice's user value surfaces). A diff that touches
-  `apps/a` on a `repo/…` branch can be correct (a repository-wide dependency bump), so no path rule decides it.
-- That the branch was cut from the default branch and not stacked on another one.
-- Subject length, mood, and language; the body and the trailers (`UC:` is `spec-lint gate`'s).
-- The pull-request title.
+- prefix が*正しい*単位（スライスのユーザー価値が現れるアプリ）かどうか。`repo/…` ブランチで
+  `apps/a` を触る差分も正当になり得る（全 repository の依存更新）。パス規則では判定しない。
+- 既定ブランチから分岐し、別のブランチに積んでいないか。
+- subject の長さ、文体、言語。本文と trailers（`UC:` は `spec-lint gate` の担当）。
+- pull request のタイトル。

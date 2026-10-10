@@ -1,22 +1,22 @@
 ---
-description: "Cloudflare Static Assets — Worker dispatch, API errors, and SPA fallback"
+description: "Cloudflare Static Assets — Worker の振り分け、API エラー、SPA フォールバック"
 applyTo: "**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/vite.config.*,apps/api/src/index.ts,apps/api/src/features/**/*.routes.ts,apps/web/public/_headers,apps/web/public/_redirects,**/tests/integration/**,**/e2e/**"
 ---
 
-# Cloudflare — asset and API routing
+# Cloudflare — アセットと API のルーティング
 
-Follow [runtime](platform-runtime.instructions.md). This leaf owns network dispatch; browser route state belongs to [frontend routing](frontend-routing.instructions.md).
+[ランタイム](platform-runtime.instructions.md)に従う。このリーフはネットワークの振り分けを担当し、ブラウザのルート状態は[フロントエンドルーティング](frontend-routing.instructions.md)の責任。
 
-- Serve the SPA and HTTP API from the same public origin. Reserve `/api/*` and a declared WebSocket namespace such as `/ws/*`; declare any different prefixes in the host before implementing either side.
-- Configure Static Assets `not_found_handling` for SPA navigation and `run_worker_first` so every API / WebSocket request reaches the Worker. Use the supported selective patterns or Worker-first handling for the pinned Wrangler version; handle prefix roots such as `/api` and `/ws` explicitly.
-- Dispatch API and WebSocket namespaces before assets. An unknown API returns its contract's HTTP error, normally a JSON 404; it must never fall through to `index.html` with status 200.
-- A failed WebSocket upgrade remains an error. Do not send it to the SPA fallback or return an unauthenticated upgrade.
-- For browser routes, direct navigation and refresh resolve to the SPA entry. Test the deployed asset routing behavior in local preview, not only Vite's browser dev server.
-- Protect API responses with Worker response headers. Static asset `_headers` / `_redirects` rules do not automatically govern responses produced by Worker code.
-- Content-addressed assets may be cached immutably; keep the HTML shell updateable. Do not cache private API responses in shared caches without a deliberately authorized cache design.
-- Avoid permissive CORS for the same-origin API. Cross-origin capabilities such as direct R2 upload have their own explicit contract in [storage](backend-storage.instructions.md).
+- SPA と HTTP API を同じ公開オリジンから配信する。`/api/*` と宣言済みの WebSocket 名前空間（例: `/ws/*`）を予約する。異なる接頭辞はどちら側の実装前にも利用プロジェクトで宣言する。
+- SPA ナビゲーション用の Static Assets `not_found_handling` と、すべての API / WebSocket リクエストが Worker に届く `run_worker_first` を設定する。固定した Wrangler バージョンが対応する選択パターンまたは Worker 優先処理を使う。`/api` や `/ws` の接頭辞ルートを明示的に扱う。
+- assets より先に API と WebSocket 名前空間を振り分ける。未知の API は契約の HTTP エラー、通常は JSON 404 を返す。ステータス 200 の `index.html` にフォールスルーしてはならない。
+- 失敗した WebSocket upgrade はエラーのままにする。SPA フォールバックへ送ったり、未認証の upgrade を返したりしない。
+- ブラウザ routes の直接アクセスと更新は SPA 入口へ解決する。Vite のブラウザ開発サーバーだけでなく、ローカルプレビューでデプロイされたアセットルーティング動作をテストする。
+- Worker レスポンスヘッダーで API レスポンスを保護する。静的アセットの `_headers` / `_redirects` 規約は Worker コードが生成するレスポンスを自動的に管理しない。
+- 内容でアドレス付けした assets は不変としてキャッシュしてよいが、HTML シェルは更新可能に保つ。意図的に認可されたキャッシュ設計なしに非公開 API レスポンスを共有キャッシュに保存しない。
+- 同一オリジン API に許容的な CORS を使わない。R2 直接アップロードなどのクロスオリジン機能は[ストレージ](backend-storage.instructions.md)にそれぞれの明示的な契約を持つ。
 
-## Boundary verification
+## 境界の検証
 
-In integration checks, assert API success and failure status / content type, unknown API 404, rejected upgrade, direct SPA navigation, and static asset delivery.
-Keep protocol failures in backend / integration tests; the browser suite remains the UC's main scenario under [system testing](system-testing.instructions.md).
+統合確認では、API の成功・失敗ステータス / content type、未知の API 404、upgrade の拒否、SPA の直接ナビゲーション、静的アセット配信を検証する。
+プロトコル失敗はバックエンド / 統合テストに保つ。ブラウザスイートは[システムテスト](system-testing.instructions.md)に定義する UC の主シナリオに留める。

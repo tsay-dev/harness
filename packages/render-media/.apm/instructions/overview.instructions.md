@@ -8,13 +8,13 @@ applyTo: "**/media/**,**/videos/**"
 > 制作定義（台本・素材プロンプト・コマ定義・タイムライン）を、実際のメディアに変換する型。
 > ここは**この型の不変の核**（最初に読む）。アダプタの契約は [adapter.md](adapter.instructions.md)、
 > 実測でタイムラインを引き直す作法は [retime.md](retime.instructions.md)。
-> 実行手続きは skill [render-media](../skills/render-media/SKILL.md)。
+> 実行手続きはスキル [render-media](../skills/render-media/SKILL.md)。
 
 ## なぜ企画と生成を分けるか
 
 **企画は純粋関数にできるが、生成はできない。**
 
-企画側（`/produce-video` (install that optional package separately) など）は、同じ入力から同じ出力構造を返す。
+企画側（`/produce-video` （任意のパッケージとして別途インストールする） など）は、同じ入力から同じ出力構造を返す。
 だから検査でき、評価でき、再現できる。生成側は違う——外部サービスを叩き、課金が発生し、
 同じプロンプトから毎回違う絵が出て、失敗する。
 

@@ -98,7 +98,7 @@ Claude / Cursor 向けには scoped instructions をそれぞれの形式へ展�
 
 ### Codex agent の参照解決
 
-APM 0.30.0 は Codex の生成 TOML に埋め込む agent 本文の相対リンクを書き換えない。各 agent の正本冒頭にある **Package source resolution** 規約で、必要な参照を次のように解決する。
+APM 0.30.0 は Codex の生成 TOML に埋め込む agent 本文の相対リンクを書き換えない。各 agent の正本冒頭にある **パッケージ正本の解決** 規約で、必要な参照を次のように解決する。
 
 1. `apm_modules/` の manifest を正確な package `name` で照合し、所属 package を見つける。
 2. 規約に記載された `.apm/agents/.../*.agent.md` の元ファイルを開く。

@@ -1,36 +1,36 @@
 ---
-description: "🧭 SwiftUI / frontend — routing (the Feature Router)"
+description: "🧭 SwiftUI / フロントエンド — ルーティング（Feature の Router）"
 applyTo: "**/*.swift,**/Package.swift"
 ---
 
-# 🧭 SwiftUI / frontend — routing (the Feature Router)
+# 🧭 SwiftUI / フロントエンド — ルーティング（Feature の Router）
 
-> **Scope: native iOS apps using SwiftUI.** If it does not apply, discard it.
+> **適用範囲: SwiftUI を使うネイティブ iOS アプリ。** 該当しなければ破棄する。
 >
-> The common notation rules are [common/coding.md](common-coding.instructions.md); the surface rules are [coding.md](frontend-coding.instructions.md);
-> granularity and the division of work is [components.md](frontend-components.instructions.md).
-> This document defines only **where screens live and how navigation works**. State and the flow between layers is [dataflow.md](frontend-dataflow.instructions.md).
+> 共通の表記規則は [common/coding.md](common-coding.instructions.md)、表示側の規則は [coding.md](frontend-coding.instructions.md)、
+> 粒度と分業は [components.md](frontend-components.instructions.md)。
+> この文書は**画面の配置と遷移の仕組み**だけを定義する。状態とレイヤー間のフローは [dataflow.md](frontend-dataflow.instructions.md)。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Defining the goal (what NavigationStack can and cannot do)
+## 0. 目的の定義（NavigationStack にできること、できないこと）
 
-`NavigationStack` is **a device that stacks screens according to a path**.
-It does not decide the business questions of "where can I go from here" or "where do I proceed on success".
+`NavigationStack` は**path に従って画面を積む装置**。
+「ここからどこへ進めるか」「成功したらどこへ進むか」という業務上の判断はしない。
 
-Put the path in a View's `@State` and the knowledge of navigation gets bound to rendering,
-making it easy to break on rapid taps, deep links, and swapping things out in tests.
+path を View の `@State` に置くと、遷移の知識が描画に結びつき、
+連打、ディープリンク、テストでの差し替えで壊れやすくなる。
 
-**This document's job is to pin ownership of navigation to the Feature's Router and to remove path manipulation from Views.**
-The API underneath stays the ordinary `NavigationStack(path:)`.
+**この文書の役目は、遷移の所有を Feature の Router に固定し、View から path 操作を除くこと。**
+その下の API は通常の `NavigationStack(path:)` のまま。
 
 ---
 
-## 1. Put a Router in each Feature
+## 1. 各 Feature に Router を置く
 
-Put **that Feature's Router** in Presentation. Never default to one giant app-wide Router.
+Presentation に**その Feature の Router** を置く。巨大なアプリ全体の Router を標準にしない。
 
 ```swift
 enum LoginRoute: Hashable {
@@ -53,13 +53,13 @@ final class LoginRouter {
 }
 ```
 
-- **The Router holds "which screens are currently up"** — the path, sheets, fullScreenCovers, and so on
-- The ViewModel produces the business result and calls a Router method when navigation is permitted ([dataflow.md](frontend-dataflow.instructions.md))
-- Only the root View (that Feature's entrance) binds `NavigationStack(path:)` to the Router
+- **Router は「現在どの画面が開いているか」を保持する**（path、sheet、fullScreenCover など）
+- ViewModel は業務上の結果を作り、遷移が許可されたら Router のメソッドを呼ぶ（[dataflow.md](frontend-dataflow.instructions.md)）
+- root View（その Feature の入口）だけが `NavigationStack(path:)` を Router に binding する
 
 ---
 
-## 2. A View never calls `path.append`
+## 2. View は `path.append` を呼ばない
 
 ```swift
 // ❌ NG: View が遷移装置を直接いじる
@@ -69,8 +69,8 @@ Button("次へ") { path.append(Route.home) }
 Button("次へ") { viewModel.nextButtonTapped() }
 ```
 
-All a View may write is "what the user did".
-Mutating the `NavigationPath` and owning the `navigationDestination` destination table belong to the Router (and the root View binding it).
+View に書いてよいのは「ユーザーが何をしたか」だけ。
+`NavigationPath` の変更と `navigationDestination` の遷移先テーブルの所有は、Router（と、それを binding する root View）の責務。
 
 ```swift
 struct LoginRootView: View {
@@ -96,40 +96,40 @@ struct LoginRootView: View {
 
 ---
 
-## 3. Pass the id; re-fetch the substance
+## 3. id を渡し、本体は再取得する
 
-**Never pass a giant model, or "the JSON fetched on the previous screen", wholesale to the destination.**
-Keep what you pass to restorable values such as an identifier, and let the destination fetch the substance via a UseCase.
+**巨大なモデルや「前画面で取得した JSON」を丸ごと遷移先に渡さない。**
+渡すものは識別子など復元可能な値に留め、遷移先が UseCase 経由で本体を取得する。
 
-Premising things on the previous screen's in-memory values always breaks on a deep link, on state restoration, and after a process kill.
+前画面のメモリー上の値を前提にすると、ディープリンク、状態復元、プロセス終了後に必ず壊れる。
 
-Being opened with an invalid id is **not an exceptional case but a reachable state**.
-Land a parse failure or a non-existent record into a form that works as a screen ([common/coding.md](common-coding.instructions.md)'s "never weaken types to get to green").
-
----
-
-## 4. Make going back and closing explicit
-
-- The Router also owns popping the stack (`pop`, `popToRoot`, and so on). Never let a View build a business flow out of `dismiss` alone
-- Presenting and dismissing a sheet / fullScreenCover is likewise expressed in the Router's state
-- Where to go when you **cannot** go back (home, and so on) is stated explicitly as a Router method where needed
+不正な id で開かれることは**例外ではなく到達可能な状態**。
+パース失敗や存在しないレコードは、画面として成立する形に着地させる（[common/coding.md](common-coding.instructions.md) の「Green にするために型を弱めない」）。
 
 ---
 
-## 5. Root wiring belongs only to `App/` or a Feature's entrance
+## 4. 戻る、閉じるを明示する
 
-- The app's first `NavigationStack` connection and the construction of a Feature Router are closed inside **the Composition Root (`App/`) or the Feature's entrance**
-- Never proliferate new `NavigationStack`s deep inside child Views (nested stacks easily break the back operation and path resolution)
-- When navigation spanning Features is needed, put that joining point in the Composition Root or in an explicit boundary API.
-  Never let a Feature's internal Router start importing another Feature's concrete Views indiscriminately
+- スタックから取り除く操作（`pop`、`popToRoot` など）も Router が所有する。View が `dismiss` だけで業務フローを組み立てない
+- sheet / fullScreenCover の表示と終了も Router の状態で表す
+- **戻れない**場合の行き先（ホームなど）は、必要に応じて Router のメソッドとして明示する
 
 ---
 
-## ✅ Checklist before returning
+## 5. ルートの配線は `App/` または Feature の入口だけ
 
-- [ ] Does the Feature have a Router, with ownership of the path and sheets there?
-- [ ] Is a View calling `path.append` or manipulating the navigation device directly?
-- [ ] Does the ViewModel call the Router after the business result?
-- [ ] Are navigation parameters id-centric rather than giant objects?
-- [ ] Did you decide the display for being opened with invalid input?
-- [ ] Are you proliferating `NavigationStack`s deep in the children?
+- アプリの最初の `NavigationStack` の接続と Feature Router の構築は、**Composition Root（`App/`）または Feature の入口**で閉じる
+- 子 View の深い位置で `NavigationStack` を増殖させない（入れ子のスタックは戻る操作と path の解決を壊しやすい）
+- Feature をまたぐ遷移が必要なら、接合点を Composition Root または明示的な境界 API に置く。
+  Feature 内部の Router が別の Feature の具象 View を無差別に import し始めないようにする
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] Feature に Router があり、path と sheet の所有がそこにあるか？
+- [ ] View が `path.append` を呼ぶなど、遷移装置を直接操作していないか？
+- [ ] ViewModel が業務上の結果を得た後に Router を呼んでいるか？
+- [ ] 遷移パラメーターは巨大なオブジェクトではなく id 中心か？
+- [ ] 不正入力で開かれたときの表示を決めたか？
+- [ ] 子の深い位置で `NavigationStack` を増殖させていないか？

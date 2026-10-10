@@ -1,36 +1,36 @@
 ---
-description: "Hono / Workers — backend contract tests and local binding integration checks"
+description: "Hono / Workers — バックエンド契約テストとローカルバインディングの統合確認"
 applyTo: "**/*.test.ts,**/*.spec.ts,**/__tests__/**,**/tests/backend/**,**/tests/integration/**,**/vitest.config.*"
 ---
 
-# Hono / Workers — backend testing
+# Hono / Workers — バックエンドテスト
 
-Follow [common testing](common-testing.instructions.md) for entry mapping, suite separation, annotations, and execution.
-This leaf applies to backend / platform checks, not browser scenario specifications.
+入口の対応付け、スイート分離、注釈、実行は[共通テスト](common-testing.instructions.md)に従う。
+このリーフはバックエンド / プラットフォーム確認に適用し、ブラウザシナリオ仕様には適用しない。
 
-## Default suite
+## 既定スイート
 
-| Target | Test boundary |
+| 対象 | テスト境界 |
 | --- | --- |
-| Pure business functions | Pure calculations and invariant partitions without framework / binding mocks |
-| Service | Inject repository / service ports; assert scenario outcomes, not adapter internals |
-| Hono entry | Exercise the declared feature route factory with `Request`; fake infrastructure at the boundary |
-| Message processing | Validate frames and invoke the declared message-handler port with fake persistence / delivery |
+| 純粋な業務関数 | フレームワーク / バインディングのモックなしで純粋な計算と不変条件の同値分割を検証 |
+| service | repository / service のポートを注入し、アダプター内部ではなくシナリオの結果を検証 |
+| Hono の入口 | 宣言済みの機能 route factory を `Request` で実行し、境界で基盤をフェイクに置換 |
+| メッセージ処理 | フレームを検証し、宣言済みメッセージ処理ポートを永続化 / 配送のフェイクで実行 |
 
-- Derive behavior from fixed contracts and REQ partition classes. Do not import a handler just because implementation happened to export it.
-- Invalid HTTP input must not invoke the service. Check validation errors, identity / authorization rejection, successful invocation, and outcome-to-status / DTO mapping.
-- Check unsafe-request Origin / CSRF behavior, rejected WebSocket upgrades, expired or revoked permissions, duplicate request keys, and unknown API responses where required by the contract.
-- Do not mock the pure business functions or hide missing authorization with an always-successful fake. A permission test must exercise the real policy decision with controlled boundary data.
-- Keep database access, real network, workerd startup, and browser launch out of default discovery. BE contract-conformance cases remain in the default suite even when adapters also have integration tests.
+- 固定契約と REQ の同値分割クラスから動作を導出する。実装が偶然 export しただけのハンドラーを import しない。
+- 無効な HTTP 入力で service を呼んではならない。検証エラー、主体識別 / 認可の拒否、成功時の呼び出し、結果からステータス / DTO への変換を確認する。
+- 契約が要求する場合、安全でないリクエストの Origin / CSRF 動作、WebSocket upgrade の拒否、期限切れや失効した権限、重複リクエストキー、未知の API レスポンスを確認する。
+- 純粋な業務関数をモックしたり、常に成功するフェイクで認可の欠落を隠したりしない。権限テストは制御した境界データで実際の方針判断を実行しなければならない。
+- DB アクセス、実ネットワーク、workerd 起動、ブラウザ起動を既定の探索対象に入れない。アダプターに統合テストがあっても、BE 契約準拠ケースは既定スイートに残す。
 
-## Local runtime integration
+## ローカルランタイム統合
 
-- Run with workerd and local bindings through the Cloudflare-supported test integration. Isolate storage per test / run, explicitly seed fixtures, and never connect to production identifiers.
-- For D1, apply the actual migration files before queries. Check constraints, conditional updates, batch rollback, and dialect-dependent SQL where the change relies on them.
-- For Durable Objects, exercise namespace routing, persistent state after reconstruction, WebSocket callbacks / attachment restoration, deduplication, resume gaps, and concurrency boundaries relevant to the contract.
-- Do not claim hibernation / restart coverage from a test that only reuses one live in-memory instance. State emulator limitations and add an explicit disposable-environment check if local tools cannot reproduce the required behavior.
-- For R2, cover authorized access, validation / finalization, missing objects, and retry / cleanup behavior. Presigned browser CORS needs its own endpoint-level verification where the local runtime cannot model it.
-- Verify Worker / assets dispatch in the actual configured local preview: API failures must not become an HTML SPA success. Keep these protocol checks out of the one-main-scenario browser suite.
-- A successful local check does not prove production limits, deployment permissions, or remote service availability. Report which runtime and bindings were exercised.
+- Cloudflare 対応のテスト統合を通じて workerd とローカルバインディングで実行する。テスト / 実行ごとにストレージを分離し、明示的に fixture を投入し、本番識別子には接続しない。
+- D1 はクエリ前に実際のマイグレーションファイルを適用する。変更が依存する制約、条件付き更新、batch ロールバック、方言依存 SQL を確認する。
+- Durable Objects は、契約に関係する名前空間ルーティング、再構築後の永続状態、WebSocket コールバック / attachment 復元、重複排除、再開時の欠落、並行性境界を実行する。
+- 一つの生きたメモリー内インスタンスを再利用するだけのテストで、ハイバネーション / 再起動を網羅したと主張しない。エミュレーターの制約を示し、ローカルツールが必須動作を再現できないなら明示的な使い捨て環境の確認を追加する。
+- R2 は認可済みアクセス、検証 / 確定、欠落オブジェクト、再試行 / 削除動作を網羅する。ローカルランタイムでモデル化できない場合、事前署名付きブラウザ CORS はエンドポイントレベルの個別検証が必要。
+- 実際に設定されたローカルプレビューで Worker / assets の振り分けを検証する。API 失敗を HTML SPA 成功にしてはならない。これらのプロトコル確認は主シナリオ一つのブラウザスイートに含めない。
+- ローカル確認の成功は本番の上限、デプロイ権限、リモートサービスの可用性を証明しない。実行したランタイムとバインディングを報告する。
 
-Persistence rules are in [D1](backend-database.instructions.md), [realtime](backend-realtime.instructions.md), and [storage](backend-storage.instructions.md).
+永続化規約は [D1](backend-database.instructions.md)、[リアルタイム](backend-realtime.instructions.md)、[ストレージ](backend-storage.instructions.md)にある。

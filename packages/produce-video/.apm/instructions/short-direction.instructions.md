@@ -7,7 +7,7 @@ applyTo: "**/videos/short/**"
 
 > 縦型ショート（`videos/short/`）に固有の数値と作法。層の型は [../overview.md](overview.instructions.md)、
 > 書式は [../schema.md](schema.instructions.md)。
-> 実行手続きは skill [produce-video](../skills/produce-video/SKILL.md)。
+> 実行手続きはスキル [produce-video](../skills/produce-video/SKILL.md)。
 
 ## 前提：視聴者はいつでも去れる
 

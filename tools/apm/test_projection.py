@@ -159,7 +159,7 @@ class Projection(unittest.TestCase):
                     self.assertEqual(source.name, name + '.agent.md')
                     self.assertNotRegex(text, r'(?m)^model:')
                     self.assertRegex(text, r'(?m)^x-model-tier: (top|mid|light)$')
-                    self.assertIn('Package source resolution', text)
+                    self.assertIn('パッケージ正本の解決', text)
                 for url in re.findall(r'\[[^\]\n]+\]\(([^)\n]+)\)', text):
                     path = url.split('#')[0]
                     if path and '://' not in path and not path.startswith('/'):

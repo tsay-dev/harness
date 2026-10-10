@@ -1,86 +1,84 @@
 # trace-check
 
-A zero-dependency Node tool bundled with the harness that mechanically verifies **traceability** between
-the docs SSOT (GOAL → UC → REQ, BR) and the code (tests, implementation): coverage, references, placement,
-layering, and the contract vocabulary. It is the Node port of sdd-kit's `trace_check.py` (why the port:
-`docs/adr/ADR-0003`).
+harness に同梱する依存なしの Node ツール。docs の SSOT（GOAL → UC → REQ、BR）とコード
+（テスト、実装）の**トレーサビリティ**を機械的に検証する。対象はカバレッジ、参照、配置、
+層、契約語彙。sdd-kit の `trace_check.py` の Node 移植（移植理由: `docs/adr/ADR-0003`）。
 
-- **What it verifies**: the 15 checks below. **Format and lifecycle** (frontmatter, sections, status
-  vocabularies, the contract's structure) are `../spec-lint/`'s job; the two tools do not overlap
-- **What it reads**: `traceconfig.json` at the host project root (seeded once from
-  `templates/develop/traceconfig.json`; the host maintains `source` / `tests` / `schema` / `layering` / `contract`).
-  Annotations are found by regex on every line (`covers_pattern` / `implements_pattern`), so any language works;
-  `implements_pattern`'s capture may be a list (`@implements UC-001, REQ-009 / BR-015` — split on `,` or `/`)
-- **What it generates**: the coverage matrix (its report) and the whole-project index (`--index`). Both are
-  derived, never committed (R-1003 / R-603)
-- **How it is used**: producers invoke it directly (`--only` narrows to their concern), the orchestrator runs
-  it at the end of a slice (the merge condition is tests green + zero new violations, R-803), and CI runs it
+- **検証するもの**: 下記の 15 検査。**書式とライフサイクル**（frontmatter、節、ステータス語彙、
+  契約構造）は `../spec-lint/` の担当。両ツールは重複しない。
+- **読むもの**: 利用プロジェクト直下の `traceconfig.json`（`templates/develop/traceconfig.json` から一度ひな形を置き、
+  利用プロジェクトが `source` / `tests` / `schema` / `layering` / `contract` を維持）。
+  注釈は全行を正規表現（`covers_pattern` / `implements_pattern`）で検索するため、任意の言語に対応する。
+  `implements_pattern` の捕捉は一覧でもよい（`@implements UC-001, REQ-009 / BR-015` — `,` または `/` で分割）。
+- **生成するもの**: カバレッジ行列（レポート）と全プロジェクト索引（`--index`）。
+  両方とも導出物であり、コミットしてはならない（R-1003 / R-603）。
+- **使い方**: 作成者が直接実行する（`--only` で関心範囲に絞る）。orchestrator がスライスの最後に実行する
+  （merge 条件はテスト成功 + 新規違反ゼロ、R-803）。CI でも実行する。
 
 ```bash
-node trace-check.mjs [--root .] [--config traceconfig.json]   # the checks; exit 1 on a NEW violation
-node trace-check.mjs --update-baseline                        # record today's violations as the baseline
-node trace-check.mjs --strict                                 # ignore the baseline (everything fails)
-node trace-check.mjs --index                                  # the whole-project map, one line per ID
-node trace-check.mjs --next req [--reserve N]                 # the next N free IDs (goal|uc|req|br|nfr|adr), one per line — R-204. Atomic:
-                                                              # the numbers are reserved in .trace-reservations.json under a mkdir lock, so
-                                                              # concurrent Tasks can all call it and never receive the same number. For req,
-                                                              # IDs a UC.md table has reserved count as taken even before the file exists
-node trace-check.mjs --only C9,C12                            # judge only these checks (a producer's self-check)
+node trace-check.mjs [--root .] [--config traceconfig.json]   # 検査。新規違反で exit 1
+node trace-check.mjs --update-baseline                        # 現在の違反をベースラインとして記録
+node trace-check.mjs --strict                                 # ベースラインを無視（全違反で失敗）
+node trace-check.mjs --index                                  # 全プロジェクトの対応図。ID ごとに一行
+node trace-check.mjs --next req [--reserve N]                 # 次の空き ID を N 個（goal|uc|req|br|nfr|adr）、一行ずつ — R-204。原子的:
+                                                              # mkdir ロックで .trace-reservations.json に番号を予約するため、
+                                                              # 並行 Tasks がすべて呼んでも同じ番号を受け取らない。req は
+                                                              # UC.md の表が予約する ID もファイル作成前から使用済みと数える
+node trace-check.mjs --only C9,C12                            # 指定検査だけを判定（作成者の自己検査）
 ```
 
-Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. Node only.
+終了コード: `0` = 新規違反なし / `1` = 新規違反 / `2` = 使用法エラー。Node のみ。
 
-## The 15 checks
+## 15 の検査
 
-| # | Fails when | Rule |
+| # | 失敗条件 | 規則 |
 | --- | --- | --- |
-| C1 | an `active` REQ has no test that `@covers` it | R-1104 |
-| C2 | an `active` REQ has no `## 検証方針` section | R-1002 |
-| C3 | a test `@covers` a REQ that does not exist | R-602 |
-| C4 | a BR is referenced by no UC and no REQ (a dead rule) | R-103 |
-| C5 | code `@implements` an ID that does not exist (an orphan reference) | R-701 |
-| C6 | a layer imports a layer it must not (`layering` in the config; `layer_pattern` names the path level that is the layer — `{layer}` = the first level under `root`, `*/{layer}` = the second, as in `Features/<name>/Domain`). C6 sees only `import_patterns`: a language whose layers share one module and never import each other (a single-module Swift app) gives it nothing to match, and a green C6 there is silence, not proof — enforce the direction with the platform linter instead and leave `layering` unset | R-702 |
-| C7 | the implementation's error codes are not a subset of `docs/_shared/components.yaml` `errorCodes` (only when `contract` is configured) | R-703 |
-| C8 | an `active` GOAL has no UC realizing it | — |
-| C9 | placement disagrees with the frontmatter: directory prefix ≠ `id`, `GOAL.md` / `UC.md` missing, a REQ's file name ≠ `id`, a REQ not directly under its own `uc:`, a UC's `goal:` ≠ its directory | R-1006 / R-1007 |
-| C10 | a declared partition class has no test, or an `active` REQ declares none (the lower bound) | R-1101 / R-1104 |
-| C11 | a test names no class, or an undeclared one (the upper bound on generated tests); and, when `tests.test_pattern` is configured, a test function that carries no `@covers` at all — an unannotated test is invisible to C10 / C11 otherwise. A test carrying `tests.exempt_pattern` (an explicit `// 仕様外:` marker) is counted as exempt, not missing. A test's identity is **file + name** (`test_pattern` must capture the name), so the ledger never depends on line numbers. Where the annotation sits is **declared**, not guessed: `tests.covers_placement: before` (default — the doc comment right above the test mark) or `after` (the mark's line and the first lines of the body); trace-check looks only in that window, and an `@covers` outside every window is reported as belonging to no test | R-1102 / R-1103 |
-| C12 | the same ID is defined in more than one file (a numbering collision) | R-204 |
-| C13 | a BR whose `enforced_at` names the database has no `@implements BR-nnn` in the schema source (`schema.files` / `schema.dirs`; only when configured) | R-704 |
-| C14 | an `active` REQ or `active` BR has no `@implements` in `source` or the schema source (the reverse of C5; only when `source` is configured). UC-level `@implements UC-nnn` is craft (`comments.md`), not this check | R-705 |
-| C15 | an `active` UC whose actor is human (`docs.actors` table, `種別` starting with `人間`; an actor missing from the table counts as human) has no test carrying `@scenario UC-nnn` (`scenario_pattern`) under `tests.system`; or an `@scenario` names a UC that does not exist. Only when `tests.system` is configured. `tests.system.dirs` must be disjoint from `tests.dirs`, or C11 reports the scenario tests as unannotated. The check sees existence and reference; "one per UC, happy path only" is the reviewer's | R-1106 / R-1107 |
+| C1 | `active` REQ を `@covers` するテストがない | R-1104 |
+| C2 | `active` REQ に `## 検証方針` 節がない | R-1002 |
+| C3 | テストが存在しない REQ を `@covers` する | R-602 |
+| C4 | BR がどの UC / REQ にも参照されない（死んだ規則） | R-103 |
+| C5 | コードが存在しない ID を `@implements` する（孤立参照） | R-701 |
+| C6 | 層が禁止された層を import する（設定の `layering`。`layer_pattern` が層のパス階層を指定し、`{layer}` = `root` 配下の第一階層、`*/{layer}` = 第二階層、例: `Features/<name>/Domain`）。C6 は `import_patterns` だけを見る。同じモジュールに層があり互いに import しない言語（単一モジュール Swift アプリ）では一致対象がなく、正常な C6 は沈黙であり証明ではない。代わりにプラットフォーム linter で方向を保証し、`layering` は未設定にする | R-702 |
+| C7 | 実装のエラーコードが `docs/_shared/components.yaml` の `errorCodes` の部分集合ではない（`contract` 設定時のみ） | R-703 |
+| C8 | `active` GOAL を実現する UC がない | — |
+| C9 | 配置と frontmatter が不一致: ディレクトリ接頭辞 ≠ `id`、`GOAL.md` / `UC.md` 欠落、REQ ファイル名 ≠ `id`、REQ が自身の `uc:` 直下にない、UC の `goal:` ≠ そのディレクトリ | R-1006 / R-1007 |
+| C10 | 宣言された分割クラスにテストがない、または `active` REQ がクラスを一つも宣言しない（下限） | R-1101 / R-1104 |
+| C11 | テストがクラスを指定しない、または未宣言のクラスを指定する（生成テストの上限）。`tests.test_pattern` 設定時は、`@covers` が全くないテスト関数も検出する。未注釈テストは、それ以外では C10 / C11 から見えない。`tests.exempt_pattern`（明示的な `// 仕様外:` 印）があるテストは欠落ではなく除外として数える。テストの識別は**ファイル + 名前**（`test_pattern` は名前を捕捉する必要がある）で、台帳は行番号に依存しない。注釈位置は推測せず**宣言**する: `tests.covers_placement: before`（既定。テスト印の直上の文書コメント）または `after`（印の行と本文の先頭行）。trace-check はその範囲だけを調べ、どの範囲にも属さない `@covers` はテストに属さないと報告する | R-1102 / R-1103 |
+| C12 | 同じ ID が複数ファイルで定義される（採番衝突） | R-204 |
+| C13 | `enforced_at` が DB を指定する BR に、スキーマソース内の `@implements BR-nnn` がない（`schema.files` / `schema.dirs`。設定時のみ） | R-704 |
+| C14 | `active` REQ または `active` BR に、`source` またはスキーマソース内の `@implements` がない（C5 の逆。`source` 設定時のみ）。UC レベルの `@implements UC-nnn` は専門技術（`comments.md`）であり、この検査の対象ではない | R-705 |
+| C15 | 人間アクターの `active` UC（`docs.actors` 表の `種別` が `人間` で始まる。表にないアクターも人間と数える）に、`tests.system` 配下の `@scenario UC-nnn`（`scenario_pattern`）付きテストがない、または `@scenario` が存在しない UC を指定する。`tests.system` 設定時のみ。`tests.system.dirs` は `tests.dirs` と重複させてはならず、重複すると C11 がシナリオテストを未注釈として報告する。検査は存在と参照を扱い、「UC ごとに一つ、成功経路のみ」は reviewer が確認する | R-1106 / R-1107 |
 
-Only `active` docs are subject to C1 / C2 / C8 / C10 / C14 / C15 — a `draft` REQ or BR demands nothing yet, and a `withdrawn`
-one demands nothing any more. C11 applies to every test regardless.
+C1 / C2 / C8 / C10 / C14 / C15 は `active` docs のみが対象。`draft` REQ / BR はまだ要求せず、
+`withdrawn` はもう要求しない。C11 はすべてのテストに適用する。
 
-## The baseline ratchet (adopting it on an existing project)
+## ベースラインの歯止め（既存プロジェクトへの導入）
 
-The first run on an existing project produces many violations. Do not leave CI red until they are all paid off:
+既存プロジェクトの初回実行では違反が多数出る。すべて解消するまで CI を赤にし続けない。
 
 ```bash
-node tools/trace-check/trace-check.mjs --update-baseline   # ledger today's violations → CI green
-node tools/trace-check/trace-check.mjs                     # from now on only NEW violations fail
-# as debts are paid, --update-baseline shrinks the ledger; when it is empty, switch to --strict
+node tools/trace-check/trace-check.mjs --update-baseline   # 現在の違反を台帳化 → CI 正常
+node tools/trace-check/trace-check.mjs                     # 以後は新規違反のみ失敗
+# 負債の解消とともに --update-baseline で台帳を縮め、空になったら --strict へ切り替える
 ```
 
-The ledger is keyed by the message with every `<file>:<line>` reduced to `<file>` (an unannotated test is identified
-by its name, so the entry survives any edit that keeps the name), and equal keys are compared by count (the report
-keeps the line numbers for navigation).
+台帳のキーはメッセージ内の各 `<file>:<line>` を `<file>` に縮めたもの（未注釈テストは名前で識別するため、
+名前を保つ編集で項目は維持される）。同じキーは件数で比較する（レポートの行番号は移動用に残す）。
 
-Only "no worse than today" is enforced at first; repayment is planned. **The baseline only ever shrinks**
-(R-804) — a review sends back any growth. Whether `.trace-baseline.json` is monotonically decreasing is the
-project's health indicator. The one sanctioned growth is the moment a check first applies to pre-existing material
-(a migration turning REQs `active`, so C1 / C10 / C14 see partitions and implementations the existing tests and annotations never exhausted): it is recorded
-once with `--update-baseline`, named with its count in that phase's report, and never repeated (`/docs-migrate` Phase 6).
+最初に保証するのは「現在より悪化しない」だけであり、返済を計画する。**ベースラインは縮むだけ**
+（R-804）。増加はレビューで差し戻す。`.trace-baseline.json` が単調減少するかがプロジェクトの健全性指標。
+認める増加は、既存資料に検査を初めて適用する瞬間だけ（移行で REQ を `active` にし、既存テストや注釈が
+網羅していなかった同値分割と実装を C1 / C10 / C14 が検出する場合）。`--update-baseline` で一度だけ記録し、
+その段階の報告に名前と件数を示して、繰り返さない（`/docs-migrate` Phase 6）。
 
-## What green does and does not guarantee
+## 正常な検査が保証することと限界
 
-When the tests and these 15 checks are all green, the following holds mechanically: every active GOAL has a UC
-and every active REQ a test; every declared partition class has a test **and no test exists outside the
-policy**; every ID referenced from code and tests exists; every active REQ and every active BR is annotated
-from source or schema (`@implements`); no rule is dead; no ID is defined twice; placement
-agrees with the frontmatter; the dependency direction and the contract vocabulary agree with the implementation; every rule enforced at the database is annotated on a constraint in the schema source; every human-facing active UC has a scenario test (when a system suite is declared).
+テストと 15 検査がすべて正常なら、機械的に以下が成立する。すべての active GOAL に UC があり、active REQ にテストがある。
+宣言された全分割クラスにテストがあり、**方針外のテストが存在しない**。コードとテストが参照する ID が存在する。
+active REQ / BR はソースかスキーマから注釈される（`@implements`）。死んだ規則も ID の重複定義もない。
+配置と frontmatter が一致する。依存方向と契約語彙が実装と一致する。DB で保証する規則はスキーマソースの制約に注釈される。
+人間向け active UC はシナリオテストを持つ（システムスイートの宣言時）。
 
-What remains for review (R-901): whether the partition exhausts the input space, whether an assertion verifies
-the meaning of the EARS sentence, whether the EARS sentence itself is right, whether the annotated unit
-actually realizes that sentence (C14 sees the annotation, not the semantics), and whether a schema constraint annotated `@implements BR-nnn` really enforces that rule (C13 sees the annotation, not the semantics).
+レビューに残るもの（R-901）: 分割が入力空間を尽くすか、アサーションが EARS 文の意味を検証するか、
+EARS 文そのものが正しいか、注釈した単位が実際にその文を実現するか（C14 は注釈を見るが意味は見ない）、
+`@implements BR-nnn` のスキーマ制約が実際に規則を保証するか（C13 は注釈を見るが意味は見ない）。

@@ -1,31 +1,31 @@
 ---
-description: "React SPA / TanStack Query — server cache, HTTP failures, mutations, and realtime reconciliation"
+description: "React SPA / TanStack Query — サーバーキャッシュ、HTTP 失敗、変更、リアルタイム整合"
 applyTo: "apps/web/src/**,packages/shared/src/**"
 ---
 
-# React SPA — data flow
+# React SPA — データフロー
 
-Follow [common coding](common-coding.instructions.md) and [browser routing](frontend-routing.instructions.md). TanStack Query owns cached server state; it is not the authority for persisted data.
+[共通コーディング](common-coding.instructions.md)と[ブラウザルーティング](frontend-routing.instructions.md)に従う。TanStack Query はキャッシュしたサーバー状態を所有するが、永続データの正本ではない。
 
-## HTTP and cache ownership
+## HTTP とキャッシュの所有
 
-- Place the shared typed Hono `hc<AppType>` client in `apps/web/src/lib/api-client.ts` and the Query client in `lib/query-client.ts`. Put HTTP calls, query options, and Query / mutation hooks such as `useMessages` / `useSendMessage` in `features/<feature>/api/`. Use the feature's `hooks/` for socket / lifecycle hooks such as `useChatSocket`. Expose only the necessary public interface through its `index.ts`. Use the client as described in [backend coding](backend-coding.instructions.md). Keep same-origin API calls on the application origin; supply cookies and CSRF material according to [security](backend-security.instructions.md).
-- `fetch` / Hono RPC does not reject every non-2xx response. Query and mutation functions must check status, decode the declared error, and throw an appropriate error for failed operations so Query can enter its error state.
-- Define stable query keys including every input that affects the result and the relevant actor / tenant scope. Invalidate / remove sensitive caches and cancel outstanding work when logging out or switching identity; stale responses must not repopulate another session's data.
-- Reuse query options across routes and components. Do not fetch into `useEffect` + `useState` as a second server cache, or copy server lists into local state.
-- Configure staleness, retries, cancellation, and focus / reconnect behavior deliberately. Do not retry permission failures or non-idempotent mutations blindly.
-- After mutations, invalidate affected keys or update them from authoritative responses. Optimistic updates require rollback, concurrent-mutation handling, and a stated reconciliation rule.
+- 共有の型付き Hono `hc<AppType>` クライアントを `apps/web/src/lib/api-client.ts`、Query クライアントを `lib/query-client.ts` に置く。HTTP 呼び出し、query options、`useMessages` / `useSendMessage` などの Query / mutation hooks は `features/<feature>/api/` に置く。`useChatSocket` などの socket / ライフサイクル hooks は機能の `hooks/` を使う。`index.ts` では必要な公開インターフェースだけを露出する。[バックエンドコーディング](backend-coding.instructions.md)が説明するクライアントを使う。同一オリジン API 呼び出しはアプリケーションのオリジンに維持し、[セキュリティ](backend-security.instructions.md)に従って cookie と CSRF 情報を与える。
+- `fetch` / Hono RPC はすべての非 2xx レスポンスを拒否するわけではない。query と mutation の関数はステータスを確認し、宣言済みエラーを解釈して、失敗した操作には適切なエラーを throw しなければならない。それにより Query がエラー状態に入れる。
+- 結果に影響するすべての入力と関連する主体 / テナント範囲を含む安定した query keys を定義する。ログアウトや主体の切り替え時に機微なキャッシュを無効化 / 削除し、進行中の処理をキャンセルする。古いレスポンスが別セッションのデータを再投入してはならない。
+- routes と components で query options を再利用する。第二のサーバーキャッシュとして `useEffect` + `useState` に fetch したり、サーバーの一覧をローカル state に複製したりしない。
+- 鮮度、再試行、キャンセル、focus / reconnect 動作を意図的に設定する。権限の失敗や非冪等な mutation を無条件に再試行しない。
+- mutation 後は影響するキーを無効化するか、正本のレスポンスから更新する。楽観更新にはロールバック、同時 mutation の扱い、宣言した整合規則が必要。
 
-## UI state and events
+## UI 状態とイベント
 
-- Keep ephemeral UI state near its owner; lift it only when multiple children need it. Pass data downward and events upward through callbacks.
-- An editable draft may copy initial server data, but must define when it resets and how incoming updates / version conflicts affect unsaved input.
-- Keep shareable state in the router's validated URL parameters. Do not store secrets or session credentials in persisted client state.
-- Expose loading, error, empty, and stale states explicitly; disable or otherwise handle duplicate submits without relying on UI behavior for server idempotency.
+- 一時的な UI 状態は所有者の近くに置き、複数の子が必要とする場合にのみ引き上げる。データは下向き、イベントはコールバックを通じて上向きに渡す。
+- 編集可能な下書きは初期サーバーデータをコピーしてよいが、リセットするタイミングと、受信更新 / バージョン競合が未保存入力にどう影響するかを定義しなければならない。
+- 共有可能な状態は router の検証済み URL パラメーターに置く。秘密情報やセッション資格情報を永続化するクライアント状態に保存しない。
+- 読み込み、エラー、空、古い状態を明示的に表示する。重複送信を無効化または別の方法で処理し、サーバー冪等性を UI 動作に依存させない。
 
-## Optional realtime
+## 任意のリアルタイム
 
-- Feed authorized realtime events into the same Query cache; do not create an independent authoritative message list.
-- Reconcile by the contract's event ID, order, and cursor. Account for live events arriving before / during / after a history fetch and reject duplicate or obsolete updates.
-- On reconnect or detected gaps, resume / fetch the missing range or reset from a snapshot according to the contract. Invalidate when a safe incremental merge is impossible.
-- Dispose sockets and subscriptions on scope changes, reauthenticate on reconnect, and isolate events from an old user / resource. Browser backoff cannot replace server-side recovery semantics in [realtime](backend-realtime.instructions.md).
+- 認可済みリアルタイムイベントを同じ Query キャッシュに投入し、独立した正本メッセージ一覧を作らない。
+- 契約のイベント ID、順序、カーソルで整合する。履歴 fetch の前 / 中 / 後に届くライブイベントを考慮し、重複や旧版の更新を拒否する。
+- 再接続や欠落検出時は、契約に従って再開 / 欠落範囲の fetch / スナップショットからのリセットを行う。安全な増分マージが不可能なら無効化する。
+- 範囲変更時にソケットと購読を破棄し、再接続時に再認証し、古いユーザー / リソースのイベントを分離する。ブラウザのバックオフは[リアルタイム](backend-realtime.instructions.md)のサーバー側復旧の意味を代替できない。

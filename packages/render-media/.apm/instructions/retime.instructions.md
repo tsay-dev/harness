@@ -7,7 +7,7 @@ applyTo: "**/media/**"
 
 > 企画側の尺は予測である。実体が手に入った時点で、実測に基づく別のタイムラインを起こす。
 > なぜこの位置かは [overview.md](overview.instructions.md)。
-> 実行手続きは skill [render-media](../skills/render-media/SKILL.md)。
+> 実行手続きはスキル [render-media](../skills/render-media/SKILL.md)。
 
 ## 予測と実測は必ずずれる
 

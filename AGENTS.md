@@ -1,8 +1,8 @@
-# AGENTS.md — Codex entry for this repository
+# AGENTS.md — このリポジトリの Codex 向け入口
 
-Read [`CLAUDE.md`](./CLAUDE.md) before modifying this repository. The source of truth is the vendor-neutral APM packages under `packages/`, plus `tools/` and `templates/`. Conversation, deliverables under `docs/`, commit messages, and in-code comments are in Japanese.
+このリポジトリを変更する前に [`CLAUDE.md`](./CLAUDE.md) を読む。正本は `packages/` 配下のプロバイダーに依存しない APM パッケージと、`tools/`、`templates/`。会話、`docs/` 配下の成果物、コミットメッセージ、コード内コメントは日本語で書く。
 
-- **Never hand-edit generated provider directories:** `.claude/`, `.agents/`, `.codex/`, `.cursor/`, and `.grok/`. Change the neutral source, then regenerate the selected packages. `.claude/` is not an authority for any target.
-- Follow [`docs/apm.md`](./docs/apm.md) for package selection, generation, and verification. There is no default all-in-one package. Do not combine APM and legacy `init.sh` output in the same consumer.
-- Legacy Codex model catalog IDs live in `tools/codex-sync/models.json`; regenerate after changing that file. Native APM and the legacy adapter have different model handling; do not patch installed agents by hand.
-- Host-specific facts belong in that host's `AGENTS.md` or `CLAUDE.md`. This file is only the harness repository's working entry and does not duplicate its working guide.
+- **生成済みのプロバイダー向けディレクトリを手で編集しない:** `.claude/`、`.agents/`、`.codex/`、`.cursor/`、`.grok/`。中立ソースを変更し、選択したパッケージを再生成する。`.claude/` はどの対象に対しても正本ではない。
+- パッケージの選択、生成、検証は [`docs/apm.md`](./docs/apm.md) に従う。既定の全部入りパッケージはない。同じ消費プロジェクトで APM と旧 `init.sh` の出力を混ぜない。
+- 旧 Codex のモデルカタログ ID は `tools/codex-sync/models.json` にある。このファイルを変更したら再生成する。ネイティブ APM と旧アダプターではモデルの扱いが異なる。インストール済み agent を手で修正しない。
+- ホスト固有の事実は、そのホストの `AGENTS.md` または `CLAUDE.md` に書く。このファイルは harness リポジトリの作業用入口だけを担い、作業ガイドを重複させない。

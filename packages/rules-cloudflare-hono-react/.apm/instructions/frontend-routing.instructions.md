@@ -1,41 +1,41 @@
 ---
-description: "React SPA / TanStack Router — feature boundaries, thin routes, and navigation"
+description: "React SPA / TanStack Router — 機能の境界、薄い routes、ナビゲーション"
 applyTo: "apps/web/src/**,**/vite.config.*,**/e2e/**,**/playwright.config.*"
 ---
 
-# React SPA — feature routing
+# React SPA — 機能のルーティング
 
-Follow [common coding](common-coding.instructions.md). Browser routes live in `apps/web/src/routes/`; Hono feature routes are a different layer under [backend coding](backend-coding.instructions.md).
+[共通コーディング](common-coding.instructions.md)に従う。ブラウザ routes は `apps/web/src/routes/` に置く。Hono の機能 routes は[バックエンドコーディング](backend-coding.instructions.md)の別の層。
 
-## Layout and public boundaries
+## 配置と公開境界
 
-- Use TanStack Router file-based routing in `apps/web/src/routes/`. Route files stay thin: `beforeLoad`, `loader`, and placement / composition of feature components. Do not build feature UI or business logic inside route files.
-- Put browser features in `apps/web/src/features/<feature>/{api,components,hooks,lib,index.ts}`. Match the API / shared feature name for the same domain concept.
-- A feature's `index.ts` explicitly exports its public components, hooks, and types. External consumers import through that entry; internal files use direct local imports to avoid public-entry cycles.
-- Features must not directly import other features, including their public entries. Compose collaboration in routes / an explicit composition boundary and pass inputs or callbacks in.
-- Shared presentational primitives belong in `components/ui/`, reusable technical code in `lib/`, and technical hooks in `hooks/`. Do not move domain logic into a shared folder merely to bypass a feature boundary.
-- Keep generated route trees generated; regenerate rather than hand-editing them.
+- `apps/web/src/routes/` に TanStack Router のファイルベースルーティングを使う。route ファイルは薄く保ち、`beforeLoad`、`loader`、機能 components の配置 / 組み立てに留める。route ファイル内に機能 UI や業務ロジックを構築しない。
+- ブラウザ機能は `apps/web/src/features/<feature>/{api,components,hooks,lib,index.ts}` に置く。同じドメイン概念には API / shared と同じ機能名を使う。
+- 機能の `index.ts` は公開 components、hooks、型を明示的に export する。外部の利用者はその入口を経由して import し、内部ファイルは公開入口の循環を避けるため直接ローカル import を使う。
+- 機能は公開入口を含めて別の機能を直接 import してはならない。routes / 明示的な組み立て境界で協働を構成し、入力やコールバックを渡す。
+- 共有の表示プリミティブは `components/ui/`、再利用する技術コードは `lib/`、技術的 hooks は `hooks/` に置く。機能境界を回避するだけのために業務ロジックを共有フォルダーへ移動しない。
+- 生成ルートツリーは生成物のまま維持し、手編集ではなく再生成する。
 
-## Navigation and loading
+## ナビゲーションと読み込み
 
-- Validate path / search input before use. Keep shareable filters, sorting, pagination, and selected resources in typed URL state; keep transient dialogs / drafts local.
-- Reuse TanStack Query query options for route loaders / preloading and mounted feature hooks. The route imports a feature's public query interface instead of reaching into its `api/` implementation.
-- Declare pending, empty, error, and not-found behavior. Distinguish inaccessible resources from unhandled transport failures according to the public contract.
-- `beforeLoad` auth guards improve navigation only; every protected API operation still authorizes server-side. Avoid redirect loops and validate return destinations to prevent open redirects.
-- Components receive data through props and notify parents through callbacks. Keep query / route orchestration separate from presentation.
-- Render this SPA in the browser; do not introduce RSC boundaries, `use server`, or Server Actions.
+- path / search 入力を使用前に検証する。共有可能なフィルター、ソート、ページネーション、選択リソースは型付き URL 状態に置き、一時的なダイアログ / 下書きはローカルに保つ。
+- route loaders / preloading とマウントされた機能 hooks で TanStack Query の query options を再利用する。route は機能の公開 query インターフェースを import し、その `api/` 実装に直接触れない。
+- 待機、空、エラー、not-found 動作を宣言する。公開契約に従ってアクセスできないリソースと未処理の通信失敗を区別する。
+- `beforeLoad` の認証ガードはナビゲーションだけを改善する。保護された API 操作はすべてサーバーで引き続き認可する。リダイレクトループを避け、戻り先を検証してオープンリダイレクトを防ぐ。
+- components は props でデータを受け、コールバックで親に通知する。query / route の調整は表示から分離する。
+- この SPA はブラウザで描画する。RSC 境界、`use server`、Server Actions を導入しない。
 
-## Shared appearance / scenario locator contract
+## 外観 / シナリオの共有ロケーター契約
 
-This contract applies to both the appearance writer under `apps/web/src/` and the scenario writer under `e2e/`; both addresses are in this leaf's delivery metadata.
-Derive the interface independently from the glossary and fixed contract, without inspecting the other implementation.
+この契約は `apps/web/src/` の外観作成者と `e2e/` のシナリオ作成者の両方に適用する。両方の配置をこのリーフの配送メタデータに含める。
+相手の実装を調べず、用語集と固定契約から独立にインターフェースを導出する。
 
-| Preference | Appearance emits | Scenario uses |
+| 優先順位 | 外観が出力するもの | シナリオが使うもの |
 | --- | --- | --- |
-| First | Semantic control role and accessible name / label using the exact glossary term | `getByRole(role, { name })` or `getByLabel(text)` |
-| When semantic wording is ambiguous | Trigger: `data-testid="operation"`; input: `data-testid="operation.field"`, using the contract operation and request-field names | `getByTestId` with the same derived identifier |
+| 第一 | 正確な用語集の語を使う、意味的なコントロールの role とアクセシブルな name / label | `getByRole(role, { name })` または `getByLabel(text)` |
+| 意味的な文言が曖昧な場合 | 契約の操作名と request フィールド名で、トリガー: `data-testid="operation"`、入力: `data-testid="operation.field"` | 同じ導出済み識別子の `getByTestId` |
 
-Never derive locators from CSS, XPath, positional `nth()`, or incidental screen copy. If appearance disagrees with this contract, change appearance rather than teaching the scenario its implementation.
-Scenario execution and annotations belong to [system testing](system-testing.instructions.md).
+CSS、XPath、位置による `nth()`、偶然の画面文言からロケーターを導出してはならない。外観が契約と食い違うなら、シナリオに実装を教えるのではなく外観を変更する。
+シナリオ実行と注釈は[システムテスト](system-testing.instructions.md)の責任。
 
-Deep links and refresh depend on [Static Assets routing](platform-routing.instructions.md); remote state belongs to [data flow](frontend-dataflow.instructions.md).
+ディープリンクと更新は [Static Assets ルーティング](platform-routing.instructions.md)、リモート状態は[データフロー](frontend-dataflow.instructions.md)に依存する。

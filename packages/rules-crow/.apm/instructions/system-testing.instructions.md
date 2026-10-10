@@ -1,33 +1,33 @@
 ---
-description: "🎭 crow — the system suite (scenario tests that start a browser)"
+description: "🎭 crow — system スイート（ブラウザーを起動するシナリオテスト）"
 applyTo: "**/crow3_*/e2e/**,**/crow3_*/playwright.config.*"
 ---
 
-# 🎭 crow — the system suite (scenario tests that start a browser)
+# 🎭 crow — system スイート（ブラウザーを起動するシナリオテスト）
 
-> **Scope: crow (crow3) applications.** If it is not crow, discard this document.
+> **対象：crow（crow3）アプリケーション。** crow でなければこの文書は適用しません。
 >
-> **What a scenario test is, why there is one per use case, and when it runs are the develop process's**
-> (`docs.instructions.md` R-1106–R-1108, `references/playbook.md` *Test-run granularity*). This document holds only
-> **the wiring that makes those rules hold in a browser on crow**: the runner, the folder, the locator ladder, the
-> pending marker, the UC tag, the `@scenario` annotation. The default-suite rules are [common/testing.md](common-testing.instructions.md).
+> **シナリオテストとは何か、なぜユースケースごとに一つか、いつ実行するかは develop のプロセスが定義します**
+> （`docs.instructions.md` R-1106–R-1108、`references/playbook.md` *テスト実行の粒度*）。この文書は
+> **それらの規約を crow 上のブラウザーで成立させる接続**だけを扱います。ランナー、フォルダー、ロケーターの優先順位、
+> 未実装マーカー、UC タグ、`@scenario` アノテーションです。既定スイートの規約は [common/testing.md](common-testing.instructions.md) にあります。
 >
-> **Write test titles and comments in Japanese.**
+> **テストタイトルとコメントは日本語で書いてください。**
 
 ---
 
-## 1. Runner and folder
+## 1. ランナーとフォルダー
 
-- **Playwright** (`@playwright/test`), under `e2e/` at the crow application root, config `playwright.config.ts`. The PHP side is not involved: the suite drives the served pages from the outside, so the runner is the same as on any web app. The host declares the folder in `CLAUDE.md` and in `traceconfig.json` `tests.system.dirs` (`extensions: [".ts"]`).
-- **`e2e/` is not under `tests/`**, so PHPUnit's discovery never sees it, and `tests.system.dirs` stays disjoint from `tests.dirs` (C11 would otherwise report scenario tests as carrying no `@covers`).
-- **One command runs the whole suite** (`npx playwright test` from the application root), declared as `commands.system` in `traceconfig.json` when the host wants it in the terminal gate; CI runs it regardless. **The selection by UC** is `npx playwright test --grep "UC-012"`.
-- The suite drives the **real application** (the host's local server, seeded database, disposable accounts — declared in `CLAUDE.md`, never invented). A mocked backend belongs to the appearance, not here.
+- crow アプリケーションのルートの `e2e/` に **Playwright**（`@playwright/test`）を置き、設定は `playwright.config.ts` とします。PHP 側は関与しません。配信されたページを外から操作するため、ランナーは一般の Web アプリと同じです。利用先は `CLAUDE.md` と `traceconfig.json` の `tests.system.dirs`（`extensions: [".ts"]`）にフォルダーを宣言します。
+- **`e2e/` は `tests/` の配下に置きません**。PHPUnit の探索が拾わず、`tests.system.dirs` と `tests.dirs` の対象も分離できます（重なると C11 がシナリオテストを `@covers` なしとして報告します）。
+- **一つのコマンドでスイート全体を実行します**（アプリケーションルートから `npx playwright test`）。利用先が終端ゲートに含める場合、`traceconfig.json` の `commands.system` に宣言します。CI は宣言の有無によらず実行します。**UC による選択実行**は `npx playwright test --grep "UC-012"` です。
+- スイートは **実アプリケーション**を操作します（利用先のローカルサーバー、シード済み DB、使い捨てアカウント — `CLAUDE.md` に宣言し、推測で作らない）。モックしたバックエンドは外観作成用であり、ここでは使いません。
 
 ---
 
-## 2. Shape of a scenario test
+## 2. シナリオテストの形
 
-One file per use case, one `test` per file, titled with the UC ID and title. `// @scenario UC-nnn` sits on the line right above `test(`.
+ユースケースごとに一ファイル、ファイルごとに一つの `test` とし、タイトルに UC ID と名称を入れます。`test(` の直上に `// @scenario UC-nnn` を置きます。
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -42,42 +42,42 @@ test.fixme("UC-012 案件を登録する", async ({ page }) => {
 });
 ```
 
-- Each `await` line is one numbered step of `UC.md`'s `## 主シナリオ`; the final `expect` is its `成功時` post-condition. Nothing the scenario does not say.
-- **The pending marker is `test.fixme(...)`**; the FE-wiring implementer turns it into `test` and drives it green.
-- **No `@covers`**, **no `page.waitForTimeout`**.
-- A crow page that renders through view parts (`frontend-viewpart.md`) is still just DOM to the browser: the scenario never names a part, a section, or a class.
+- 各 `await` 行は `UC.md` の `## 主シナリオ` の番号付きの一手順、最後の `expect` は `成功時` の事後条件です。シナリオが述べていないことは追加しません。
+- **未実装マーカーは `test.fixme(...)`** です。FE 接続の implementer が `test` に変えて green にします。
+- **`@covers` は付けず**、**`page.waitForTimeout` は使いません**。
+- view part（`frontend-viewpart.md`）で描画する crow のページも、ブラウザーから見れば DOM です。シナリオに part 名、section 名、クラス名は書きません。
 
 ---
 
-## 3. The locator ladder (derived, never discovered)
+## 3. ロケーターの優先順位（探索せず導出する）
 
-| Rung | Locator | Derived from |
+| 優先順位 | ロケーター | 導出元 |
 | --- | --- | --- |
-| 1 | `getByRole(role, { name })`, `getByLabel(text)` | the **glossary term** (`docs/01-glossary.md`) — the term itself, never a synonym; the role from what the control is |
-| 2 | `getByTestId(id)` | the **contract**: the control that fires operation `renameUser` → `data-testid="renameUser"`; its request field `name` → `data-testid="renameUser.name"` |
-| never | CSS selectors, XPath, `nth()`, part or section names, text copied from the screen as an id | — |
+| 1 | `getByRole(role, { name })`、`getByLabel(text)` | **用語集の語**（`docs/01-glossary.md`）— 同義語でなくその語を使う。role は操作要素の種類から導出 |
+| 2 | `getByTestId(id)` | **契約**：operation `renameUser` を発火する操作要素 → `data-testid="renameUser"`。その request フィールド `name` → `data-testid="renameUser.name"` |
+| 使用禁止 | CSS セレクター、XPath、`nth()`、part 名や section 名、画面の文言をコピーした id | — |
 
-**If the appearance disagrees, the appearance moves** (ADR-0037); a scenario test is never edited to follow an implementation.
+**外観が一致しなければ、外観を修正します**（ADR-0037）。シナリオテストを実装に合わせて変更しません。
 
 ---
 
-## 4. Deterministic in a browser
+## 4. ブラウザーで決定的にする
 
-| Source of wobble | How to handle it |
+| 不安定さの原因 | 対処 |
 | --- | --- |
-| Shared accounts and leftover rows | a seeded fixture or disposable account per run, declared by the host; never depend on a previous test |
-| Server-rendered navigation | assert on the landed page's content, not on the URL alone |
-| Real time | freeze through the application's injection point where the scenario depends on it |
-| Retries | allowed in CI config; a scenario that needs one to pass is a finding |
+| 共有アカウントと残存行 | 利用先が宣言した、実行ごとのシード済み fixture または使い捨てアカウント。先行テストに依存しない |
+| サーバー描画による画面遷移 | URL だけでなく、遷移先ページの内容を検証する |
+| 実時刻 | シナリオが依存する場合はアプリケーションの注入点から固定する |
+| リトライ | CI 設定では許可する。通過にリトライを要するシナリオは指摘事項とする |
 
-Tests never depend on order; one `test` per file, never chained.
+テストは順序に依存しません。ファイルごとに一つの `test` とし、連鎖させません。
 
 ---
 
-## ✅ Checklist before returning
+## ✅ 返却前のチェックリスト
 
-- [ ] Exactly one `test` for the UC, titled `UC-nnn …`, `// @scenario UC-nnn` above it, `test.fixme` as the pending marker?
-- [ ] Every action a numbered step of `## 主シナリオ`, the last assertion its `成功時`?
-- [ ] Locators only rung 1 (glossary term) or rung 2 (operation / `operation.field`)?
-- [ ] `e2e/` outside PHPUnit's discovery, `tests.system.dirs` disjoint from `tests.dirs`?
-- [ ] Ran only this test (`--grep "UC-nnn"`) and `trace-check --only C15`?
+- [ ] UC の `test` はちょうど一つ、タイトルは `UC-nnn …`、直上に `// @scenario UC-nnn`、未実装マーカーは `test.fixme` か？
+- [ ] 各操作は `## 主シナリオ` の番号付き手順、最後のアサーションは `成功時` か？
+- [ ] ロケーターは優先順位 1（用語集の語）または 2（operation / `operation.field`）だけか？
+- [ ] `e2e/` は PHPUnit の探索対象外で、`tests.system.dirs` と `tests.dirs` が重複していないか？
+- [ ] このテストだけ（`--grep "UC-nnn"`）と `trace-check --only C15` を実行したか？

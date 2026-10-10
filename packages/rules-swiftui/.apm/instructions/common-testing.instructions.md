@@ -1,84 +1,84 @@
 ---
-description: "🧪 SwiftUI — common testing rules (all layers)"
+description: "🧪 SwiftUI — 共通のテスト規則（全レイヤー）"
 applyTo: "**/*Tests.swift,**/*Test.swift,**/*Tests/**,**/*Spec.swift"
 ---
 
-# 🧪 SwiftUI — common testing rules (all layers)
+# 🧪 SwiftUI — 共通のテスト規則（全レイヤー）
 
-> **Scope: native iOS apps using SwiftUI.** If it does not apply, discard it.
+> **適用範囲: SwiftUI を使うネイティブ iOS アプリ。** 該当しなければ破棄する。
 >
-> **The principles of testing (what to test and why) rest on develop's development process.**
-> One test = one behavior; include failure, empty, permission, and boundary in the conditions; mock only at the boundary;
-> make it deterministic; coverage is a signal, not a target — these are common to all development, so they are not restated here; follow them there.
+> **テストの原則（何を、なぜテストするか）は develop の開発プロセスに従う。**
+> 1 テスト = 1 振る舞い、条件に失敗・空・権限・境界を含める、モックは境界だけ、
+> 決定的にする、カバレッジは指標であって目標ではない。これらは開発全般で共通なので、ここでは再掲せず、そちらに従う。
 >
-> This document holds only **the wiring that makes those principles hold in SwiftUI iOS**.
-> **No frontend (View) unit-testing leaf is placed** (develop files no FE unit tests). The system suite — the one XCUITest scenario per use case that starts a simulator — is [system-testing.md](system-testing.instructions.md).
-> Notation is [common/coding.md](common-coding.instructions.md). Where the layers live is [frontend/dataflow.md](frontend-dataflow.instructions.md).
-> **Who runs the tests you wrote, and when** (never during a concurrent section; consolidated into one run on one simulator) is authoritative in
-> [test-execution.md](common-test-execution.instructions.md). This document covers **what to write and which suite it goes in**.
+> この文書が保持するのは、**その原則を SwiftUI iOS で成立させる配線**だけ。
+> **フロントエンド（View）のユニットテスト用の末端文書は置かない**（develop は FE ユニットテストを作成しない）。システムスイート、つまりシミュレーターを起動する UC ごとに 1 本の XCUITest シナリオは [system-testing.md](system-testing.instructions.md)。
+> 表記は [common/coding.md](common-coding.instructions.md)、レイヤーの配置は [frontend/dataflow.md](frontend-dataflow.instructions.md)。
+> **書いたテストを誰が、いつ実行するか**（並行区間では実行せず、1 つのシミュレーターで 1 回に集約）は
+> [test-execution.md](common-test-execution.instructions.md) が正本。この文書は**何を書き、どのスイートに置くか**を扱う。
 >
-> **Write test names and comments in Japanese.**
+> **テスト名とコメントは日本語で書く。**
 
 ---
 
-## 1. The runner is declared by the project
+## 1. ランナーはプロジェクトが宣言する
 
-**The harness never pins a specific test runner** (either XCTest or Swift Testing is fine).
-The choice, the configuration, and **the command that runs the default suite** are recorded in the host's `CLAUDE.md`.
+**harness は特定のテストランナーを固定しない**（XCTest、Swift Testing のどちらでもよい）。
+選択、設定、**既定スイートを実行するコマンド**はホストの `CLAUDE.md` に記録する。
 
-- **A single command must run the whole default suite, with the exit code deciding red or green**
-  (e.g. `xcodebuild test …`, or SPM's `swift test` — match the project's setup)
-- **If none is installed, installing it is the gate to starting.** Pushing implementation forward with no runner means
-  develop's Phase4 (the red-green loop driven by the machine oracle) does not hold
+- **単一のコマンドで既定スイート全体を実行でき、終了コードで Red / Green を判断できること**
+  （`xcodebuild test …`、SPM の `swift test` など、プロジェクトの構成に合わせる）
+- **未導入なら、導入が開始のゲート。** ランナーなしで実装を進めると、
+  develop の Phase4（機械 oracle による Red-Green ループ）が成立しない
 
 ---
 
-## 2. Calling an operation from a test (operation → entry)
+## 2. テストから操作を呼ぶ（operation → 入口）
 
-A contract-conformance test calls the operation **by the entry the contract implies**, never by a symbol it learned from the implementation.
-`test-author` and `implementer` each derive the entry from `contract.yaml` and the table below — never from each other
-(the tests may exist before the implementation, and the other way round). The layers are those of [frontend/dataflow.md](frontend-dataflow.instructions.md).
+契約適合テストは、実装から知ったシンボルではなく、**契約が示す入口**で操作を呼ぶ。
+`test-author` と `implementer` はそれぞれ `contract.yaml` と下表から入口を導出し、互いからは導出しない
+（実装より先にテストが存在することも、その逆もある）。レイヤーは [frontend/dataflow.md](frontend-dataflow.instructions.md) に従う。
 
-| Contract (`contract.yaml`) | Type the test constructs | Entry it calls |
+| 契約（`contract.yaml`） | テストが構築する型 | 呼ぶ入口 |
 | --- | --- | --- |
-| `transport: http` / `sdk` / `local-store` / `device` (outbound), operation `fetchUser` | the Domain `UseCase` named **`<Operation>UseCase`** (`FetchUserUseCase`), built with a fake of its Repository protocol | `execute(...)` with the arguments `examples.*.request` names; the Repository fake returns `examples.*.response` or throws the `errors[].code` |
-| `transport: deeplink` / `push` (inbound), operation `openItem` | the same `<Operation>UseCase` (`OpenItemUseCase`) — the Router / app delegate only forwards to it | `execute(...)` with the decoded payload; the payload decoding is verified separately in Data |
-| any operation, through the host's `commands.contract_adapter` (`traceconfig.json`) | none — the test drives the adapter in-process by operation name and example; no implementation symbol appears in test code | — |
+| `transport: http` / `sdk` / `local-store` / `device`（outbound）、operation `fetchUser` | **`<Operation>UseCase`**（`FetchUserUseCase`）という名前の Domain の `UseCase`。Repository protocol の fake で構築する | `examples.*.request` にある引数で `execute(...)` を呼ぶ。Repository の fake は `examples.*.response` を返すか、`errors[].code` を throw する |
+| `transport: deeplink` / `push`（inbound）、operation `openItem` | 同じ `<Operation>UseCase`（`OpenItemUseCase`）。Router / app delegate はそこへ転送するだけ | デコード済みのペイロードで `execute(...)` を呼ぶ。ペイロードのデコードは Data で別途検証する |
+| 任意の operation をホストの `commands.contract_adapter`（`traceconfig.json`）経由で呼ぶ | なし。テストは operation 名と例でアダプターを同一プロセス内で駆動し、テストコードに実装シンボルを出さない | — |
 
-If the implementation put the entry elsewhere, the implementation moves — tests are derived from the contract (R-801).
+実装が入口を別の場所に置いたなら、実装を移す。テストは契約から導出する（R-801）。
 
 ---
 
-## 3. Scoped execution (the UC tag) and requirement coverage (`@covers`)
+## 3. 範囲を絞った実行（UC タグ）と要求の網羅（`@covers`）
 
-In every test, make the outermost group's name read
+すべてのテストで、最外側のグループ名を
 
 `UC-012 <UC title>`
 
-so it can be selected mechanically by the UC ID (the same key as the UC directory name under `docs/goals/`).
+とし、UC ID（`docs/goals/` 配下の UC ディレクトリ名と同じキー）で機械的に選択できるようにする。
 
-- With Swift Testing use `@Suite("UC-012 …")`; with XCTest include `UC-012` in the outermost class name or the name
-- **Every test names exactly one declared partition class** with `// @covers REQ-045#class` as the first line of its body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
-- Write the concrete selection command, matched to the runner, in `CLAUDE.md`
-- **When to run a selection vs the whole default suite is authoritative in the develop skill's `references/playbook.md`, section *Test-run granularity*.** This leaf defines only how to stamp and select by UC ID
-- **Never let a new test go untagged** (when to run the selection is in [test-execution.md](common-test-execution.instructions.md) and the develop skill's *Test-run granularity* section)
+- Swift Testing は `@Suite("UC-012 …")` を使う。XCTest は最外側のクラス名または名前に `UC-012` を含める
+- **各テストは宣言済みの分割クラスを正確に 1 つ指定する。** 本体の先頭行に `// @covers REQ-045#class` を置く（`trace-check` C10 / C11 が読む。先に REQ の `## 検証方針` でクラスを宣言する）
+- ランナーに合った具体的な選択コマンドを `CLAUDE.md` に書く
+- **選択実行と既定スイート全体をいつ実行するかの正本は、develop skill の `references/playbook.md` の「テスト実行の粒度」節。** この末端文書は UC ID によるタグ付けと選択方法だけを定義する
+- **新しいテストをタグなしにしない**（選択実行の時機は [test-execution.md](common-test-execution.instructions.md) と develop skill の「テスト実行の粒度」節）
 
 ---
 
-## 4. The machine oracle's main arena is the Domain (the UseCase)
+## 4. 機械 oracle の主戦場は Domain（UseCase）
 
-On this stack, the center of the deterministically drivable red-green loop is the **UseCase** (and a thin ViewModel where needed).
+このスタックで決定的に駆動できる Red-Green ループの中心は **UseCase**（必要に応じて薄い ViewModel）。
 
-| Priority | Target | How |
+| 優先度 | 対象 | 方法 |
 | --- | --- | --- |
-| Primary | **UseCase** | Inject a **fake of the protocol** for the Repository. Exercise success, failure, empty, permission, and boundary |
-| Next | **ViewModel** | Inject a fake UseCase and verify only the screen state and the Router calls |
-| Separate suite | **XCUITest scenario** (one per UC) | Presupposes a simulator: the system suite, never the default one — [system-testing.md](system-testing.instructions.md). View snapshots are not filed |
+| 主 | **UseCase** | Repository の **protocol の fake** を注入する。成功・失敗・空・権限・境界を試す |
+| 次 | **ViewModel** | fake の UseCase を注入し、画面状態と Router の呼び出しだけを検証する |
+| 別スイート | **XCUITest シナリオ**（UC ごとに 1 本） | シミュレーターが前提なので、既定ではなくシステムスイート。[system-testing.md](system-testing.instructions.md)。View のスナップショットは作成しない |
 
-- **Mock only at the boundary** (the Repository, the clock, randomness, and so on). Never mock a whole Domain Entity
-- Never let a Data-layer `URLSession` implementation hit the real network in the default suite.
-  To exercise the HTTP layer, close it off with a fake `URLProtocol` or similar; if that still needs an external environment started, it goes to the integration suite
-- When examining a Router in a ViewModel test, use a fake or a spy that can observe the path change or the call
+- **モックは境界だけ**（Repository、時計、乱数など）。Domain Entity 全体をモックしない
+- 既定スイートで Data レイヤーの `URLSession` 実装を実ネットワークにつながない。
+  HTTP レイヤーを試すなら fake の `URLProtocol` などで閉じる。それでも外部環境の起動が必要なら統合スイートに置く
+- ViewModel のテストで Router を調べるときは、path の変更または呼び出しを観測できる fake / spy を使う
 
 ```swift
 @Test("UC-012 ログイン — 成功するとセッションが立つ")
@@ -93,53 +93,53 @@ func loginSucceeds() async throws {
 
 ---
 
-## 5. Make it deterministic (what wobbles on iOS)
+## 5. 決定的にする（iOS で揺らぐもの）
 
-| Source of wobble | How to handle it |
+| 揺らぎの原因 | 対処 |
 | --- | --- |
-| The real network / the real keychain / the real disk | never used in the default suite. Fake the boundary |
-| Real time and timers | inject and pin them, or control them from the test |
-| Waiting with a real-time `sleep` / `Task.sleep` | **never use it.** It flakes under CI load |
-| Animations and transition animations | never wait for completion. Never make them the thing under verification |
-| MainActor | respect `@MainActor` when testing a ViewModel (align the test function's annotation and the execution means) |
+| 実ネットワーク / 実キーチェーン / 実ディスク | 既定スイートでは使わない。境界を fake にする |
+| 実時間とタイマー | 注入して固定するか、テストから制御する |
+| 実時間の `sleep` / `Task.sleep` による待機 | **使わない。** CI の負荷で不安定になる |
+| アニメーションと遷移アニメーション | 完了を待たない。検証対象にしない |
+| MainActor | ViewModel のテストでは `@MainActor` を尊重する（テスト関数のアノテーションと実行方法を揃える） |
 
-Tests **never depend on order.** If you modified a shared mutable global or a singleton, always restore it.
-A test that depends on `.shared` is a signal the design has already dissolved ([frontend/dataflow.md](frontend-dataflow.instructions.md)).
+テストは**順序に依存しない。** 共有された可変グローバルや singleton を変更したら、必ず元に戻す。
+`.shared` に依存するテストは、設計が既に崩れている兆候（[frontend/dataflow.md](frontend-dataflow.instructions.md)）。
 
 ---
 
-## 6. Split suites by what execution requires
+## 6. 実行に必要なものによってスイートを分ける
 
-Rather than picking test-level names (unit / integration / system) first and classifying by them,
-split by **what has to be started for that test to run**.
+unit / integration / system というテストレベル名を先に決めて分類するのではなく、
+**そのテストを実行するために何を起動する必要があるか**で分ける。
 
-| Suite | The criterion (this alone decides it) | Location (the default example) | How often it runs |
+| スイート | 基準（これだけで決まる） | 配置（既定例） | 実行頻度 |
 | --- | --- | --- | --- |
-| **Default** (unit) | starts neither a simulator nor a real API (mocks only at the boundary) | mirroring the target, `Tests/`, and so on | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
-| **Integration** | **connects to a real API or a real service** | `Tests/Integration/`, and so on | at a boundary only |
-| **System** | **starts a simulator or a real device** (XCUITest) | `UITests/` (a separate test target) | the scenario tests (one per UC); the selection by UC class in the FE-wiring round, whole once at the boundary (terminal list where `commands.system` is declared, CI) — [system-testing.md](system-testing.instructions.md) |
+| **既定**（unit） | シミュレーターも実 API も起動しない（モックは境界のみ） | 対象と対応する配置、`Tests/` など | Red-Green ループが取り出すスイート（ラウンド中は選択、境界で全体実行。develop skill の `references/playbook.md` の「テスト実行の粒度」節） |
+| **統合** | **実 API または実サービスに接続する** | `Tests/Integration/` など | 境界のみ |
+| **システム** | **シミュレーターまたは実機を起動する**（XCUITest） | `UITests/`（別テストターゲット） | シナリオテスト（UC ごとに 1 本）。FE 配線ラウンドでは UC クラスで選択し、境界で全体を 1 回（`commands.system` を宣言した場合の終端リスト、CI）。[system-testing.md](system-testing.instructions.md) |
 
-- **Separate by folder (or a separate test target).** Relying on names alone lets things leak into the default suite
-- **Exclude the integration and system locations from the default suite's discovery**
-- **The default suite must go green on a machine with neither a simulator nor a server available.**
-  "Starts nothing" here means **the test itself does not start UI, a real device, or a real service**; it does not forbid
-  a setup where the runner requires a simulator destination (an app target's `xcodebuild test`).
-  How runs are driven in that setup is [test-execution.md](common-test-execution.instructions.md)
-- **The system suite holds exactly the scenario tests** (`docs.instructions.md` R-1106–R-1108). How to write them is [system-testing.md](system-testing.instructions.md); this document defines only **the location and "never mix it into the default suite"**
+- **フォルダー（または別テストターゲット）で分ける。** 名前だけに頼ると既定スイートに漏れ込む
+- **統合とシステムの配置を既定スイートの探索対象から除外する**
+- **シミュレーターもサーバーも利用できないマシンで、既定スイートが Green になること。**
+  ここで「何も起動しない」は、**テスト自体が UI、実機、実サービスを起動しない**という意味。
+  ランナーがシミュレーターの destination を要求する構成（アプリターゲットの `xcodebuild test`）を禁止するものではない。
+  その構成での実行の進め方は [test-execution.md](common-test-execution.instructions.md)
+- **システムスイートに置くのはシナリオテストだけ**（`docs.instructions.md` R-1106–R-1108）。書き方は [system-testing.md](system-testing.instructions.md)。この文書は**配置と「既定スイートに混ぜないこと」**だけを定義する
 
-### Contract-conformance and UseCase tests belong to the default suite
+### 契約適合テストと UseCase テストは既定スイートに置く
 
-A UseCase or contract-conformance test that starts no external environment is **not an integration test**.
-**It must never be moved into integration or UITests.** The moment it leaves the red-green loop, there is no means left of catching an integration defect in Phase4.
+外部環境を起動しない UseCase または契約適合テストは**統合テストではない。**
+**統合スイートや UITests に移してはならない。** Red-Green ループから外れた瞬間に、Phase4 で統合上の欠陥を検出する手段がなくなる。
 
 ---
 
-## ✅ Checklist before returning
+## ✅ 返却前チェックリスト
 
-- [ ] Is the command that runs the default suite in `CLAUDE.md`, with red/green readable from the exit code?
-- [ ] Does the outermost group carry `UC-nnn`, and every test a `@covers REQ-nnn#class`?
-- [ ] Is the main assertion on the UseCase (or a thin ViewModel) rather than escaping into a View/UI test?
-- [ ] Does mocking stay at boundaries such as the Repository?
-- [ ] Do the default suite's tests themselves avoid starting the real network, a real device, or UI? (the runner's destination requirement is a separate matter)
-- [ ] Did you put in real-time waits or waits for animation completion?
-- [ ] Are integration and system out of the default suite's discovery path?
+- [ ] 既定スイートの実行コマンドが `CLAUDE.md` にあり、終了コードで Red / Green を読めるか？
+- [ ] 最外側のグループに `UC-nnn`、各テストに `@covers REQ-nnn#class` があるか？
+- [ ] 主な検証は UseCase（または薄い ViewModel）に置き、View / UI テストへ逃がしていないか？
+- [ ] モックは Repository などの境界に留まっているか？
+- [ ] 既定スイートのテスト自体が実ネットワーク、実機、UI を起動しないか？（ランナーの destination 要件は別問題）
+- [ ] 実時間の待機やアニメーション完了待ちを入れていないか？
+- [ ] 統合とシステムを既定スイートの探索パスから外しているか？

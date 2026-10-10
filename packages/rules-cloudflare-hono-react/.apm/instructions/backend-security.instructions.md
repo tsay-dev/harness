@@ -1,27 +1,27 @@
 ---
-description: "Hono / Workers — session, CSRF, authorization, and WebSocket security boundaries"
+description: "Hono / Workers — セッション、CSRF、認可、WebSocket のセキュリティ境界"
 applyTo: "apps/api/src/**,apps/web/src/lib/api-client.ts,apps/web/src/features/auth/**,**/tests/backend/**,**/tests/integration/**"
 ---
 
-# Hono / Workers — security
+# Hono / Workers — セキュリティ
 
-Apply at authenticated / untrusted boundaries described in [backend coding](backend-coding.instructions.md). Same-origin deployment is not a substitute for security checks.
+[バックエンドコーディング](backend-coding.instructions.md)が説明する認証 / 未信頼境界に適用する。同一オリジンのデプロイはセキュリティ検査を代替しない。
 
-## Sessions and HTTP
+## セッションと HTTP
 
-- Prefer server-managed sessions carried by cookies with `HttpOnly`, `Secure` in HTTPS environments, and a deliberate `SameSite` policy. Scope path / domain narrowly; use a host-only cookie where possible.
-- Rotate session identifiers at authentication transitions, enforce expiry and revocation server-side, and invalidate the session on logout. Do not place session credentials in browser local storage or URLs.
-- For cookie-authenticated unsafe requests, verify `Origin` against the configured public origin and implement the host's CSRF token / trusted-source policy where needed. Reject unexpected or absent origins unless the contract defines a separate authenticated non-browser flow. Never treat CORS or `SameSite` alone as the whole CSRF defense.
-- Keep GET / HEAD safe. Handle login CSRF and logout transitions deliberately; do not defer all checking until after an expensive operation.
-- Authenticate at the entry, then authorize the resource / tenant / action at the use case. A guessed ID or authenticated user is not authorization. Never trust an input owner / tenant field as the actor identity.
-- Apply payload limits and appropriate rate limits before expensive parsing or writes. Do not log credentials or return security-sensitive details in errors.
+- サーバー管理セッションを cookie で運ぶ方法を優先し、`HttpOnly`、HTTPS 環境の `Secure`、意図した `SameSite` 方針を使う。path / domain の範囲を狭め、可能ならホスト限定 cookie を使う。
+- 認証の遷移時にセッション識別子を更新し、期限と失効をサーバーで保証し、ログアウトでセッションを無効化する。セッション資格情報をブラウザのローカルストレージや URL に置かない。
+- cookie 認証の安全でないリクエストでは、設定済み公開オリジンに対して `Origin` を検証し、必要に応じて利用プロジェクトの CSRF トークン / 信頼送信元方針を実装する。契約に別の認証済み非ブラウザフローがない限り、予期しない、または欠落した origin を拒否する。CORS や `SameSite` だけを CSRF 対策の全体として扱ってはならない。
+- GET / HEAD を安全に保つ。ログイン CSRF とログアウト遷移を意図的に扱い、すべての確認を高コスト処理の後に延期しない。
+- 入口で認証し、ユースケースでリソース / テナント / 操作を認可する。推測した ID や認証済みユーザーは認可を意味しない。入力の owner / tenant フィールドを主体の識別情報として信頼してはならない。
+- 高コストの解析や書き込みの前にペイロード上限と適切なレート制限を適用する。資格情報をログに記録したり、エラーでセキュリティ上機微な詳細を返したりしない。
 
 ## WebSockets
 
-- Authenticate the upgrade and verify the browser `Origin` against the configured public origin. Define separate authentication rules for supported non-browser clients; missing origin is not automatic trust.
-- Authorize the target before selecting / forwarding to a Durable Object. Use a trusted internal path for actor identity; never accept an arbitrary client-supplied actor header as verified identity.
-- Recheck operation-level authorization for messages. Enforce session expiry / revocation and membership changes during long-lived connections, with a declared maximum revalidation delay and disconnection behavior.
-- Do not place long-lived credentials in query strings. Validate each frame's schema, size, and supported operation before dispatch; bound message rates and outbound queues.
-- A private Object ID or stub does not authenticate the caller. Ensure all externally reachable paths enforce the same boundary.
+- upgrade を認証し、ブラウザの `Origin` を設定済み公開オリジンに照合する。対応する非ブラウザクライアントには別の認証規則を定義する。origin の欠落は自動的な信頼ではない。
+- Durable Object を選択 / 転送する前に対象を認可する。主体識別には信頼できる内部経路を使い、クライアントが任意に指定した actor ヘッダーを検証済み識別情報として受け入れてはならない。
+- メッセージごとに操作レベルの認可を再確認する。長寿命接続中のセッション期限 / 失効と所属変更を保証し、再検証の最大遅延と切断動作を宣言する。
+- 長寿命の資格情報をクエリ文字列に置かない。配送前に各フレームのスキーマ、サイズ、対応する操作を検証する。メッセージ頻度と送信キューに上限を設ける。
+- 非公開の Object ID や stub は呼び出し元を認証しない。外部から到達可能なすべての経路が同じ境界を保証するようにする。
 
-For connection lifetime / resumption read [realtime](backend-realtime.instructions.md); for cache isolation read [frontend data flow](frontend-dataflow.instructions.md); for uploads read [storage](backend-storage.instructions.md).
+接続寿命 / 再開は[リアルタイム](backend-realtime.instructions.md)、キャッシュ分離は[フロントエンドのデータフロー](frontend-dataflow.instructions.md)、アップロードは[ストレージ](backend-storage.instructions.md)を読む。

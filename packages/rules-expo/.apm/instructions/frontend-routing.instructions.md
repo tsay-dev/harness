@@ -1,64 +1,64 @@
 ---
-description: "🧭 Expo / frontend — routing (expo-router)"
+description: "🧭 Expo / frontend — ルーティング（expo-router）"
 applyTo: "**/*.tsx,**/*.ts,**/app.json,**/app.config.*,**/eas.json"
 ---
 
-# 🧭 Expo / frontend — routing (expo-router)
+# 🧭 Expo / frontend — ルーティング（expo-router）
 
-> **Scope: React Native apps on Expo (expo-router).** If it is not Expo, treat this document as inapplicable and discard it.
+> **対象: Expo（expo-router）の React Native アプリ。** Expo でなければ適用外として扱い、破棄する。
 >
-> The common notation rules are [common/coding.md](common-coding.instructions.md); the surface rules are [coding.md](frontend-coding.instructions.md).
-> This document defines only **where screens live and how navigation works**. How state is held is [dataflow.md](frontend-dataflow.instructions.md).
+> 共通の記法規約は [common/coding.md](common-coding.instructions.md)、表層の規約は [coding.md](frontend-coding.instructions.md) にある。
+> この文書は **画面の場所と遷移の仕組み**だけを定義する。状態の保持は [dataflow.md](frontend-dataflow.instructions.md) にある。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Defining the goal (what expo-router can and cannot do)
+## 0. 目的の定義（expo-router ができること、できないこと）
 
-In expo-router, **the file layout is the routing spec itself**.
-There is no router configuration object, no navigation table, no registration step.
+expo-router では **ファイル配置そのものがルーティング仕様**である。
+router 設定 object、遷移表、登録手順はない。
 
-In exchange, **in-app navigation and direct entry from a URL or a deep link take the same route.**
-That is, **every screen can be opened out of nowhere, without passing through the previous screen.**
-A screen premised on "a value the previous screen passed" will always break on that route.
+その代わり、**アプリ内遷移と URL / deep link からの直接入場は同じルートを通る**。
+つまり **すべての画面は前の画面を経由せず、いきなり開かれ得る**。
+「前の画面から渡された値」を前提にする画面は、その経路で必ず壊れる。
 
-**This document's job is to enforce the file-layout conventions and to keep the "opened out of nowhere" premise intact.**
-
----
-
-## 1. A file placed under `app/` becomes a route, whatever you intended
-
-Never put components, hooks, constants, or type definitions in `app/`. **The moment you do, a reachable screen appears.**
-Anything that is not a screen goes outside `app/` (`components/`, `hooks/`, and so on; the location follows the project's `CLAUDE.md`).
-
-**A route file requires `export default`.**
-This is **the one exception** to "do not use default exports" in [common/coding.md](common-coding.instructions.md).
-With a named export the framework cannot resolve the route and **the screen goes blank** (the build still passes).
+**この文書の役割は、ファイル配置規約を守らせ、「いきなり開かれる」前提を維持することである。**
 
 ---
 
-## 2. The file name is the spec
+## 1. `app/` 配下に置いたファイルは、意図に関係なくルートになる
 
-| Name | Meaning |
+`app/` にコンポーネント、hook、定数、型定義を置かない。**置いた瞬間、到達可能な画面が現れる。**
+画面以外は `app/` の外に置く（`components/`、`hooks/` など。場所はプロジェクトの `CLAUDE.md` に従う）。
+
+**route ファイルは `export default` を要求する。**
+これは [common/coding.md](common-coding.instructions.md) の「default export を使わない」の **唯一の例外**である。
+named export ではフレームワークがルートを解決できず、**画面が空白になる**（build は通る）。
+
+---
+
+## 2. ファイル名が仕様
+
+| 名前 | 意味 |
 | --- | --- |
-| `_layout.tsx` | the shared layout and navigator for that directory and below |
-| `(group)` | grouping that does not appear in the URL (bundling tabs, auth states, and so on) |
-| `[id]` | a dynamic segment |
+| `_layout.tsx` | そのディレクトリ以下の共有 layout と navigator |
+| `(group)` | URL に現れないグループ化（tab、認証状態などを束ねる）|
+| `[id]` | 動的 segment |
 | `[...rest]` | catch-all |
-| `+not-found.tsx` | the catcher for undefined paths |
-| `index.tsx` | that directory's own path |
+| `+not-found.tsx` | 未定義 path を受け止める場所 |
+| `index.tsx` | そのディレクトリ自身の path |
 
-**Never cut into these conventions with procedural code.** Building a "pseudo-route" that branches inside one file
-to show several screens makes those states unreachable from the URL, and the file structure stops being the spec.
-Two screens means two files.
+**手続き的なコードでこの規約へ割り込まない。** 1 ファイル内で分岐して複数画面を表示する
+「疑似 route」を作ると、その状態に URL から到達できず、ファイル構造が仕様ではなくなる。
+2 画面なら 2 ファイルである。
 
 ---
 
-## 3. params are strings, not your types
+## 3. params は文字列であり、あなたの型ではない
 
-What `useLocalSearchParams()` returns is **`string | string[] | undefined`**.
-Numbers, booleans, dates, and JSON must **always be parsed, with the failure handled.**
+`useLocalSearchParams()` が返すのは **`string | string[] | undefined`**。
+数値、boolean、日付、JSON は **必ず parse し、失敗を扱う**。
 
 ```tsx
 //  NG: 型を騙しているだけ。不正な値でそのまま下流へ流れる
@@ -70,27 +70,27 @@ const id = Number(rawId);
 if (Number.isNaN(id)) return <NotFound />;
 ```
 
-Being opened with an invalid `id` is **not an exceptional case but a reachable state** (URLs are editable).
-[common/coding.md](common-coding.instructions.md)'s "never weaken types to get to green" binds here.
+不正な `id` で開かれることは **例外ではなく到達可能な状態**である（URL は編集できる）。
+[common/coding.md](common-coding.instructions.md) の「成功させるために型を弱めない」がここにも適用される。
 
-**The default is `useLocalSearchParams`.** `useGlobalSearchParams` returns the params of the currently focused route, so
-**it re-renders wherever in the app you navigate**. Use it only when you can explain why.
-
----
-
-## 4. Never stuff an object into params
-
-params are serialized onto the URL. **A screen premised on "JSON passed from the previous screen"
-will always break on a deep link and on the restore route.**
-
-**Pass only the id and pull the substance from the cache layer** ([dataflow.md](frontend-dataflow.instructions.md)).
-"I already have it in hand, so passing it is faster" does not hold once a cache layer exists.
+**既定は `useLocalSearchParams`。** `useGlobalSearchParams` は現在 focus 中の route の params を返すため、
+**アプリ内のどこへ遷移しても再 render する**。理由を説明できるときだけ使う。
 
 ---
 
-## 5. Navigation
+## 4. params にオブジェクトを詰め込まない
 
-**The default is `<Link>`'s declarative form.**
+params は URL にシリアル化される。**「前の画面から渡された JSON」を前提にする画面は、
+deep link と復元経路で必ず壊れる。**
+
+**id だけを渡し、本体は cache 層から取得する**（[dataflow.md](frontend-dataflow.instructions.md)）。
+cache 層があれば「既に手元にあるので渡す方が速い」は成立しない。
+
+---
+
+## 5. 遷移
+
+**既定は `<Link>` の宣言的な形。**
 
 ```tsx
 //  NG: エスケープ漏れが起き、typed routes の恩恵も消える
@@ -100,32 +100,32 @@ will always break on a deep link and on the restore route.**
 <Link href={{ pathname: '/user/[id]', params: { id, tab } }} />
 ```
 
-Imperative `router.push` / `router.replace` is called **only from an event handler or the logic side**
-(never during render).
+命令的な `router.push` / `router.replace` は **event handler またはロジック側からだけ**呼ぶ
+（render 中には呼ばない）。
 
-**Guard `router.back()` with `router.canGoBack()`.**
-When the screen was entered directly via a deep link there is nothing on the stack to go back to, and
-it breaks as "the close button does nothing". State explicitly where to go when you cannot go back (home, and so on).
-
----
-
-## 6. One place for providers: the root `_layout.tsx`
-
-Providers shared across the whole app (the query client, safe area, theme, auth state) go
-**only in the topmost `_layout.tsx`.**
-
-Creating a provider per screen **fractures the cache and the insets per screen**, breaking in the hard-to-trace forms
-**"the value differs when you go back" and "the padding shifts per screen"**.
+**`router.back()` を `router.canGoBack()` で guard する。**
+deep link で直接入った画面では、stack に戻る先がなく、
+「閉じる button が何もしない」として壊れる。戻れないときの遷移先（home など）を明示する。
 
 ---
 
-## ✅ Checklist before returning
+## 6. provider の場所は 1 つ: 根の `_layout.tsx`
 
-- [ ] Have you put non-screen files inside `app/`?
-- [ ] Does the route file use `export default`?
-- [ ] Are you branching inside one file to show several screens?
-- [ ] Did you parse the params and decide the display for invalid values?
-- [ ] Are you passing only the id rather than stuffing an object into params?
-- [ ] Are you building `href` by string concatenation?
-- [ ] Did you guard `router.back()` with `canGoBack()`?
-- [ ] Are you creating providers per screen?
+アプリ全体で共有する provider（query client、safe area、theme、認証状態）は
+**最上位の `_layout.tsx` だけに置く**。
+
+画面ごとに provider を作ると **cache と inset が画面ごとに分断され**、追跡しにくい
+**「戻ると値が違う」「画面ごとに余白がずれる」**として壊れる。
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] `app/` 内に画面以外のファイルを置いていないか？
+- [ ] route ファイルが `export default` を使っているか？
+- [ ] 1 ファイル内で分岐して複数画面を表示していないか？
+- [ ] params を parse し、不正値時の表示を決めたか？
+- [ ] params にオブジェクトを詰め込まず、id だけを渡しているか？
+- [ ] 文字列連結で `href` を組み立てていないか？
+- [ ] `router.back()` を `canGoBack()` で guard したか？
+- [ ] 画面ごとに provider を作っていないか？

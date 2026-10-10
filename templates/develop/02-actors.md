@@ -1,13 +1,13 @@
 ---
 id: ACTORS
-status: draft          # draft | living (the orchestrator marks it living on human approval)
+status: draft          # draft | living（人間承認後に orchestrator が living にする）
 ---
 
 # アクター
 
 ## アクター一覧（この表は閉じている）
 
-<!-- Enumerate system actors too (batch jobs, webhooks, schedulers). Everything downstream relies on this set being closed. -->
+<!-- システムアクター（バッチジョブ、webhooks、スケジューラー）も列挙する。下流のすべてはこの集合が閉じていることを前提にする。 -->
 
 | ID | アクター | 種別 | 説明 |
 | --- | --- | --- | --- |
@@ -16,4 +16,4 @@ status: draft          # draft | living (the orchestrator marks it living on hum
 ゴールの定義は `docs/goals/<GOAL-nn-slug>/GOAL.md`（1 ゴール 1 ディレクトリ / R-1006）。
 未着手ゴールは `docs/goals-backlog.md`（R-1008）。
 
-<!-- Write the content in Japanese. -->
+<!-- 本文は日本語で書く。 -->

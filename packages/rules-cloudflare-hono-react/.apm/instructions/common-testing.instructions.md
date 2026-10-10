@@ -1,47 +1,47 @@
 ---
-description: "Cloudflare / Hono / React — test suites, contract entry mapping, and develop wiring"
+description: "Cloudflare / Hono / React — テストスイート、契約入口の対応付け、develop の接続"
 applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,**/tests/**,**/e2e/**,**/vitest.config.*,**/playwright.config.*,apps/api/src/index.ts,apps/api/src/features/**/*.routes.ts"
 ---
 
-# Cloudflare / Hono / React — test wiring
+# Cloudflare / Hono / React — テストの接続
 
-This package specializes the `develop-core` testing process, not its gates or producer / judge responsibilities.
-Follow [common coding](common-coding.instructions.md); backend cases are in [backend testing](backend-testing.instructions.md), browser scenarios in [system testing](system-testing.instructions.md).
-No frontend unit-testing leaf is supplied: develop does not file frontend unit tests.
+このパッケージは `develop-core` のテスト手順を具体化し、ゲートや作成者 / 判定者の責任は変更しない。
+[共通コーディング](common-coding.instructions.md)に従う。バックエンドケースは[バックエンドテスト](backend-testing.instructions.md)、ブラウザシナリオは[システムテスト](system-testing.instructions.md)にある。
+フロントエンド単体テストのリーフは提供しない。develop はフロントエンド単体テストを作成しない。
 
-## Suites and commands
+## スイートとコマンド
 
-| Suite | Runtime and boundary | Default address |
+| スイート | ランタイムと境界 | 既定の配置 |
 | --- | --- | --- |
-| Default | Vitest, pure business functions / services / Hono HTTP with injected boundary fakes; no live bindings or browser | `tests/backend/` or colocated `*.test.ts` |
-| Integration | Cloudflare Workers Vitest integration running in workerd with local D1 / DO / R2 bindings; no production resources | `tests/integration/` |
-| System | Playwright against the real SPA + Worker scenario environment | `e2e/` |
+| 既定 | Vitest、純粋な業務関数 / services / 境界フェイクを注入した Hono HTTP。実バインディングやブラウザなし | `tests/backend/` または同じ場所の `*.test.ts` |
+| 統合 | ローカル D1 / DO / R2 バインディングを備えた workerd 上の Cloudflare Workers Vitest 統合。本番リソースなし | `tests/integration/` |
+| システム | 実際の SPA + Worker シナリオ環境に対する Playwright | `e2e/` |
 
-- Separate suite discovery by folder / runner configuration. Exclude integration and system addresses from the default suite; default tests pass without starting workerd, a database, or a browser.
-- Record full and UC-filtered commands in host guidance; declare `commands.test` and, when used by the terminal gate, `commands.system` in `traceconfig.json`. Record the separate integration command and run it at relevant boundaries / CI.
-- Use the Cloudflare-supported Vitest integration compatible with the pinned toolchain. A Node mock of a binding is not a workerd integration check.
-- Use the declared commands; do not invent a contract adapter command. `commands.contract_adapter` is an explicit host capability, not automatically provided by Hono RPC.
-- Changes in directory layout require the host delivery mapping in [common coding](common-coding.instructions.md) and matching `traceconfig.json` test discovery.
+- フォルダー / ランナー設定でスイート探索を分離する。統合とシステムの配置を既定スイートから除外し、既定テストは workerd、DB、ブラウザを起動せずに成功するようにする。
+- 全体と UC 絞り込みのコマンドを利用プロジェクトのガイドに記録する。`traceconfig.json` に `commands.test` と、最終ゲートで使う場合は `commands.system` を宣言する。独立した統合コマンドを記録し、関連する境界 / CI で実行する。
+- 固定したツールチェーンに適合する Cloudflare 対応 Vitest 統合を使う。バインディングの Node モックは workerd 統合確認ではない。
+- 宣言済みコマンドを使い、契約アダプターのコマンドを創作しない。`commands.contract_adapter` は利用プロジェクトの明示的な機能であり、Hono RPC が自動で提供するものではない。
+- ディレクトリ構成変更には[共通コーディング](common-coding.instructions.md)の利用プロジェクト配送対応と、一致する `traceconfig.json` のテスト探索が必要。
 
-## Operation → entry (derive without reading implementation)
+## 操作 → 入口（実装を読まずに導出）
 
-Before independent test / implementation work starts, the host declares each operation's feature, route mount prefix, runtime-independent route factory path / export, dependency shape, and test-fixture provider.
-The default file is `apps/api/src/features/<feature>/<feature>.routes.ts`; its factory export (for example `createChatRoutes`) and injected repository / service boundary are fixed in that declaration. A factory may return the same chained routes used by production assembly; it must not import Object classes or require live bindings at import time.
-The test assembles that route factory under the declared mount prefix and derives the full URL from the contract. Never require the default Node suite to import `apps/api/src/index.ts`: its Durable Object exports can load `cloudflare:workers`.
-The app assembly, middleware installation, mount prefixes, and real bindings are verified separately in workerd integration. The host also registers actual source / schema / test addresses and commands in its supported trace configuration; directory layout does not change develop's gates or roles.
+独立したテスト / 実装作業の開始前に、各操作の機能、ルートのマウント接頭辞、ランタイム非依存の route factory のパス / export、依存形状、テスト fixture 提供元を利用プロジェクトが宣言する。
+既定ファイルは `apps/api/src/features/<feature>/<feature>.routes.ts`。factory の export（例: `createChatRoutes`）と注入する repository / service 境界をその宣言で固定する。factory は本番の組み立てと同じチェーン化 routes を返してよいが、Object クラスを import したり、import 時に実バインディングを要求したりしてはならない。
+テストは宣言済みマウント接頭辞で route factory を組み立て、契約から完全な URL を導出する。既定の Node スイートに `apps/api/src/index.ts` の import を要求してはならない。その Durable Object の export が `cloudflare:workers` を読み込む場合がある。
+アプリの組み立て、middleware の設定、マウント接頭辞、実バインディングは workerd 統合で別途検証する。利用プロジェクトは実際のソース / スキーマ / テスト配置とコマンドも対応する trace 設定に登録する。ディレクトリ構成は develop のゲートや役割を変更しない。
 
-| Contract transport | Test entry | Invocation |
+| 契約の transport | テストの入口 | 呼び出し |
 | --- | --- | --- |
-| `http` | Declared feature route factory with injected boundary fakes | Mount the factory result in a test Hono app using the declared prefix. Build a `Request` from `wire.method`, `wire.path`, and the contract example; call `app.request(request)`. Assert public HTTP status / headers / body. |
-| `internal` | Host-declared operation-to-port module / export and argument mapping | Invoke the symbol derived from that mapping and the operation name, not a symbol found by inspecting implementation. |
-| WebSocket / streaming wire | Host-declared handshake address, frame mapping, and local-runtime client or adapter | Derive upgrade and frames from the contract; default tests cover injected message handling, integration tests cover actual transport. |
-| Any supported operation via `commands.contract_adapter` | Host-declared adapter | Pass the operation name and example using the adapter protocol; do not import an implementation-discovered symbol. |
+| `http` | 境界フェイクを注入した宣言済み機能 route factory | 宣言済み接頭辞でテスト Hono app に factory の結果をマウントする。`wire.method`、`wire.path`、契約例から `Request` を構築し、`app.request(request)` を呼ぶ。公開 HTTP ステータス / ヘッダー / body を検証する。 |
+| `internal` | 利用プロジェクトが宣言する操作からポートへのモジュール / export と引数の対応 | 実装を調べて見つけたシンボルではなく、その対応と操作名から導出したシンボルを呼ぶ。 |
+| WebSocket / ストリーミング通信 | 利用プロジェクトが宣言する handshake の配置、フレーム対応、ローカルランタイムのクライアントまたはアダプター | 契約から upgrade とフレームを導出する。既定テストは注入されたメッセージ処理、統合テストは実際の通信を網羅する。 |
+| `commands.contract_adapter` 経由の任意の対応操作 | 利用プロジェクトが宣言するアダプター | アダプタープロトコルで操作名と例を渡す。実装から見つけたシンボルを import しない。 |
 
-Missing mappings are a prerequisite to fill in with the host / contract author. Do not guess an API filename from a route string or change tests to match a misplaced implementation.
+欠落した対応付けは利用プロジェクト / 契約作成者と埋める前提条件。ルート文字列から API ファイル名を推測したり、誤った場所の実装に合わせてテストを変更したりしない。
 
-## Tags and determinism
+## タグと決定性
 
-- Default / integration cases use an outer group `UC-nnn <title>` and a first-line `// @covers REQ-nnn#class` in each test body, with that class declared in the REQ. Scenario tests use their separate annotation below.
-- Inject / fix time and randomness, fake only external boundaries, and clean up shared state. Never use real-time sleeps to synchronize tests.
-- Write test titles and comments in Japanese. Preserve one behavior per test and failure / empty / permission / boundary partitions from the develop process.
-- Scoped runs and whole-suite timing follow develop's playbook; coverage percentages are signals, not completion criteria.
+- 既定 / 統合ケースは外側のグループを `UC-nnn <title>` とし、各テスト本文の先頭行に `// @covers REQ-nnn#class` を置く。そのクラスは REQ に宣言済みでなければならない。シナリオテストは下記の別の注釈を使う。
+- 時刻と乱数を注入 / 固定し、外部境界だけをフェイク化して、共有状態を片付ける。テスト同期に実時間の sleep を使ってはならない。
+- テストタイトルとコメントは日本語で書く。一テスト一動作とし、develop 手順の失敗 / 空 / 権限 / 境界の分割を維持する。
+- 範囲を絞った実行と全スイート計測は develop の手引きに従う。カバレッジ率は手掛かりであり、完了条件ではない。

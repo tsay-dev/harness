@@ -10,9 +10,9 @@ status: draft          # draft | living
 ### GOAL-00
 - **actor**: ACT-00
 - **由来**: KPI-00
-- **ドメイン**: <ドメイン>   <!-- optional: same condition and same closed value set as GOAL.md's domain: (R-1009) -->
+- **ドメイン**: <ドメイン>   <!-- optional（任意）: GOAL.md の domain: と同じ条件・同じ閉じた値集合（R-1009） -->
 - **status**: planned
 
 > <アクターの言葉で 1 文。「〜したい」>
 
-<!-- The only place where an ID is defined by a ### heading instead of a file (R-203). Write the content in Japanese. -->
+<!-- ファイルの代わりに ### 見出しで ID を定義する唯一の場所（R-203）。 本文は日本語で書く。 -->

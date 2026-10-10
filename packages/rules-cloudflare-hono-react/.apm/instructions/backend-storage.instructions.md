@@ -1,25 +1,25 @@
 ---
-description: "R2 — private objects, authorized uploads / downloads, and consistency"
+description: "R2 — 非公開オブジェクト、認可済みアップロード / ダウンロード、整合性"
 applyTo: "apps/api/src/features/**/*.repository.ts,apps/api/src/features/**/*.routes.ts,apps/api/src/features/**/*.service.ts,apps/api/src/lib/**,apps/web/src/features/**/api/**,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/tests/integration/**"
 ---
 
-# R2 — object storage
+# R2 — オブジェクトストレージ
 
-Apply only when R2 is selected. Use the boundaries in [backend coding](backend-coding.instructions.md) and the authorization policy in [security](backend-security.instructions.md).
+R2 を選択した場合にのみ適用する。[バックエンドコーディング](backend-coding.instructions.md)の境界と[セキュリティ](backend-security.instructions.md)の認可方針を使う。
 
-- Keep application-owned private content in private buckets. Do not enable a public bucket / domain to bypass authorization or browser CORS failures.
-- Authorize reads and writes for the actor, tenant, resource, and object before using the binding or issuing a signed capability. An opaque object key is not an authorization mechanism.
-- Generate object keys server-side; keep tenant ownership in authoritative metadata. Do not use a user filename as a trusted storage path or ownership claim.
-- Bound file size, accepted content types, and upload rate. Validate actual content / metadata as required by the contract, not only the supplied extension or `Content-Type` header.
-- Serve downloads with deliberate content type, disposition, and caching headers. Prevent user-provided active content from executing under the application origin.
-- Do not expose R2 credentials or Worker bindings to the browser. Use an authenticated Worker upload / download path by default.
+- アプリケーション所有の非公開コンテンツは非公開バケットに置く。認可やブラウザ CORS の失敗を回避するために公開バケット / ドメインを有効化しない。
+- バインディングを使ったり署名付き権限を発行したりする前に、主体、テナント、リソース、オブジェクトの読み書きを認可する。不透明なオブジェクトキーは認可機構ではない。
+- オブジェクトキーをサーバーで生成し、テナントの所有を正本メタデータに保持する。ユーザーファイル名を信頼できるストレージパスや所有の主張として使わない。
+- ファイルサイズ、許可するコンテンツ型、アップロード頻度に上限を設ける。指定された拡張子や `Content-Type` ヘッダーだけでなく、契約が要求する実際のコンテンツ / メタデータを検証する。
+- 意図した content type、disposition、キャッシュヘッダーでダウンロードを配信する。ユーザーが提供する動的コンテンツがアプリケーションのオリジンで実行されることを防ぐ。
+- R2 資格情報や Worker バインディングをブラウザに露出しない。認証済み Worker のアップロード / ダウンロード経路を既定にする。
 
-## Optional direct uploads
+## 任意の直接アップロード
 
-- A presigned S3 API URL is a time-limited bearer capability: restrict the method and object, use a short expiry, and avoid logging it. Generate it only after authorization.
-- Direct browser uploads to an R2 S3 endpoint are cross-origin even when the application API is same-origin. Configure bucket CORS for the exact application origins, methods, and required headers; CORS is not authorization.
-- Do not assume presigned URLs work on an arbitrary R2 custom domain or provide one-time use. Confirm supported endpoints and signing behavior for the selected flow.
-- Finalize uploads through the server: check object ownership, existence, size, and required validation before publishing its metadata. Enforce cleanup for abandoned / rejected uploads and use a quarantine stage where needed.
-- R2 object writes and D1 metadata writes are not one transaction. Use idempotent finalization and reconciliation rather than claiming an atomic upload.
+- 事前署名付き S3 API URL は期限付きの bearer 権限。メソッドとオブジェクトを限定し、短い有効期限を使い、ログ記録を避ける。認可後にのみ生成する。
+- R2 S3 エンドポイントへのブラウザ直接アップロードは、アプリケーション API が同一オリジンでもクロスオリジンになる。厳密なアプリケーションのオリジン、メソッド、必須ヘッダーに対してバケット CORS を設定する。CORS は認可ではない。
+- 事前署名 URL が任意の R2 カスタムドメインで動く、または一回限りの利用を保証すると想定しない。選択したフローで対応するエンドポイントと署名動作を確認する。
+- サーバーを通じてアップロードを確定する。メタデータ公開前に所有、存在、サイズ、必須検証を確認する。放棄 / 拒否したアップロードの削除を保証し、必要なら隔離段階を使う。
+- R2 オブジェクトの書き込みと D1 メタデータの書き込みは単一のトランザクションではない。原子的アップロードを主張せず、冪等な確定と整合を使う。
 
-The host declares retention, deletion, scanning, public distribution exceptions, and any upload capabilities. Verify the selected flow in [integration tests](backend-testing.instructions.md).
+保持、削除、スキャン、公開配信の例外、アップロード権限は利用プロジェクトが宣言する。選択したフローを[統合テスト](backend-testing.instructions.md)で検証する。
