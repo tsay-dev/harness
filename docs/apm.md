@@ -31,14 +31,13 @@ APM 0.30.0 の実装・最小 package で、instructions は `.apm/instructions/
 | `.claude/rules/develop/web/crow/**` | `packages/rules-crow/.apm/instructions/` |
 | `.claude/rules/develop/native/expo/**` | `packages/rules-expo/.apm/instructions/` |
 | `.claude/rules/develop/native/swiftui/**` | `packages/rules-swiftui/.apm/instructions/` |
-| `.claude/{skills,agents,rules}/translate-manga-ko-ja/` | `packages/translate-manga/.apm/{skills,agents,instructions}/` |
-| `.claude/{skills,agents,rules}/produce-video/` | `packages/produce-video/.apm/{skills,agents,instructions}/` |
+| `.claude/{skills,agents,rules}/translate-manga-ko-ja/`、`.claude/{skills,agents,rules}/produce-video/`、`.claude/tools/produce-video/` | 削除（ADR-0045）。移行先はない |
 | `.claude/{skills,agents,rules}/render-media/` | `packages/render-media/.apm/{skills,agents,instructions}/` |
 | `.claude/skills/{grilling,grill-me}/` | `packages/grilling/.apm/skills/` |
 | `.claude/tools/` | `tools/`（APM 外） |
 | `.claude/templates/` | `templates/`（APM 外） |
 
-agent ファイルには `.agent.md`、instruction ファイルには `.instructions.md` を使う。既存の動画・メディア・インタビュー用途も独立した任意パッケージとして保存する。develop-core の依存に全スタックや全用途を加えない。
+agent ファイルには `.agent.md`、instruction ファイルには `.instructions.md` を使う。既存のメディア生成・インタビュー用途も独立した任意パッケージとして保存する。develop-core の依存に全スタックや全用途を加えない。
 
 ## 新規消費プロジェクト
 
@@ -63,12 +62,6 @@ manifest を CLI から作成・更新する場合:
 ```bash
 apm install --target codex tsay-dev/harness/packages/develop-core
 apm install --target codex tsay-dev/harness/packages/rules-next
-```
-
-翻訳だけの場合:
-
-```bash
-apm install --target claude tsay-dev/harness/packages/translate-manga
 ```
 
 Cloudflare Workers + Hono + React SPA の場合は `develop-core` と `rules-cloudflare-hono-react` を選ぶ:
@@ -116,7 +109,7 @@ APM 0.30.0 の native integrator が中立拡張を provider の model field に
 
 ## tools / templates を別途用意する
 
-APM packages は tools / templates を含まない。develop の検証・文書生成、動画制作・レンダリングなどで必要なアセットを、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意する。
+APM packages は tools / templates を含まない。develop の検証・文書生成、メディアのレンダリングなどで必要なアセットを、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意する。
 
 ```bash
 # <release-tag> を実在する、package と整合するタグに置き換えて実行する
@@ -155,7 +148,7 @@ APM を使わない環境では `init.sh` を選択パッケージの中立ソ�
 
 ```bash
 ./init.sh codex /path/to/legacy-consumer --package develop-core --package rules-next
-./init.sh claude /path/to/legacy-consumer --package translate-manga
+./init.sh claude /path/to/legacy-consumer --package grilling
 
 # このリポジトリの選択済み正本を Codex 向けに検証生成する例
 ./init.sh codex . --package develop-core --package rules-next
@@ -189,13 +182,13 @@ apm install --target codex /absolute/path/to/harness/packages/rules-next
 確認する項目:
 
 1. 全 manifest が APM 0.30.0 で認識され、各パッケージを単独で install できる。
-2. develop-core + rules-next の consumer に Expo / crow / SwiftUI / manga のファイル・本文が出ない。translate-manga 単独に develop が入らない。
+2. develop-core + rules-next の consumer に Expo / crow / SwiftUI / メディア生成のファイル・本文が出ない。render-media 単独に develop が入らない。
 3. installed package 内に tools / templates を同梱していない。
 4. Claude 出力の `paths` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
 5. Codex / Grok install が root `AGENTS.md` や全文 rules router を生成しない。
 6. skill の規約・agent 参照が `apm_modules/` 内で解決し、`.claude/` がなくても到達できる。コードブロック内のコマンドは Markdown link 自動変換の対象と決めつけず、別途確認する。
 7. 互換生成は中立ソースだけから再現し、無関係な手書きファイルを上書きしない。再実行で不要差分が増えない。
-8. develop の段階・人間ゲート・producer と judge の分離・翻訳の工程・言語規約を保つ。
+8. develop の人間ゲート・producer と judge の分離・言語規約を保つ。
 
 ### 最終実測結果
 

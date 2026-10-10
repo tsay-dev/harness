@@ -35,7 +35,7 @@ class Projection(unittest.TestCase):
         for target in ('claude', 'cursor', 'grok', 'codex'):
             self.run_projection(target)
         self.assertEqual(first, self.snapshot())
-        self.assertFalse(any('manga' in name or 'expo' in name or 'video' in name for name in first))
+        self.assertFalse(any('render-media' in name or 'expo' in name or 'grilling' in name for name in first))
         self.assertFalse((self.host / 'AGENTS.md').exists())
         self.assertFalse((self.host / '.claude/settings.json').exists())
         self.assertFalse((self.host / 'tools').exists())
@@ -77,17 +77,16 @@ class Projection(unittest.TestCase):
             actual[tier].add(source.stem.removesuffix('.agent'))
         self.assertEqual(actual, expected_develop)
 
-        for package in ('produce-video', 'render-media', 'translate-manga'):
-            for source in (ROOT / 'packages' / package / '.apm/agents').rglob('*.agent.md'):
-                self.assertRegex(source.read_text(), r'(?m)^x-model-tier: top$')
+        for source in (ROOT / 'packages/render-media/.apm/agents').rglob('*.agent.md'):
+            self.assertRegex(source.read_text(), r'(?m)^x-model-tier: top$')
 
     def test_shrink_removes_owned_files_only(self):
-        self.run_projection('claude', ('develop-core', 'rules-next', 'translate-manga'))
+        self.run_projection('claude', ('develop-core', 'rules-next', 'render-media'))
         custom = self.host / '.claude/agents/my-agent.md'
         custom.write_text('handwritten')
         self.run_projection('claude')
         self.assertEqual(custom.read_text(), 'handwritten')
-        self.assertFalse(any('manga' in name for name in self.snapshot()))
+        self.assertFalse(any('render-media' in name for name in self.snapshot()))
 
     def test_handwritten_collision_untouched(self):
         custom = self.host / '.codex/agents/spec-author.toml'

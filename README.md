@@ -16,12 +16,10 @@
 | `rules-crow` | crow の規約葉だけ | crow 開発 |
 | `rules-expo` | Expo の規約葉だけ | Expo 開発 |
 | `rules-swiftui` | SwiftUI の規約葉だけ | SwiftUI 開発 |
-| `translate-manga` | 韓日漫画翻訳の skill・maker / judge・翻訳規約 | 漫画翻訳。develop は入らない |
-| `produce-video` | 動画制作定義の skills・agents・規約 | 動画の企画・台本・素材定義 |
-| `render-media` | メディア生成の skills・agents・規約 | 制作定義から実メディアへ変換 |
+| `render-media` | メディア生成の skills・agents・規約 | 別途用意した制作定義（台本・コマ定義・タイムライン）から実メディアへ変換 |
 | `grilling` | grilling / grill-me の skills | 計画・設計のインタビュー |
 
-**root の全部入りパッケージはありません。** 複数用途が必要なプロジェクトは、必要なパッケージをそれぞれ明示します。Next.js 向けに develop-core と rules-next を選んでも Expo・SwiftUI・crow・漫画翻訳は入りません。
+**root の全部入りパッケージはありません。** 複数用途が必要なプロジェクトは、必要なパッケージをそれぞれ明示します。Next.js 向けに develop-core と rules-next を選んでも Expo・SwiftUI・crow・メディア生成は入りません。
 
 ## APM で導入する
 
@@ -46,7 +44,7 @@ apm install --target codex tsay-dev/harness/packages/develop-core
 apm install --target codex tsay-dev/harness/packages/rules-next
 ```
 
-Cloudflare + Hono + React SPA は `rules-next` を `rules-cloudflare-hono-react` に、Expo は `rules-expo` に、SwiftUI は `rules-swiftui` に、crow は `rules-crow` に替えます。翻訳だけなら `translate-manga` のみを指定します。上の GitHub 例は、この構成を含む版が公開された後に使えます。公開前のローカル検証、対象ハーネスの選択、固定版、更新、既存ホストの移行は [APM 導入ガイド](docs/apm.md)を参照してください。
+Cloudflare + Hono + React SPA は `rules-next` を `rules-cloudflare-hono-react` に、Expo は `rules-expo` に、SwiftUI は `rules-swiftui` に、crow は `rules-crow` に替えます。上の GitHub 例は、この構成を含む版が公開された後に使えます。公開前のローカル検証、対象ハーネスの選択、固定版、更新、既存ホストの移行は [APM 導入ガイド](docs/apm.md)を参照してください。
 
 Cloudflare 向けは React と Hono を対応する機能名で分ける feature-based 構成を標準にします。React は `apps/web/src/features/` と薄い `routes/`、Hono は `apps/api/src/features/` の routes → service → repository、共有 Zod 契約は `packages/shared/src/<feature>/schemas.ts` に置きます。配置・公開境界の正本は [common-coding](packages/rules-cloudflare-hono-react/.apm/instructions/common-coding.instructions.md) です。`rules-next` は継承せず、開発手続きと検証ゲートは `develop-core` を使います。
 
@@ -93,9 +91,7 @@ harness/
     rules-crow/
     rules-expo/
     rules-swiftui/
-    translate-manga/     # skill + agents + instructions
-    produce-video/
-    render-media/
+    render-media/        # skill + agents + instructions
     grilling/
   tools/                 # 検証・生成器など。APM外
   templates/             # 文書書式。APM外
@@ -108,7 +104,7 @@ harness/
 
 APM 0.30.0 の instruction 探索は `.apm/instructions/` 直下です。旧 scene / platform / framework / layer の関係はファイル名に残し、APM が見つけられない独自ツリーを作りません。規約は一葉一関心で、共通則を各 framework の葉へ複製しません。
 
-## 開発・翻訳の手続きは維持する
+## 開発の手続きは維持する
 
 配布単位を変えても、**作る主体と判定する主体を別 agent・別コンテキストに分ける**原則は変えません。skill は orchestrator の不変条件と完成の定義（手順は同梱の `references/` に任意参照）、agents は別コンテキストが要る役割の craft、instructions は規約です。skill が規約本文を要約・複製しません。
 
@@ -122,7 +118,7 @@ develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契
 
 ブランチの切り方とコミットメッセージの書式は `references/commit.md` が定め、機械で決まる部分（名前の形・接頭辞・`type` の語彙・モノレポでの `scope`）は `tools/git-lint` が検査します（ADR-0039）。ホストが `traceconfig.json` に `git` を宣言したときだけ実行され、モノレポは `git.units` にユニット名とディレクトリを書きます。再利用ワークフロー `.github/workflows/spec-gate.yml` が PR ごとに同じ検査を走らせるので、ホストが既定ブランチの保護でそのジョブを必須チェックにすると、通らない PR は merge できません。ブランチ保護の設定はホストの責務です。モノレポでは docs と UC の番号がユニットごとにあるため、コミットの `UC:` トレーラの UC は、そのコミットの `scope` が指すユニットの docs で引きます（ADR-0040）。
 
-`attack` は人間が依頼する任意の攻撃で、develop の通常ループには混ぜません。翻訳では maker が Stage 1–4 を通して訳し、翻訳を書いていない judge が Stage 5 の独立レビューを行います。工程・役割の詳細は各 skill / agent が正本です。
+`attack` は人間が依頼する任意の攻撃で、develop の通常ループには混ぜません。役割の詳細は各 skill / agent が正本です。
 
 ### docs の SDD / SSOT
 
