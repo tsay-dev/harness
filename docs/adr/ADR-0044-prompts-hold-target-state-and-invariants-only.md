@@ -1,7 +1,7 @@
 ---
 id: ADR-0044
 title: プロンプトは到達状態と不変条件だけを持ち、手順と機械が検査できる事項は削る
-status: proposed
+status: accepted
 date: 2026-10-11
 ---
 
