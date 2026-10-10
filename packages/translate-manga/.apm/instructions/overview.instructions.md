@@ -8,7 +8,7 @@ applyTo: "**/master/**,**/episodes/**"
 > 韓国語で描かれた漫画（ウェブトゥーン等）を日本語に翻訳し、**最終的に人間が必ずチェックする**前提で、
 > そのチェックコスト（脳の疲労・時間）を最小化するための型。ここは**この型の不変の核**（最初に読む）。
 > 各書式の詳細は同カタログの葉（[master-format](master-format.instructions.md) / [script-format](script-format.instructions.md) / [register](register.instructions.md) / [consistency](consistency.instructions.md)）へ。
-> 実行手続きは skill [translate-manga-ko-ja](../skills/translate-manga-ko-ja/SKILL.md)。
+> 実行手続きはスキル [translate-manga-ko-ja](../skills/translate-manga-ko-ja/SKILL.md)。
 
 ## 前提思想（これが全体の土台）
 
@@ -32,8 +32,8 @@ applyTo: "**/master/**,**/episodes/**"
 │   └── guideline.md             #   翻訳トーン&マナー・作品固有の方針
 └── episodes/
     └── ep-001/
-        ├── source/              #   原本（画像 and/or OCRテキスト。画像優先）
-        ├── review/              #   AI生成・人間チェック用（skill の出力先）
+        ├── source/              #   原本（画像および／または OCRテキスト。画像優先）
+        ├── review/              #   AI生成・人間チェック用（スキルの出力先）
         │   ├── script.md        #     対訳チェックシート（書式 → script-format.md）
         │   ├── consistency.md   #     一貫性・自己レビュー結果
         │   └── master-update.md #     master への更新提案（差分。承認後に反映）
@@ -41,7 +41,7 @@ applyTo: "**/master/**,**/episodes/**"
 ```
 
 - master/ の各ファイルの書式は [master-format.md](master-format.instructions.md)。
-- **master/ は読み取りが正。** 話数を進めても skill が黙って書き換えない（[増分更新](consistency.instructions.md)）。
+- **master/ は読み取りが正。** 話数を進めてもスキルが黙って書き換えない（[増分更新](consistency.instructions.md)）。
 - **人間がメインで作業するのは `review/`。** ここで対訳をチェック・修正し、`final/` へ確定する。
 
 ## 🎯 チェックコスト最小化（全行を等しく読ませない）

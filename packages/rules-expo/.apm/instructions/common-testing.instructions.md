@@ -1,102 +1,102 @@
 ---
-description: "🧪 Expo — common testing rules (all layers)"
+description: "🧪 Expo — 共通テスト規約（全レイヤー）"
 applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,**/jest.config.*"
 ---
 
-# 🧪 Expo — common testing rules (all layers)
+# 🧪 Expo — 共通テスト規約（全レイヤー）
 
-> **Scope: React Native apps on Expo (expo-router).** If it is not Expo, treat this document as inapplicable and discard it.
+> **対象: Expo（expo-router）の React Native アプリ。** Expo でなければ適用外として扱い、破棄する。
 >
-> **The principles of testing (what to test and why) rest on develop's development process.**
-> One test = one behavior; include failure, empty, permission, and boundary in the conditions; mock only at the boundary;
-> make it deterministic; coverage is a signal, not a target — these are common to all development, so they are not restated here; follow them there.
+> **テストの原則（何を、なぜ検証するか）は develop の開発プロセスに従う。**
+> 1 テスト = 1 振る舞い、条件に失敗・空・権限・境界を含める、mock は境界だけに置く、
+> 決定的にする、coverage は目標ではなく手掛かり。これらはすべての開発に共通するため、ここでは再掲せず、その原則に従う。
 >
-> This document holds only **the wiring that makes those principles hold in Expo**.
-> **No frontend unit-testing leaf is placed** (develop files no FE unit tests). The system suite — the one scenario flow per use case that starts a simulator — is [system-testing.md](system-testing.instructions.md). Notation is [common/coding.md](common-coding.instructions.md).
+> この文書が持つのは **Expo でその原則を成立させる配線**だけである。
+> **フロントエンドの単体テスト規約は置かない**（develop は FE 単体テストを作成しない）。simulator を起動するユースケースごと 1 本のシナリオ flow を持つシステムスイートは [system-testing.md](system-testing.instructions.md) にある。記法は [common/coding.md](common-coding.instructions.md) にある。
 >
-> **Write test names and comments in Japanese.**
+> **テスト名とコメントは日本語で書く。**
 
 ---
 
-## 1. The runner and the preset
+## 1. runner と preset
 
-**Use Jest, with the `jest-expo` preset.**
+**Jest と `jest-expo` preset を使う。**
 
-Never build a bare `react-native` preset or your own ts-jest configuration. The preset already aligns where Expo modules resolve
-and the transpilation exclusions (`transformIgnorePatterns`), and rolling your own reproduces the failure
-**"a syntax error the moment you import the module"**.
-That is a defect in the configuration, not in what you are testing, so do not burn time there.
+素の `react-native` preset や独自の ts-jest 設定を作らない。preset は Expo module の解決先と
+transpile の除外（`transformIgnorePatterns`）を既に揃えており、独自設定では
+**「module を import した瞬間の syntax error」**を再現してしまう。
+それは検証対象ではなく設定の欠陥なので、そこで時間を消費しない。
 
 ---
 
-## 2. Calling an operation from a test (operation → entry)
+## 2. テストから operation を呼ぶ（operation → 入口）
 
-A contract-conformance test calls the operation **by the entry the contract implies**, never by a symbol it learned from the implementation.
-`test-author` and `implementer` each derive the entry from `contract.yaml` and the table below — never from each other
-(the tests may exist before the implementation, and the other way round). The layers are those of [frontend/dataflow.md](frontend-dataflow.instructions.md); module locations are the host's (`CLAUDE.md`).
+契約適合テストは **契約が示す入口**で operation を呼び、実装から知った symbol を使わない。
+`test-author` と `implementer` はそれぞれ `contract.yaml` と下表から入口を導出し、互いからは導出しない
+（実装より先にテストが存在する場合も、その逆もある）。レイヤーは [frontend/dataflow.md](frontend-dataflow.instructions.md) に従い、module の場所は利用先が定める（`CLAUDE.md`）。
 
-| Contract (`contract.yaml`) | File the test imports | Export it calls |
+| 契約（`contract.yaml`）| テストが import するファイル | 呼ぶ export |
 | --- | --- | --- |
-| `transport: http` / `sdk` (outbound), operation `fetchUser` | the feature's API module — the file the query layer's `queryFn` / `mutationFn` import from | the function named **exactly as the operation** (`fetchUser`), called with `examples.*.request`; the network is faked at the boundary |
-| `transport: local-store`, operation `saveAppearance` | the feature's persistence module (dataflow §7) | the function named exactly as the operation (`saveAppearance`); the storage adapter is faked |
-| `transport: device` / `deeplink` / `push` | the module wrapping that OS capability or inbound entry | the function named exactly as the operation, with the native module mocked |
-| any operation, through the host's `commands.contract_adapter` (`traceconfig.json`) | none — the test drives the adapter in-process by operation name and example; no implementation symbol appears in test code | — |
+| `transport: http` / `sdk`（送信側）、operation `fetchUser` | feature の API module。query 層の `queryFn` / `mutationFn` が import するファイル | **operation と完全に同名**の関数（`fetchUser`）。`examples.*.request` で呼び、network は境界で fake にする |
+| `transport: local-store`、operation `saveAppearance` | feature の永続化 module（dataflow §7）| operation と完全に同名の関数（`saveAppearance`）。storage adapter は fake にする |
+| `transport: device` / `deeplink` / `push` | OS 機能または受信入口を包む module | operation と完全に同名の関数。native module は mock にする |
+| 任意の operation を利用先の `commands.contract_adapter`（`traceconfig.json`）経由で呼ぶ場合 | なし。テストは operation 名と example で adapter をプロセス内で駆動する。テストコードに実装 symbol は登場しない | — |
 
-If the implementation put the entry elsewhere, the implementation moves — tests are derived from the contract (R-801).
-
----
-
-## 3. One command to run
-
-- **A single command must run everything, with the exit code deciding red or green**
-- **If none is installed, installing it is the gate to starting.** Pushing implementation forward with no runner means
-  develop's Phase4 (the red-green loop driven by the machine oracle) does not hold
-- The choice, the configuration, and the run command are **recorded in the project's `CLAUDE.md`** (the harness does not pin them)
-- **Scoped execution (the UC tag)**: in every test, make the outermost `describe` read
-  `describe('UC-012 <UC title>', ...)`, so it can be selected mechanically by the UC ID
-  (the same key as the UC directory name under `docs/goals/`). Run the selection with `jest -t "UC-012"`.
-  **When to run a selection vs the whole default suite is authoritative in the develop skill's `references/playbook.md`, section *Test-run granularity*.** This leaf defines only how to stamp and select by UC ID
-- **Requirement coverage**: every test names exactly one declared partition class with `// @covers REQ-045#class` as the first line of its body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
+実装が別の場所に入口を置いたなら実装を移す。テストは契約から導出される（R-801）。
 
 ---
 
-## 4. What "deterministic" means in React Native
+## 3. 単一コマンドで実行する
 
-The sources of non-determinism are not only real time, randomness, and the network. RN has its own wobbles.
+- **単一コマンドですべてを実行でき、終了コードで Red / Green が決まること**
+- **未導入なら、導入が開始のゲートである。** runner がないまま実装を進めると、
+  develop の Phase4（機械 oracle が駆動する Red-Green ループ）が成立しない
+- 選択、設定、実行コマンドを **プロジェクトの `CLAUDE.md` に記録する**（harness は固定しない）
+- **範囲を絞った実行（UC タグ）**: 各テストの最外 `describe` を
+  `describe('UC-012 <UC の題名>', ...)` にし、UC ID で機械的に選択できるようにする
+  （`docs/goals/` 配下の UC ディレクトリ名と同じキー）。選択実行は `jest -t "UC-012"`。
+  **選択実行と既定スイート全体の実行のタイミングは develop skill の `references/playbook.md`「テスト実行の粒度」を正本とする。** この末端文書は UC ID の付与・選択方法だけを定義する
+- **要求の検証**: 各テストは宣言済み分割クラスをちょうど 1 つ示し、本体の先頭行に `// @covers REQ-045#class` を置く（`trace-check` C10 / C11 が読む。先に REQ の `## 検証方針` でクラスを宣言する）
 
-| Source of wobble | How to handle it |
+---
+
+## 4. React Native での「決定的」の意味
+
+非決定性の原因は実時間、乱数、network だけではない。RN 独自の不安定さがある。
+
+| 不安定さの原因 | 対処 |
 | --- | --- |
-| Animations and transitions | never wait for completion. Never make an animation the thing under verification |
-| `InteractionManager`'s deferred execution | advance it with fake timers |
-| Layout measurement (`onLayout`) | returns 0 in the test environment. Never verify a branch that depends on dimensions |
-| Async responses across the native bridge | mock them and resolve immediately |
+| animation と transition | 完了を待たない。animation を検証対象にしない |
+| `InteractionManager` の遅延実行 | fake timer で進める |
+| layout 計測（`onLayout`）| テスト環境では 0 を返す。寸法に依存する分岐を検証しない |
+| native bridge をまたぐ非同期応答 | mock にして直ちに解決する |
 
-**Never wait with a real-time `sleep`.** Express waiting through async queries and fake timers.
-Real-time waiting is not just slow — it always produces a flake that fails depending on CI load.
+**実時間の `sleep` で待たない。** 待機は非同期 query と fake timer で表す。
+実時間の待機は遅いだけでなく、CI の負荷に応じて失敗する不安定さを必ず生む。
 
 ---
 
-## 5. Split suites by what execution requires
+## 5. 実行に必要なものによってスイートを分ける
 
-Rather than picking test-level names (unit / integration / system) first and classifying by them,
-split by **what has to be started for that test to run**. This criterion needs no judgment, is decided
-mechanically, and coincides with "may this be mixed into §3's red-green loop?"
+最初にテスト階層名（unit / integration / system）を選んで分類するのではなく、
+**そのテストを実行するために何を起動する必要があるか**で分ける。この基準は判断を要さず、
+機械的に決まり、「§3 の Red-Green ループへ混ぜてよいか」と一致する。
 
-| Suite | The criterion (this alone decides it) | Location (the default) | How often it runs |
+| スイート | 判定基準（これだけで決める）| 場所（既定）| 実行頻度 |
 | --- | --- | --- | --- |
-| **Default** (unit) | starts no external environment (mocks only at the boundary) | as-is (mirroring the target structure, `__tests__/`) | the suite the red-green loop draws from (selection during a round; whole run at a boundary — the develop skill's `references/playbook.md`, section *Test-run granularity*) |
-| **Integration** | **connects to a real API or a real service** | `tests/integration/` | at a boundary only (before returning, before commit, in CI) |
-| **System** | **starts a simulator, a real device, or a browser** | `.maestro/` or `e2e/` (the Maestro / Detox convention) | the scenario flows (one per UC); the selection by UC tag in the FE-wiring round, whole once at the boundary (terminal list where `commands.system` is declared, CI) — [system-testing.md](system-testing.instructions.md) |
+| **既定**（unit）| 外部環境を起動しない（mock は境界のみ）| そのまま（対象構造を反映した配置、`__tests__/`）| Red-Green ループで使うスイート（ラウンド中は選択実行、境界では全体実行。develop skill の `references/playbook.md`「テスト実行の粒度」）|
+| **結合** | **実 API または実サービスに接続する** | `tests/integration/` | 境界のみ（返却前、commit 前、CI）|
+| **システム** | **simulator、実機、browser を起動する** | `.maestro/` または `e2e/`（Maestro / Detox の規約）| シナリオ flow（UC ごと 1 本）。FE 配線ラウンドでは UC タグで選択実行、境界で一度全体実行（`commands.system` を宣言した場合の終端チェックリスト、CI）。[system-testing.md](system-testing.instructions.md) |
 
-- **Separate by folder.** Separation by tag cannot be noticed when a gap in the run command's configuration lets something leak into the default suite
-- **Exclude the integration and system locations from Jest's discovery.** Put `tests/integration` and `e2e` in `testPathIgnorePatterns`.
-  Forget it and the mere names `*.test.ts` / `__tests__` get them picked up by the default suite, and a simulator launch slips into the red-green loop
-- **The default suite must go green on a machine with neither a simulator nor a server available**
-- **The system suite holds exactly the scenario flows** (`docs.instructions.md` R-1106–R-1108). How to write them is [system-testing.md](system-testing.instructions.md); this document defines only **the location and "never mix it into the default suite"**
+- **フォルダーで分ける。** タグだけの分離では、実行コマンドの設定の穴から既定スイートへ漏れたときに気付けない
+- **結合・システムの配置を Jest の探索から除外する。** `tests/integration` と `e2e` を `testPathIgnorePatterns` に入れる。
+  忘れると `*.test.ts` / `__tests__` という名前だけで既定スイートに拾われ、simulator 起動が Red-Green ループへ入り込む
+- **simulator も server も利用できないマシンで既定スイートが Green になること**
+- **システムスイートはシナリオ flow だけを持つ**（`docs.instructions.md` R-1106–R-1108）。書き方は [system-testing.md](system-testing.instructions.md)。この文書は **場所と「既定スイートへ混ぜない」**だけを定義する
 
-### Contract-conformance tests belong to the default suite
+### 契約適合テストは既定スイートに属する
 
-A contract-conformance test that starts no external environment is **not an integration test** (by the criterion above it falls into the default suite).
+外部環境を起動しない契約適合テストは **結合テストではない**（上記基準では既定スイートに属する）。
 
-**It must never be moved into the integration suite.** develop's Phase4 red-green loop is carried by the **BE tests** (FE unit tests are not filed; the scenario flow closes at the boundary, not in the loop).
-The moment it leaves the red-green loop, there is no means left of catching an integration defect in Phase4.
+**結合スイートへ移動しない。** develop の Phase4 Red-Green ループは **BE テスト**が担う（FE 単体テストは作成しない。シナリオ flow はループ内ではなく境界で完結する）。
+Red-Green ループから外れた瞬間、Phase4 で統合上の欠陥を捕らえる手段がなくなる。

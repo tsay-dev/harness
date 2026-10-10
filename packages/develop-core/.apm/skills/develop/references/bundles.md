@@ -1,43 +1,43 @@
-# Passing rules leaves by path (scene-wide rules + framework-specific rules)
+# ルールの末端ファイルをパスで渡す（場面共通ルール + フレームワーク固有ルール）
 
-Rules (leaves) are never inlined; **passing paths** in the Task input is authoritative. The orchestrator judges the target, resolves the paths of the applicable leaves, and passes them in each producer's input (never make the agent walk a catalog itself). **Even when the framework cannot be identified, always deliver the scene-wide rules** (never skip this procedure wholesale). If several leaves apply, pass all of them. Keep the leaf as the single SSOT; never copy its content and let it drift.
+ルール（末端ファイル）の本文は展開しません。Task 入力での**パスの受け渡し**が正規の方法です。オーケストレーターが対象を判断し、適用する末端ファイルのパスを解決して、各作成者の入力に渡します（agent 自身にカタログを巡回させません）。**フレームワークを特定できなくても、場面共通ルールは必ず届けます**（この手順全体を省略しません）。複数が適用されるならすべて渡します。末端ファイルを唯一の SSOT とし、内容を複製して乖離させてはいけません。
 
-> **Why by path.** Claude's generated `paths:` gate is lazy and its addressing is left to globs, which can arrive too late for a greenfield `test-author`. Explicit handoff is authoritative, and the paths gate is a free safety net. Inlining bloats the prompt and splits the SSOT, so keep it as a fallback for the rare case where paths are unstable.
+> **パスで渡す理由。** Claude が生成する `paths:` ゲートは遅延読み込みで、対象判定を glob に任せるため、新規作成の `test-author` には届くのが遅すぎる場合があります。明示的な受け渡しが正規の方法で、paths ゲートは追加の安全網です。本文の展開はプロンプトを膨らませ SSOT を分裂させるので、パスが不安定なまれな場合の代替に限ります。
 >
-> **Do not write any specific framework name or list of leaf files in this file.** Naming them pollutes context even on projects that use no such framework. What this file holds is only **how to decide the destination**.
+> **このファイルに具体的なフレームワーク名や末端ファイル一覧を書かない。** 名前を書くと、そのフレームワークを使わないプロジェクトでもコンテキストを汚染します。このファイルが定めるのは**配送先の決め方**だけです。
 >
-> **References run one way: rules → skill.** All the skill may look at about a leaf is **the leaf's path (to enumerate it) and its frontmatter `applyTo:` (to decide the destination)**.
-> **Do not read a leaf's body. Do not depend on the meaning of a file name. Do not write a leaf's summary, excerpt, or section heading into the skill.**
-> **What rules to write, under what file names, split how, is entirely up to the rules side**, and the skill must deliver correctly without knowing any of it.
-> Knowing the content of a rule is the job of the agent that receives the leaf, not of the one delivering it. Conversely, **a leaf referencing the skill is fine** (the rules side writing "the procedure is authoritative in the skill" is the correct direction).
+> **参照は一方向: rules → skill。** skill が末端ファイルについて見てよいのは、**パス（列挙用）と frontmatter の `applyTo:`（配送先の判定用）**だけです。
+> **末端ファイルの本文を読まない。ファイル名の意味に依存しない。要約、抜粋、節見出しを skill に書かない。**
+> **何を、どの名前で、どう分割してルールに書くかは、すべて rules 側の責任**です。skill はそれを知らずに正しく配送できなければなりません。
+> ルール内容を知るのは受け取る agent の仕事であり、届ける agent の仕事ではありません。逆に、**末端ファイルから skill への参照は問題ありません**（rules 側が「手順の正本は skill」と書くのは正しい方向です）。
 
-## Assembling a bundle
+## 束の組み立て
 
-1. Find the installed `develop-core` package manifest under `apm_modules/` and enumerate its `.apm/instructions/*.instructions.md` (scene-wide rules). In legacy mode use only the packages recorded in `.harness-legacy.json` and their source checkout. **Never drop the common leaves merely because the framework is unknown.**
-2. Enumerate `.apm/instructions/*.instructions.md` only from the explicitly installed `rules-*` packages in `apm_modules/` (or the explicit legacy selection). Package selection is authoritative: do not search an external checkout for unselected stacks or other scenes. The source uses the official APM `applyTo` comma-separated glob field; Claude `paths` is only an output adaptation.
-3. Read **only the `applyTo:` frontmatter** of each leaf (never open the body).
-4. For each producer, list **the paths of the files that producer will create or edit in this launch**.
-5. Pass that producer **every** leaf whose `applyTo:` matches any of the paths from step 4 (see *Deciding the destination*).
+1. `apm_modules/` 内でインストール済み `develop-core` のマニフェストを探し、その `.apm/instructions/*.instructions.md`（場面共通ルール）を列挙します。従来方式では `.harness-legacy.json` に記録されたパッケージと正本チェックアウトだけを使います。**フレームワークが不明だからという理由で共通の末端ファイルを落としません。**
+2. `apm_modules/` 内で明示的にインストールされた `rules-*` パッケージ（または従来方式で明示選択されたもの）だけから `.apm/instructions/*.instructions.md` を列挙します。パッケージ選択が正本です。未選択のスタックや別の場面を外部チェックアウトで探しません。正本は公式 APM のカンマ区切り glob フィールド `applyTo` を使い、Claude `paths` は出力時の変換にすぎません。
+3. 各末端ファイルの **frontmatter の `applyTo:` だけ**を読みます（本文は開きません）。
+4. 作成者ごとに、**今回の起動でその作成者が作成・編集するファイルのパス**を列挙します。
+5. 手順 4 のいずれかのパスに `applyTo:` が一致する末端ファイルを、その作成者に**すべて**渡します（「配送先の決定」を参照）。
 
-A host with no `rules-*` package installed declares its own "operation → entry" convention (which file and export a test calls for a contract operation) in its `CLAUDE.md` / `AGENTS.md`; the orchestrator passes that file as the leaf to `test-author` and `implementer` so both derive the entry from the contract and that convention, never from each other.
+`rules-*` をインストールしていない利用プロジェクトは、独自の「operation → entry」規約（契約の操作に対してテストが呼ぶファイルと export）を `CLAUDE.md` / `AGENTS.md` に宣言します。オーケストレーターはそのファイルを末端ファイルとして `test-author` と `implementer` に渡し、両者が互いからではなく、契約とその規約から入口を導出できるようにします。
 
-## Deciding the destination
+## 配送先の決定
 
-Decided by `applyTo:` alone.
+`applyTo:` だけで決めます。
 
-| Recipient | What counts as "paths it writes" |
+| 受け手 | 「書くパス」に含めるもの |
 | --- | --- |
-| `spec-author` | the paths of the **docs files** created or edited in that launch (under `docs/`) |
-| `test-author` (`backend-logic`) | the paths of the **test files** created in that slice; plus the **docs paths** of the REQs whose `## 検証方針` it declares |
-| `test-author` (`scenario`) | the paths of the **scenario test files** created in that slice (the system suite — `e2e/`, `UITests/`, `.maestro/`, … as the host declares in `tests.system`) |
-| `implementer` (`logic` / `appearance` / `probe`) | the paths of the **production code** created or edited in that slice |
-| `implementer` (`schema`) | the path of the **schema source** (the host's native DB design — *Where docs artifacts live* in [playbook.md](playbook.md)) |
-| the orchestrator, for its own docs writes (ADR / `DEFERRED.md`) | the **docs paths** it writes — it is the receiving agent of the matching leaves and reads them before writing |
+| `spec-author` | 今回の起動で作成・編集する **docs ファイル**のパス（`docs/` 配下） |
+| `test-author`（`backend-logic`） | そのスライスで作成する**テストファイル**のパスと、`## 検証方針` を宣言する REQ の **docs パス** |
+| `test-author`（`scenario`） | そのスライスで作成する**シナリオテストファイル**のパス（システムスイート。利用プロジェクトが `tests.system` に宣言する `e2e/`、`UITests/`、`.maestro/` など） |
+| `implementer`（`logic` / `appearance` / `probe`） | そのスライスで作成・編集する**本番コード**のパス |
+| `implementer`（`schema`） | **スキーマ正本**のパス（利用プロジェクト固有の DB 設計。[playbook.md](playbook.md)「docs 成果物の配置」を参照） |
+| 自ら docs を書くオーケストレーター（ADR / `DEFERRED.md`） | 自ら書く **docs パス**。一致する末端ファイルの受け手として、書く前に読む |
 
-- **Never decide the destination from a leaf's file name.** Let matching alone settle it.
-- **When nothing matches at all, the narrowing is probably wrong.** Pass the common leaves **plus every leaf from the selected stack packages** (too many beats too few — code written in ignorance of a rule cannot be caught in verification). Do the same when the paths to be written cannot be determined in advance.
-- **Never split a bundle.** When several implementers work in the same layer (appearance and logic), pass both the same bundle. Narrowing by written paths is not "splitting" (implementers that write the same paths get the same bundle).
-- **Cross-layer delegation is also declared by `applyTo:`.** When a rule also binds addresses in another layer, that shows up as **that leaf including those addresses in its `applyTo:`**. This procedure never infers it from a leaf's body.
-- If an implementer ends up writing an unplanned path mid-implementation, **it opens the leaves whose `applyTo:` match that path itself, before writing** (no need to come back to the orchestrator).
-- **Two test-author tracks, one procedure**: `backend-logic` writes the default suite, `scenario` writes the system suite; each receives the leaves whose `applyTo:` match its own write targets. No FE unit-test track exists (no bundle is assembled for one).
-- Naming a new instruction and narrowing its `applyTo` is covered in the harness repository's `CLAUDE.md`. **Bundle composition is authoritative in this file.**
+- **末端ファイル名から配送先を決めない。** 照合だけで決めます。
+- **何も一致しない場合は、絞り込みが誤っている可能性が高い。** 共通の末端ファイルに加え、**選択したスタックパッケージの末端ファイルをすべて**渡します（不足より過剰がよい。ルールを知らずに書いたコードは検証で捕捉できません）。書くパスを事前に決められない場合も同様です。
+- **束を分割しない。** 同じ層を複数の implementer（appearance と logic）が担当する場合は、同じ束を両方に渡します。書くパスによる絞り込みは「分割」ではありません（同じパスを書く implementer は同じ束を受け取ります）。
+- **層をまたぐ委譲も `applyTo:` に宣言する。** 別の層のパスにもルールが適用される場合は、**その末端ファイルの `applyTo:` にそのパスを含めます**。この手順で本文から推測しません。
+- implementer が途中で予定外のパスを書く場合は、**書く前に、そのパスに `applyTo:` が一致する末端ファイルを自ら開きます**（オーケストレーターに戻す必要はありません）。
+- **test-author は 2 トラック、手順は 1 つ**です。`backend-logic` は既定スイート、`scenario` はシステムスイートを書き、それぞれの書き込み先に `applyTo:` が一致する末端ファイルを受け取ります。FE 単体テストのトラックはなく、その束も組み立てません。
+- 新しい指示の命名と `applyTo` の絞り込みは harness リポジトリの `CLAUDE.md` が定めます。**束の構成の正本はこのファイルです。**

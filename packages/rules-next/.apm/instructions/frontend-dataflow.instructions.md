@@ -1,44 +1,44 @@
 ---
-description: "🔀 Next.js / frontend — state and data flow"
+description: "🔀 Next.js / frontend — 状態とデータフロー"
 applyTo: "**/next.config.*,**/app/**/page.tsx,**/app/**/layout.tsx,**/app/**/loading.tsx,**/app/**/error.tsx,**/app/**/not-found.tsx,**/app/**/template.tsx,**/app/**/default.tsx,**/components/**,**/features/**"
 ---
 
-# 🔀 Next.js / frontend — state and data flow
+# 🔀 Next.js / frontend — 状態とデータフロー
 
-> **Scope: the UI surface on Next.js (App Router).** If it is not Next.js, treat this document as inapplicable and discard it.
+> **対象: Next.js（App Router）の UI 表層。** Next.js でなければ適用外として扱い、破棄する。
 >
-> The common rules are [common/coding.md](common-coding.instructions.md); the RSC / Client boundary is [coding.md](frontend-coding.instructions.md);
-> granularity is [components.md](frontend-components.instructions.md); locations are [routing.md](frontend-routing.instructions.md);
-> server-side separation of responsibilities is [backend/coding.md](backend-coding.instructions.md).
-> This document defines only **where data is held and which way it flows**.
+> 共通規約は [common/coding.md](common-coding.instructions.md)、RSC / Client 境界は [coding.md](frontend-coding.instructions.md)、
+> 粒度は [components.md](frontend-components.instructions.md)、配置は [routing.md](frontend-routing.instructions.md)、
+> サーバー側の責務分離は [backend/coding.md](backend-coding.instructions.md) にある。
+> この文書は **データの保持場所と流れる方向**だけを定義する。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Defining the goal (what a single flow direction saves you)
+## 0. 目的の定義（流れを一方向にすると何が守られるか）
 
-Roughly, React guarantees only these 2 things:
+React が保証するのは、おおむね次の 2 点だけである。
 
-1. When state changes, it re-renders
-2. **props are one-way, parent to child**
+1. state が変わると再 render する
+2. **props は親から子への一方向**
 
-Add "a child rewrites the parent's state directly" and "fetch from anywhere" to that, and
-the truth of one screen splits across several places, and neither an AI nor a human can read the blast radius of a change.
+そこに「子が親の state を直接書き換える」「どこからでも fetch する」を加えると、
+1 画面の正本が複数箇所へ分散し、AI にも人間にも変更の影響範囲が読めなくなる。
 
-In the App Router there is more: **what can be passed between a Server Component and a Client Component is limited.**
-Pass a function or a class as a prop with a plain-React-on-the-web mindset and you get a runtime error.
+App Router にはさらに **Server Component と Client Component の間で渡せるものに制約がある**。
+通常の web React の感覚で関数やクラスを prop として渡すと実行時エラーになる。
 
-**This document's job is to fix the direction and the home of data, and close the loopholes.**
+**この文書の役割は、データの方向と置き場所を固定し、抜け道を塞ぐことである。**
 
 ---
 
-## 1. Data flows parent → child; events flow child → parent (one-way)
+## 1. データは親 → 子、イベントは子 → 親（一方向）
 
-| Direction | What it carries | The means |
+| 方向 | 渡すもの | 手段 |
 | --- | --- | --- |
-| **parent → child** | the data and settings used for display | **props** |
-| **child → parent** | the notification "something happened" | only **a callback** the parent passed (`onX`) |
+| **親 → 子** | 表示に使うデータと設定 | **props** |
+| **子 → 親** | 「何かが起きた」という通知 | 親から渡された **callback**（`onX`）だけ |
 
 ```tsx
 //  OK: データは下り、イベントはコールバックで上る
@@ -51,42 +51,42 @@ function Parent() {
 //  NG: グローバル可変オブジェクトを配って各方書き込む
 ```
 
-- A child never rewrites the parent's state via an import or a reference
-- When you want to share across the tree, **first doubt the component split**. If it is still needed, use only the sharing mechanism approved in the project's `CLAUDE.md` (this document pins no particular library)
+- 子は import や参照経由で親の state を書き換えない
+- ツリーをまたいで共有したくなったら、**まずコンポーネント分割を疑う**。それでも必要なら、プロジェクトの `CLAUDE.md` で承認した共有機構だけを使う（この文書は特定ライブラリを固定しない）
 
 ```text
-[parent]  props(data)  →  [child]
-[parent]  ← onEvent()      [child]
+[親]  props（データ） →  [子]
+[親]  ← onEvent()        [子]
 ```
 
 ---
 
-## 2. Event handlers stay closed at the Client leaves
+## 2. event handler は Client の末端に閉じる
 
-A Server Component cannot hold an event handler such as `onClick` (a framework constraint).
+Server Component は `onClick` などの event handler を持てない（フレームワークの制約）。
 
-- Make only the nodes that need interaction `"use client"` ([coding.md](frontend-coding.instructions.md))
-- Put **the point where an event occurs at a Client leaf**
-- When notifying a Client parent above the leaf, raise it **through a props callback**, per §1
+- 対話が必要な node だけ `"use client"` にする（[coding.md](frontend-coding.instructions.md)）
+- **イベントの発生点を Client の末端に置く**
+- 末端より上の Client 親へ通知するときは、§1 に従い **props callback 経由**で上げる
 
-A Server Component parent passes its Client child **data (props)** and, where needed, **Server Actions** (§3).
-Never bind an ordinary inline function passed from Server to Client onto `onClick`.
+Server Component の親が Client の子へ渡すのは **データ（props）**と、必要に応じて **Server Actions**（§3）。
+Server から Client へ渡す通常の inline 関数を `onClick` に結び付けない。
 
 ---
 
-## 3. What may be passed from Server to Client
+## 3. Server から Client へ渡せるもの
 
-Props passed to a Client Component are limited to **serializable values**.
+Client Component へ渡す props は **シリアル化可能な値**に限る。
 
-| May be passed | Must not be passed |
+| 渡してよい | 渡してはいけない |
 | --- | --- |
-| Serializable data: strings, numbers, booleans, arrays, plain objects, `Date`, and so on | ordinary functions, class instances, non-serializable values such as Map/Set |
-| **Server Actions** (passed as the entrance for a mutation) | the use case / infrastructure / server-presuming domain functions themselves |
+| シリアル化可能なデータ: 文字列、数値、boolean、配列、plain object、`Date` など | 通常の関数、クラス instance、Map/Set などのシリアル化できない値 |
+| **Server Actions**（ミューテーションの入口として渡す）| ユースケース / infrastructure / サーバーを前提とする domain 関数そのもの |
 
-The procedure for read wiring (validating params, the use case, `notFound` / mapping props) has its
-**SSOT in [coding.md](frontend-coding.instructions.md) §2** (never restate a whole page here).
+読み取り配線の手順（params 検証、ユースケース、`notFound` / props への写像）の
+**SSOT は [coding.md](frontend-coding.instructions.md) §2** にある（page 全体をここへ再掲しない）。
 
-What this document defines is only the shape of the handoff.
+この文書が定義するのは受け渡しの形だけである。
 
 ```tsx
 //  OK: Client へ渡すのはシリアル化可能なデータと Server Action 参照だけ
@@ -96,57 +96,57 @@ What this document defines is only the shape of the handoff.
 //  <Button onClick={() => doSomething()} />
 ```
 
-**The substance of a mutation lives in a Server Action (a mutation controller) and is written by backend-logic.**
-Details in [backend/coding.md](backend-coding.instructions.md). The frontend only calls it and passes props ([coding.md](frontend-coding.instructions.md) §4).
-Importing and calling a use case or a DB client from the Client is forbidden.
+**ミューテーションの本体は Server Action（ミューテーション・コントローラー）に置き、backend-logic が書く。**
+詳細は [backend/coding.md](backend-coding.instructions.md)。frontend は呼び出しと props の受け渡しだけを行う（[coding.md](frontend-coding.instructions.md) §4）。
+Client からユースケースや DB client を import・呼び出しすることは禁止する。
 
 ---
 
-## 4. Where state lives (a lightweight rule)
+## 4. 状態の置き場所（軽量な規約）
 
-Before holding a value, decide **where that value's truth lives**.
+値を保持する前に **その値の正本がどこにあるか**を決める。
 
-| Kind | Definition | Where it lives |
+| 種別 | 定義 | 置き場所 |
 | --- | --- | --- |
-| **Server truth** | data whose authority is the DB or an external system (lists, details, user info) | **Reads**: RSC wiring → the use case.<br/>**Updates**: Server Actions → the use case ([backend/coding.md](backend-coding.instructions.md)) |
-| **Client-only state** | temporary UI state the server does not know about (a modal's open/closed, in-progress input, the current tab) | `useState` and the like at the smallest necessary Client leaf. Only when sharing is needed, the mechanism the project approved |
+| **サーバーの正本** | DB または外部システムが正本を持つデータ（一覧、詳細、ユーザー情報）| **読み取り**: RSC 配線 → ユースケース。<br/>**更新**: Server Actions → ユースケース（[backend/coding.md](backend-coding.instructions.md)）|
+| **Client 専用状態** | サーバーが知らない一時 UI 状態（modal の開閉、入力途中、現在の tab）| 必要最小の Client 末端の `useState` など。共有が必要な場合のみ、プロジェクトが承認した機構 |
 
-Prohibitions and avoidances:
+禁止事項と避けること:
 
-- Never fetch in a Client `useEffect` and `setState` **for the initial render**. If it can be read, read it in RSC (via the use case) and pass it through props
-- Never copy a list or a detail received from the server straight into `useState` for any reason other than an edit form (the moment you copy it, it diverges from a refetch or the post-Action display)
-- Only when a "draft while typing" is needed, as in an edit form, may you receive it as an initial value and put it in local state. **State explicitly when it gets re-initialized from the server value**
+- **初回表示のために** Client の `useEffect` で fetch して `setState` しない。読み取れるなら RSC（ユースケース経由）で読み、props で渡す
+- 編集 form 以外の理由で、サーバーから受けた一覧や詳細をそのまま `useState` にコピーしない（コピーした瞬間に再取得や Action 後の表示と乖離する）
+- 編集 form のように「入力中の下書き」が必要な場合だけ、初期値として受けて局所 state に置いてよい。**いつサーバー値から再初期化するかを明示する**
 
-> Whether to place a client-side cache layer (TanStack Query, for example) is declared in the project's `CLAUDE.md`.
-> The harness pins no library. But "fetching the initial data by hand on the Client" is never the default.
+> client 側 cache 層（例: TanStack Query）を置くかはプロジェクトの `CLAUDE.md` に宣言する。
+> harness はライブラリを固定しない。ただし「Client で初期データを手動取得する」は既定にしない。
 
 ---
 
-## 5. The flow within a screen (the picture)
+## 5. 画面内の流れ（図）
 
 ```text
-RSC (page wiring)
-  │  reads via the use case
+RSC（page 配線）
+  │  ユースケース経由で読み取り
   ▼
-  props (data) / Server Action (the update entrance)
+  props（データ）/ Server Action（更新入口）
   │
   ▼
-the Server / Client display component tree
-  │  data flows down through props
+Server / Client の表示コンポーネントツリー
+  │  props を通してデータが下る
   ▼
-Client leaves (input, clicks)
-  │  up to the Client parent via onX, or calling a Server Action directly
+Client の末端（入力、クリック）
+  │  onX で Client 親へ上げる、または Server Action を直接呼ぶ
   ▼
-(after the mutation) the Action side revalidates → the display moves to the new server truth
+（更新後）Action 側が再検証 → 表示が新しいサーバーの正本へ移る
 ```
 
 ---
 
-## ✅ Checklist before returning
+## ✅ 返却前チェックリスト
 
-- [ ] Does data flow parent → child through props? (is a child writing the parent's state directly?)
-- [ ] Is child → parent notification limited to a callback the parent passed (or a Server Action)?
-- [ ] Is an event handler placed on a Server Component?
-- [ ] Are the Server → Client props serializable data? Is the only function you pass a Server Action?
-- [ ] Have you escaped into a Client `useEffect` + fetch for the initial render?
-- [ ] Are you needlessly copying server truth into `useState` for anything but an edit draft?
+- [ ] データは props で親 → 子へ流れるか（子が親の state を直接書いていないか）？
+- [ ] 子 → 親の通知は親から渡された callback（または Server Action）だけか？
+- [ ] Server Component に event handler を置いていないか？
+- [ ] Server → Client の props はシリアル化可能なデータか？渡す関数は Server Action だけか？
+- [ ] 初回表示のために Client の `useEffect` + fetch へ逃げていないか？
+- [ ] 編集用下書き以外の理由でサーバーの正本を不必要に `useState` へコピーしていないか？

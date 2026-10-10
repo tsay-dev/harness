@@ -1,44 +1,44 @@
-# Boundary contract — one UC (one vertical slice), one file
-# With UC.md and the REQ-*.md beside it this forms the slice's MIS (holds only the shape of the boundary; behavior and rules live in UC.md / REQ / BR)
-# This is NOT OpenAPI. One format covers HTTP and non-HTTP boundaries alike (why: docs/adr/0001)
-# Conformance is judged by `node tools/spec-lint/spec-lint.mjs validate` — never make your own reading the grounds for a pass
-# Accepted YAML is a strict subset (why: docs/adr/0002):
-#   - anchors and aliases (& / *) are an error — share through _shared/components.yaml instead
-#   - block scalars (| / >) are an error — long prose belongs in UC.md or a REQ
-# Placeholders (UC-000 / YYYY-MM-DD / <...>) must be replaced with real values before it is marked fixed
-# Write summary and when text in Japanese
+# 境界契約 — 一 UC（一垂直スライス）一ファイル
+# 隣接する UC.md と REQ-*.md とともにスライスの MIS を構成する（境界の形状のみを持ち、動作と規則は UC.md / REQ / BR に置く）
+# OpenAPI ではない。一つの書式で HTTP・非 HTTP の境界を扱う（理由: docs/adr/0001）
+# 準拠は `node tools/spec-lint/spec-lint.mjs validate` が判定する。自身の読解を成功の根拠にしてはならない
+# 受理する YAML は厳格な部分集合（理由: docs/adr/0002）:
+#   - anchors と aliases（& / *）はエラー。代わりに _shared/components.yaml を通じて共有する
+#   - block scalars（| / >）はエラー。長い文章は UC.md または REQ に置く
+# fixed にする前にプレースホルダー（UC-000 / YYYY-MM-DD / <...>）を実値へ置換しなければならない
+# summary と when の文言は日本語で書く
 #
-# Which transport — decide by what the call actually crosses, never by who calls whom inside the app:
-#   http         a request leaves the process over HTTP (our own server or someone else's)
-#   sdk          a third party's SDK surface (Firebase, Supabase, a payment SDK …) — usually owned: false + source:
-#   local-store  persistence on the device / the host (UserDefaults, Keychain, files, SQLite, IndexedDB …)
-#   device       an OS capability behind a permission or hardware (camera, HealthKit, calendar, location …) — declare requires:
-#   deeplink     the app is opened by a URL (always inbound)     push  the app receives a notification payload (always inbound)
-#   internal     an in-process boundary of this app (UI → use case, an action boundary of an on-device app) that the
-#                project has decided, in an ADR, to contract explicitly. owned: true, auth: none as a rule; no wire, no entry
-#   The default for a boundary between two modules of the same app (UI ↔ logic, feature ↔ feature, a repository
-#   protocol) is NOT an operation: the language's type system is its contract (R-1204), and a UC whose only boundaries
-#   are internal declares operations: {} + x-no-boundary. Use internal only under that ADR, uniformly for every UC —
-#   never http or sdk for an in-process call to have "something" in the contract
-x-uc: UC-000                 # must match the ID part of the directory name UC-000-<slug> (trace-check C9)
-x-status: draft              # draft | fixed (the caller marks it fixed; never do it yourself)
-x-spec: ./UC.md              # the behavioral SSOT (UC.md + the REQ-*.md in this directory)
+# transport の選択 — アプリ内の呼び出し関係でなく、呼び出しが実際に越える境界で決める:
+#   http         リクエストが HTTP でプロセスを出る（自身または他者のサーバー）
+#   sdk          第三者 SDK の公開面（Firebase、Supabase、決済 SDK など）。通常は owned: false + source:
+#   local-store  デバイス / ホスト上の永続化（UserDefaults、Keychain、ファイル、SQLite、IndexedDB など）
+#   device       権限やハードウェアを介する OS 機能（カメラ、HealthKit、カレンダー、位置情報など）。requires: を宣言する
+#   deeplink     URL でアプリを開く（常に inbound）     push  通知ペイロードを受信する（常に inbound）
+#   internal     このアプリのプロセス内境界（UI → use case、デバイス上のアプリの action 境界）で、
+#                プロジェクトが ADR で明示的に契約化を決めたもの。原則 owned: true、auth: none。wire と entry はなし
+#   同じアプリのモジュール間境界（UI ↔ logic、feature ↔ feature、repository protocol）の既定は操作ではない。
+#   言語の型システムが契約（R-1204）。プロセス内境界しかない UC は operations: {} + x-no-boundary を宣言する。
+#   internal はその ADR に基づく場合だけ全 UC で統一して使う。契約に「何か」を置くために
+#   プロセス内呼び出しを http や sdk にしてはならない
+x-uc: UC-000                 # ディレクトリ名 UC-000-<slug> の ID 部分と一致させる（trace-check C9）
+x-status: draft              # draft | fixed（呼び出し元が fixed にする。自身で行ってはならない）
+x-spec: ./UC.md              # 動作の SSOT（このディレクトリの UC.md + REQ-*.md）
 x-updated: YYYY-MM-DD
 
 operations:
-  # Key = the operation name (lowerCamelCase, unique within this file). It is the call site's identity:
-  # tests and the host's contract adapter reach the implementation through the "operation → entry" convention
-  # of the framework testing leaf, so the name here is the name the code exposes
-  # The keys under an operation are a closed set (transport / direction / owned / source / auth / summary / wire /
-  # entry / requires / request / response / errors / examples). spec-lint rejects any other key, x-* included —
-  # rules and state transitions belong in UC / REQ / BR, and the evaluation order belongs in the order of errors
+  # キー = 操作名（lowerCamelCase、このファイル内で一意）。呼び出し箇所の識別情報となる。
+  # テストと利用プロジェクトの契約アダプターは、フレームワークのテストリーフの「操作 → 入口」規約で
+  # 実装へ到達するため、ここの名前はコードが公開する名前とする
+  # 操作配下のキーは閉じた集合（transport / direction / owned / source / auth / summary / wire /
+  # entry / requires / request / response / errors / examples）。spec-lint は x-* を含む他のキーを拒否する。
+  # 規則と状態遷移は UC / REQ / BR に置き、評価順序は errors の順序に置く
   <operationName>:
-    transport: http          # http | sdk | local-store | deeplink | push | device | internal (enforced by spec-lint, which is authoritative)
-    direction: outbound      # outbound = this app calls out / inbound = this app is called
-    owned: true              # true = we decide this shape / false = we transcribe someone else's (add source:)
-    auth: <scheme>           # a name defined in _shared authSchemes, or none. Never omit — "forgot" and "not needed" must stay distinguishable
-    summary: <何をするか 1 行>  # one line only; no detailed explanation
-    wire:                    # required when transport is http, an error otherwise
+    transport: http          # http | sdk | local-store | deeplink | push | device | internal（権威である spec-lint が保証）
+    direction: outbound      # outbound = このアプリが外部を呼ぶ / inbound = このアプリが呼ばれる
+    owned: true              # true = 自身が形状を決める / false = 他者の形状を書き写す（source: を追加）
+    auth: <scheme>           # _shared authSchemes の定義名、または none。省略禁止。「忘れた」と「不要」を区別する
+    summary: <何をするか 1 行>  # 一行のみ。詳細説明なし
+    wire:                    # transport が http なら必須。それ以外ではエラー
       method: POST
       path: /xxx
       success: 200
@@ -50,34 +50,34 @@ operations:
           type: string
           minLength: 1
           maxLength: 255
-          # description is a short note on the wire constraint only (business meaning and rules live in the spec)
+          # description は通信制約だけの短い注記（業務の意味と規則は仕様に置く）
     response:
       type: object
       required: [id, status]
       properties:
         id: { type: integer }
         status: { type: string, const: ok }
-    errors:                  # one entry per triggering condition. code must be defined in _shared errorCodes.
-                             # errors: is an ORDERED list: its order is the evaluation order (first match wins) and the
-                             # only place that order is written (R-1207). when: is a label for the entry, not a proof that
-                             # entries are exclusive — precedence between neighbours is decided by examples and tests,
-                             # never by prose here or in UC / BR / ADR / schema comments
-                             # errors: [] declares "this operation has no failure path" (reading a stored setting, say):
-                             # no failure example is required then. Omitting the key is NOT that declaration — omitted and
-                             # empty are kept distinct, the same way auth: none is distinct from a missing auth
+    errors:                  # 発生条件ごとに一項目。code は _shared errorCodes に定義済みでなければならない
+                             # errors: は順序付き一覧。順序が評価順序（最初の一致を採用）であり、
+                             # その順序を書く唯一の場所（R-1207）。when: は項目のラベルであり、排他性の証明ではない。
+                             # 隣接項目の優先順位は例とテストで決め、ここや UC / BR / ADR / スキーマのコメントの
+                             # 文章では決めてはならない。
+                             # errors: [] は「この操作には失敗経路がない」（例: 保存済み設定の読み取り）と宣言する。
+                             # その場合は失敗例不要。キー省略はその宣言ではない。auth: none と auth 欠落を区別する
+                             # のと同様、省略と空を区別する
       - code: INVALID_INPUT
-        when: <発生条件を 1 行>   # a word or a single line; never restate the business rule
-        wire: { status: 400 }  # only when transport is http
+        when: <発生条件を 1 行>   # 一語か一行。業務規則を再記述してはならない
+        wire: { status: 400 }  # transport が http の場合のみ
       - code: FORBIDDEN
         when: <発生条件を 1 行>
         wire: { status: 403 }
-    examples:                # mandatory once fixed: at least one success and one failure example PER errors[] code, with real
-                             # values (spec-lint). tools/contract-run executes every example through the host's contract
-                             # adapter (traceconfig.json commands.contract_adapter), so these are the contract's own tests.
-                             # Where two failure conditions can hold at once, add an example for that input expecting the
-                             # earlier code — that turns the evaluation order into an executed check.
-                             # A failure example may carry keys the request forbids (additionalProperties: false / not:) —
-                             # the counter-example is the point, so spec-lint matches only success examples against request.properties
+    examples:                # fixed 後は必須。実値による成功例を少なくとも一つ、errors[] のコードごとに失敗例一つ
+                             # を置く（spec-lint）。tools/contract-run が利用プロジェクトの契約アダプター
+                             # （traceconfig.json commands.contract_adapter）で全例を実行する。これらは契約自身のテスト。
+                             # 二つの失敗条件が同時に成立する場合、先のコードを期待するその入力の例を追加し、
+                             # 評価順序を実行検査にする。
+                             # 失敗例は request が禁止するキー（additionalProperties: false / not:）を持ってよい。
+                             # 反例が目的なので、spec-lint は成功例だけを request.properties と照合する
       ok:
         request: { i_xxx: "abc" }
         response: { id: 1, status: ok }
@@ -85,10 +85,10 @@ operations:
         request: { i_xxx: "" }
         error: INVALID_INPUT
 
-# --- Shapes shared by 2+ operations of THIS UC (optional top-level key) ---
+# --- この UC の二つ以上の操作が共有する形状（任意の最上位キー）---
 #
-#  Reference them as $ref: "#/schemas/<Name>". A shape used by 2+ UCs goes to ../../../_shared/components.yaml instead
-#  (the orchestrator adds it; you report the request). A shape used by a single operation stays inline in that operation
+#  $ref: "#/schemas/<Name>" で参照する。二つ以上の UC が使う形状は ../../../_shared/components.yaml へ置く
+#  （orchestrator が追加する。自身は要求を報告）。単一操作だけが使う形状はその操作内にインラインで残す
 #
 #   schemas:
 #     VoiceComposeState:
@@ -97,9 +97,9 @@ operations:
 #       properties:
 #         phase: { type: string, enum: [idle, recording, done] }
 
-# --- Variants by transport (uncomment the ones this UC needs) ---
+# --- transport ごとの変形例（この UC が必要とするもののコメントを外す）---
 #
-#  Local persistence — the shape is ours to decide, so owned stays true. No wire
+#  ローカル永続化 — 自身が形状を決めるので owned は true のまま。wire なし
 #   saveAppearance:
 #     transport: local-store
 #     direction: outbound
@@ -118,7 +118,7 @@ operations:
 #       ok: { request: { theme: dark }, response: { theme: dark } }
 #       invalid: { request: { theme: neon }, error: INVALID_INPUT }
 #
-#  Deeplink / universal link — the app is called, so direction is inbound. entry: is the pattern
+#  Deeplink / universal link — アプリが呼ばれるので direction は inbound。entry: がパターン
 #   openItem:
 #     transport: deeplink
 #     direction: inbound
@@ -132,7 +132,7 @@ operations:
 #       properties:
 #         itemId: { type: string, minLength: 1 }
 #
-#  Push notification — inbound as well. entry: is the payload's discriminator
+#  Push 通知 — 同じく inbound。entry: はペイロードの識別子
 #   receiveOrderUpdate:
 #     transport: push
 #     direction: inbound
@@ -147,8 +147,8 @@ operations:
 #         orderId: { type: string }
 #         status: { type: string, enum: [shipped, delivered] }
 #
-#  Device capability — requires: declares the permission this operation depends on.
-#  A requires: with no matching permission error is an error (the denied path must be in the contract)
+#  デバイス機能 — requires: は操作が依存する権限を宣言する。
+#  対応する権限エラーのない requires: はエラー（拒否経路を契約に含める必要がある）
 #   capturePhoto:
 #     transport: device
 #     direction: outbound
@@ -160,8 +160,8 @@ operations:
 #     errors:
 #       - { code: PERMISSION_DENIED, when: <カメラ権限が拒否されている> }
 #
-#  A third party's boundary (Firebase / Supabase / an existing external API).
-#  owned: false means we transcribe rather than settle — the DB correspondence check is waived and source: is required
+#  第三者の境界（Firebase / Supabase / 既存の外部 API）。
+#  owned: false は自身で決定せず書き写すことを意味する。DB 対応検査は免除し、source: を必須にする
 #   fetchProfile:
 #     transport: sdk
 #     direction: outbound
@@ -173,11 +173,11 @@ operations:
 #     errors:
 #       - { code: NOT_FOUND, when: <該当ユーザーなし> }
 
-# --- A UC with no boundary at all ---
+# --- 境界が全くない UC ---
 #
-#  A UC that closes inside one screen (no network, no persistence, no OS capability)
-#  declares zero boundaries rather than going without a contract. This is a declaration, not an exemption,
-#  so the implementation start line (a contract before code) stays intact. The reason is required — operations: {} alone is an error
+#  一画面内で完結する UC（ネットワーク、永続化、OS 機能なし）は、契約を省略せず境界ゼロを宣言する。
+#  これは免除でなく宣言なので、実装開始線（コード前に契約）は維持される。
+#  理由は必須。operations: {} だけではエラー
 #
 #   operations: {}
 #   x-no-boundary: <入力中のバリデーション表示のみで、通信も永続もない>

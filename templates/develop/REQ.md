@@ -2,8 +2,8 @@
 id: REQ-000
 pattern: <Ubiquitous | Event-driven | State-driven | Unwanted behaviour | Optional>
 uc: UC-000
-br: BR-000             # optional — only when a business rule applies; delete the line otherwise
-status: draft          # draft | active | withdrawn (active = approved by a human)
+br: BR-000             # optional（任意）— 業務規則が適用される場合のみ。それ以外は行を削除する
+status: draft          # draft | active | withdrawn（active = 人間承認済み）
 ---
 
 # REQ-000
@@ -13,11 +13,11 @@ status: draft          # draft | active | withdrawn (active = approved by a huma
 ## 検証方針
 
 <!--
-Owned by the test designer, not by the requirement's author (the author leaves this section as the scaffold below).
-Only what cannot be reconstructed from the test code (R-604). Never the setup / action / expected value of a case (R-601).
-The class list = the SSOT for the full set of tests to write (R-1101). Each test points at one class with @covers REQ-000#class (R-1102).
-Placement: docs/goals/<GOAL-nn-slug>/<UC-000-slug>/REQ-000.md — directly under the UC named by uc: (trace-check C9).
-Write the content in Japanese.
+要件作成者ではなくテスト設計者が所有する（要件作成者は以下のひな形のまま残す）。
+テストコードから再構築できないことだけを書く（R-604）。ケースの準備 / 操作 / 期待値を書いてはならない（R-601）。
+クラス一覧 = 作成すべき全テスト集合の SSOT（R-1101）。各テストは @covers REQ-000#class で一クラスを指す（R-1102）。
+配置: docs/goals/<GOAL-nn-slug>/<UC-000-slug>/REQ-000.md — uc: が指定する UC の直下（trace-check C9）。
+本文は日本語で書く。
 -->
 
 - **分割クラス**:

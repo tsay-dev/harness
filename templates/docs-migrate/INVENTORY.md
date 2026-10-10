@@ -29,4 +29,4 @@ status: working
 | # | 矛盾の内容 | 関係箇所 |
 | --- | --- | --- |
 
-<!-- Written to docs/INVENTORY.md by /docs-migrate Phase 0. Write the content in Japanese. -->
+<!-- /docs-migrate の Phase 0 で docs/INVENTORY.md に作成する。 本文は日本語で書く。 -->

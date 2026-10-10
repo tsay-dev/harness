@@ -1,42 +1,42 @@
 ---
-description: "🎨 Expo / frontend — surface-layer coding rules"
+description: "🎨 Expo / frontend — 表層コーディング規約"
 applyTo: "**/*.tsx,**/*.ts,**/app.json,**/app.config.*,**/eas.json"
 ---
 
-# 🎨 Expo / frontend — surface-layer coding rules
+# 🎨 Expo / frontend — 表層コーディング規約
 
-> **Scope: React Native apps on Expo (expo-router).** If it is not Expo, treat this document as inapplicable and discard it.
+> **対象: Expo（expo-router）の React Native アプリ。** Expo でなければ適用外として扱い、破棄する。
 >
-> **The common rules are [common/coding.md](common-coding.instructions.md)** (formatting is the tool's; never weaken types to get to green;
-> no default exports, no barrels, path aliases; secrets and `EXPO_PUBLIC_`; the boundary on native dependencies).
-> This document defines, **on top of following those**, only the delta that binds React Native's surface. It never restates the common side.
+> **共通規約は [common/coding.md](common-coding.instructions.md)**（整形はツールが決める。成功させるために型を弱めない。
+> default export 禁止、barrel 禁止、パスエイリアス、秘密情報と `EXPO_PUBLIC_`、native 依存の境界）。
+> この文書は **それらに従った上で**、React Native の表層を拘束する差分だけを定義する。共通側は再掲しない。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Defining the goal (what the RN runtime can and cannot do)
+## 0. 目的の定義（RN runtime ができること、できないこと）
 
-The React Native runtime **is neither a browser nor Node.**
+React Native runtime は **browser でも Node でもない**。
 
-There is no DOM. No CSS cascade, no inheritance, no selectors, no media queries.
-`document` / `window` / `localStorage` / `alert` are absent or are something else entirely.
-Parts of `Buffer` / `crypto` / `Intl` are absent or behave differently per platform.
+DOM はない。CSS の cascade、継承、selector、media query はない。
+`document` / `window` / `localStorage` / `alert` は存在しないか、まったく別物である。
+`Buffer` / `crypto` / `Intl` の一部は存在しないか、platform ごとに挙動が違う。
 
-**The biggest source of accidents is that JSX looks exactly like it does on the Web.**
-Because you can write code that looks the same, you get the illusion that Web knowledge carries over —
-and **a mistake that would be a layout glitch on the Web becomes a runtime crash here, or silence on one platform.**
+**最大の事故原因は、JSX の見た目が Web とまったく同じことである。**
+同じように見えるコードが書けるため、Web の知識が通用する錯覚を生む。
+**Web なら layout の崩れになる間違いが、ここでは実行時 crash や片方の platform での無反応になる。**
 
-**This document's job is to close the loopholes that the identical appearance leaves open.**
+**この文書の役割は、同じ見た目によって残る抜け道を塞ぐことである。**
 
 ---
 
-## 1. A bare string can only go inside `<Text>`
+## 1. 生の文字列は `<Text>` の中にだけ置ける
 
-A string appearing directly under a `<View>` **crashes at runtime** (`Text strings must be rendered within a <Text> component`).
-The same code that renders without incident in React on the Web kills the app here.
+`<View>` 直下に現れる文字列は **実行時に crash する**（`Text strings must be rendered within a <Text> component`）。
+Web の React では問題なく描画する同じコードが、ここではアプリを落とす。
 
-What is dangerous is not a string you wrote deliberately but **a string leaking out of a conditional**.
+危険なのは意図して書いた文字列ではなく、**条件式から漏れる文字列**である。
 
 ```tsx
 //  NG: count が 0 のとき、0 が View の直下に落ちてクラッシュする
@@ -49,18 +49,18 @@ What is dangerous is not a string you wrote deliberately but **a string leaking 
 <View>{count > 0 ? <Badge count={count} /> : null}</View>
 ```
 
-**Write conditional rendering with a ternary and an explicit `null`, not with `&&`.**
-Fixing the shape is cheaper than thinking every time about whether the left side of `&&` could be a number or an empty string.
+**条件付き描画は `&&` ではなく、三項演算子と明示的な `null` で書く。**
+毎回 `&&` 左辺が数値や空文字になり得るかを考えるより、形を固定する方が安い。
 
 ---
 
-## 2. Styles are not CSS
+## 2. style は CSS ではない
 
-### Put them in `StyleSheet.create`
+### `StyleSheet.create` に置く
 
-**Never create a style object literal inside the JSX every time.**
-A new reference is born on every render, unconditionally defeating `React.memo`'s avoided re-renders on a child.
-Do this in a list's row component and every row re-renders on every scroll.
+**JSX の中で毎回 style object literal を作らない。**
+render ごとに新しい参照が生まれ、子の `React.memo` による再 render 回避を無条件に破る。
+リストの行コンポーネントで行うと、scroll のたびに全行が再 render する。
 
 ```tsx
 //  NG: 毎レンダで新しいオブジェクト
@@ -70,76 +70,76 @@ Do this in a list's row component and every row re-renders on every scroll.
 <View style={[styles.card, isActive && styles.cardActive]} />
 ```
 
-### Never bring CSS common sense with you
+### CSS の常識を持ち込まない
 
-| What you assume on the Web | In React Native |
+| Web での前提 | React Native では |
 | --- | --- |
-| Styles cascade and inherit | **They do not.** Only some text styles inherit through nested `<Text>` |
-| `flexDirection` defaults to `row` | **It defaults to `column`** |
-| `position: fixed` exists | **It does not.** Pin to the screen with absolute positioning plus layout structure |
-| One `box-shadow` produces a shadow | **iOS uses `shadowColor` / `shadowOffset` / `shadowOpacity` / `shadowRadius`; Android uses `elevation`. Write only one and the shadow disappears on the other** |
-| A container's `padding` affects its contents | On a `ScrollView` it goes in **`contentContainerStyle`** (in `style` it has no effect) |
-| `text-overflow: ellipsis` | Specify it through the **`numberOfLines` prop** |
-| `gap` / `%` / `vh` are available | `gap` works but there is no `vh`. Get screen dimensions from `useWindowDimensions` |
+| style は cascade・継承する | **しない。** 入れ子の `<Text>` を通して一部の text style だけが継承する |
+| `flexDirection` の既定は `row` | **既定は `column`** |
+| `position: fixed` がある | **ない。** absolute 配置と layout 構造で画面へ固定する |
+| 1 つの `box-shadow` で影が出る | **iOS は `shadowColor` / `shadowOffset` / `shadowOpacity` / `shadowRadius`、Android は `elevation`。片方だけ書くと他方で影が消える** |
+| container の `padding` は内容に効く | `ScrollView` では **`contentContainerStyle`** に置く（`style` では効かない）|
+| `text-overflow: ellipsis` | **`numberOfLines` prop** で指定する |
+| `gap` / `%` / `vh` が使える | `gap` は使えるが `vh` はない。画面寸法は `useWindowDimensions` から取得する |
 
-**When your hands move because "on the Web you write it like this", stop and check the table above.**
+**「Web ではこう書く」で手が動いたら、止まって上表を確認する。**
 
 ---
 
-## 3. Vary the means of platform branching by the size of the difference
+## 3. 差分の大きさで platform 分岐の手段を変える
 
-| Size of the difference | Means |
+| 差分の大きさ | 手段 |
 | --- | --- |
-| A few values differ (spacing, fonts, shadows) | use `Platform.select` / `Platform.OS` inside the expression |
-| **The component's structure differs entirely, or only one side carries a native dependency** | **split into `Foo.ios.tsx` / `Foo.android.tsx`** (the bundler resolves it; the import side stays `./Foo`) |
+| 数個の値だけが違う（余白、font、影）| 式内で `Platform.select` / `Platform.OS` を使う |
+| **コンポーネント構造全体が違う、または片方だけ native 依存を持つ** | **`Foo.ios.tsx` / `Foo.android.tsx` へ分ける**（bundler が解決し、import 側は `./Foo` のまま）|
 
-**When you split into files, both files must have the same props type and the same export name.**
-A breakage where only one side's signature changes goes unnoticed until you build for the other platform, making it
-**the defect that surfaces latest**. Put the props type in a shared file and import it from both.
+**ファイルに分けた場合は、両方の props 型と export 名を同じにする。**
+片方の signature だけ変わる破損は、他方の platform 向けに build するまで気付かず、
+**最も遅く表面化する欠陥**となる。props 型を共有ファイルに置き、両方から import する。
 
-Write a `Platform.OS === 'web'` branch **only when the project has decided to ship Expo Web**.
-If that is undecided, do not write it (a branch for a requirement that does not exist rots unverified).
+`Platform.OS === 'web'` 分岐は **プロジェクトが Expo Web の出荷を決めた場合だけ**書く。
+未決定なら書かない（存在しない要求の分岐は未検証のまま腐る）。
 
 ---
 
-## 4. The screen's edges — safe area and the keyboard
+## 4. 画面の端 — safe area と keyboard
 
-**Neither is optional, and CSS cannot substitute for either.** Miss them and it breaks only on a real device.
+**どちらも任意ではなく、CSS で代用できない。** 見落とすと実機でだけ壊れる。
 
-### Safe area
+### safe area
 
-- **Use `react-native-safe-area-context`** (`useSafeAreaInsets`, or that library's `SafeAreaView`)
-- **Never use the `SafeAreaView` imported from `react-native`.** It is iOS-only and **does nothing on Android**, so
-  it slips under the notch or the gesture bar on one platform only
-- On a screen with a header or tabs, **never add the insets twice**. Exclude with `edges` the sides the navigator already consumed
-  (that is the cause of unnatural padding at the top and bottom)
+- **`react-native-safe-area-context` を使う**（`useSafeAreaInsets` またはそのライブラリの `SafeAreaView`）
+- **`react-native` から import する `SafeAreaView` を使わない。** iOS 専用で **Android では何もしない**ため、
+  片方の platform だけ notch や gesture bar の下へ潜る
+- header や tab のある画面で **inset を二重に足さない**。navigator が既に消費した辺は `edges` で除外する
+  （上下の不自然な余白の原因である）
 
-### The keyboard
+### keyboard
 
-Build a design where input is not hidden by the keyboard **from the start** on any screen with input (otherwise you end up rebuilding the layout afterwards).
+入力のある画面は **最初から** keyboard に入力が隠れない設計にする（そうしないと後から layout を作り直すことになる）。
 
-**Put `keyboardShouldPersistTaps="handled"` on any `ScrollView` containing input.**
-Without it, **the first tap while the keyboard is up is consumed by dismissing the keyboard and the button does not respond.**
-It gets reported only as "sometimes it doesn't press", and it is a defect hard to reproduce even in review.
+**入力を含むすべての `ScrollView` に `keyboardShouldPersistTaps="handled"` を付ける。**
+ない場合は **keyboard 表示中の最初の tap が keyboard を閉じるために消費され、button が反応しない**。
+「ときどき押せない」としか報告されず、review でも再現しにくい欠陥となる。
 
 ---
 
-## 5. Accessibility and testID are things you "emit"
+## 5. accessibility と testID は「出力する」もの
 
-**RN has no semantic elements.** Neither `<Pressable>` nor `<View>` announces what it is.
-Nothing is decided automatically from markup as on the Web, so **emit it explicitly.**
+**RN に semantic element はない。** `<Pressable>` も `<View>` も自分が何かを名乗らない。
+Web のように markup から自動決定されないため、**明示して出力する**。
 
-| Target | What to attach |
+| 対象 | 付けるもの |
 | --- | --- |
-| Anything pressable | `accessibilityRole` (`button` / `link` / `checkbox`, and so on) |
-| An element with only an icon and no text | `accessibilityLabel` (write what it does, not the icon's name) |
-| States such as disabled, selected, expanded | `accessibilityState` (never express it through appearance alone) |
-| A tap area smaller than 44pt | `hitSlop` (widen only the hit area, leaving the appearance) |
+| 押せるものすべて | `accessibilityRole`（`button` / `link` / `checkbox` など）|
+| icon だけで text がない要素 | `accessibilityLabel`（icon 名でなく何をするかを書く）|
+| disabled、selected、expanded などの状態 | `accessibilityState`（外観だけで表さない）|
+| 44pt より小さい tap 領域 | `hitSlop`（外観はそのままに、判定領域だけ広げる）|
 
-On top of that, **attach a stable `testID` to anything pressable and anything a scenario flow will identify — and derive its value, never invent it** (ADR-0037):
-the control that fires a contract operation carries the **operation name** (`testID="createProject"`), the input for a request field carries **`<operation>.<field>`** (`testID="createProject.title"`).
-**Never copy the displayed text** (a wording change would break the flow), and never an id the contract does not name (a scenario flow cannot derive it).
-Visible wording — labels, button text, `accessibilityLabel` — is the **glossary term** verbatim (`docs/01-glossary.md`); a new term goes to the glossary through its gate, never into the screen first.
+加えて **押せるものとシナリオ flow が特定するものすべてに安定した `testID` を付け、値は発明せず導出する**（ADR-0037）。
+契約 operation を実行する control は **operation 名**（`testID="createProject"`）、request field の入力は **`<operation>.<field>`**（`testID="createProject.title"`）を持つ。
+**表示文言をコピーしない**（文言変更で flow が壊れる）。契約にない id も使わない（シナリオ flow が導出できない）。
+見える文言（label、button 文言、`accessibilityLabel`）は **用語集の用語**をそのまま使う（`docs/01-glossary.md`）。新しい用語はゲートを通して用語集へ追加し、先に画面へ入れない。
 
 ```tsx
 //  NG: 何も名乗らない。読み上げでは無反応、テストからも引けない
@@ -158,18 +158,18 @@ Visible wording — labels, button text, `accessibilityLabel` — is the **gloss
 </Pressable>
 ```
 
-> The attributes emitted here are what VoiceOver / TalkBack announce and what the UC's scenario flow ([system-testing.md](system-testing.instructions.md)) taps and asserts on — the flow derives them from the same glossary and contract, so return the wording → `testID` table in your report; when the two disagree, the appearance moves.
+> ここで出力する属性は VoiceOver / TalkBack が読み上げ、UC のシナリオ flow（[system-testing.md](system-testing.instructions.md)）が tap・検証するものとなる。flow は同じ用語集と契約から導出するため、報告には文言 → `testID` の表を返す。不一致なら外観側を動かす。
 
 ---
 
-## ✅ Checklist before returning
+## ✅ 返却前チェックリスト
 
-- [ ] Is any conditional rendering with `&&` left? (is it a ternary + `null`?)
-- [ ] Are you writing style object literals inside the JSX?
-- [ ] Wherever you added a shadow, did you specify both the iOS and the Android side?
-- [ ] If you split into `.ios.tsx` / `.android.tsx`, do both have the same props type and export name?
-- [ ] Are you getting the safe area from `react-native-safe-area-context` (and not `react-native`'s `SafeAreaView`)?
-- [ ] Did you put `keyboardShouldPersistTaps="handled"` on a `ScrollView` containing input?
-- [ ] Does everything pressable have an `accessibilityRole` and (if it has no text) an `accessibilityLabel`?
-- [ ] Did you express state through `accessibilityState` as well as appearance?
-- [ ] Is every `testID` the contract's operation name or `<operation>.<field>`, and every visible term the glossary term — never the displayed text copied into an id?
+- [ ] `&&` による条件付き描画が残っていないか（三項 + `null` になっているか）？
+- [ ] JSX 内に style object literal を書いていないか？
+- [ ] 影を追加したすべての箇所で iOS 側と Android 側の両方を指定したか？
+- [ ] `.ios.tsx` / `.android.tsx` に分けた場合、両方の props 型と export 名は同じか？
+- [ ] safe area は `react-native-safe-area-context` から取得しているか（`react-native` の `SafeAreaView` ではないか）？
+- [ ] 入力を含む `ScrollView` に `keyboardShouldPersistTaps="handled"` を付けたか？
+- [ ] 押せるものすべてに `accessibilityRole` と、text がない場合は `accessibilityLabel` があるか？
+- [ ] 外観に加えて `accessibilityState` でも状態を表したか？
+- [ ] `testID` はすべて契約の operation 名または `<operation>.<field>` で、見える用語はすべて用語集の用語か？表示文言を id にコピーしていないか？

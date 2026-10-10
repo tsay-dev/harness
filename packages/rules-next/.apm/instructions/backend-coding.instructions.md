@@ -1,103 +1,103 @@
 ---
-description: "⚙️ Next.js / backend — separation of responsibilities (the server-side delta)"
+description: "⚙️ Next.js / backend — 責務分離（サーバー側の差分）"
 applyTo: "**/next.config.*,**/app/**/route.ts,**/app/**/route.tsx,**/app/**/actions.ts,**/app/**/actions.tsx,**/actions/**/*.ts,**/actions/**/*.tsx,**/domain/**,**/infrastructure/**,**/use-cases/**,**/usecases/**"
 ---
 
-# ⚙️ Next.js / backend — separation of responsibilities (the server-side delta)
+# ⚙️ Next.js / backend — 責務分離（サーバー側の差分）
 
-> **Scope: server-side processing on Next.js (App Router).** If it is not Next.js, treat this document as inapplicable and discard it.
+> **対象: Next.js（App Router）のサーバー側処理。** Next.js でなければ適用外として扱い、破棄する。
 >
-> **The common rules are [common/coding.md](common-coding.instructions.md)** (formatting is the tool's; never weaken types to get to green;
-> named exports, no barrels, path aliases; secrets and `NEXT_PUBLIC_`).
-> How to write tests is [testing.md](backend-testing.instructions.md) (the common wiring is [common/testing.md](common-testing.instructions.md)).
-> This document defines, **on top of following those**, only where server-side logic goes. It never restates the common side.
+> **共通規約は [common/coding.md](common-coding.instructions.md)**（整形はツールが決める。成功させるために型を弱めない。
+> named export、barrel 禁止、パスエイリアス、秘密情報と `NEXT_PUBLIC_`）。
+> テストの書き方は [testing.md](backend-testing.instructions.md)（共通の配線は [common/testing.md](common-testing.instructions.md)）。
+> この文書は **それらに従った上で**、サーバー側ロジックの置き場所だけを定義する。共通側は再掲しない。
 >
-> **The harness does not pin directory names.** Locations are recorded in the project's `CLAUDE.md`.
-> **What is pinned is the separation of roles itself.** `domain/` and the like appearing in `applyTo` are discovery signals, not mandatory folder names.
+> **harness はディレクトリ名を固定しない。** 場所はプロジェクトの `CLAUDE.md` に記録する。
+> **固定するのは役割分離そのもの。** `applyTo` に現れる `domain/` などは探索の手掛かりであり、必須のフォルダー名ではない。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Defining the goal (what is lost when they mix)
+## 0. 目的の定義（混ざると何を失うか）
 
-In the App Router, both Server Components and Server Actions run on the server.
-So you can write DB access and decisions right next to the UI **and it will work**.
+App Router では Server Components も Server Actions もサーバーで実行される。
+そのため、UI のすぐ隣に DB アクセスと判断を書いても **動く**。
 
-What breaks is not "working" — it is that the following are lost at the same time:
+壊れるのは「動くこと」ではなく、次を同時に失うことである。
 
-- A domain decision cannot be tried in isolation (the DB and `next/*` become shackles)
-- The same decision gets copied into an Action, a page, and a Route Handler
-- Cache invalidation and redirects eat into the business logic and become impossible to replace
+- ドメイン判断を単独で試せない（DB と `next/*` が足かせになる）
+- 同じ判断が Action、page、Route Handler へコピーされる
+- cache 無効化や redirect が業務ロジックに食い込み、差し替えられなくなる
 
-**This document's job is to close the loopholes that let responsibilities mix into one function (a fat action).**
+**この文書の役割は、責務を 1 つの関数（肥大化した Action）へ混ぜる抜け道を塞ぐことである。**
 
 ---
 
-## 1. Four roles. The location does not matter
+## 1. 4 つの役割。場所は問わない
 
-| Role | Responsibility | What it must not contain |
+| 役割 | 責務 | 含めてはいけないもの |
 | --- | --- | --- |
-| **Domain** | business rules, decisions, calculations | side effects such as DB / HTTP / the clock / randomness. `next/*` |
-| **Infrastructure** | side effects: DB access, external APIs, sending mail | complex business decisions and branching (domain knowledge) |
-| **Use case** | orchestrating the scenario (assembling fetch → decide → save) | Next-specific APIs such as `revalidatePath` / `redirect` / `cookies` / `headers` |
-| **Outer entrance** | validating untrusted input, invoking the use case, Next/HTTP-specific I/O | the substance of DB operations or domain decisions |
+| **Domain** | 業務規則、判断、計算 | DB / HTTP / 時計 / 乱数などの副作用。`next/*` |
+| **Infrastructure** | 副作用: DB アクセス、外部 API、メール送信 | 複雑な業務判断・分岐（ドメイン知識）|
+| **Use case** | シナリオの orchestration（取得 → 判断 → 保存の組み立て）| `revalidatePath` / `redirect` / `cookies` / `headers` など Next 固有 API |
+| **外側の入口** | 信頼できない入力の検証、ユースケース呼び出し、Next/HTTP 固有 I/O | DB 操作やドメイン判断の本体 |
 
-The **outer entrance** has 2 implementation forms (both are the outer ring of the onion; the role name is the same, "entrance"):
+**外側の入口**には 2 つの実装形態がある（どちらも玉ねぎの外周であり、役割名は同じ「入口」）。
 
-| Implementation form | When to use it | How success/failure is carried to the caller (details in §6) |
+| 実装形態 | 使う場面 | 成功／失敗を呼び出し側へ伝える方法（詳細は §6）|
 | --- | --- | --- |
-| **Mutation controller — Server Actions** | changing server-side truth from within the same app | **a caller-facing Result**. Never expose a raw exception stack |
-| **Mutation controller — Route Handlers** | HTTP for external consumers | **an HTTP status + body** (returning the same Result shape as JSON is fine) |
-| **Read wiring** (RSC in `page.tsx` / `layout.tsx`) | reads such as the initial render | **`notFound()` / error UI / mapping into view props**. A Client-facing Result type is not mandated |
+| **ミューテーション・コントローラー — Server Actions** | 同一アプリ内からサーバー側の正本を変更する | **呼び出し側向け Result**。生の例外 stack を公開しない |
+| **ミューテーション・コントローラー — Route Handlers** | 外部の利用者向け HTTP | **HTTP status + body**（同じ Result 形状を JSON として返してもよい）|
+| **読み取り配線**（`page.tsx` / `layout.tsx` の RSC）| 初回表示などの読み取り | **`notFound()` / エラー UI / view props への写像**。Client 向け Result 型は必須ではない |
 
-**Example directories** (not binding):
+**ディレクトリ例**（拘束しない）:
 
-`domain/` · `infrastructure/` · `use-cases/` · `app/actions/` (or Route Handlers) · `app/**/page.tsx` (read wiring)
+`domain/` · `infrastructure/` · `use-cases/` · `app/actions/`（または Route Handlers）· `app/**/page.tsx`（読み取り配線）
 
-**Never mix the roles above into one function or module.**
+**上記の役割を 1 つの関数やモジュールに混ぜない。**
 
-### 1.1 Who owns the implementation (who writes what)
+### 1.1 実装の担当（誰が何を書くか）
 
-| Deliverable | Implementer |
+| 成果物 | 実装者 |
 | --- | --- |
-| **The substance of the domain / use cases / infrastructure** | **backend-logic** |
-| **The substance** of Server Actions / Route Handlers (validation, invoking the use case, `revalidatePath`, and so on) | **backend-logic** |
-| The **read wiring** in `page` / `layout` (validating params, invoking an **existing** use case, passing props to the view) | **frontend-logic** |
-| Presentational appearance | **frontend-ui** |
-| `middleware.ts` (the thin edge only — [common/coding.md](common-coding.instructions.md) §4) | **backend-logic** (declare it in the project `CLAUDE.md` if you split it out) |
+| **domain / use cases / infrastructure の本体** | **backend-logic** |
+| Server Actions / Route Handlers の **本体**（検証、ユースケース呼び出し、`revalidatePath` など）| **backend-logic** |
+| `page` / `layout` の **読み取り配線**（params 検証、**既存**ユースケース呼び出し、view への props 受け渡し）| **frontend-logic** |
+| 表示用の外観 | **frontend-ui** |
+| `middleware.ts`（薄い境界のみ。[common/coding.md](common-coding.instructions.md) §4）| **backend-logic**（分ける場合はプロジェクトの `CLAUDE.md` に宣言する）|
 
-The frontend only **calls** use cases and Actions and **passes them through props**; it never creates or swells the substance.
-When a use case a read needs does not exist yet, **prepare it on the backend-logic side first** (so the FE does not escape into calling infra directly or into creating a use case).
-The backend does not build a page's JSX.
+frontend はユースケースと Actions を **呼び**、**props で渡す**だけであり、本体を作ったり膨らませたりしない。
+読み取りに必要なユースケースがまだなければ **backend-logic 側で先に用意する**（FE が infra の直接呼び出しやユースケース作成へ逃げないようにする）。
+backend は page の JSX を作らない。
 
 ---
 
-## 2. Dependencies (the onion: dependencies point inward only)
+## 2. 依存（玉ねぎ: 依存は内向きだけ）
 
-The layers are concentric like an onion. **Source references (imports) always point inward.**
+レイヤーは玉ねぎのように同心円状である。**ソース参照（import）は常に内向きにする。**
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ ③ Outer adapters (the framework and I/O are visible)          │
+│ ③ 外側の adapter（フレームワークと I/O が見える）            │
 │                                                              │
-│   Outer entrance                    Infrastructure           │
-│   · mutation controllers            DB / external APIs       │
-│     (Actions / Route Handlers)                               │
-│   · read wiring (RSC page/layout)                            │
+│   外側の入口                        Infrastructure           │
+│   · ミューテーション・コントローラー DB / 外部 API            │
+│     （Actions / Route Handlers）                             │
+│   · 読み取り配線（RSC page/layout）                          │
 │        │                              ▲                      │
-│        │ calls                        │ uses (details)       │
+│        │ 呼ぶ                         │ 詳細を使う           │
 │        ▼                              │                      │
 │   ┌───────────────────────────────────┴────────────────────┐ │
-│   │ ② Application — use cases                              │ │
-│   │    assembling the scenario (read → decide → write)     │ │
+│   │ ② アプリケーション — ユースケース                     │ │
+│   │    シナリオを組み立てる（読取 → 判断 → 書込）           │ │
 │   │                      │                                 │ │
-│   │                      ▼ asks for a decision             │ │
+│   │                      ▼ 判断を求める                    │ │
 │   │         ┌────────────────────────────┐                 │ │
-│   │         │ ① Core — domain            │                 │ │
-│   │         │ pure business rules,       │                 │ │
-│   │         │ calculations               │                 │ │
-│   │         │ (knows nothing outside)    │                 │ │
+│   │         │ ① 中核 — domain            │                 │ │
+│   │         │ 純粋な業務規則、計算       │                 │ │
+│   │         │                            │                 │ │
+│   │         │ （外側を何も知らない）     │                 │ │
 │   │         └────────────────────────────┘                 │ │
 │   └────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
@@ -105,64 +105,64 @@ The layers are concentric like an onion. **Source references (imports) always po
 
 ```mermaid
 flowchart TB
-  subgraph outer ["3 Outer adapters"]
+  subgraph outer ["3 外側の adapter"]
     direction LR
-    C["Outer entrance<br/>Actions / Route Handlers<br/>read wiring (RSC)"]
-    I["Infrastructure<br/>DB / external APIs"]
+    C["外側の入口<br/>Actions / Route Handlers<br/>読み取り配線（RSC）"]
+    I["Infrastructure<br/>DB / 外部 API"]
   end
 
-  subgraph app ["2 Application"]
-    UC["Use cases"]
-    subgraph core ["1 Core"]
-      D["Domain<br/>pure, zero dependencies"]
+  subgraph app ["2 アプリケーション"]
+    UC["ユースケース"]
+    subgraph core ["1 中核"]
+      D["Domain<br/>純粋、依存なし"]
     end
   end
 
-  C -->|inward| UC
-  UC -->|inward| D
-  UC -->|uses outer details<br/>but infra -> UC is forbidden| I
+  C -->|内向き| UC
+  UC -->|内向き| D
+  UC -->|外側の詳細を使う<br/>ただし infra -> UC は禁止| I
 ```
 
-| Ring | Layer | References it may make | Forbidden |
+| 輪 | レイヤー | 許される参照 | 禁止 |
 | --- | --- | --- | --- |
-| ① core | **Domain** | none (pure processing only) | infrastructure, use cases, the outer entrance, `next/*` |
-| ② | **Use case** | the domain (mandatory). May use infrastructure for the assembly | the outer entrance; Next APIs such as `revalidatePath` |
-| ③ outer | **Outer entrance** | use cases (+ schema validation at the edge) | writing infrastructure or domain substance inline. Never complete business between entrances |
-| ③ outer | **Infrastructure** | the DB, HTTP clients, and so on | use cases, the outer entrance. Business decisions |
+| ① 中核 | **Domain** | なし（純粋な処理のみ）| infrastructure、ユースケース、外側の入口、`next/*` |
+| ② | **Use case** | domain（必須）。組み立てに infrastructure を使ってよい | 外側の入口、`revalidatePath` など Next API |
+| ③ 外側 | **外側の入口** | ユースケース（+ 境界のスキーマ検証）| infrastructure や domain の本体を直接書くこと。入口間で業務を完結させない |
+| ③ 外側 | **Infrastructure** | DB、HTTP client など | ユースケース、外側の入口、業務判断 |
 
-Key points:
+要点:
 
-- **The outer entrance and infrastructure sit in the same outer ring.** Never wire them directly to each other to get business done (always go through a use case)
-- **The domain is the core** and depends on nobody
-- **The use case is the layer that uses the outside while protecting the core**
+- **外側の入口と infrastructure は同じ外周にいる。** 両者を直結して業務を完結しない（必ずユースケースを通す）
+- **domain が中核**であり、何にも依存しない
+- **ユースケースは中核を守りながら外側を使うレイヤー**である
 
-At runtime (a mutation): mutation controller → use case → (read via infra → decide in the domain → write via infra) → state success/failure to the caller (a Result for Actions, status + body for RH) / `revalidatePath` and the like where needed.
-At runtime (a read): read wiring → use case → props to the view (§3).
+実行時（更新）: ミューテーション・コントローラー → ユースケース →（infra で読取 → domain で判断 → infra で書込）→ 呼び出し側へ成功／失敗を伝える（Actions は Result、RH は status + body）/ 必要に応じて `revalidatePath` など。
+実行時（読み取り）: 読み取り配線 → ユースケース → view に props を渡す（§3）。
 
 ---
 
-## 3. Choosing the entrance
+## 3. 入口の選択
 
-| Purpose | The outer entrance's implementation form |
+| 目的 | 外側の入口の実装形態 |
 | --- | --- |
-| **A mutation within the same app** | **Server Actions** (a mutation controller), by default |
-| **HTTP exposed externally** | **Route Handlers** (`route.ts`) |
-| **A read** (the initial render of a list or a detail view) | **Read wiring** (RSC). The thinness of the UI is [frontend/coding.md](frontend-coding.instructions.md). Never multiply Server Actions for reads |
+| **同一アプリ内の更新** | **Server Actions**（ミューテーション・コントローラー）を既定にする |
+| **外部公開 HTTP** | **Route Handlers**（`route.ts`）|
+| **読み取り**（一覧・詳細の初回表示）| **読み取り配線**（RSC）。UI の薄さは [frontend/coding.md](frontend-coding.instructions.md)。読み取り用 Server Actions を増やさない |
 
-All of these are the outer entrance, and **infrastructure and the domain are never written inline into an entrance.**
+すべて外側の入口であり、**入口に infrastructure と domain を直接書かない**。
 
 ---
 
-## 4. The flow of a use case
+## 4. ユースケースの流れ
 
-What a use case may write is, roughly, only the following assembly.
+ユースケースが書いてよいのは、おおむね次の組み立てだけである。
 
-1. Read via infrastructure
-2. Decide and calculate in the domain
-3. Write via infrastructure if needed
+1. infrastructure 経由で読む
+2. domain で判断・計算する
+3. 必要なら infrastructure 経由で書く
 
-The use case returns a **scenario result** (success data or a reason code).
-Align the field names across the project. The mutation controller maps that into **the caller-facing shape** (§6: a Result for Actions, status + body for RH).
+ユースケースは **シナリオ結果**（成功データまたは理由コード）を返す。
+フィールド名はプロジェクト内で揃える。ミューテーション・コントローラーが **呼び出し側向けの形**へ写像する（§6: Actions は Result、RH は status + body）。
 
 ```ts
 //  OK: オーケストレーションだけ（シナリオ結果の例。形はプロジェクトで統一）
@@ -182,23 +182,23 @@ import { revalidatePath } from "next/cache";
 //  NG: ユースケースに SQL／業務の長い分岐が同居する
 ```
 
-`revalidatePath` / `redirect` / cookie operations go in the **mutation controller**.
+`revalidatePath` / `redirect` / cookie 操作は **ミューテーション・コントローラー**に置く。
 
 ---
 
-## 5. Runtime validation at the trust boundary (zod)
+## 5. 信頼境界での実行時検証（zod）
 
-A TypeScript type is a promise made only at compile time.
-**Values arriving from outside** get **runtime schema validation (zod or similar) at the outer entrance's edge**, and only what passes is handed to the use case.
+TypeScript の型は compile 時だけの約束である。
+**外から来る値**は **外側の入口の境界で実行時スキーマ検証（zod など）**を行い、通過したものだけをユースケースへ渡す。
 
-| Entrance | Examples of what to validate |
+| 入口 | 検証するものの例 |
 | --- | --- |
-| Mutation controller | a Server Action's arguments; a Route Handler's body / query |
-| Read wiring | `params` / `searchParams` (whichever are needed) |
+| ミューテーション・コントローラー | Server Action の引数、Route Handler の body / query |
+| 読み取り配線 | `params` / `searchParams`（必要なもの）|
 
-- **Validating once at the edge is enough.** "zod again" at the use case's entrance or in the domain is not required
-- Business invariants are the domain's responsibility and are never a substitute for schema validation
-- The default library is zod. A project using a different one declares it in `CLAUDE.md`
+- **境界で 1 回検証すれば十分。** ユースケースの入口や domain で「もう一度 zod」は要求しない
+- 業務の不変条件は domain の責務であり、スキーマ検証の代わりにはならない
+- 既定ライブラリは zod。他のものを使うプロジェクトは `CLAUDE.md` に宣言する
 
 ```ts
 //  ミューテーション・コントローラー（Server Action）側のイメージ
@@ -214,21 +214,21 @@ revalidatePath("/users");
 return { success: true as const, data: outcome.user };
 ```
 
-The read-wiring picture of validation is [frontend/coding.md](frontend-coding.instructions.md) §2.
+読み取り配線の検証例は [frontend/coding.md](frontend-coding.instructions.md) §2 にある。
 
 ---
 
-## 6. How failure is carried (split by the entrance's implementation form)
+## 6. 失敗の伝え方（入口の実装形態で分ける）
 
-### Mutation controllers (Server Actions and Route Handlers)
+### ミューテーション・コントローラー（Server Actions と Route Handlers）
 
-Both are the same outer-entrance role. Never leave an exception to propagate and expose a raw stack to the caller.
-**Success and failure must be distinguishable by the caller.** Align on **one scheme** for carrying it across the project.
+どちらも同じ外側の入口の役割である。例外を放置して伝播させ、生の stack を呼び出し側へ公開しない。
+**呼び出し側が成功と失敗を区別できること。** 伝え方はプロジェクト全体で **1 つの方式**に揃える。
 
-| Implementation form | An example of the discrimination (not fixed) |
+| 実装形態 | 区別方法の例（固定しない）|
 | --- | --- |
-| Server Actions | a shared caller-facing Result (the example below) |
-| Route Handlers | an HTTP status + body (returning the same Result shape as JSON is fine) |
+| Server Actions | 共通の呼び出し側向け Result（下の例）|
+| Route Handlers | HTTP status + body（同じ Result 形状を JSON として返してもよい）|
 
 ```ts
 //  Server Actions 向けの例（固定ではない）
@@ -237,26 +237,26 @@ type ActionResult<T> =
   | { success: false; error: string };
 ```
 
-The use case's scenario result (§4's `ok` / `reason`, and so on) and the caller-facing shape **may be different things**.
-The mutation controller maps between them at the edge. Never mix the field names across demos and implementations.
+ユースケースのシナリオ結果（§4 の `ok` / `reason` など）と呼び出し側向けの形は **異なってよい**。
+ミューテーション・コントローラーが境界で相互に写像する。demo と実装の間でフィールド名を混在させない。
 
-### Read wiring (RSC)
+### 読み取り配線（RSC）
 
-An ActionResult type returned to the Client is not mandated. State it instead through one of the following:
+Client に返す ActionResult 型は必須ではない。代わりに次のいずれかで表す。
 
-- Invalid `params` → reachable UI such as `notFound()`
-- A failed fetch → leave it to `error.tsx`, or pass error / empty through view props ([frontend/components.md](frontend-components.instructions.md))
+- 不正な `params` → `notFound()` などの到達可能な UI
+- 取得失敗 → `error.tsx` に委ねるか、view props で error / empty を渡す（[frontend/components.md](frontend-components.instructions.md)）
 
 ---
 
-## ✅ Checklist before returning
+## ✅ 返却前チェックリスト
 
-- [ ] Is any dependency arrow flowing backward?
-- [ ] Does the domain hold side effects or `next/*`?
-- [ ] Has business branching sunk into infrastructure?
-- [ ] Does a use case import `revalidatePath` / `redirect` / `cookies` and the like?
-- [ ] Is infrastructure being called directly from anywhere but the outer entrance?
-- [ ] Has the substance of Actions / Route Handlers been swollen on the frontend side (§1.1)?
-- [ ] Is the primary entrance for mutations Server Actions (Route Handlers for external HTTP)?
-- [ ] Are values arriving from outside schema-validated at the edge before reaching the use case?
-- [ ] On a mutation, can the caller distinguish success from failure? (Actions = Result, RH = status + body; reads follow §6's RSC handling)
+- [ ] 依存の矢印が逆流していないか？
+- [ ] domain が副作用や `next/*` を持っていないか？
+- [ ] infrastructure に業務分岐が沈んでいないか？
+- [ ] ユースケースが `revalidatePath` / `redirect` / `cookies` などを import していないか？
+- [ ] 外側の入口以外から infrastructure を直接呼んでいないか？
+- [ ] frontend 側で Actions / Route Handlers の本体を膨らませていないか（§1.1）？
+- [ ] 更新の主な入口は Server Actions（外部 HTTP は Route Handlers）か？
+- [ ] 外から来た値をユースケースへ渡す前に境界でスキーマ検証しているか？
+- [ ] 更新時、呼び出し側が成功と失敗を区別できるか（Actions = Result、RH = status + body。読み取りは §6 の RSC 処理に従う）？

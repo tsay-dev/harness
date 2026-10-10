@@ -1,133 +1,133 @@
 ---
-description: "🧱 Next.js / frontend — component granularity and the division of work"
+description: "🧱 Next.js / frontend — コンポーネントの粒度と分担"
 applyTo: "**/next.config.*,**/app/**/page.tsx,**/app/**/layout.tsx,**/app/**/loading.tsx,**/app/**/error.tsx,**/app/**/not-found.tsx,**/app/**/template.tsx,**/app/**/default.tsx,**/components/**,**/features/**"
 ---
 
-# 🧱 Next.js / frontend — component granularity and the division of work
+# 🧱 Next.js / frontend — コンポーネントの粒度と分担
 
-> **Scope: the UI surface on Next.js (App Router).** If it is not Next.js, treat this document as inapplicable and discard it.
+> **対象: Next.js（App Router）の UI 表層。** Next.js でなければ適用外として扱い、破棄する。
 >
-> Surface notation is [coding.md](frontend-coding.instructions.md); how state is held is [dataflow.md](frontend-dataflow.instructions.md);
-> where screens live is [routing.md](frontend-routing.instructions.md); server-side responsibilities are [backend/coding.md](backend-coding.instructions.md).
-> This document defines **how to split a set of components and who writes which part**.
-> The SSOT for read-wiring code examples is [coding.md](frontend-coding.instructions.md) §2 (never copy it here in full).
+> 表層の記法は [coding.md](frontend-coding.instructions.md)、状態の保持は [dataflow.md](frontend-dataflow.instructions.md)、
+> 画面の場所は [routing.md](frontend-routing.instructions.md)、サーバー側の責務は [backend/coding.md](backend-coding.instructions.md) にある。
+> この文書は **コンポーネント群をどう分割し、誰がどこを書くか**を定義する。
+> 読み取り配線のコード例の SSOT は [coding.md](frontend-coding.instructions.md) §2 である（ここへ全文をコピーしない）。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 1. The layer is the responsibility; the location is the scope of sharing (two separate axes)
+## 1. レイヤーは責務、配置は共有範囲（別々の 2 軸）
 
-**Never conflate the layer (what it may know) with the location (where it goes).**
-The layer is determined by responsibility; the location by "how many places use it right now".
+**レイヤー（何を知ってよいか）と配置（どこに置くか）を混同しない。**
+レイヤーは責務で、配置は「今いくつの場所で使っているか」で決める。
 
-### Layer = responsibility
+### レイヤー = 責務
 
-| Layer | Responsibility | Examples |
+| レイヤー | 責務 | 例 |
 | --- | --- | --- |
-| **ui** (atoms) | the smallest unit of appearance, decomposed no further. Knows neither business nor fetching | `Button` `TextField` `Avatar` |
-| **parts** (molecules) | a reusable grouping of ui. Holds local UI state but knows no business | `SearchBar` `Modal` `EmptyState` |
-| **feature** (organisms) | a grouping that knows the business. May handle the data shapes display needs and the update entrance (a Server Action passed to it) | `UserList` `OrderForm` |
-| **route** (read wiring) | composition and wiring only. Appearance is delegated to the lower layers | `app/**/page.tsx` `layout.tsx` |
+| **ui**（atoms）| これ以上分解しない外観の最小単位。業務も取得処理も知らない | `Button` `TextField` `Avatar` |
+| **parts**（molecules）| 再利用可能な ui のまとまり。局所 UI 状態は持つが業務は知らない | `SearchBar` `Modal` `EmptyState` |
+| **feature**（organisms）| 業務を知るまとまり。表示に必要なデータ形状と更新入口（渡された Server Action）を扱ってよい | `UserList` `OrderForm` |
+| **route**（読み取り配線）| 構成と配線だけ。外観は下位レイヤーへ委譲する | `app/**/page.tsx` `layout.tsx` |
 
-**A reusable component knows no business domain.** The moment `Button` starts knowing about "orders", it is a `feature`.
-Name props in that layer's vocabulary too (never bring business terms into a `ui` component's props).
+**再利用可能なコンポーネントは業務 domain を知らない。** `Button` が「注文」を知った瞬間、それは `feature` である。
+props もそのレイヤーの語彙で命名する（`ui` コンポーネントの props に業務用語を持ち込まない）。
 
-### Location = the scope of sharing
+### 配置 = 共有範囲
 
-**Put it at the smallest place covering the range actually in use.** While only one screen uses it, do not promote it to a shared location.
-**Carve it out the moment a second site appears, and raise the location along with it.**
+**実際の利用範囲を覆う最小の場所に置く。** 1 画面でしか使わない間は共有場所へ昇格させない。
+**2 つ目の利用箇所が現れた時点で切り出し、配置も引き上げる。**
 
-**Search for an existing one before you start writing.** Never create a state where the same appearance is defined separately.
+**書き始める前に既存のものを探す。** 同じ外観を別々に定義した状態を作らない。
 
-> **The harness does not pin directory names.** Whether to use `components/` / `features/` / `src/ui/` is
-> decided by the project and **recorded in that project's `CLAUDE.md`**. **The separation itself is pinned.**
+> **harness はディレクトリ名を固定しない。** `components/` / `features/` / `src/ui/` のどれを使うかは
+> プロジェクトが決め、**そのプロジェクトの `CLAUDE.md` に記録する**。**分離自体は固定する。**
 
 ---
 
-## 2. The boundary between the UI implementer and the logic implementer
+## 2. UI 実装者とロジック実装者の境界
 
-**This separation is develop's requirement, not optional.** Appearance and logic are handled by implementers in separate contexts,
-split because their oracles differ (the human eyeball for appearance, machine tests for logic).
+**この分離は develop の要求であり、任意ではない。** 外観とロジックは別コンテキストの実装者が扱う。
+oracle が異なるために分ける（外観は人間の目視、ロジックは機械テスト）。
 
-### The split you always create structurally
+### 構造上必ず作る分離
 
-**The route file = read wiring; the view component = display.**
-`page.tsx` / `layout.tsx` hold only validation, the use-case invocation, and passing props;
-**the substance of the JSX goes on the presentational view side** (the example is in [coding.md](frontend-coding.instructions.md) §2).
+**route ファイル = 読み取り配線、view コンポーネント = 表示。**
+`page.tsx` / `layout.tsx` は検証、ユースケース呼び出し、props の受け渡しだけを持つ。
+**JSX の本体は表示用 view 側に置く**（例は [coding.md](frontend-coding.instructions.md) §2）。
 
-### As a result, ownership divides mechanically
+### その結果、担当は機械的に分かれる
 
-| Implementer | What it writes | What it does not write |
+| 実装者 | 書くもの | 書かないもの |
 | --- | --- | --- |
-| **The UI implementer** (frontend-ui) | presentational components (**display determined by props alone**) and styling | **Never imports a use case, infrastructure, the substance of a Server Action, or `fetch`.** Data flows in as contract-conformant fixed mocks on the props |
-| **The logic implementer** (frontend-logic) | read wiring (validating params, invoking the use case, mapping props), local UI state at the Client leaves, **calling an existing Server Action and passing it through props** | **Never rebuilds the JSX structure or the styling. Never writes the substance of Server Actions / Route Handlers (zod, invoking the use case, `revalidatePath`)** ([backend/coding.md](backend-coding.instructions.md) §1.1) |
+| **UI 実装者**（frontend-ui）| 表示用コンポーネント（**props だけで表示が決まる**）と styling | **ユースケース、infrastructure、Server Action の本体、`fetch` を import しない。** データは契約に適合する固定 mock として props に流し込む |
+| **ロジック実装者**（frontend-logic）| 読み取り配線（params 検証、ユースケース呼び出し、props への写像）、Client 末端の局所 UI 状態、**既存 Server Action の呼び出しと props 経由の受け渡し** | **JSX 構造や styling を作り直さない。Server Actions / Route Handlers の本体（zod、ユースケース呼び出し、`revalidatePath`）を書かない**（[backend/coding.md](backend-coding.instructions.md) §1.1）|
 
-### The props type is the contract between the two
+### props 型が両者の契約
 
-**The UI implementer defines and exports the props type, and the logic implementer maps onto it.**
-The logic side never changes the props type on its own.
+**UI 実装者が props 型を定義・export し、ロジック実装者がそれに写像する。**
+ロジック側が独断で props 型を変えない。
 
-**When either side finds it insufficient, that side stops implementing and reports** (per each implementer's output contract).
-
----
-
-## 3. UI states are expressed through props
-
-**empty / error / no-permission / boundary (long text, 0 rows, a huge number) are expressed through view props.**
-The UI side **does not know where that state came from.**
-
-The division of waiting:
-
-- **Waiting on a segment frame** (suspense during page navigation) → `loading.tsx` ([routing.md](frontend-routing.instructions.md))
-- **State within the view** (after a retry, a partial update, no permission) → a `loading` / `error` prop
-
-Never hold both with the same meaning, twice.
-
-The read wiring's job stays closed on "mapping the use case's scenario result into props"
-(a page need not return a caller-facing ActionResult — [backend/coding.md](backend-coding.instructions.md) §6).
-
-The direction of data itself is [dataflow.md](frontend-dataflow.instructions.md).
+**どちらかが不足を見つけたら、その担当は実装を止めて報告する**（各実装者の出力契約に従う）。
 
 ---
 
-## 4. Dependencies run one way, downward
+## 3. UI 状態は props で表す
 
-Depend only in the direction `route → feature → parts → ui`. **Never create backflow or cross-links.**
+**空 / エラー / 権限なし / 境界（長文、0 行、巨大な数）は view props で表す。**
+UI 側は **その状態の由来を知らない**。
 
-- A lower layer never imports an upper layer
-- Layers at the same level never import each other (that becomes a cycle)
-- Child-to-parent notification takes the form of **calling a callback the parent passed** ([dataflow.md](frontend-dataflow.instructions.md) §1)
+待機の分担:
 
----
+- **segment の枠での待機**（page 遷移中の suspense）→ `loading.tsx`（[routing.md](frontend-routing.instructions.md)）
+- **view 内の状態**（再試行後、部分更新、権限なし）→ `loading` / `error` prop
 
-## 5. Keep list keys stable
+同じ意味を両方で二重に持たない。
 
-When rendering a variable-length list, **never use an array index as the `key`**.
-Use **a stable, unique id**.
+読み取り配線の仕事は「ユースケースのシナリオ結果を props に写像する」に閉じる
+（page は呼び出し側向け ActionResult を返す必要がない。[backend/coding.md](backend-coding.instructions.md) §6）。
 
-Do not needlessly rebuild the props and callbacks passed to a row as new references every render.
-The choice of a particular list-virtualization library is left to the project.
-
----
-
-## 6. Never duplicate visual tokens
-
-- Colors, spacing, corner radii, and letter-spacing **live in tokens; never hardcode raw values** (the mechanism is the project's choice)
-- Never write the same visual style definition in two components
-- **A reusable `ui` layer component carries no outer margin (`margin`).** Outer spacing is **decided by the parent**
+データの方向自体は [dataflow.md](frontend-dataflow.instructions.md) にある。
 
 ---
 
-## ✅ Checklist before returning
+## 4. 依存は下向きの一方向
 
-- [ ] Did you search for an existing component with the same appearance before starting?
-- [ ] Does a reusable component know the business domain?
-- [ ] Have you promoted something used in one place only to a shared location?
-- [ ] Have you written the substance of the JSX into the route file?
-- [ ] (UI implementer) Are you importing a use case, infrastructure, or fetching logic?
-- [ ] (Logic implementer) Are you writing the substance of an Action, or rebuilding the JSX?
-- [ ] Are in-view states (empty / error / permission / boundary, and in-view loading) received through props? Is segment waiting duplicated into a `loading` prop?
-- [ ] Do dependencies run one way, downward?
-- [ ] Is the list `key` a stable id (not an index)?
-- [ ] Does a `ui`-layer component carry an outer `margin`?
+`route → feature → parts → ui` の方向だけに依存する。**逆流や横方向の参照を作らない。**
+
+- 下位レイヤーは上位レイヤーを import しない
+- 同階層のレイヤー同士は import しない（循環になる）
+- 子から親への通知は **親から渡された callback を呼ぶ**形にする（[dataflow.md](frontend-dataflow.instructions.md) §1）
+
+---
+
+## 5. リストの key は安定させる
+
+可変長リストの描画では **配列 index を `key` に使わない**。
+**安定した一意の id** を使う。
+
+行へ渡す props や callback を、毎 render 不必要に新しい参照として作り直さない。
+特定のリスト仮想化ライブラリの選択はプロジェクトに委ねる。
+
+---
+
+## 6. 視覚 token を重複させない
+
+- 色、余白、角丸、字間は **token に置き、生の値を hardcode しない**（仕組みはプロジェクトが選ぶ）
+- 同じ視覚 style 定義を 2 つのコンポーネントに書かない
+- **再利用可能な `ui` レイヤーのコンポーネントは外側の余白（`margin`）を持たない。** 外側の間隔は **親が決める**
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] 着手前に同じ外観の既存コンポーネントを探したか？
+- [ ] 再利用可能なコンポーネントが業務 domain を知っていないか？
+- [ ] 1 か所でしか使わないものを共有場所へ昇格させていないか？
+- [ ] route ファイルに JSX の本体を書いていないか？
+- [ ] （UI 実装者）ユースケース、infrastructure、取得ロジックを import していないか？
+- [ ] （ロジック実装者）Action の本体を書いたり、JSX を作り直したりしていないか？
+- [ ] view 内の状態（空 / エラー / 権限 / 境界、view 内の loading）は props で受け取っているか？ segment の待機を `loading` prop に重複させていないか？
+- [ ] 依存は下向きの一方向か？
+- [ ] リストの `key` は安定した id（index ではない）か？
+- [ ] `ui` レイヤーのコンポーネントが外側の `margin` を持っていないか？

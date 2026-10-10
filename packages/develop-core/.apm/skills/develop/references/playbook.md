@@ -1,179 +1,179 @@
-# The default playbook (develop)
+# 既定の進め方（develop）
 
-> This is the **default** flow, and it is soft: reorder, merge, or repeat steps freely when the work calls for it. Only the invariants in [SKILL.md](../SKILL.md) §2 and its §3 definition of done bind. Section headings here are stable — `SKILL.md`, the other reference files, and the rules leaves point at them by name.
+> これは変更可能な**既定**の流れです。作業に応じてステップの順序変更、統合、反復を自由に行えます。拘束するのは [SKILL.md](../SKILL.md) §2 の不変条件と §3 の完了条件だけです。このファイルの節見出しは安定した参照先であり、`SKILL.md`、ほかの参照資料、ルールの末端ファイルから名前で参照されます。
 
-## Where docs artifacts live
+## docs 成果物の配置
 
-**One use case, one directory** (`docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/`) holds everything read to implement it: `UC.md`, its `REQ-nnn.md`, and `contract.yaml`. GOAL → UC → REQ is a tree, so the file system matches it; cross-cutting documents (BR / NFR / ADR / glossary / `_shared` / verification) stay central under `docs/`. **Indexes are generated, never committed** (`trace-check --index`). Formats are the templates (`${HARNESS_ROOT}/templates/develop/`); principles are the rules leaf [docs.instructions.md](../../../instructions/docs.instructions.md), delivered by `applyTo:` to whoever writes under `docs/` — the orchestrator included, for ADR and DEFERRED writes.
+**1 ユースケースに 1 ディレクトリ**（`docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/`）を設け、実装時に読む `UC.md`、その `REQ-nnn.md`、`contract.yaml` をすべて置きます。GOAL → UC → REQ は木なので、ファイルシステムを一致させます。横断文書（BR / NFR / ADR / glossary / `_shared` / verification）は `docs/` に集約します。**索引は生成し、コミットしません**（`trace-check --index`）。書式はテンプレート（`${HARNESS_ROOT}/templates/develop/`）、原則はルールの末端ファイル [docs.instructions.md](../../../instructions/docs.instructions.md) が保持します。`applyTo:` により `docs/` 配下を書く担当者へ配送され、ADR と DEFERRED を書くオーケストレーターも対象です。
 
-> **A slice's MIS**: `UC.md` (scenario, state × event table whose cells name the REQs, exception sweep) + `REQ-nnn.md` (one EARS sentence + partition classes in `## 検証方針`) + `contract.yaml` (operations, types, required, enum, `errors:` in evaluation order — R-1207). Rules shared by 2+ UCs live once in `docs/rules/BR-nnn.md`. **A boundary is not only HTTP**; a UC that crosses none declares `operations: {}` with a reason rather than going without a contract.
+> **スライスの MIS**: `UC.md`（シナリオ、セルが REQ を指す状態 × イベント表、例外走査）+ `REQ-nnn.md`（EARS 1 文 + `## 検証方針` の分割クラス）+ `contract.yaml`（操作、型、required、enum、評価順の `errors:` — R-1207）。2 つ以上の UC が共有するルールは `docs/rules/BR-nnn.md` に 1 回だけ置きます。**境界は HTTP に限りません**。境界を越えない UC は契約を省略せず、理由付きの `operations: {}` を宣言します。
 
-| Artifact | Location | Author |
+| 成果物 | 場所 | 作成者 |
 | --- | --- | --- |
-| Vision / glossary / actors | `docs/00-vision.md` / `01-glossary.md` / `02-actors.md` | `spec-author` (🙋 → `frozen` / `living` / `living`) |
-| Goals | `docs/goals/GOAL-nn-<slug>/GOAL.md` (started) / `docs/goals-backlog.md` (not started) | `spec-author` (🙋 → `active`) |
-| Use case (scenario, state × event table, exception sweep) | `…/UC-nnn-<slug>/UC.md` | `spec-author` (🙋 → `active`); the `phase:` line by the orchestrator |
-| Requirement (one EARS sentence) + verification policy | `…/UC-nnn-<slug>/REQ-nnn.md` | `spec-author` (🙋 → `active`); `## 検証方針` by `test-author` |
-| Business rule (shared by 2+ UCs) / NFR | `docs/rules/BR-nnn.md` / `docs/nfr/NFR-nnn.md` | `spec-author` (🙋 → `active`) |
-| Boundary contract (any transport) | `…/UC-nnn-<slug>/contract.yaml` | `spec-author` (🤖 → `fixed` by the orchestrator) |
-| Shared contract vocabulary (`$ref` targets) | `docs/_shared/components.yaml` | **orchestrator only** (producers return requests as reports) |
-| Project-wide "not verified" ranges | `docs/verification/GLOBAL.md` | `test-author` |
-| Scenario test (the executable projection of `UC.md`'s main scenario; one per UC, happy path; `@scenario UC-nnn`) | the host's system suite (`tests.system` in `traceconfig.json`; `e2e/`, `UITests/`, … per the stack's system-testing leaf) | `test-author (track: scenario)`; the pending marker is removed by `implementer (logic)` at FE wiring |
-| Deferred findings ledger (`持ち越し`) | `docs/verification/DEFERRED.md` | **orchestrator only** (template `${HARNESS_ROOT}/templates/develop/DEFERRED.md`) |
-| DB design | **the host's native schema source only** (declared in the host `CLAUDE.md` / `AGENTS.md` or `traceconfig.json` `schema.files`; never a docs draft, R-102). Rule-enforcing constraints carry `@implements BR-nnn` (C13) | `implementer (mode: schema)` + framework rules |
-| Design Doc (the How, present tense; optional) | `docs/design.md` | human (🙋; orchestrator may ghostwrite; reasons go to an ADR) |
-| ADR | `docs/adr/ADR-nnnn-<slug>.md` | orchestrator, per [adr.md](adr.md) |
-| Trace configuration | `traceconfig.json` at the host root | orchestrator seeds it once from the template; the host maintains it |
+| vision / glossary / actors | `docs/00-vision.md` / `01-glossary.md` / `02-actors.md` | `spec-author`（🙋 → `frozen` / `living` / `living`） |
+| goal | `docs/goals/GOAL-nn-<slug>/GOAL.md`（着手済み）/ `docs/goals-backlog.md`（未着手） | `spec-author`（🙋 → `active`） |
+| ユースケース（シナリオ、状態 × イベント表、例外走査） | `…/UC-nnn-<slug>/UC.md` | `spec-author`（🙋 → `active`）。`phase:` 行はオーケストレーター |
+| 要件（EARS 1 文）+ 検証方針 | `…/UC-nnn-<slug>/REQ-nnn.md` | `spec-author`（🙋 → `active`）。`## 検証方針` は `test-author` |
+| 業務ルール（2 つ以上の UC で共有）/ NFR | `docs/rules/BR-nnn.md` / `docs/nfr/NFR-nnn.md` | `spec-author`（🙋 → `active`） |
+| 境界契約（任意の transport） | `…/UC-nnn-<slug>/contract.yaml` | `spec-author`（🤖 → オーケストレーターが `fixed` にする） |
+| 共有契約語彙（`$ref` の参照先） | `docs/_shared/components.yaml` | **オーケストレーターのみ**（作成者は依頼を報告として返す） |
+| プロジェクト全体の「検証しない」範囲 | `docs/verification/GLOBAL.md` | `test-author` |
+| シナリオテスト（`UC.md` 主シナリオの実行可能な投影。UC ごとに正常系 1 つ。`@scenario UC-nnn`） | 利用プロジェクトのシステムスイート（`traceconfig.json` の `tests.system`。スタックの system-testing 末端ファイルに従う `e2e/`、`UITests/` など） | `test-author (track: scenario)`。保留マーカーは FE 接続時に `implementer (logic)` が除去 |
+| 持ち越し指摘台帳（`持ち越し`） | `docs/verification/DEFERRED.md` | **オーケストレーターのみ**（テンプレート `${HARNESS_ROOT}/templates/develop/DEFERRED.md`） |
+| DB 設計 | **利用プロジェクト固有のスキーマ正本のみ**（利用プロジェクトの `CLAUDE.md` / `AGENTS.md` または `traceconfig.json` の `schema.files` に宣言。docs の草案は禁止、R-102）。ルールを強制する制約に `@implements BR-nnn`（C13）を付ける | `implementer (mode: schema)` + フレームワーク規約 |
+| Design Doc（How、現在形、任意） | `docs/design.md` | 人間（🙋。オーケストレーターが代筆可。理由は ADR へ） |
+| ADR | `docs/adr/ADR-nnnn-<slug>.md` | オーケストレーター。[adr.md](adr.md) に従う |
+| トレース設定 | 利用プロジェクトのルートの `traceconfig.json` | オーケストレーターがテンプレートから 1 回初期化し、利用プロジェクト側で維持 |
 
-- **Never pin the DB design's location on the develop side, and never fall back to a docs draft.** If the host has not declared a native source, ask the human — a slice that owns persisted data cannot proceed without it.
-- **Progress is the `phase:` line** in each `UC.md` frontmatter (`定義`→`構造`→`実装`→`検証`→`完了`); the orchestrator advances it at every transition and no producer touches it. **After advancing it, restate in one line the SKILL.md §2 invariants that bind in the next phase** — the skill was loaded once and gets crowded out.
-- **Statuses**: docs nodes `draft → active → withdrawn` (`active` = a human approved; singletons `frozen` / `living`); the contract `draft → fixed`. **The orchestrator performs every status transition**; producers return drafts.
+- **develop 側で DB 設計の場所を固定せず、docs 草案にも代替しません。** 利用プロジェクトが固有の正本を宣言していなければ人間に尋ねます。永続データを所有するスライスは正本なしでは進められません。
+- **進捗は各 `UC.md` frontmatter の `phase:` 行**です（`定義`→`構造`→`実装`→`検証`→`完了`）。オーケストレーターが遷移ごとに進め、作成者は触りません。**進めたら、次フェーズに適用される SKILL.md §2 の不変条件を 1 行で言い直します**。skill は最初に読み込まれた後、ほかの情報に埋もれるためです。
+- **ステータス**: docs ノードは `draft → active → withdrawn`（`active` = 人間が承認。単独文書は `frozen` / `living`）、契約は `draft → fixed`。**すべての遷移をオーケストレーターが行い**、作成者は草案を返します。
 
-## Phase 1: definition
+## フェーズ 1: 定義
 
-Before the first launch, cut the slice's branch ([commit.md](commit.md), *Cutting the branch*) and seed `traceconfig.json` from `${HARNESS_ROOT}/templates/develop/traceconfig.json` if absent (adjust `source` / `tests` / `commands`; ask when unsure); on an existing project run `trace-check --update-baseline` once. Then launch `spec-author` per target, in dependency order, one 🙋 pass per return:
+最初の起動前にスライスのブランチを切ります（[commit.md](commit.md)「ブランチを切る」）。`traceconfig.json` がなければ `${HARNESS_ROOT}/templates/develop/traceconfig.json` から初期化します（`source` / `tests` / `commands` を調整。不明なら尋ねる）。既存プロジェクトでは `trace-check --update-baseline` を 1 回実行します。続いて依存順に対象別の `spec-author` を起動し、受領ごとに 1 回 🙋 を行います。
 
-1. **Domain** — vision (measurable KPIs), glossary and actor set closed, every goal a `GOAL.md` or a backlog entry, every NFR with a measurement. On approval set `frozen` / `living` / `active`.
-2. **Use cases** — one Task per UC, concurrently across UCs. Each reserves its REQ IDs with `trace-check --next req --reserve N` (atomic; no band handed out). Done when the state × event table has no empty cell, every cell names a reserved REQ, a planned UC, or `不可` with a reason, and the exception sweep covers the 4 axes. On approval `active`.
-3. **Requirements** — one Task per active UC, concurrently. Done when every reserved ID is one EARS sentence with a pattern, at least one `Unwanted behaviour` per UC, and every rule shared by 2+ UCs is a BR referenced by ID. On approval `active`.
+1. **domain** — vision（計測可能な KPI）、閉じた用語・actor 集合、各 goal が `GOAL.md` または backlog 項目、各 NFR に計測方法。承認後 `frozen` / `living` / `active` に設定します。
+2. **usecase** — UC ごとに 1 Task、UC 間は並行。各 Task が `trace-check --next req --reserve N` で REQ ID を予約します（原子的。番号帯を配りません）。状態 × イベント表に空セルがなく、各セルが予約 REQ、計画 UC、または理由付き `不可` を指し、例外走査が 4 軸を覆ったら完了。承認後 `active`。
+3. **requirements** — active UC ごとに 1 Task、並行。予約 ID ごとにパターン付き EARS 1 文、UC ごとに最低 1 つの `Unwanted behaviour`、2 つ以上の UC の共有ルールがすべて ID 参照の BR になったら完了。承認後 `active`。
 
-A defect report against an approved requirement goes through *Routing information* and *Rework* — never patched inline.
+承認済み要件への欠陥報告は「情報の振り分け」「手戻り」を経由させ、その場で修正しません。
 
-## Structural risk gate and the probe
+## 構造リスクゲートと probe
 
-Decide inline (no subagent): a structure is **high-risk** when it has **high novelty**, a **wide blast radius**, or is **expensive to undo** (production data already loaded). Otherwise go straight to Phase 3. If high-risk, pick the single riskiest cross-UC path and launch `implementer (mode: probe)`: drive it end to end with a minimal implementation reaching real I/O (no browser E2E demanded) and report whether the structure carries the behaviour. **Probe output is throwaway and never lands in the mainline.** A structural refutation returns to Phase 1/3 (🙋 when the cause is a human-oracle artifact).
+その場で判断します（子 agent は使いません）。構造が**高い新規性**、**広い影響範囲**、**取り消しの高コスト**（本番データが既に入っている）のいずれかを持つなら**高リスク**です。それ以外はフェーズ 3 へ直行します。高リスクなら UC 横断の最も危険な経路を 1 つ選び、`implementer (mode: probe)` を起動します。実 I/O に到達する最小実装で端から端まで実行し（ブラウザー E2E は不要）、構造が振る舞いを支えられるか報告させます。**probe の成果物は使い捨てで、本流へ入れません。** 構造への反証はフェーズ 1/3 に戻します（原因が人間を判定者とする成果物なら 🙋）。
 
-## Phase 3: structure
+## フェーズ 3: 構造
 
-Build the schema and the boundary contract that correspond to the use cases and make their references consistent. No UI design document (screens are in the tables; appearance is stood up in Phase 4).
+ユースケースに対応するスキーマと境界契約を作り、参照を整合させます。UI 設計文書は作りません（画面は表にあり、見た目はフェーズ 4 で組み立てます）。
 
-1. `implementer (mode: schema)` (🙋) — pass the UC directories, the BRs whose `enforced_at` names the database, the glossary, **the schema source path**. Its guarantee-point proposals (which enforcement point is a rule's SSOT, by asymmetry) are settled at the same gate; an approved one becomes an ADR ([adr.md](adr.md)) and, if `enforced_at` changed, a `spec-author` edit of the BR. **Skip when the slice owns no persisted data**; on-device persistence (SwiftData / SQLite / Core Data) *is* persisted data.
-2. **Seed `_shared`** (orchestrator, inline) — create `docs/_shared/components.yaml` from `${HARNESS_ROOT}/templates/develop/components.yaml` if absent and populate the initial shared DTOs and error codes from the settled schema.
-3. `spec-author` — derive `contract.yaml` (`draft`) from the active UC directory + settled schema; concurrently per UC with identical `_shared` / existing-contract paths. Requests to add to `_shared` come back as reports; apply them yourself before the next round. Then run `spec-lint validate` (operation keys are closed; one failure example per `errors[].code`; `errors:` order is evaluation order — refuted by examples and tests, never by a `when` label).
-4. `reviewer (mode: structure)` — read-only, separate context. **Recommended** for a shared-concept or structural change (pass the concept-wide scope from *Rework*, completed slices included); **optional** for a local UC. Its mission is the semantic half only — format, transport fields, vocabulary, examples (spec-lint) and placement / dead rules / IDs (trace-check) are already machine-decided. Findings carry `severity: 阻止 | 持ち越し`; loop per *Round ledger and stop rules*.
-5. **Marking `fixed`** — when spec-lint passes and the review, if launched, returned zero `阻止`, **the orchestrator** sets `x-status: fixed` and advances `phase:` to `構造`. Never from a proposal review; never by a producer or judge.
+1. `implementer (mode: schema)`（🙋）— UC ディレクトリ、`enforced_at` が DB を指す BR、用語集、**スキーマ正本パス**を渡します。保証点の提案（非対称性でルールの SSOT となる強制箇所を決める）は同じゲートで決着させます。承認した提案は ADR（[adr.md](adr.md)）にし、`enforced_at` が変わったら `spec-author` が BR を編集します。**永続データを所有しないスライスは省略**。端末内永続化（SwiftData / SQLite / Core Data）も永続データです。
+2. **`_shared` の初期化**（オーケストレーターがその場で実行）— なければ `${HARNESS_ROOT}/templates/develop/components.yaml` から `docs/_shared/components.yaml` を作り、確定スキーマから最初の共有 DTO とエラーコードを設定します。
+3. `spec-author` — active UC ディレクトリ + 確定スキーマから `contract.yaml`（`draft`）を導出。UC ごとに並行し、同じ `_shared` / 既存契約パスを渡します。`_shared` 追加依頼は報告で返し、次の周回前に自ら適用します。その後 `spec-lint validate` を実行します（操作キーは閉じた集合、`errors[].code` ごとに失敗例 1 つ、`errors:` 順は評価順。例とテストで反証し、`when` ラベルでは反証しません）。
+4. `reviewer (mode: structure)` — 読み取り専用の別コンテキスト。共有概念や構造変更には**推奨**（「手戻り」の概念全体の範囲を渡し、完了済みスライスも含む）、ローカル UC は**任意**です。使命は意味の検査だけであり、書式、transport フィールド、語彙、例（spec-lint）、配置 / 死んだルール / ID（trace-check）は機械が判定済みです。指摘は `severity: 阻止 | 持ち越し` を持ち、「周回台帳と停止条件」に従って反復します。
+5. **`fixed` にする** — spec-lint 成功、起動したレビューの `阻止` ゼロで、**オーケストレーター**が `x-status: fixed` とし、`phase:` を `構造` へ進めます。proposal レビューでは行わず、作成者・判定者も行いません。
 
-## Phase 4: behaviour
+## フェーズ 4: 振る舞い
 
-Advance `phase:` to `実装` on entry. Everything below rests on the `fixed` contract; if you find yourself wanting to change it, stop and return to Phase 3.
+開始時に `phase:` を `実装` へ進めます。以下はすべて `fixed` 契約を前提とし、変えたくなったら停止してフェーズ 3 へ戻ります。
 
-1. **Launch the four in one message** once the contract is `fixed`: `test-author (track: backend-logic)` (declares partition classes in each REQ's `## 検証方針`, then files Red tests with `@covers REQ-nnn#class` — **never reads the implementation**); `test-author (track: scenario)` (files the UC's **one** scenario test from `UC.md`'s main scenario and post-condition plus the contract's `examples`, tagged `UC-nnn`, annotated `@scenario UC-nnn`, with the stack's pending marker so it is Red but does not fail CI — **never reads the implementation**; writes no REQ policy); `implementer (mode: logic)` on the backend from the contract alone; `implementer (mode: appearance)` (🙋, data mocked per the contract, writes no logic, emits function-named identifiers). All four derive what they share from the SSOT, never from each other: the entry a BE test calls from the contract and the testing leaf's "operation → entry" convention; the locators a scenario test uses and the appearance emits from the glossary (wording) and the contract (operation and field names) per the stack's system-testing and frontend-coding leaves (ADR-0037).
-   **Locator reconciliation (orchestrator, inline, before the eyeball)**: when the appearance and the scenario test have both returned, compare the identifiers and wording the test names against what the appearance emits. They disagree → the appearance moves, never the test (R-1108): relaunch `implementer (mode: appearance)` **once** with the scenario test path as a closing input, then open the 🙋 eyeball on the reconciled appearance. The human sees identifiers already settled; the eyeball may still change layout and decoration freely, which the scenario test does not assert.
-2. **Closing rule** — BE tests are a *closing* input of the logic implementer, not a start input (the one sanctioned reader-before-writer case). When both have returned and the implementation preceded the tests, relaunch the implementer **once** with the Red tests (run reds + blast radius). The pair closes when `trace-check --only C1,C10,C11` is clean for the slice's REQs and the selection is green.
-3. **Frontend wiring** — after the appearance is eyeballed, `implementer (mode: logic)` on the frontend paths wires request handling, state, and the contract's edge into it (**follow the framework's shape**; no FE unit tests are filed — types and lint verify). **The scenario test is this launch's closing input**: the implementer removes the pending marker, runs **only the UC's scenario** (a selection by `UC-nnn`, never the whole system suite), and drives it green. A red here is diagnosed in the order of *Routing information* (implementation → test → SSOT), never by editing the test to fit.
-4. **Suites** — only the default suite (starts no external environment) is in the red-green loop; integration and system suites live in separate folders and commands (the framework testing leaves define locations; *Test-run granularity* defines when). BE contract-conformance tests belong to the default suite. The system suite holds exactly the scenario tests (one per UC, happy path — failure paths are REQ classes in the default suite), runs whole only at the boundary, and needs the host's scenario environment (which backend the app reaches, seeded data, disposable accounts) declared in the host `CLAUDE.md` — never invented by a producer.
-5. **Machine gate** — `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc UC-nnn` (executes every fixed example through `commands.contract_adapter`; "未宣言" means not executed, not passed) and `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` (C15 included: the UC's scenario test exists). Reds go back as constraints per *Round ledger*.
-6. **Judgement** — advance `phase:` to `検証`; launch `reviewer (mode: slice)` (read-only; the slice, the UC directory, tests, change scope). At most 2 passes per slice; `阻止` findings become a test class (`test-author`) or a lint rule and go back through the machine loop; `持ち越し` rows go to `DEFERRED.md`. `attacker` is never launched here.
-7. **Terminal list, then commit** — what `tools/gate-hook/stop-gate.mjs` runs: `spec-lint validate` → `trace-check` → `contract-run` → the host's `commands.typecheck` / `lint` / `test` (the whole default suite, once) → `commands.system` (the whole scenario suite, once, where declared; a browser or simulator is an exclusive resource, so no Task may be running). All clean and the slice at zero `阻止` → commit per [commit.md](commit.md) (no Task running), advance `phase:` to `完了`.
+1. 契約が `fixed` になったら**4 担当を 1 メッセージで起動**: `test-author (track: backend-logic)`（各 REQ の `## 検証方針` に分割クラスを宣言し、`@covers REQ-nnn#class` 付き Red テストを作成。**実装を読まない**）、`test-author (track: scenario)`（`UC.md` の主シナリオ・事後条件と契約の `examples` から UC の **1 つ**のシナリオテストを作成。`UC-nnn` タグ、`@scenario UC-nnn` 注釈、スタックの保留マーカーを付け、意味は Red でも CI を失敗させない。**実装を読まず**、REQ 方針も書かない）、契約だけから backend を作る `implementer (mode: logic)`、`implementer (mode: appearance)`（🙋、契約に従うモックデータ、ロジックなし、機能名の識別子を出力）。4 担当とも共有内容を互いからではなく SSOT から導出します。BE テストが呼ぶ入口は契約と testing 末端ファイルの「operation → entry」規約、シナリオテストと見た目のロケーターはスタックの system-testing / frontend-coding 末端ファイルに従い、用語集（文言）と契約（操作・フィールド名）から導出します（ADR-0037）。
+   **ロケーターの突き合わせ（オーケストレーター、目視前にその場で）**: 見た目とシナリオテストが両方返ったら、テストが指定する識別子・文言と見た目が出力するものを比較します。不一致なら見た目を動かし、テストは動かしません（R-1108）。シナリオテストのパスを完了時入力として `implementer (mode: appearance)` を **1 回**再起動し、整合後の見た目に 🙋 目視を開きます。人間が見る時点で識別子は確定済みです。シナリオテストが検証しないレイアウトや装飾は目視で自由に変更できます。
+2. **完了時の突き合わせ** — BE テストは logic implementer の開始時入力ではなく、*完了時*入力です（読み手と書き手を先に並行起動できる唯一の例外）。両方が返り、実装が先だった場合、Red テストを渡して implementer を **1 回**再起動します（Red + 影響範囲を実行）。スライスの REQ に `trace-check --only C1,C10,C11` の違反がなく、選択実行が成功したら組を閉じます。
+3. **frontend 接続** — 目視後、frontend のパスを担当する `implementer (mode: logic)` がリクエスト処理、状態、契約の境界を見た目に接続します（**フレームワークの形に従う**。FE 単体テストは作らず、型と lint で検証）。**シナリオテストが今回の完了時入力**です。保留マーカーを除去し、**UC のシナリオだけ**（`UC-nnn` 選択。システムスイート全体は禁止）を実行して成功させます。Red は「情報の振り分け」の順（実装 → テスト → SSOT）で診断し、実装に合わせたテスト編集で解消しません。
+4. **スイート** — Red-Green ループに入れるのは既定スイート（外部環境を起動しない）だけです。integration / system は別フォルダー・コマンドに置きます（場所はフレームワークの testing 末端ファイル、時点は「テスト実行の粒度」）。BE の契約適合テストは既定スイートです。system はシナリオテストだけ（UC ごとに正常系 1 つ。失敗経路は既定スイートの REQ クラス）を置き、全体実行は節目だけ。利用プロジェクトの `CLAUDE.md` にシナリオ環境（接続先 backend、seed データ、使い捨てアカウント）が必要で、作成者は捏造しません。
+5. **機械ゲート** — `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc UC-nnn`（`commands.contract_adapter` 経由で全 fixed 例を実行。「未宣言」は未実行であり成功ではない）と `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"`（C15 を含む。UC のシナリオテストが存在）。Red は「周回台帳」に従い制約として返します。
+6. **判定** — `phase:` を `検証` へ進め、`reviewer (mode: slice)` を起動（読み取り専用。スライス、UC ディレクトリ、テスト、変更範囲）。最大 2 回。`阻止` はテストクラス（`test-author`）または lint 規則にして機械ループへ戻し、`持ち越し` は `DEFERRED.md` の行へ。`attacker` は起動しません。
+7. **最終一覧、その後コミット** — `tools/gate-hook/stop-gate.mjs` が実行するもの: `spec-lint validate` → `trace-check` → `contract-run` → 利用プロジェクトの `commands.typecheck` / `lint` / `test`（既定スイート全体を 1 回）→ `commands.system`（宣言されていればシナリオスイート全体を 1 回。ブラウザーやシミュレーターは排他的資源なので実行中の Task は不可）。すべて問題なく `阻止` ゼロなら [commit.md](commit.md) に従いコミット（実行中 Task なし）し、`phase:` を `完了` へ進めます。
 
-## Routing information
+## 情報の振り分け
 
-Every document under `docs/` holds **only present-tense invariants**; none accumulates history, rationale, measurements, or open questions. Sort first, then hand over.
+`docs/` の各文書は**現在形の不変条件だけ**を保持し、履歴、理由、計測値、未決事項を蓄積しません。先に分類してから渡します。
 
-| Kind of information | Destination | Route |
+| 情報の種類 | 行き先 | 経路 |
 | --- | --- | --- |
-| Product-wide Why, KPIs, out of scope; a term or forbidden synonym; a new actor or goal | `00-vision.md` / `01-glossary.md` / `02-actors.md` / `GOAL.md` / `goals-backlog.md` | `spec-author` (🙋) |
-| A new state, event, or exception path (a table cell) | `…/UC-nnn-<slug>/UC.md` | `spec-author` (🙋) |
-| A change in observable behaviour | `…/UC-nnn-<slug>/REQ-nnn.md` (one sentence) | `spec-author` (🙋) |
-| A change in the main scenario's steps or its post-condition (what the scenario test performs and asserts) | `…/UC-nnn-<slug>/UC.md` `## 主シナリオ` / `## 事後条件` | `spec-author` (🙋) → `test-author (track: scenario)` re-derives |
-| Wording the UI shows; an identifier a scenario test names | `docs/01-glossary.md` (wording) / `contract.yaml` operation and field names (identifiers) — never `UC.md`, never the test | `spec-author` (🙋 for the glossary); ADR-0037 |
-| A rule that binds 2+ UCs, or where a rule is enforced; a cross-cutting threshold | `docs/rules/BR-nnn.md` (`enforced_at`) / `docs/nfr/NFR-nnn.md` | `spec-author` (🙋); the reasoning → ADR |
-| Which inputs a requirement's tests partition, and what is not verified | the REQ's `## 検証方針` / `docs/verification/GLOBAL.md` | `test-author` |
-| A change in the shape of the boundary | `…/UC-nnn-<slug>/contract.yaml` | `spec-author` |
-| Contract vocabulary used by 2+ UCs | `docs/_shared/components.yaml` | orchestrator (applying producers' reports) |
-| Overall structure, adopted technology, design constraints (the How) | `docs/design.md` | 🙋 (orchestrator may ghostwrite; reasons go to an ADR) |
-| Reasoning, trade-offs, rejected options, measurements behind a decision | `docs/adr/` | orchestrator, per [adr.md](adr.md) |
-| A judge's `持ち越し` finding (machine-undecidable, kept open) | `docs/verification/DEFERRED.md` | orchestrator (one row per finding; never re-sent within the slice) |
-| A value that can be machine-readable (a threshold, an enumeration) | code constant / schema constraint (R-102); the doc says where | `implementer` (`logic` / `schema`) |
-| Open questions, residual risk, awaiting human decision | issue tracking (the project's convention; otherwise ask) | orchestrator |
-| The history of a revision, an explanation of the diff | the git commit message | orchestrator, per [commit.md](commit.md) |
+| 製品全体の Why、KPI、対象外。用語・禁止同義語。新 actor / goal | `00-vision.md` / `01-glossary.md` / `02-actors.md` / `GOAL.md` / `goals-backlog.md` | `spec-author`（🙋） |
+| 新状態、イベント、例外経路（表のセル） | `…/UC-nnn-<slug>/UC.md` | `spec-author`（🙋） |
+| 観測可能な振る舞いの変更 | `…/UC-nnn-<slug>/REQ-nnn.md`（1 文） | `spec-author`（🙋） |
+| 主シナリオのステップ・事後条件の変更（シナリオテストが実行・検証するもの） | `…/UC-nnn-<slug>/UC.md` の `## 主シナリオ` / `## 事後条件` | `spec-author`（🙋）→ `test-author (track: scenario)` が再導出 |
+| UI の文言。シナリオテストが指定する識別子 | `docs/01-glossary.md`（文言）/ `contract.yaml` の操作・フィールド名（識別子）。`UC.md` とテストには置かない | `spec-author`（用語集は 🙋）。ADR-0037 |
+| 2 つ以上の UC を拘束するルール・強制箇所。横断的な閾値 | `docs/rules/BR-nnn.md`（`enforced_at`）/ `docs/nfr/NFR-nnn.md` | `spec-author`（🙋）。理由 → ADR |
+| 要件のテストが分割する入力、検証しないもの | REQ の `## 検証方針` / `docs/verification/GLOBAL.md` | `test-author` |
+| 境界の形の変更 | `…/UC-nnn-<slug>/contract.yaml` | `spec-author` |
+| 2 つ以上の UC が使う契約語彙 | `docs/_shared/components.yaml` | オーケストレーター（作成者の報告を適用） |
+| 全体構造、採用技術、設計制約（How） | `docs/design.md` | 🙋（オーケストレーターが代筆可。理由は ADR） |
+| 判断の理由、トレードオフ、却下案、計測値 | `docs/adr/` | オーケストレーター。[adr.md](adr.md) に従う |
+| 判定者の `持ち越し` 指摘（機械で決着できず保留） | `docs/verification/DEFERRED.md` | オーケストレーター（指摘ごとに 1 行。同じスライス内で再送しない） |
+| 機械可読にできる値（閾値、列挙） | コード定数 / スキーマ制約（R-102）。文書は場所を示す | `implementer`（`logic` / `schema`） |
+| 未決事項、残余リスク、人間の判断待ち | issue 管理（プロジェクト規約。なければ尋ねる） | オーケストレーター |
+| 改訂履歴、差分の説明 | git コミットメッセージ | オーケストレーター。[commit.md](commit.md) に従う |
 
-> **Finding a defect is not, by itself, a reason to change the SSOT.** Before routing a judge's or a test's finding to `spec-author`, check whether the existing REQ sentences and BRs already refute that error. If they **can**, the SSOT is right and the implementation (or a missing partition class → `test-author`) is what changes. Only when they **cannot** is it an SSOT change. Skipping this check makes the UC directory grow with every review, and that directory is billed as context to every producer and judge of the slice. For the same reason, never route appearance nitpicks to the SSOT (their oracle is the human eyeball).
+> **欠陥発見だけでは SSOT を変える理由になりません。** 判定者やテストの指摘を `spec-author` に振る前に、既存 REQ 文と BR がその誤りを反証できるか確認します。**できる**なら SSOT は正しく、変えるのは実装（または不足クラス → `test-author`）です。**できない**ときだけ SSOT 変更です。省くとレビューごとに UC ディレクトリが膨らみ、各作成者・判定者のコンテキスト費用になります。同じ理由で見た目の細かな指摘を SSOT に振りません（判定者は人間の目視）。
 >
-> **A red scenario test has three possible causes, diagnosed in this order (orchestrator, inline):** (1) the main scenario and the contract already decide the behaviour → an implementation defect → `implementer (logic)` with the red as a constraint on the named unit; (2) the test performs a step the scenario does not list, or asserts DOM / view structure → the SSOT is right → `test-author (track: scenario)` re-derives; (3) the scenario cannot express the operation → an SSOT change → `spec-author` (🙋) on `UC.md`, then both the test and the implementation re-derive. Never go straight from "the test failed" to "change the UC", and never edit the test to make it pass.
+> **Red のシナリオテストの原因は 3 つで、この順にその場で診断します（オーケストレーター）:** (1) 主シナリオと契約が既に振る舞いを決めている → 実装の欠陥 → 名指した単位への制約として Red を `implementer (logic)` に渡す。(2) テストがシナリオにないステップを実行する、または DOM / ビュー構造を検証する → SSOT は正しい → `test-author (track: scenario)` が再導出。(3) シナリオが操作を表現できない → SSOT 変更 → `UC.md` の `spec-author`（🙋）、その後テストと実装を再導出。「テスト失敗」から直ちに「UC 変更」へ進まず、成功させるためにテストを編集しません。
 
-## Rework and the dispatch map
+## 手戻りと振り分け表
 
-When an SSOT change becomes necessary mid-implementation, stop, fix the SSOT (upstream first, R-801), then re-derive. "Uniformly rewind to the original loop" is forbidden. **Measure before dispatch** (orchestrator, inline):
+実装中に SSOT 変更が必要になったら停止し、SSOT を修正（上流優先、R-801）して再導出します。「一律に元のループへ巻き戻す」は禁止です。**振り分け前に測ります**（オーケストレーター、その場で）。
 
-1. Search docs, the declared schema, source, and tests together (`rg -l -F -e '<ID>' -e '<term>' -e '<identifier>' <roots…>`), including shared vocabulary and completed slices; follow newly found references until no new address emerges. Generated / vendor copies are not targets; note roots the search could not cover.
-2. Keep a temporary dispatch map in the working context: affected paths, intended change, responsible producer, read inputs, write targets, dependencies, re-verification scope. Hits are candidates, not edits — distinguish live dependents from withdrawn artifacts and historical explanations that must stay. A zero-hit search or a green `trace-check` is not semantic proof.
-3. Apply *Decision preflight* when its trigger holds. Route the complete set with the routing table as **one coordinated batch**, grouped by producer and dependency; pass each Task its affected paths, the intent, and the predecessor outputs it waits for. One batch does not mean one launch: finish upstream writes and approvals before launching downstream readers.
-4. On receipt, expand the map when a producer finds another dependent; pause affected downstream work and relaunch it against settled inputs. Never continue knowingly on stale inputs.
-5. After the batch settles, re-search for missed live dependents and hand the full scope to the phase's reviewer and machine checks, once per round. Keep the map temporary, never a committed ledger.
+1. docs、宣言済みスキーマ、source、tests を一緒に検索します（`rg -l -F -e '<ID>' -e '<term>' -e '<identifier>' <roots…>`）。共有語彙と完了済みスライスも含め、新しい参照先がなくなるまで辿ります。生成物 / vendor コピーは対象外。検索できなかったルートを記録します。
+2. 作業コンテキストに一時的な振り分け表を保持します。影響パス、変更意図、担当作成者、読み取り入力、書き込み先、依存、再検証範囲です。ヒットは候補であり編集対象とは限りません。生きた依存先と、撤回済み成果物・残すべき履歴説明を区別します。ゼロヒットや `trace-check` 成功は意味の証明ではありません。
+3. 条件を満たす場合は「判断の事前検査」を適用します。振り分け表で全集合を**1 つの協調バッチ**として、作成者と依存ごとにまとめます。各 Task に影響パス、意図、待つ先行出力を渡します。1 バッチは 1 回の起動という意味ではありません。下流の読み手を起動する前に上流の書き込みと承認を終えます。
+4. 作成者が別の依存先を見つけたら受領時に表を拡張します。影響する下流作業を止め、確定入力に対して再起動します。古い入力を承知で続けません。
+5. バッチ確定後、生きた依存先の漏れを再検索し、全集合をフェーズの reviewer と機械検査へ周回ごとに 1 回渡します。表は一時的に保ち、台帳としてコミットしません。
 
-| Kind of change | Return point and re-verification scope |
+| 変更の種類 | 戻り先と再検証範囲 |
 | --- | --- |
-| One requirement's sentence, or a new partition class | back to the current slice (re-derive: policy → tests → implementation) |
-| A new table cell, a new BR, or an SSOT change touching the frozen structure | Phase 1 (UC / REQ / BR) → re-run Phase 3 → **re-verify already-completed slices too**, using the map (`trace-check` C4 catches dead rules only) |
+| 1 要件の文、または新分割クラス | 現スライスへ（方針 → テスト → 実装を再導出） |
+| 新セル、新 BR、確定済み構造に触れる SSOT 変更 | フェーズ 1（UC / REQ / BR）→ フェーズ 3 再実行 → 表に従って**完了済みスライスも再検証**（`trace-check` C4 は死んだルールだけを検出） |
 
-## Decision preflight
+## 判断の事前検査
 
-- **Trigger**: a proposed decision adds, changes, or withdraws a shared concept / rule, or alters an existing structural assumption (state, boundary, persistence constraint) — during definition too. A local correction derived from unchanged SSOT gets no preflight.
-- After collecting the dispatch map and **before any write implementing the decision**, launch `reviewer (mode: proposal)` read-only with the before/after intent (inline only if not yet in a file), its grounds, and the concept-wide paths (UC directories, REQs with policies, BRs, glossary, `_shared`, contracts, schema, relevant source / tests); state which artifacts are not yet authored and why. Pause writers to those inputs. Ask for counterexamples across the concept, semantic dependents included.
-- **On receipt**: verify the grounds, expand the map, and resolve every `阻止` or missing piece of evidence before dispatch. If design details are needed, ask the responsible producer for a proposal as a report (no artifact changes) and re-judge. Policy ambiguity → the human with the competing interpretations; the reviewer neither chooses policy nor approves. A clean proposal report permits the normal producer / gate sequence only — **never `fixed`, never a phase advance, no extra human gate**. The artifacts are reviewed again in Phase 3 over the same scope.
+- **契機**: 提案が共有概念 / ルールを追加・変更・撤回する、または既存の構造前提（状態、境界、永続化制約）を変える場合。定義中も対象です。不変の SSOT から導くローカル修正には行いません。
+- 振り分け表を集めた後、**判断を実現する書き込みの前に**、`reviewer (mode: proposal)` を読み取り専用で起動します。変更前後の意図（未ファイル化ならその場の入力可）、根拠、概念全体のパス（UC ディレクトリ、方針付き REQ、BR、用語集、`_shared`、契約、スキーマ、関連 source / tests）を渡し、未作成成果物と理由も明示します。それら入力への書き手を止め、意味的な依存先を含む概念全体の反例を求めます。
+- **受領時**: 根拠を検証し、表を拡張し、すべての `阻止` と不足証拠を解決してから振り分けます。設計詳細が必要なら担当作成者に報告としての提案を求め（成果物は変更しない）、再判定します。方針の曖昧さは競合する解釈を添えて人間へ。reviewer は方針を選ばず承認しません。問題のない proposal 報告が許すのは通常の作成者 / ゲートの順序だけです。**`fixed` 化もフェーズ前進も行わず、人間ゲートも追加しません**。成果物はフェーズ 3 で同じ範囲を再レビューします。
 
-## Round ledger and stop rules
+## 周回台帳と停止条件
 
-Every judge loop (reviewer `structure` / `slice` / `proposal`, and a red machine gate) is driven by a ledger the orchestrator keeps in the working context — one row per round: **`阻止` count, `持ち越し` count, artifacts re-derived, `same-location` (a finding at a location already listed in a previous round)**.
+すべての判定ループ（reviewer の `structure` / `slice` / `proposal` と Red の機械ゲート）は、オーケストレーターが作業コンテキストに保持する台帳で進めます。周回ごとに 1 行: **`阻止` 数、`持ち越し` 数、再導出した成果物、`same-location`（前周回で挙げた場所の指摘）**。
 
-- **Send every `阻止` of a round in one launch, as constraints on named artifacts** (an operation, a document, a unit). The rework unit is the artifact, never the finding; never say "minimal change". A `阻止` from the slice reviewer is first converted into a test class (`test-author`) or a lint rule, then goes through the machine loop — never as prose to a producer.
-- **Before the next launch, append every `持ち越し` as a row to `docs/verification/DEFERRED.md`** (template `${HARNESS_ROOT}/templates/develop/DEFERRED.md`; it defines the columns). A `持ち越し` is never re-sent within the slice.
-- **At most 2 reviewer passes per slice.** Re-judgement is once per round. From the second pass on, pass "the previous findings + this round's change scope" and narrow to "confirm the fixes + rescan the blast radius of the changes" (the first pass is a full judgement; only the scope narrows).
-- **If the `阻止` count does not decrease between rounds, or a `same-location` row appears, stop** and go to the human with the ledger, the counterexamples, and a diagnosis of why it is stuck. Do not spend the second pass hoping.
-- **Read post-round test failures per class (per file).** A total count hides a regression: separate expected new Reds from classes that were green and turned red before sending anything back.
+- **各周回のすべての `阻止` を、名指した成果物（操作、文書、単位）への制約として 1 回の起動で送ります。** 手戻りの単位は指摘ではなく成果物であり、「最小変更」は禁止です。slice reviewer の `阻止` は先にテストクラス（`test-author`）または lint 規則へ変換し、機械ループを経由させます。説明文だけで作成者に渡しません。
+- **次の起動前にすべての `持ち越し` を `docs/verification/DEFERRED.md` の行として追加します**（テンプレート `${HARNESS_ROOT}/templates/develop/DEFERRED.md` が列を定義）。同じスライスで再送しません。
+- **reviewer はスライスごとに最大 2 回。** 再判定は周回ごとに 1 回。2 回目以降は「前回の指摘 + 今回の変更範囲」を渡し、「修正確認 + 変更の影響範囲再走査」に絞ります（最初は全体判定。狭めるのは範囲だけ）。
+- **周回間で `阻止` 数が減らない、または `same-location` 行が現れたら停止**し、台帳、反例、停滞理由の診断を人間へ提示します。期待だけで 2 回目を消費しません。
+- **周回後のテスト失敗はクラス別（ファイル別）に読みます。** 合計は回帰を隠します。送り返す前に、想定した新 Red と、成功から失敗へ転じたクラスを分けます。
 
-## Test-run granularity
+## テスト実行の粒度
 
-The default suite is **the pool the red-green loop draws from**, not a command fired after every mutation. Treating every round as a final judgement and running the whole suite is forbidden.
+既定スイートは**Red-Green ループが選ぶ母集団**であり、変更のたびに発火するコマンドではありません。各周回を最終判定として全体実行することは禁止です。
 
-| Moment | What you run | What "green" means |
+| 時点 | 実行するもの | 「成功」の意味 |
 | --- | --- | --- |
-| A fix / rework round (including the consolidated run after an exclusive-resource skip) | the **reds of this round + their blast radius** | that selection is green |
-| Declaring the slice ready to commit (after the reviewer's last pass at zero `阻止`) | the **terminal list** (`spec-lint validate`, `trace-check`, `contract-run`, then the host's `commands.typecheck` / `lint` / `test` — the whole default suite, once — and `commands.system` where declared) | every command exits 0 and `trace-check` reports no new violation |
-| CI (push, pull request, merge) | the whole default suite, spec-lint, trace-check, and whatever else CI defines | CI |
+| 修正 / 手戻り周回（排他的資源で省略した後のまとめ実行も含む） | **今回の Red + 影響範囲** | その選択が成功 |
+| スライスがコミット可能と宣言するとき（最後の reviewer が `阻止` ゼロ） | **最終一覧**（`spec-lint validate`、`trace-check`、`contract-run`、次に利用プロジェクトの `commands.typecheck` / `lint` / `test` — 既定スイート全体を 1 回 — と、宣言されていれば `commands.system`） | 全コマンド exit 0、`trace-check` の新規違反なし |
+| CI（push、pull request、merge） | 既定スイート全体、spec-lint、trace-check、CI が定義するもの | CI |
 
-The **system suite** (scenario tests) follows the same shape one level up: right after `test-author (track: scenario)` files, only the new test (Red / pending); in the FE-wiring round, only the UC's one scenario (a `UC-nnn` selection); in the terminal list and CI, the whole suite once (`commands.system`, where declared). **A fix round never fires the whole system suite**, and a browser or simulator is an exclusive resource (*Concurrency conditions*).
+**システムスイート**（シナリオテスト）も 1 段上で同じ形です。`test-author (track: scenario)` の作成直後は新テストだけ（Red / 保留）、FE 接続周回は UC の 1 シナリオだけ（`UC-nnn` 選択）、最終一覧と CI は全体を 1 回（宣言済み `commands.system`）。**修正周回でシステムスイート全体を実行しません**。ブラウザーやシミュレーターは排他的資源です（「並行条件」）。
 
-**Blast radius is neither the single failing test nor the whole default suite.** It is the tagged suites (`UC-nnn`) observing the same path as the files this round changed; suites sharing a session, a lock, a stash, a microphone, a write chain, or a similar cross-UC progression sit in each other's blast radius even under different UC IDs. When unsure, widen by neighbouring `UC-nnn` tags — never by firing the default-suite command. How to select (tag, filter flag) is in the framework testing leaves you pass; this section decides only **when**. Integration and system suites stay at a boundary or outside the phases. **The orchestrator never orders a whole-default-suite run as part of a fix round, a probe, or a reviewer pass.**
+**影響範囲は失敗した 1 テストでも既定スイート全体でもありません。** 今回変更したファイルと同じ経路を観測するタグ付きスイート（`UC-nnn`）です。session、lock、stash、microphone、書き込み連鎖などの UC 横断の進行を共有するスイートは、UC ID が異なっても互いの影響範囲に含まれます。不明なら隣接 `UC-nnn` タグで広げ、既定スイートコマンドを発火させません。選択方法（タグ、filter flag）は渡すフレームワークの testing 末端ファイルが定め、ここは**いつ**を決めます。integration / system は節目またはフェーズ外に置きます。**オーケストレーターは修正周回、probe、reviewer 検査の一部として既定スイート全体を命じません。**
 
-## Concurrency conditions
+## 並行条件
 
-At every launch, **launch simultaneously (several Tasks in one message) when all 4 conditions hold**; serialize only the pairs that fail one, and name the condition. N use-case Tasks and N requirement Tasks in Phase 1, N contract Tasks in Phase 3, and `test-author (backend-logic)` ∥ `test-author (scenario)` ∥ `implementer (logic)` ∥ `implementer (appearance)` in Phase 4 are instances of these conditions, not separate rules (the two test-author tracks write disjoint folders — the default suite and the system suite).
+起動ごとに、**4 条件がすべて成り立てば同時起動します（1 メッセージに複数 Task）**。どれかを満たさない組だけ直列化し、条件を明示します。フェーズ 1 の N 個の usecase Task / requirements Task、フェーズ 3 の N 個の contract Task、フェーズ 4 の `test-author (backend-logic)` ∥ `test-author (scenario)` ∥ `implementer (logic)` ∥ `implementer (appearance)` はこの条件の例であり、別規則ではありません（2 つの test-author は別フォルダー、既定スイートとシステムスイートを書きます）。
 
-1. **Inputs are settled** — each Task's inputs are `active` / settled / `fixed` and wait on no other Task's output in the same round. Compare read inputs against every concurrent Task's write targets, the orchestrator's included: **never overlap a writer and a reader of the same file**. A status label does not make a file settled while it is being revised. **The one sanctioned exception**: BE tests are a *closing* input of the logic implementer (Phase 4), so `test-author` and `implementer (logic)` start together and reconcile at the closing rule.
-2. **Write targets are disjoint** — never run Tasks that write the same file at the same time (`_shared`, the schema source, the domain singletons, a `UC.md` another Task reads; `_shared` and every `phase:` line are the orchestrator's alone). Two `spec-author` Tasks that both extract a BR return candidates; one of them writes.
-3. **The shared vocabulary is passed identically** — the same paths for glossary, BRs, `_shared`, existing contracts to every concurrent producer.
-4. **No two human gates open at once** — at most one 🙋 (spec-author / implementer schema / implementer appearance) pending.
+1. **入力が確定済み** — 各入力が `active` / 確定 / `fixed` で、同じ周回の別 Task の出力待ちではありません。読み取り入力を、オーケストレーターも含む全並行 Task の書き込み先と比較し、**同じファイルの書き手と読み手を重ねません**。改訂中のファイルはステータスラベルだけでは確定しません。**唯一の例外**: BE テストは logic implementer の*完了時*入力（フェーズ 4）なので、`test-author` と `implementer (logic)` を同時に始め、完了時の突き合わせで整合させます。
+2. **書き込み先が互いに素** — 同じファイル（`_shared`、スキーマ正本、domain の単独文書、別 Task が読む `UC.md`）を書く Task を同時に実行しません。`_shared` とすべての `phase:` 行はオーケストレーターだけの担当です。2 つの `spec-author` が同じ BR を抽出するなら候補を返し、片方だけが書きます。
+3. **共有語彙を同一に渡す** — glossary、BR、`_shared`、既存契約の同じパスを全並行作成者に渡します。
+4. **人間ゲートを同時に 2 つ開かない** — 保留 🙋（spec-author / implementer schema / implementer appearance）は最大 1 つ。
 
-The main arena is **concurrent independent slices**: slices with `fixed` contracts satisfying 1–4 may run **2–3 at a time**, each carrying its whole Phase 4 chain, capped so a human can still follow a rework. **Never run steps that take an exclusive execution resource at once** (the git index, a single build / run environment, a simulator). When a producer reports "skipped execution due to exclusivity", close the concurrent section, relaunch **the same implementer alone** with the skipped UC IDs + blast radius, settle that selection, and only then move on — never pass anything unexecuted to the reviewer or to a commit. This binds judges that run things too. **Never commit while any Task is running.** If condition 2 breaks mid-run, drop that slice to serial. Concurrency never touches the requirement that judges live in a separate context from producers.
+主な並行対象は**独立スライス**です。`fixed` 契約を持ち 1–4 を満たすスライスは、各フェーズ 4 の連鎖全体を持たせて **2–3 個同時**に進められます。人間が手戻りを追える上限にします。**排他的実行資源（git index、単一の build / run 環境、シミュレーター）を使うステップは同時実行しません**。作成者が「排他性のため実行を省略」と報告したら並行区間を閉じ、**同じ implementer を単独で**省略 UC ID + 影響範囲を渡して再起動し、その選択を成功させてから進みます。未実行のまま reviewer やコミットへ渡しません。実行する判定者にも適用します。**Task が実行中ならコミットしません。** 途中で条件 2 が壊れたら、そのスライスを直列化します。作成者と判定者を別コンテキストにする要件は並行によって変わりません。
 
-## Task inputs and receipt
+## Task の入力と受け取り
 
-**Task inputs are paths, never artifact bodies.** SSOT, schema, contract, tests, appearance, and change scope are repository paths — for a slice, **the UC directory** (the agent runs `ls` and reads what is there). The only inline exceptions are things not yet in a file: the finding list with grounds, the mode, the reserved REQ IDs, and similar control information. Pass the shared vocabulary paths to every Task, state that deliverables are in Japanese, and pass the rules-leaf bundle per [bundles.md](bundles.md). On receipt, verify a judge's grounds yourself before any decision that goes outside; never fix and approve the same thing yourself; never escalate to a human what machines settle.
+**Task 入力はパスであり、成果物本文ではありません。** SSOT、スキーマ、契約、テスト、見た目、変更範囲はリポジトリのパスで渡します。スライスでは **UC ディレクトリ**を渡します（agent が `ls` して内容を読む）。その場の本文を許すのは未ファイル化のものだけ、根拠付き指摘一覧、mode、予約 REQ ID などの制御情報です。全 Task に共有語彙のパスを渡し、日本語成果物と明示し、[bundles.md](bundles.md) に従うルール束を渡します。受領時は外へ出る判断の前に判定者の根拠を自ら検証し、自ら同じものを修正・承認せず、機械が決めるものを人間に上げません。
 
-**Model selection is a three-tier policy.** Each agent source declares `x-model-tier: top | mid | light`; read it before launch and apply it through the launch API (ADR-0028). Claude Code: `opus` / `sonnet` / `haiku`. Cursor: pick the latest model of the matching family per Task (`inherit` is forbidden; if the family is unavailable, report the candidates and stop). Grok Build: launch each specialist through the `workflow` tool. The inline Rhai script passes `agent_type` as the agent frontmatter `name:` (`implementer` and the rest) to `agent()` or `parallel()`, and does not set `fork_context`. A concurrent batch is one `parallel()` call. Return to the parent around a human gate, and never put a gate inside the script. Pass the script inline and do not save it under `.grok/workflows/`. Follow the session's `create-workflow` skill for the grammar, and read it again if the tool rejects the script. A `spawn_subagent` call does not count as launching the specialist. If `workflow` or `agent_type` is unavailable, stop and report that the named agent was not launched; do not fall back to `general-purpose`. The child inherits the parent model, so report when the session is below a top-tier agent's tier. Codex: `spawn_agent` with the TOML `name` (as `agent_type`, or `task_name` with `fork_turns: none` and the persona named in `message`); pass `model` / `reasoning_effort` from `"${HARNESS_ROOT}/tools/codex-sync/models.json"` when offered, and report when the pin was not enforced. Never hardcode a catalog ID.
+**モデル選択は 3 tier 方針です。** 各 agent 正本が `x-model-tier: top | mid | light` を宣言します。起動前に読み、起動 API 経由で適用します（ADR-0028）。Claude Code: `opus` / `sonnet` / `haiku`。Cursor: Task ごとに対応ファミリーの最新モデルを選択（`inherit` 禁止。ファミリーがなければ候補を報告して停止）。Grok Build: 各専門担当を `workflow` ツールで起動します。その場の Rhai script から `agent()` / `parallel()` へ渡す `agent_type` は agent frontmatter の `name:`（`implementer` など）とし、`fork_context` は設定しません。並行バッチは 1 回の `parallel()` 呼び出しです。人間ゲート前後で親に戻し、script にゲートを埋め込みません。script はその場で渡し、`.grok/workflows/` に保存しません。文法はセッションの `create-workflow` skill に従い、ツールが拒否したら再読します。`spawn_subagent` は専門担当の起動とは数えません。`workflow` / `agent_type` がなければ停止して指定 agent が未起動と報告し、`general-purpose` に代替しません。子は親のモデルを継承するため、セッションが top-tier agent の tier 未満なら報告します。Codex: TOML の `name` を用いる `spawn_agent`（`agent_type`、または `task_name` と `fork_turns: none` を使い `message` に役割定義名を指定）。指定可能なら `"${HARNESS_ROOT}/tools/codex-sync/models.json"` から `model` / `reasoning_effort` を渡し、固定できなければ報告します。カタログ ID をハードコードしません。
 
-| Stop / report received | From | Exit |
+| 受け取った停止・報告 | 担当 | 処理 |
 | --- | --- | --- |
-| Drafts + points to confirm (domain, UC, REQ / BR, NFR) | `spec-author` | 🙋 present → statuses on approval / relaunch on change requests. A `?` cell is a hole: settle it before approval. A BR that binds already-active UCs → *Rework* |
-| Contract draft, or a `_shared` vocabulary request | `spec-author` | 🤖 `spec-lint validate`; apply the vocabulary yourself before the next round; then Phase 3 step 4–5 |
-| Cannot settle the contract (a defect in the UC / REQ / BR / schema) | `spec-author` | 🙋 send back to the causing human-oracle artifact → re-derive after approval |
-| Schema draft + guarantee-point proposals; or "no schema source declared" | `implementer (schema)` | 🙋 present → settled on approval (guarantee point → ADR; `enforced_at` change → `spec-author`). No source → ask the human where it lives and record it in the host `CLAUDE.md` / `AGENTS.md` / `traceconfig.json` |
-| Structural refutation | `implementer (probe)` | structural cause (e.g. the schema) → 🙋 / otherwise rebuild in Phase 1 / 3 |
-| Appearance + request to confirm | `implementer (appearance)` | 🙋 present → settled / re-implement on change requests |
-| Partition classes + Red tests | `test-author (backend-logic)` | 🤖 closing input of `implementer (logic)` — Phase 4 closing rule |
-| The UC's scenario test (Red / pending, `@scenario UC-nnn`) | `test-author (scenario)` | 🤖 locator reconciliation against the appearance once both have returned (appearance moves) → closing input of the FE-wiring `implementer (logic)` |
-| Scenario test red at FE wiring or at the boundary | `implementer (logic)` / stop-gate | 🛠 diagnose in order (implementation → test → SSOT) per *Routing information*; never edit the test to fit |
-| Requirements or contract insufficient (a missing cell, a contradiction) | `test-author` | cause is the SSOT → 🙋 via `spec-author` / the contract → 🤖 `spec-author` re-derives |
-| The contract falls short (mid-implementation) | `implementer` | closes within the contract → 🤖 `spec-author` re-derives / reaches a human-oracle artifact → 🙋 |
-| Tests not run (skipped due to an exclusive resource) | `implementer` | 🛠 close the concurrent section, relaunch the same implementer alone on the skipped UC IDs + blast radius; never proceed to the reviewer or a commit unexecuted |
-| Tests red, `trace-check` or `contract-run` violation | `implementer` | 🤖 all reds as constraints in one launch → re-test reds + blast radius; ledger row; never answer a red with the whole default suite |
-| Proposal report | `reviewer (proposal)` | *Decision preflight*: `阻止` or unchecked evidence blocks dispatch. No status or phase transition |
-| Findings (`阻止` / `持ち越し`) on artifacts | `reviewer (structure)` | `阻止` → constraints to `spec-author` / `implementer (schema)` in one launch, re-judge on the diff scope (≤ 2 passes); `持ち越し` → `DEFERRED.md`. **Zero `阻止` + spec-lint clean → the orchestrator marks `fixed`** |
-| Findings (`阻止` / `持ち越し`) on the slice | `reviewer (slice)` | `阻止` → a test class (`test-author`) or a lint rule → machine loop; `持ち越し` → `DEFERRED.md`. **Zero `阻止` → terminal list → commit** |
-| `阻止` count not decreasing, or a `same-location` row | any `reviewer` | 🙋 stop: ledger + counterexamples + diagnosis |
+| 草案 + 確認点（domain、UC、REQ / BR、NFR） | `spec-author` | 🙋 提示 → 承認後ステータス / 変更依頼で再起動。`?` セルは穴なので承認前に決着。既存 active UC を拘束する BR → 「手戻り」 |
+| 契約草案、`_shared` 語彙依頼 | `spec-author` | 🤖 `spec-lint validate`。次周回前に自ら語彙を適用し、フェーズ 3 手順 4–5 へ |
+| 契約を決着できない（UC / REQ / BR / スキーマの欠陥） | `spec-author` | 🙋 原因となる人間判定の成果物へ返し、承認後に再導出 |
+| スキーマ草案 + 保証点提案、または「スキーマ正本未宣言」 | `implementer (schema)` | 🙋 提示 → 承認で確定（保証点 → ADR、`enforced_at` 変更 → `spec-author`）。正本なしなら人間に場所を尋ね、利用プロジェクトの `CLAUDE.md` / `AGENTS.md` / `traceconfig.json` に記録 |
+| 構造への反証 | `implementer (probe)` | 構造原因（スキーマなど）→ 🙋 / それ以外はフェーズ 1 / 3 で再作成 |
+| 見た目 + 確認依頼 | `implementer (appearance)` | 🙋 提示 → 確定 / 変更依頼で再実装 |
+| 分割クラス + Red テスト | `test-author (backend-logic)` | 🤖 `implementer (logic)` の完了時入力 — フェーズ 4 の完了時の突き合わせ |
+| UC のシナリオテスト（Red / 保留、`@scenario UC-nnn`） | `test-author (scenario)` | 🤖 両方返ったら見た目とのロケーター突き合わせ（見た目を動かす）→ FE 接続 `implementer (logic)` の完了時入力 |
+| FE 接続時・節目でシナリオが Red | `implementer (logic)` / stop-gate | 🛠 「情報の振り分け」の順（実装 → テスト → SSOT）で診断。実装に合わせてテスト編集しない |
+| 要件・契約が不足（欠落セル、矛盾） | `test-author` | 原因が SSOT → `spec-author` 経由で 🙋 / 契約 → 🤖 `spec-author` が再導出 |
+| 契約が不足（実装中） | `implementer` | 契約内で閉じる → 🤖 `spec-author` が再導出 / 人間判定成果物に届く → 🙋 |
+| テスト未実行（排他的資源で省略） | `implementer` | 🛠 並行区間を閉じ、同じ implementer を省略 UC ID + 影響範囲で単独再起動。未実行のまま reviewer・コミットへ進まない |
+| テスト Red、`trace-check` / `contract-run` 違反 | `implementer` | 🤖 全 Red を 1 起動で制約として渡し、Red + 影響範囲を再検査。台帳に 1 行。Red に既定スイート全体で応じない |
+| proposal 報告 | `reviewer (proposal)` | 「判断の事前検査」: `阻止`・未検査証拠は振り分けを止める。ステータス・フェーズ変更なし |
+| 成果物の指摘（`阻止` / `持ち越し`） | `reviewer (structure)` | `阻止` → `spec-author` / `implementer (schema)` へ 1 起動で制約を渡し、差分範囲を再判定（≤ 2 回）。`持ち越し` → `DEFERRED.md`。**`阻止` ゼロ + spec-lint 成功 → オーケストレーターが `fixed` にする** |
+| スライスの指摘（`阻止` / `持ち越し`） | `reviewer (slice)` | `阻止` → テストクラス（`test-author`）または lint 規則 → 機械ループ。`持ち越し` → `DEFERRED.md`。**`阻止` ゼロ → 最終一覧 → コミット** |
+| `阻止` 数が減らない、`same-location` 行 | 任意の `reviewer` | 🙋 停止: 台帳 + 反例 + 診断 |
 
-## Human gates
+## 人間ゲート
 
-**Subagents cannot talk to the user.** A 🙋 agent never self-approves: it returns a draft plus the points the human must settle, and stops. The confirmation ritual (AskUserQuestion / plan mode) and the status transition (`active` / `frozen` / `living`, a settled appearance or schema) are performed by the orchestrator. Never embed a human gate inside a subagent.
+**子 agent はユーザーと会話できません。** 🙋 の agent は自己承認せず、人間が決める点付きの草案を返して停止します。確認（AskUserQuestion / plan mode）とステータス遷移（`active` / `frozen` / `living`、確定見た目・スキーマ）はオーケストレーターが行います。子 agent 内に人間ゲートを埋め込みません。

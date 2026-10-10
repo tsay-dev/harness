@@ -1,64 +1,64 @@
 ---
-description: "🔀 SwiftUI / frontend — state and data flow (Clean Architecture)"
+description: "🔀 SwiftUI / フロントエンド — 状態とデータフロー（Clean Architecture）"
 applyTo: "**/*.swift,**/Package.swift"
 ---
 
-# 🔀 SwiftUI / frontend — state and data flow (Clean Architecture)
+# 🔀 SwiftUI / フロントエンド — 状態とデータフロー（Clean Architecture）
 
-> **Scope: native iOS apps using SwiftUI.** If it does not apply, discard it.
+> **適用範囲: SwiftUI を使うネイティブ iOS アプリ。** 該当しなければ破棄する。
 >
-> The common notation rules are [common/coding.md](common-coding.instructions.md); the surface rules are [coding.md](frontend-coding.instructions.md);
-> where screens live and how navigation works is [routing.md](frontend-routing.instructions.md); granularity and the division of work is [components.md](frontend-components.instructions.md).
-> This document defines only **where state is held and how it flows between the layers**.
+> 共通の表記規則は [common/coding.md](common-coding.instructions.md)、表示側の規則は [coding.md](frontend-coding.instructions.md)、
+> 画面の配置と遷移は [routing.md](frontend-routing.instructions.md)、粒度と分業は [components.md](frontend-components.instructions.md)。
+> この文書は**状態をどこに保持し、レイヤー間をどう流すか**だけを定義する。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Defining the goal (what SwiftUI does and does not support)
+## 0. 目的の定義（SwiftUI が支援すること、しないこと）
 
-What SwiftUI / Observation come close to guaranteeing is this:
+SwiftUI / Observation が保証に近い形で提供するのは、次のこと:
 
-1. When an observed value changes, the View updates
-2. The flow of data does not become one-way by itself unless you design it that way
+1. 観測している値が変わると View が更新される
+2. データフローは、そのように設計しなければ自動的に一方向にはならない
 
-**Executing a use case, networking, caching policy, persistence, thread boundaries, and assembling dependencies are outside SwiftUI's remit.**
+**ユースケースの実行、通信、キャッシュ方針、永続化、スレッド境界、依存の組み立ては SwiftUI の担当範囲外。**
 
-Because that space is empty, an implementation naturally writes `URLSession` into a View's `task` / `onAppear`
-and stuffs both business and networking into an `@Observable` class. That implementation **works correctly** in a demo.
-It breaks on rapid taps, a bad connection, screens surviving, and swapping things out in tests — exactly where verification does not reach.
+そこが空白なので、実装は自然に View の `task` / `onAppear` に `URLSession` を書き、
+`@Observable` クラスに業務と通信の両方を詰め込む。その実装はデモでは**正しく動く**。
+連打、接続不良、画面の生存、テストでの差し替え、つまり検証が届かない場所で壊れる。
 
-**This document's job is to forbid that stuffing and to name the layers and the places things go.**
+**この文書の役目は、その詰め込みを禁止し、レイヤーと配置を定めること。**
 
 ---
 
-## 1. The layers and the direction of dependency (mandatory)
+## 1. レイヤーと依存の向き（必須）
 
-The layers within a Feature are as follows. **Dependencies run from outside inward only** (Presentation → Domain ← Data).
+Feature 内のレイヤーは次のとおり。**依存は外側から内側へのみ向かう**（Presentation → Domain ← Data）。
 
-| Layer | What may go there | What it must not know |
+| レイヤー | 置けるもの | 知ってはならないもの |
 | --- | --- | --- |
-| **Presentation** | View / a thin ViewModel / Router | `URLSession`, DTOs, another Feature's Data implementation |
-| **Domain** | Entity / UseCase / the Repository **protocol** | SwiftUI, `URLSession`, DTOs, concrete networking |
-| **Data** | The Repository **implementation** / DTOs / mapping | View, ViewModel, Router |
+| **Presentation** | View / 薄い ViewModel / Router | `URLSession`、DTO、別の Feature の Data 実装 |
+| **Domain** | Entity / UseCase / Repository の **protocol** | SwiftUI、`URLSession`、DTO、具象の通信処理 |
+| **Data** | Repository の**実装** / DTO / マッピング | View、ViewModel、Router |
 
 ```
-View ──calls──▶ ViewModel ──calls──▶ UseCase ──depends on──▶ Repository (protocol)
-                                                  ▲
-                                                  │ implements
-                                          RepositoryImpl (Data, URLSession)
+View ──呼び出し──▶ ViewModel ──呼び出し──▶ UseCase ──依存──▶ Repository (protocol)
+                                                        ▲
+                                                        │ 実装
+                                                RepositoryImpl (Data, URLSession)
 ```
 
-- **The UseCase is mandatory.** Never call a Repository directly from a ViewModel
-- **The Repository is a protocol in Domain and an implementation in Data.** Never put only the concrete type in Domain
-- If a Domain type needs `import SwiftUI` or `URLSession`, the layering has dissolved
+- **UseCase は必須。** ViewModel から Repository を直接呼ばない
+- **Repository は Domain の protocol と Data の実装に分ける。** Domain に具象型だけを置かない
+- Domain の型に `import SwiftUI` や `URLSession` が必要なら、レイヤー構成が崩れている
 
 ---
 
-## 2. The ViewModel is thin, `@Observable` + `@MainActor`
+## 2. ViewModel は薄く、`@Observable` + `@MainActor`
 
-A screen's client state (in-progress input, the loading indicator, an error message, a selection) is held by
-**that screen's ViewModel**.
+画面のクライアント状態（入力中の値、読み込み表示、エラーメッセージ、選択）は、
+**その画面の ViewModel** が保持する。
 
 ```swift
 @MainActor
@@ -90,38 +90,38 @@ final class LoginViewModel {
 }
 ```
 
-What a ViewModel may do:
+ViewModel がしてよいこと:
 
-- Hold and update the screen state
-- Call the UseCase and shape the result for the screen (display messages, and so on)
-- Signal the Router that navigation is permitted
+- 画面状態の保持と更新
+- UseCase の呼び出しと、結果の画面向け整形（表示メッセージなど）
+- 遷移してよいことを Router に伝える
 
-What a ViewModel must not do:
+ViewModel がしてはならないこと:
 
-- `URLSession` or assembling endpoints
-- The substance of business rules spanning Entities (that is the UseCase)
-- Directly operating persistence or the keychain (push that down to the Data side's responsibility)
+- `URLSession` の利用やエンドポイントの組み立て
+- Entity をまたぐ業務規則の本体（UseCase の責務）
+- 永続化やキーチェーンの直接操作（Data 側の責務へ下ろす）
 
-**The View does not know the UseCase or the Repository.** All it knows is the ViewModel (and the Router binding needed for the root wiring).
+**View は UseCase も Repository も知らない。** 知るのは ViewModel（と、ルートの配線に必要な Router の binding）だけ。
 
 ---
 
-## 3. UseCase and Repository
+## 3. UseCase と Repository
 
 ### UseCase
 
-- Represents one application operation ("log in", "fetch the statement")
-- Takes input and gives output in the Domain's vocabulary (never brings in screen wording or the View's convenience)
-- Receives in `init` only the dependencies Domain permits, such as a Repository protocol
+- 1 つのアプリケーション操作（「ログインする」「明細を取得する」）を表す
+- Domain の語彙で入力を受け、出力を返す（画面の文言や View の都合を持ち込まない）
+- `init` で受け取るのは Repository protocol など、Domain が許可する依存だけ
 
 ### Repository
 
-- The protocol is Domain
-- The implementation is Data. **The networking standard is `URLSession` + `async/await`**
-- Converting between external JSON / DTOs and Domain Entities is closed inside Data (never leak a DTO up to Presentation)
+- protocol は Domain に置く
+- 実装は Data に置く。**通信の標準は `URLSession` + `async/await`**
+- 外部 JSON / DTO と Domain Entity の変換は Data 内で閉じる（DTO を Presentation に漏らさない）
 
 ```swift
-// Domain
+// Domain レイヤー
 protocol UserRepository: Sendable {
   func fetchUser(id: UserID) async throws -> User
 }
@@ -134,30 +134,30 @@ struct FetchUserUseCase: Sendable {
   }
 }
 
-// Data
+// Data レイヤー
 struct UserRepositoryImpl: UserRepository {
   private let session: URLSession
   private let baseURL: URL
-  // decode → Entity へマッピング
+  // デコード → Entity へマッピング
 }
 ```
 
 ---
 
-## 4. Only the Composition Root knows the concrete types
+## 4. 具象型を知るのは Composition Root だけ
 
-**Constructing and wiring concrete types (`UserRepositoryImpl` and the like) happens only in `App/`** (or a Feature's factory).
-View / ViewModel / UseCase depend on a protocol or an abstraction and receive it by **init injection**.
+**具象型（`UserRepositoryImpl` など）の構築と配線は `App/`**（または Feature の factory）**だけで行う。**
+View / ViewModel / UseCase は protocol または抽象に依存し、**init による注入**で受け取る。
 
-- Never take Domain / Data from a service locator or a `.shared` singleton
-- Never distribute Domain-level things by putting a UseCase or a Repository into SwiftUI's `Environment`
-  (what may go in Environment is limited to presentation concerns that barely change after startup, such as the theme)
+- service locator や `.shared` singleton から Domain / Data を取り出さない
+- UseCase や Repository を SwiftUI の `Environment` に入れて、Domain レベルのものを配布しない
+  （Environment に入れてよいのは、テーマなど、起動後ほぼ変わらない表示上の関心事に限る）
 
-An unswappable concrete coupling means untestability and a relapse into "a straight line from screen to network".
+差し替えられない具象型との結合は、テスト不能と「画面から通信まで一直線」への逆戻りを意味する。
 
 ---
 
-## 5. Never communicate from a View
+## 5. View から通信しない
 
 ```swift
 // ❌ NG: View が Data の仕事をしている
@@ -170,30 +170,30 @@ An unswappable concrete coupling means untestability and a relapse into "a strai
 .task { await viewModel.onAppear() }
 ```
 
-Never touch `URLSession` or a Repository implementation directly from `task` / `onAppear` / a button.
-Treat re-entry, cancellation, and rapid taps as design problems on the ViewModel / UseCase side.
+`task` / `onAppear` / ボタンから `URLSession` や Repository の実装に直接触れない。
+再入、キャンセル、連打は ViewModel / UseCase 側の設計問題として扱う。
 
 ---
 
-## 6. Server-derived values and screen-only values
+## 6. サーバー由来の値と画面だけの値
 
-| Kind | Definition | Where it lives |
+| 種類 | 定義 | 置き場所 |
 | --- | --- | --- |
-| **Server-derived** | values whose truth the server holds and of which we see a copy | fetched via a UseCase. If it is cached on the screen indefinitely, state the policy |
-| **Screen-only** | in-progress input, a modal's open/closed, a selection — values the server does not know | the ViewModel (or a View's `@State` if truly tiny) |
+| **サーバー由来** | サーバーが真実を保持し、こちらはコピーを見る値 | UseCase 経由で取得する。画面に無期限でキャッシュするなら方針を明記する |
+| **画面だけ** | 入力中の値、モーダルの開閉、選択など、サーバーが知らない値 | ViewModel（本当に小さければ View の `@State`） |
 
-When you cannot decide, **decide first who holds the truth**.
-Never copy a server-derived value into a View's `@State` and make that "the screen's truth"
-(the exception is starting an explicit editing copy, as in an edit form).
+判断できなければ、**誰が真実を保持するかを先に決める。**
+サーバー由来の値を View の `@State` にコピーして「画面の真実」にしない
+（編集フォームのように、明示的な編集用コピーを開始する場合は例外）。
 
 ---
 
-## ✅ Checklist before returning
+## ✅ 返却前チェックリスト
 
-- [ ] Does it run View → ViewModel → UseCase → Repository (protocol) → implementation?
-- [ ] Are you skipping the UseCase and calling a Repository from a ViewModel?
-- [ ] Does Domain import SwiftUI / `URLSession` / DTOs?
-- [ ] Is the ViewModel `@Observable` + `@MainActor` and kept thin?
-- [ ] Has concrete construction leaked outside the Composition Root?
-- [ ] Are you calling `URLSession` or a Repository implementation directly from a View?
-- [ ] Has a DTO leaked up to Presentation?
+- [ ] View → ViewModel → UseCase → Repository（protocol）→ 実装の流れになっているか？
+- [ ] UseCase を飛ばして ViewModel から Repository を呼んでいないか？
+- [ ] Domain が SwiftUI / `URLSession` / DTO を import していないか？
+- [ ] ViewModel は `@Observable` + `@MainActor` で薄く保たれているか？
+- [ ] 具象型の構築が Composition Root の外に漏れていないか？
+- [ ] View から `URLSession` や Repository の実装を直接呼んでいないか？
+- [ ] DTO が Presentation に漏れていないか？

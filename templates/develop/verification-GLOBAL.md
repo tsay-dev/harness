@@ -14,4 +14,4 @@ status: draft          # draft | living
 | --- | --- |
 | <NFR の負荷試験など> | <単体で測れない / 別手段 / 他者の責務> |
 
-<!-- Placement: docs/verification/GLOBAL.md. Write the content in Japanese. -->
+<!-- 配置: docs/verification/GLOBAL.md。 本文は日本語で書く。 -->

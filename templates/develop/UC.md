@@ -3,23 +3,23 @@ id: UC-000
 title: <動詞で終わる短い名前>
 actor: ACT-00
 goal: GOAL-00
-status: draft          # draft | active | withdrawn (active = approved by a human)
-phase: 定義            # 定義 | 構造 | 実装 | 検証 | 完了 — the progress ledger. Only the orchestrator advances it
+status: draft          # draft | active | withdrawn（active = 人間承認済み）
+phase: 定義            # 定義 | 構造 | 実装 | 検証 | 完了 — 進捗台帳。進めるのは orchestrator のみ
 ---
 
 # UC-000 <title>
 
 <!--
-Placement: docs/goals/GOAL-00-<slug>/UC-000-<slug>/UC.md — the file name is always UC.md (R-1006).
-This directory is the vertical slice: UC.md + REQ-*.md + contract.yaml, and `ls` defines its scope.
-Membership's SSOT is the frontmatter above; the directory is placement (trace-check C9 checks they agree).
-This file is read in full, in a separate context, by every downstream producer and oracle. Keep it thin.
-Write the content in Japanese.
+配置: docs/goals/GOAL-00-<slug>/UC-000-<slug>/UC.md — ファイル名は常に UC.md（R-1006）。
+このディレクトリが垂直スライス: UC.md + REQ-*.md + contract.yaml。`ls` が範囲を定義する。
+所属の SSOT は上記 frontmatter。ディレクトリは配置（trace-check C9 が一致を確認する）。
+下流のすべての作成者と oracle が別コンテキストでこのファイルを全文読む。薄く保つ。
+本文は日本語で書く。
 -->
 
 ## 概要
 
-<!-- 1–2 sentences. Who achieves what. -->
+<!-- 1–2 文。誰が何を達成するか。 -->
 
 ## 事前条件
 
@@ -27,18 +27,18 @@ Write the content in Japanese.
 
 ## 主シナリオ
 
-<!-- Numbered. The subject of every step is either the actor or システム. A step that applies a BR carries "→ BR-nnn".
-     This list is the SSOT of the UC's scenario test (one per UC, happy path only — ADR-0035): write each step as an
-     observable operation by the actor or an observable response by システム, in glossary terms. Never write screen
-     structure, widget names, or identifiers here; a scenario test asserts nothing this list does not say. -->
+<!-- 番号付き。各ステップの主語はアクターかシステム。BR を適用するステップには「→ BR-nnn」を付ける。
+     この一覧が UC のシナリオテストの SSOT（UC ごとに一つ、成功経路のみ — ADR-0035）。各ステップを
+     アクターの観測可能な操作、またはシステムの観測可能な応答として用語集の語で書く。画面構造、
+     ウィジェット名、識別子をここに書いてはならない。シナリオテストはこの一覧にないことを検証しない。 -->
 
 1. <アクター>が…
 2. システムが…を検証する → BR-000
 
 ## 状態 × イベント表
 
-<!-- R-501: every cell is filled. The only information this table holds is "cell → the REQ derived from it".
-     Never write the requirement's content here. An impossible cell says 不可: <reason>. -->
+<!-- R-501: すべてのセルを埋める。この表が持つ情報は「セル → そこから導出する REQ」だけ。
+     要件内容をここに書いてはならない。不可能なセルには 不可: <理由> と書く。 -->
 
 | <中核リソース>の状態 \ イベント | <イベント1> | <イベント2> |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ Write the content in Japanese.
 
 ## 例外系の走査（4 分類）
 
-<!-- R-502: sweep every step for the 4 classes. 導出 names the table cell or the REQ. -->
+<!-- R-502: 全ステップを四分類で走査する。「導出」には表のセルか REQ を指定する。 -->
 
 | 軸 | 該当ステップ | 導出 |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ Write the content in Japanese.
 
 ## 事後条件
 
-<!-- 成功時 is the final assertion of the scenario test: an observation the actor can make, in glossary terms. -->
+<!-- 成功時はシナリオテストの最終アサーション。アクターが観測できることを用語集の語で書く。 -->
 
 - 成功時: <観測可能な状態>
 - 失敗時: いかなる状態変更も残っていない（部分適用なし）

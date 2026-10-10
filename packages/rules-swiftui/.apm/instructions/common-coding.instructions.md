@@ -1,42 +1,42 @@
 ---
-description: "📐 SwiftUI — common coding rules (all layers)"
+description: "📐 SwiftUI — 共通のコーディング規則（全レイヤー）"
 applyTo: "**/*.swift,**/Package.swift"
 ---
 
-# 📐 SwiftUI — common coding rules (all layers)
+# 📐 SwiftUI — 共通のコーディング規則（全レイヤー）
 
-> **Scope: native iOS apps using SwiftUI.**
-> This document fires on file extension, so it can be injected into server-side Swift or non-SwiftUI targets too.
-> **If the target is not a SwiftUI iOS app, treat this document as inapplicable** and discard it.
+> **適用範囲: SwiftUI を使うネイティブ iOS アプリ。**
+> この文書は拡張子を条件に読み込まれるため、サーバー側の Swift や SwiftUI 以外のターゲットにも注入されることがある。
+> **対象が SwiftUI の iOS アプリでなければ、この文書は適用対象外として破棄する。**
 >
-> What this document holds is only **what is true across layers**. The SwiftUI surface delta is
-> [frontend/coding.md](frontend-coding.instructions.md); state and layering is
-> [frontend/dataflow.md](frontend-dataflow.instructions.md); screen navigation is
-> [frontend/routing.md](frontend-routing.instructions.md); granularity and the division of work is
-> [frontend/components.md](frontend-components.instructions.md). Test wiring is
-> [testing.md](common-testing.instructions.md), and when tests run is
-> [test-execution.md](common-test-execution.instructions.md).
-> **Never copy the common rules into a layer leaf** (the SSOT is here, in one place).
+> この文書が保持するのは、**レイヤーをまたいで共通する事項**だけ。
+> SwiftUI の表示側の差分は [frontend/coding.md](frontend-coding.instructions.md)、状態とレイヤー構成は
+> [frontend/dataflow.md](frontend-dataflow.instructions.md)、画面遷移は
+> [frontend/routing.md](frontend-routing.instructions.md)、粒度と分業は
+> [frontend/components.md](frontend-components.instructions.md) にある。テストの配線は
+> [testing.md](common-testing.instructions.md)、テストの実行時機は
+> [test-execution.md](common-test-execution.instructions.md) にある。
+> **共通規則をレイヤー別の末端文書にコピーしない**（唯一の正本はこの一か所）。
 >
-> **Write comments and user-facing text in Japanese.**
+> **コメントとユーザー向けの文言は日本語で書く。**
 
 ---
 
-## 0. Formatting is decided by tools, not by this document
+## 0. 書式はこの文書ではなくツールが決める
 
-Indentation, line breaks, import order, and spacing are **authoritative in the project's format / lint command**,
-and this document defines none of them. Never align columns by hand. **Run the format command before returning.**
+インデント、改行、import の順序、空白の正本は**プロジェクトの format / lint コマンド**であり、
+この文書では一切定義しない。手作業で列を揃えない。**返却前に format コマンドを実行する。**
 
-When a rule conflicts, the tool's output wins (that is all a human looks at too).
+規則が衝突したらツールの出力を優先する（人間が見るのもその出力だけ）。
 
 ---
 
-## 1. Never weaken types and failures to get to green
+## 1. Green にするために型や失敗を弱めない
 
-**Never write a force unwrap (`!`), `try!`, `as!`, or an unexplained `fatalError` "to make it compile".**
+**「コンパイルを通すため」に強制アンラップ（`!`）、`try!`、`as!`、理由のない `fatalError` を書かない。**
 
-Needing to write one is a signal that **either the type or the contract is wrong**.
-Crush it silently and downstream work piles up on a wrong premise, landing somewhere else at runtime.
+それが必要になるのは、**型か契約のどちらかが間違っている**という兆候。
+黙って押し潰すと、誤った前提の上に後続の作業が積み上がり、実行時に別の場所へ着地する。
 
 ```swift
 // ❌ NG: 失敗しうる値を成功前提に押し潰している
@@ -48,58 +48,58 @@ let user = try await repository.fetchUser(id: id)
 guard let id = Int(rawId) else { /* 到達可能な不正入力として扱う */ return }
 ```
 
-**When you want to crush something, stop implementing and report "what conflicts with what"** (per each implementer's output contract).
-Never rewrite the contract yourself to make things line up.
+**何かを押し潰したくなったら実装を止め、「何と何が衝突しているか」を報告する**（各実装担当者の出力契約に従う）。
+辻褄を合わせるために契約を自分で書き換えない。
 
-The only exception is **when an external API or the system documents a guarantee that "this always exists"**, and then leave the reason in a comment.
-Where the framework mandates it — the `@IBOutlet` convention at an IB boundary, for instance — follow that.
+唯一の例外は、**外部 API またはシステムが「これは必ず存在する」と保証を文書化している場合**であり、理由をコメントに残す。
+IB 境界での `@IBOutlet` の慣例など、フレームワークが要求する箇所はそれに従う。
 
 ---
 
-## 2. Modules and locations (Feature-first)
+## 2. モジュールと配置（Feature-first）
 
-Code locations are **Feature-first**. Never put layer names at the top.
+コードの配置は **Feature-first**。トップ階層にレイヤー名を置かない。
 
 ```
-App/                         # startup, the Composition Root, and root wiring only
-Shared/                      # only what is genuinely used by several Features
+App/                         # 起動、Composition Root、ルートの配線のみ
+Shared/                      # 複数の Feature が実際に使うものだけ
 Features/
   Login/
     Presentation/            # View / ViewModel / Router
-    Domain/                  # Entity / UseCase / the Repository protocol
-    Data/                    # the Repository implementation / DTOs / URLSession usage
+    Domain/                  # Entity / UseCase / Repository の protocol
+    Data/                    # Repository の実装 / DTO / URLSession の利用
 ```
 
-### What may go in `App/`
+### `App/` に置けるもの
 
-- The app's entry point (`@main`)
-- **The Composition Root** (constructing and wiring the concrete types; details in [dataflow.md](frontend-dataflow.instructions.md))
-- Connecting the root `NavigationStack` (details in [routing.md](frontend-routing.instructions.md))
+- アプリのエントリーポイント（`@main`）
+- **Composition Root**（具象型の構築と配線。詳細は [dataflow.md](frontend-dataflow.instructions.md)）
+- ルートの `NavigationStack` の接続（詳細は [routing.md](frontend-routing.instructions.md)）
 
-Never let business logic, screens, or Repository implementations escape into `App/`.
+業務ロジック、画面、Repository の実装を `App/` に流出させない。
 
-### The condition for promoting to `Shared/`
+### `Shared/` に昇格させる条件
 
-Promote **only what is used by 2 or more Features right now**.
-Never promote on "we might use it later". A type used by one Feature lives under that Feature.
+**現時点で 2 つ以上の Feature が使うものだけ**昇格させる。
+「後で使うかもしれない」で昇格させない。1 つの Feature だけが使う型はその Feature 配下に置く。
 
-The moment `Shared/` becomes a Domain junk drawer, Feature-first's locality is gone.
+`Shared/` が Domain の寄せ集めになった瞬間に、Feature-first の局所性は失われる。
 
-### The direction of dependencies (the same across locations)
+### 依存の向き（配置にかかわらず共通）
 
-- A Feature's Domain knows nothing of SwiftUI, `URLSession`, or another Feature's Presentation / Data
-- Features never import each other's internals and depend on each other
-  (if sharing is needed, extract only the genuinely shared types into `Shared/`; report any coupling that still does not fit as a design issue)
+- Feature の Domain は SwiftUI、`URLSession`、別の Feature の Presentation / Data を知らない
+- Feature 同士は互いの内部を import して依存しない
+  （共有が必要なら、実際に共有する型だけを `Shared/` に抽出する。それでも収まらない結合は設計上の問題として報告する）
 
 ---
 
-## 3. Concurrency: `async/await` only; UI state on Main
+## 3. 並行処理: `async/await` のみ、UI 状態は Main 上
 
-**Never add more Combine to new code** (`PassthroughSubject`, `AnyPublisher`, and so on).
-Write asynchrony with `async` / `await` / `Task`.
+**新規コードに Combine を増やさない**（`PassthroughSubject`、`AnyPublisher` など）。
+非同期処理は `async` / `await` / `Task` で書く。
 
-**Mark a ViewModel that holds screen state `@MainActor`.**
-That pins updates of UI-touching values to the main thread and prevents, at the type level, a race between the View's calls and the update.
+**画面状態を保持する ViewModel に `@MainActor` を付ける。**
+これにより UI に触れる値の更新をメインスレッドに固定し、View からの呼び出しと更新の競合を型レベルで防ぐ。
 
 ```swift
 @MainActor
@@ -110,49 +110,49 @@ final class LoginViewModel {
 }
 ```
 
-- The substance of heavy processing and networking is not written in the ViewModel but pushed down to the UseCase / Repository ([dataflow.md](frontend-dataflow.instructions.md))
-- Never mark UseCases / Repositories `@MainActor` indiscriminately (it occupies main and freezes the screen)
-- Never do blocking I/O or heavy computation synchronously from a View's `body`
+- 重い処理や通信の本体は ViewModel に書かず、UseCase / Repository に下ろす（[dataflow.md](frontend-dataflow.instructions.md)）
+- UseCase / Repository に無差別に `@MainActor` を付けない（メインを占有し、画面が固まる）
+- View の `body` から同期的にブロッキング I/O や重い計算をしない
 
-Even where Combine remains in existing code, **keep new routes on `async/await`.**
-If the scale calls for a migration policy, write it in that project's `CLAUDE.md` or in an ADR.
-
----
-
-## 4. Never embed secrets in source or in the client
-
-Never put a secret anywhere extractable from a distributed binary.
-
-- An API base URL, a feature flag, a public key → fine on the client
-- An API secret, a signing key, an admin token → **never put them there**
-
-Whether in xcconfig, Info.plist, or a source literal, a value baked into the client is not a secret.
-If processing that requires a secret becomes necessary, that processing cannot live on the client.
-**Stop implementing and report** (never decide the server-side design yourself).
+既存コードに Combine が残っていても、**新しい経路は `async/await` にする。**
+規模上、移行方針が必要なら、そのプロジェクトの `CLAUDE.md` または ADR に書く。
 
 ---
 
-## 5. The boundary on adding dependencies
+## 4. ソースやクライアントに秘密情報を埋め込まない
 
-**Never add a Swift Package or a CocoaPods / SPM product dependency on your own.**
+配布されるバイナリから取り出せる場所に秘密情報を置かない。
 
-An addition affects the build, review, and the already-resolved versions.
-Compiling successfully is not approval for a dependency addition.
+- API のベース URL、機能フラグ、公開鍵 → クライアントに置いてよい
+- API の秘密情報、署名鍵、管理者トークン → **置いてはならない**
 
-When a dependency addition becomes necessary, **report what you want to add and why, and stop.**
-Using a dependency already in the project is not restricted.
-
-The networking standard is **`URLSession` + `async/await`** ([dataflow.md](frontend-dataflow.instructions.md)).
-A project defaulting to a different client declares it in that project's `CLAUDE.md`.
+xcconfig、Info.plist、ソースのリテラルのどれであっても、クライアントに焼き込まれた値は秘密ではない。
+秘密情報を必要とする処理が必要になったら、その処理はクライアントに置けない。
+**実装を止めて報告する**（サーバー側の設計を自分で決めない）。
 
 ---
 
-## ✅ Checklist before returning
+## 5. 依存追加の境界
 
-- [ ] Did you run the lint / format command?
-- [ ] Did you add `!` / `try!` / `as!` to get to green?
-- [ ] Did you add more Combine to new code?
-- [ ] Does a ViewModel holding UI state carry `@MainActor`?
-- [ ] Did you promote a single-Feature type into `Shared/`?
-- [ ] Did you embed a value that could be a secret into a client artifact?
-- [ ] Did you add a new external dependency without permission?
+**Swift Package または CocoaPods / SPM のプロダクト依存を独断で追加しない。**
+
+追加はビルド、レビュー、解決済みのバージョンに影響する。
+コンパイル成功は依存追加の承認ではない。
+
+依存追加が必要になったら、**何を、なぜ追加したいかを報告して止まる。**
+既にプロジェクトにある依存の利用は制限しない。
+
+通信の標準は **`URLSession` + `async/await`**（[dataflow.md](frontend-dataflow.instructions.md)）。
+別のクライアントを標準とするプロジェクトは、そのプロジェクトの `CLAUDE.md` に宣言する。
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] lint / format コマンドを実行したか？
+- [ ] Green にするために `!` / `try!` / `as!` を追加していないか？
+- [ ] 新規コードに Combine を増やしていないか？
+- [ ] UI 状態を保持する ViewModel に `@MainActor` が付いているか？
+- [ ] 1 つの Feature だけが使う型を `Shared/` に昇格させていないか？
+- [ ] 秘密情報かもしれない値をクライアント成果物に埋め込んでいないか？
+- [ ] 許可なく新しい外部依存を追加していないか？

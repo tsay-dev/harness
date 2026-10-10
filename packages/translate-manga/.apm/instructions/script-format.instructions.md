@@ -8,7 +8,7 @@ applyTo: "**/master/**,**/episodes/**"
 > 人間チェックの主戦場となる対訳シートの必須フォーマットを定める。
 > **訳文とその根拠を隣り合わせ**に並べ、人間の視点移動を最小にする。列は固定。
 > なぜこの型か（全行を等しく読ませない）は [overview.md](overview.instructions.md)。訳文の起こし方は [register.md](register.instructions.md)。
-> 実行手続きは skill [translate-manga-ko-ja](../skills/translate-manga-ko-ja/SKILL.md) の Stage 3。
+> 実行手続きはスキル [translate-manga-ko-ja](../skills/translate-manga-ko-ja/SKILL.md) の段階 3。
 
 ## 列（固定）
 
@@ -21,7 +21,7 @@ applyTo: "**/master/**,**/episodes/**"
 
 - **ID**: `<コマ>-<セリフ>` で原本に一意に対応（人間が画像と突き合わせる鍵）。
 - **信頼度**: `✅`（確定）／`⚠<理由コード>`（要確認）。理由コードは下記。
-- **用語**: `既存`（glossary と一致）／`新規`（master-update.md へ提案済み。[consistency.md](consistency.instructions.md)）。
+- **用語**: `既存`（用語集と一致）／`新規`（master-update.md へ提案済み。[consistency.md](consistency.instructions.md)）。
 - **人間の修正**: `日本語案`を直接上書きする（修正履歴は git 差分が保持するので専用の修正欄は設けない）。
 
 ## ⚠ の理由コード（人間の注意をここへ誘導する）

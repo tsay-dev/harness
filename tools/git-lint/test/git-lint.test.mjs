@@ -195,7 +195,7 @@ test("設定・引数の異常は 2", (t) => {
 test("type の閉じた語彙は commit.md の表と一致する", (t) => {
 	//  表の 1 列目のバッククォート語が語彙。ツール側は M1 の文面に語彙を全部出す
 	const md = readFileSync(COMMIT_MD, "utf8");
-	const table = md.slice(md.indexOf("### The types"), md.indexOf("### Rules for the subject"));
+	const table = md.slice(md.indexOf("### type 一覧"), md.indexOf("### subject（要約行）の規則"));
 	const documented = [];
 	for (const line of table.split("\n")) {
 		if (!line.startsWith("| `")) continue;

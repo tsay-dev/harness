@@ -1,67 +1,67 @@
 ---
-description: "🚦 SwiftUI — how test runs are driven (the simulator is a shared resource)"
+description: "🚦 SwiftUI — テスト実行の進め方（シミュレーターは共有資源）"
 applyTo: "**/*.swift"
 ---
 
-# 🚦 SwiftUI — how test runs are driven (the simulator is a shared resource)
+# 🚦 SwiftUI — テスト実行の進め方（シミュレーターは共有資源）
 
-> **Scope: SwiftUI native iOS apps whose default suite requires a simulator destination to run**
-> (running the app target through `xcodebuild test`, and the like) — **and, always, the system suite**
-> (the XCUITest scenario target, [system-testing.md](system-testing.instructions.md)), which takes the simulator by definition.
-> Where the default suite closes with `swift test` alone, no exclusivity arises and this document's restrictions do not apply
-> (each producer drives itself to green as usual). If you cannot tell, look at the host `CLAUDE.md`'s
-> default-suite run command.
+> **適用範囲: 既定スイートの実行にシミュレーターの destination が必要な SwiftUI ネイティブ iOS アプリ**
+> （アプリターゲットを `xcodebuild test` で実行する場合など）。加えて、定義上シミュレーターを使う
+> **システムスイート**（XCUITest のシナリオターゲット、[system-testing.md](system-testing.instructions.md)）には**常に適用する**。
+> 既定スイートが `swift test` だけで完結する場合は排他が生じず、この文書の制約は適用しない
+> （各 producer が通常どおり自分で Green まで進める）。判断できなければ、ホストの `CLAUDE.md` の
+> 既定スイート実行コマンドを確認する。
 >
-> **How to write** tests is [testing.md](common-testing.instructions.md); notation is [coding.md](common-coding.instructions.md).
-> What this document defines is only **who runs the tests, and when**.
+> テストの**書き方**は [testing.md](common-testing.instructions.md)、表記は [coding.md](common-coding.instructions.md)。
+> この文書が定義するのは、**誰が、いつテストを実行するか**だけ。
 >
-> **Write reports in Japanese.**
+> **報告は日本語で書く。**
 
 ---
 
-## 1. Only one process at a time may take the simulator / build lock
+## 1. シミュレーター / ビルドロックを取得できるのは同時に 1 プロセスだけ
 
-The simulator, DerivedData, and the build lock are **a single shared resource**.
-When concurrently launched Tasks each hit them, you get multiple launches, contention over the build, and flakes with no traceable cause —
-**and it ends up slower than not parallelizing at all.**
-
----
-
-## 2. Skip execution inside a concurrent section
-
-- A producer running concurrently **does not run tests** (`xcodebuild test`, a `simctl boot` for testing).
-  Stop at editing, type checking, lint, and builds that need no simulator.
-- Having skipped, **state explicitly in your report that the tests are unexecuted and which suite (the target UC ID) needs to run.**
-  Never silently treat "I could not confirm green myself" as complete.
-- **Exception 1: the Red check right after filing** (a selective run of the new tests only) is permitted. The implementers are not running yet
-  and the execution fits into a single process, and skipping it would lose the test-first guarantee.
-  **You cannot observe other Tasks' execution, so if you cannot tell, go ahead and run** (this moment fits into one process).
-- **Exception 2: launching the simulator to check the appearance** (a human gate) is not forbidden.
-- Only these 2 exceptions apply; **never widen them at the cost of §1.**
+シミュレーター、DerivedData、ビルドロックは**単一の共有資源**。
+並行起動した Task がそれぞれ触ると、多重起動、ビルドの競合、原因を追えない不安定な失敗が発生し、
+**並列化しない場合より遅くなる。**
 
 ---
 
-## 3. The consolidated run (after the concurrent section closes)
+## 2. 並行区間では実行を省略する
 
-Once the concurrent section closes, **one agent running alone** (relaunching an implementation producer alone is fine) runs them all,
-**and settles red/green there.** The Red → Green skipped during the concurrent section closes in this round.
-
-1. **Pin the destination to one.** Declare the device name and OS version in the host's `CLAUDE.md` and use the same one every time.
-2. **Reuse an already-booted simulator.** Do not create, delete, or restart one per run.
-3. **Never run two `xcodebuild` processes at once** (including multiplying processes via the parallel-test-execution option).
-4. **When to run a selection vs the whole default suite is authoritative in the develop skill's `references/playbook.md`, section *Test-run granularity*.** This leaf defines only how:
-   - A fix-round / consolidated run is a **selection**: `-only-testing:` (or the host `CLAUDE.md`'s equivalent) on the UC suites named in the report, plus any neighboring `UC-nnn` in the blast radius. Never treat a mutation or a probe as a reason to fire the default-suite command.
-   - A **whole default-suite run** is the host `CLAUDE.md`'s default-suite command, and only when the orchestrator asked for a boundary run (declaring the slice ready for commit, or CI).
-5. Take red/green from the exit code of **that** command. **Never hand anything to the next phase with nobody having run it.**
-   "Green" during the loop means the selection is green. It does not mean the whole default suite ran.
-
-How findings are bundled after a red, and the rework rounds, follow develop skill's rules (not defined here).
+- 並行実行中の producer は**テストを実行しない**（`xcodebuild test`、テストのための `simctl boot`）。
+  編集、型チェック、lint、シミュレーター不要のビルドまでで止める。
+- 省略したら、**テストが未実行であることと、実行が必要なスイート（対象 UC ID）を報告に明記する。**
+  「自分で Green を確認できなかった」を黙って完了扱いにしない。
+- **例外 1: 作成直後の Red 確認**（新規テストだけの選択実行）は許可する。まだ実装担当者が実行しておらず、
+  単一プロセスで収まり、省略するとテスト先行の保証を失うため。
+  **他の Task の実行は観測できないので、判断できなければ実行する**（この時点は単一プロセスで収まる）。
+- **例外 2: 外観確認のためのシミュレーター起動**（人間ゲート）は禁止しない。
+- 例外はこの 2 つだけ。**§1 を犠牲にして広げない。**
 
 ---
 
-## ✅ Checklist before returning
+## 3. 集約実行（並行区間が閉じた後）
 
-- [ ] Did you run tests during a concurrent section? If you skipped, did you say so and name the target suite in your report?
-- [ ] Did the consolidated run settle red/green of the selection (UC IDs + blast radius), without firing the whole default suite as a fix-round command?
-- [ ] Is the destination pinned and matching the declaration in `CLAUDE.md`?
-- [ ] Is only one `xcodebuild` running at a time?
+並行区間が閉じたら、**単独で動く 1 agent**（実装 producer を単独で再起動してもよい）がまとめて実行し、
+**そこで Red / Green を確定する。** 並行区間で省略した Red → Green はこのラウンドで閉じる。
+
+1. **destination を 1 つに固定する。** ホストの `CLAUDE.md` にデバイス名と OS バージョンを宣言し、毎回同じものを使う。
+2. **起動済みのシミュレーターを再利用する。** 実行ごとに作成・削除・再起動しない。
+3. **`xcodebuild` を同時に 2 プロセス動かさない**（parallel-test-execution オプションによる多重プロセスも含む）。
+4. **選択実行と既定スイート全体をいつ実行するかの正本は、develop skill の `references/playbook.md` の「テスト実行の粒度」節。** この末端文書は方法だけを定義する:
+   - 修正ラウンド / 集約実行は**選択実行**: 報告に挙げた UC スイートと、影響範囲にある近隣の `UC-nnn` に `-only-testing:`（またはホストの `CLAUDE.md` の相当手段）を使う。ミューテーションや探索的な確認を、既定スイートコマンドを実行する理由にしない。
+   - **既定スイート全体の実行**はホストの `CLAUDE.md` の既定スイートコマンドを使い、orchestrator が境界での実行（スライスをコミット可能と宣言するとき、または CI）を要求したときだけ行う。
+5. **その**コマンドの終了コードで Red / Green を判断する。**誰も実行していないものを次のフェーズへ渡さない。**
+   ループ中の「Green」は選択した範囲が Green という意味であり、既定スイート全体の実行を意味しない。
+
+Red 後の指摘の束ね方と手戻りラウンドは develop skill の規則に従う（ここでは定義しない）。
+
+---
+
+## ✅ 返却前チェックリスト
+
+- [ ] 並行区間にテストを実行していないか？ 省略した場合、報告にその旨と対象スイートを明記したか？
+- [ ] 集約実行で選択範囲（UC ID + 影響範囲）の Red / Green を確定し、修正ラウンドのコマンドとして既定スイート全体を実行していないか？
+- [ ] destination を固定し、`CLAUDE.md` の宣言と一致させているか？
+- [ ] `xcodebuild` は同時に 1 つだけ動いているか？

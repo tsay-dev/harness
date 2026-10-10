@@ -7,7 +7,7 @@ applyTo: "**/videos/**"
 
 > 調べた事実の山から「この回の形」を決める工程の書式。
 > なぜ人間がここに入るかは [overview.md](overview.instructions.md)。事実の書式は [research-format.md](research-format.instructions.md)。
-> 実行手続きは skill [produce-video](../skills/produce-video/SKILL.md)。
+> 実行手続きはスキル [produce-video](../skills/produce-video/SKILL.md)。
 
 ## この工程が背負っているもの
 
@@ -17,7 +17,7 @@ applyTo: "**/videos/**"
 
 このチャンネルが狙うのは笑いではなく「へえ」だが、**エンジンは同じ**である——
 どちらも予測の裏切りで動く。だから**笑いの技術（型）がそのまま使える**。
-型は経験則ではないので再現でき、だから工程にできる。型の中身は agent body が SSOT。
+型は経験則ではないので再現でき、だから工程にできる。型の中身はエージェント本文が SSOT。
 
 そして**面白さは機械が判定できない。** だからここは、
 **AI が案を出し（発散）、人間が選ぶ（収束）**という形にする。

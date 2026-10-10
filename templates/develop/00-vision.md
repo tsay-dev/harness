@@ -1,17 +1,17 @@
 ---
 id: VISION
-status: draft          # draft | frozen (the orchestrator marks it frozen on human approval)
+status: draft          # draft | frozen（人間承認後に orchestrator が frozen にする）
 ---
 
 # Vision
 
 ## 解決する課題
 
-<!-- Whose problem, and which. Always give the measured current value when one exists (R-104: never claim what cannot be measured). -->
+<!-- 誰のどの課題か。測定された現状値があるなら必ず示す（R-104: 測定できないことを主張してはならない）。 -->
 
 ## 対象ユーザー
 
-<!-- A coarse classification of the actors. The closed set lives in 02-actors.md. -->
+<!-- アクターの大まかな分類。閉じた集合は 02-actors.md に置く。 -->
 
 ## 成功の定義
 
@@ -21,9 +21,9 @@ status: draft          # draft | frozen (the orchestrator marks it frozen on hum
 
 ## やらないこと（Out of Scope）
 
-<!-- Kill it explicitly. A requirement in this area is sent back in review when someone tries to add it. -->
+<!-- 明示的に対象外とする。この領域の要件を追加しようとしたら、レビューで差し戻す。 -->
 
 > この文書が持つ唯一の情報: 存在理由と削除判断の根拠。
 > 機能一覧・画面・技術選定はここに書かない（rules/develop/docs.md §3）。
 
-<!-- Write the content in Japanese. -->
+<!-- 本文は日本語で書く。 -->

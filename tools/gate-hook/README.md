@@ -1,126 +1,117 @@
-# gate-hook — machine enforcement of the develop gates (opt-in Claude Code hooks)
+# gate-hook — develop ゲートの機械的保証（明示選択する Claude Code hooks）
 
-Two hooks and one shared log that turn the develop skill's persuasive stop lines into structural ones:
+develop skill の説得による停止線を構造にする、二つの hook と一つの共有ログ:
 
-| Hook | Claude Code event | What it stops | Script |
+| hook | Claude Code イベント | 阻止するもの | スクリプト |
 | --- | --- | --- | --- |
-| **Implementation-start gate** (§2) | `PreToolUse` (Write / Edit / NotebookEdit) | Writing implementation code before the UC and its REQs are `active` and the contract is `fixed` | `gate-hook.mjs` |
-| **Terminal gate** | `Stop` | Ending the turn while spec-lint, trace-check, contract-run or the host's typecheck / lint / test / system still fail | `stop-gate.mjs` |
-| **Reject log** | (shared) | Records every gate decision as one JSONL line, so "does this gate actually stop anything?" is answered from data | `gate-log.mjs` |
+| **実装開始ゲート**（§2） | `PreToolUse` (Write / Edit / NotebookEdit) | UC とその REQs が `active`、契約が `fixed` になる前の実装コードの書き込み | `gate-hook.mjs` |
+| **最終ゲート** | `Stop` | spec-lint、trace-check、contract-run、利用プロジェクトの typecheck / lint / test / system が失敗したままのターン終了 | `stop-gate.mjs` |
+| **拒否ログ** | （共有） | 全ゲート判断を JSONL 一行ずつ記録し、「このゲートは実際に阻止しているか」をデータで回答 | `gate-log.mjs` |
 
-- **The develop process works without them** (§2 is a self-check, and the spec-lint gate is a post-hoc
-  check at commit time). The hooks add a third net: **a stop line that physically halts at the moment of
-  writing, and one that halts at the moment of stopping**.
-- **Enabling them is up to the host project.** The harness bundles only the scripts and these
-  instructions (installation — the wiring into settings — is each project's responsibility; see the
-  "bundled machine checks" section of the README).
+- **develop 手順はこれらなしでも動く**（§2 は自己検査、spec-lint gate はコミット時の事後検査）。
+  hooks は第三の網、**書く瞬間に実際に止める停止線と、終了する瞬間に止める停止線**を追加する。
+- **有効化は利用プロジェクトが決める。** harness はスクリプトとこの指示だけを同梱する
+  （設定への接続による導入は各プロジェクトの責任。README の「同梱する機械検査」節を参照）。
 
-## gate-hook — the implementation-start gate (PreToolUse)
+## gate-hook — 実装開始ゲート（PreToolUse）
 
-1. The hook fires immediately before Write / Edit / NotebookEdit and receives the target path.
-2. If the target is "implementation code" (it matches a `--code` glob), it reads the `phase:` frontmatter of every `docs/goals/**/UC-*/UC.md` (the progress ledger lives there — no ledger file is committed, R-1003).
-3. It verifies, **for every UC whose phase is 実装 (implement) or 検証 (verify)**, that the UC is `active`, none of its REQs is still `draft`, and its `contract.yaml` is `fixed`.
-4. If anything is missing it **blocks the tool call with exit 2** and sends the reason (which UC is missing what, and the return-point phase) back to the AI on stderr. This halts regardless of the AI's intent.
+1. Write / Edit / NotebookEdit の直前に発火し、対象パスを受け取る。
+2. 対象が「実装コード」（`--code` glob に一致）なら、全 `docs/goals/**/UC-*/UC.md` の frontmatter `phase:` を読む（そこが進捗台帳。台帳ファイルはコミットしない、R-1003）。
+3. **phase が実装または検証のすべての UC** について、UC が `active`、REQ に `draft` がない、`contract.yaml` が `fixed` であることを検証する。
+4. 欠落があれば **exit 2 でツール呼び出しを阻止**し、理由（どの UC に何が欠け、どの phase に戻るか）を stderr で AI に返す。AI の意図にかかわらず停止する。
 
-Because the UC's own frontmatter is the machine-readable gate state, **there is no extra state file**. As
-long as the orchestrator advances `phase:` per the SKILL's procedure, that is exactly what the hook judges from.
+UC 自身の frontmatter が機械可読のゲート状態なので、**追加の状態ファイルはない**。
+orchestrator が SKILL の手順で `phase:` を進める限り、hook はその状態をそのまま判定する。
 
-### Decision rules
+### 判定規則
 
-| Write target | Decision | Logged |
+| 書き込み対象 | 判定 | ログ記録 |
 | --- | --- | --- |
-| Under `docs/` (UC, REQ, contract), `traceconfig.json`, `.trace-baseline.json`, `.harness-gate/` | Always allowed (writing the SSOT is the gate's precondition) | no |
-| Under `.claude/` / `.agents/` / `.codex/` / `.cursor/` / `.grok/` / `apm_modules/` / `.harness/`, matching `--exclude`, or not matching `--code` | Allowed (outside the gate) | no |
-| Implementation code + no `docs/goals` | **Blocked** (`no-goals` → Phase 1) | yes |
-| Implementation code + no UC with phase 実装\|検証 | **Blocked** (`no-active-phase`; advance the UC's `phase:` before starting) | yes |
-| Implementation code + an in-progress UC not `active`, a `draft` REQ in it, or its contract absent / not `fixed` | **Blocked** (`uc-not-active` / `req-draft` / `contract-missing` / `contract-not-fixed` → Phase 1 / Phase 3) | yes |
-| All of the above satisfied | Allowed (`pass` / `ok`) | yes |
+| `docs/` 配下（UC、REQ、契約）、`traceconfig.json`、`.trace-baseline.json`、`.harness-gate/` | 常に許可（SSOT の書き込みはゲートの前提条件） | なし |
+| `.claude/` / `.agents/` / `.codex/` / `.cursor/` / `.grok/` / `apm_modules/` / `.harness/` 配下、`--exclude` に一致、または `--code` に不一致 | 許可（ゲート外） | なし |
+| 実装コード + `docs/goals` なし | **阻止**（`no-goals` → Phase 1） | あり |
+| 実装コード + phase が実装\|検証の UC なし | **阻止**（`no-active-phase`。開始前に UC の `phase:` を進める） | あり |
+| 実装コード + 進行中 UC が `active` でない、そこに `draft` REQ がある、または契約欠落 / `fixed` でない | **阻止**（`uc-not-active` / `req-draft` / `contract-missing` / `contract-not-fixed` → Phase 1 / Phase 3） | あり |
+| 上記をすべて充足 | 許可（`pass` / `ok`） | あり |
 
-Only writes that reach the gate judgment are logged, so the log's denominator is "gated writes" and the block rate reads directly.
+ゲート判定に到達した書き込みだけを記録するため、ログの分母は「ゲート対象の書き込み」であり、阻止率を直接読める。
 
-An internal error in the hook itself (malformed stdin and the like) **fails open** (allows) — a bug in
-the hook must not break the session. The gate decision itself, conversely, **fails closed** — with no
-SSOT, it halts.
+hook 自身の内部エラー（不正な stdin など）は **fail-open**（許可）。hook のバグでセッションを壊してはならない。
+一方、ゲートの判定自体は **fail-closed**。SSOT がなければ停止する。
 
-### Arguments (all configuration lives here; no config file is added)
+### 引数（全設定はここに置き、設定ファイルを追加しない）
 
-| Argument | Meaning |
+| 引数 | 意味 |
 | --- | --- |
-| `--code <glob>` | Paths treated as implementation code, i.e. gated (repeatable, **required**). e.g. `'src/**'` `'app/**'` `'db/schema.*'` |
-| `--exclude <glob>` | Paths excluded from `--code` (repeatable). e.g. the skeleton's workspace `'skeleton/**'` |
-| `--docs <dir>` | The docs root (default `docs`) |
-| `--log <path>` | The reject log (default `.harness-gate/log.jsonl` under the project root). Relative paths resolve against the project root |
+| `--code <glob>` | 実装コード、すなわちゲート対象のパス（繰り返し可、**必須**）。例: `'src/**'` `'app/**'` `'db/schema.*'` |
+| `--exclude <glob>` | `--code` から除外するパス（繰り返し可）。例: skeleton の作業場所 `'skeleton/**'` |
+| `--docs <dir>` | docs のルート（既定 `docs`） |
+| `--log <path>` | 拒否ログ（既定: プロジェクト直下の `.harness-gate/log.jsonl`）。相対パスはプロジェクト直下から解決 |
 
-- Enabled without `--code`, it blocks nothing and only warns (exit 1 — for detecting a misinstallation; logged as `skip` / `misconfig`).
-- The globs are a minimal implementation supporting only `**` / `*` / `?` (matched against paths relative to the project root).
+- `--code` なしの有効化では阻止せず警告のみ（exit 1。誤導入の検出用。`skip` / `misconfig` と記録）。
+- glob は `**` / `*` / `?` だけに対応する最小実装（プロジェクト直下からの相対パスと照合）。
 
-## stop-gate — the terminal gate (Stop)
+## stop-gate — 最終ゲート（Stop）
 
-Fires when the main agent is about to end its turn. It runs the host's verification suite and, if
-anything fails, **blocks the stop with exit 2** and feeds the failing steps' tail output back to the
-model as the reason to continue. The model then fixes what failed and tries to stop again.
+主 agent のターン終了直前に発火する。利用プロジェクトの検証スイートを実行し、失敗があれば
+**exit 2 で終了を阻止**し、失敗ステップの末尾出力を継続理由としてモデルに返す。
+モデルは失敗を直して、再度終了を試みる。
 
-### Run order
+### 実行順序
 
-| # | Step | Runs when | On failure |
+| # | ステップ | 実行条件 | 失敗時 |
 | --- | --- | --- | --- |
-| 1 | `spec-lint validate --docs <docs>` | always | collected |
-| 2 | `trace-check` | `traceconfig.json` exists (else `skip: traceconfig.json 無し`) | collected |
-| 3 | `contract-run` | `commands.contract_adapter` is declared (else `skip: commands.contract_adapter 未宣言 — 契約の実行検査は行われていない`) | collected |
-| 4 | `commands.typecheck` → `commands.lint` → `commands.test` | each key that is declared (else `skip: commands.<k> 未宣言`) | stops at the first failure |
-| 5 | `commands.system` (the scenario suite — browser / simulator / device — once, whole) | declared, and step 4 passed (else `skip: commands.system 未宣言`) | collected |
+| 1 | `spec-lint validate --docs <docs>` | 常に | 収集 |
+| 2 | `trace-check` | `traceconfig.json` が存在（なければ `skip: traceconfig.json 無し`） | 収集 |
+| 3 | `contract-run` | `commands.contract_adapter` が宣言済み（なければ `skip: commands.contract_adapter 未宣言 — 契約の実行検査は行われていない`） | 収集 |
+| 4 | `commands.typecheck` → `commands.lint` → `commands.test` | 宣言済みの各キー（なければ `skip: commands.<k> 未宣言`） | 最初の失敗で停止 |
+| 5 | `commands.system`（シナリオスイート — ブラウザ / シミュレーター / デバイス — 全体を一度） | 宣言済みでステップ 4 が成功（なければ `skip: commands.system 未宣言`） | 収集 |
 
-Steps 1–3 always run so that every failure is reported at once. Step 4 stops early because running
-tests on code that does not typecheck is noise, and step 5 is the most expensive check, so it runs
-only after the default suite is green. A host whose scenario suite is too slow to run on every stop
-leaves `commands.system` undeclared and runs it in CI only; the skip line makes that choice visible. A step that exceeds `--timeout` is a failure named
-`timeout:<step>`.
+全失敗を一度に報告するためステップ 1–3 は常に実行する。型検査を通らないコードのテストはノイズなので
+ステップ 4 は早期停止する。ステップ 5 は最も高コストなので既定スイートの成功後のみ実行する。
+毎回の終了にはシナリオスイートが遅すぎる利用プロジェクトは `commands.system` を未宣言にして CI のみで実行する。
+skip 行がその選択を可視化する。`--timeout` を超えるステップは `timeout:<step>` という失敗になる。
 
-**Commands come only from `traceconfig.json`'s `commands` block and are never guessed.** An absent key
-is reported as skipped on stdout (shown to the user as context), never invented from `package.json` or
-the like. Bundled tools resolve relative to this script's own directory, so they work from `.harness/`.
+**コマンドは `traceconfig.json` の `commands` ブロックだけから取得し、推測してはならない。** 欠落キーは
+stdout にスキップとして報告する（ユーザーへの文脈として表示）。`package.json` などから創作しない。
+同梱ツールはこのスクリプト自身のディレクトリから解決するため、`.harness/` から動く。
 
-### Skip rules and convergence
+### スキップ規則と収束
 
-- **No changes**: the hook hashes `git rev-parse HEAD` + `git status --porcelain` + `git diff HEAD`
-  (excluding its own state directory). If the hash equals the one recorded at the last pass, it prints
-  `[stop-gate] 変更なし（最終合格 <ts>）` and allows the stop without re-running anything. `--force`
-  disables this.
-- **Wrong event**: anything other than `hook_event_name: "Stop"` is allowed and logged as `skip` / `wrong-event`.
-- **Round cap**: Claude Code sets `stop_hook_active: true` when the model is already continuing because
-  a Stop hook blocked it. When that is set and the session has already failed `--max-rounds` times in a
-  row, the hook **releases** (exit 0) with `[stop-gate] 非収束: ...` instead of blocking again, and the
-  remaining failures go to a human. The same release happens when the failure set has not shrunk for
-  two consecutive rounds (`non-decreasing`). Rounds reset when the session id changes, on a pass, and
-  after a release.
-- State (`last_pass` fingerprint, per-session round count and failure history) lives in
-  `state.json` next to the log (default `.harness-gate/state.json`). Add `.harness-gate/` to the host's
-  `.gitignore`.
+- **変更なし**: `git rev-parse HEAD` + `git status --porcelain` + `git diff HEAD` のハッシュを取る
+  （自身の状態ディレクトリは除外）。最終成功時の記録と同じなら `[stop-gate] 変更なし（最終合格 <ts>）` と
+  表示して再実行せず終了を許可する。`--force` はこれを無効化する。
+- **異なるイベント**: `hook_event_name: "Stop"` 以外は許可し、`skip` / `wrong-event` と記録する。
+- **回数上限**: Stop hook の阻止でモデルが既に継続中なら、Claude Code は `stop_hook_active: true` を設定する。
+  その状態でセッションが既に `--max-rounds` 回連続失敗したら、再度阻止せず `[stop-gate] 非収束: ...` と
+  **解除**する（exit 0）。残る失敗は人間へ渡す。失敗集合が連続二回縮まらない場合（`non-decreasing`）も
+  同じく解除する。セッション ID の変更、成功、解除後に回数をリセットする。
+- 状態（`last_pass` の指紋、セッションごとの回数と失敗履歴）はログ隣の `state.json` に置く
+  （既定 `.harness-gate/state.json`）。利用プロジェクトの `.gitignore` に `.harness-gate/` を追加する。
 
-### Fail-open vs fail-closed
+### fail-open と fail-closed
 
-| Situation | Result |
+| 状況 | 結果 |
 | --- | --- |
-| A verification step fails or times out | **Blocked** (exit 2) — the gate's own judgment is fail-closed |
-| stdin unreadable, an exception inside the hook | Allowed (exit 0, logged as `internal-error`) — a broken hook must not wreck the session |
-| Unknown `--` argument | exit 2 with a usage line (a misinstallation should be visible immediately) |
+| 検証ステップの失敗またはタイムアウト | **阻止**（exit 2）。ゲート自身の判定は fail-closed |
+| stdin が読めない、hook 内の例外 | 許可（exit 0、`internal-error` と記録）。壊れた hook でセッションを壊してはならない |
+| 未知の `--` 引数 | 使用法の行付き exit 2（誤導入は即座に見える必要がある） |
 
-### Arguments
+### 引数
 
-| Argument | Meaning |
+| 引数 | 意味 |
 | --- | --- |
-| `--docs <dir>` | The docs root passed to spec-lint (default `docs`) |
-| `--config <path>` | The trace configuration (default `traceconfig.json` under the project root) |
-| `--log <path>` | The reject log (default `.harness-gate/log.jsonl`). `state.json` is kept in the same directory |
-| `--max-rounds <n>` | Consecutive blocked rounds per session before releasing to a human (default `2`) |
-| `--timeout <sec>` | Per-step timeout (default `300`). Keep the hook's own `timeout` in settings above the sum you expect |
-| `--tail <n>` | Lines of each failing step's output fed back to the model (default `15`) |
-| `--force` | Re-run even when the tree is unchanged since the last pass |
+| `--docs <dir>` | spec-lint に渡す docs ルート（既定 `docs`） |
+| `--config <path>` | trace 設定（既定: プロジェクト直下の `traceconfig.json`） |
+| `--log <path>` | 拒否ログ（既定 `.harness-gate/log.jsonl`）。同じディレクトリに `state.json` を保持 |
+| `--max-rounds <n>` | 人間へ解除するまでのセッションごとの連続阻止回数（既定 `2`） |
+| `--timeout <sec>` | ステップごとのタイムアウト（既定 `300`）。設定の hook 自身の `timeout` は予想合計より大きくする |
+| `--tail <n>` | モデルへ返す各失敗ステップの出力行数（既定 `15`） |
+| `--force` | 最終成功時からツリーが未変更でも再実行 |
 
-## Installation (in the host project)
+## 導入（利用プロジェクト側）
 
-Add this to `.claude/settings.local.json` (personal, uncommitted; stays within the host project even
-under a submodule placement):
+`.claude/settings.local.json` に追加する（個人用、コミットしない。submodule 配置でも利用プロジェクト内に置く）:
 
 ```json
 {
@@ -151,86 +142,82 @@ under a submodule placement):
 }
 ```
 
-The `Stop` entry has no `matcher` — it fires on every stop. Either hook can be installed alone.
+`Stop` 項目に `matcher` はなく、毎回の終了で発火する。各 hook は単独でも導入できる。
 
-Keep these opt-in hooks in the host's `.claude/settings.local.json`. Do not modify generated prompt directories or turn `settings.json` into a rules router.
+明示選択するこれらの hooks は利用プロジェクトの `.claude/settings.local.json` に置く。生成プロンプトディレクトリを修正したり、`settings.json` を規約ルーターにしたりしない。
 
-## Reject log
+## 拒否ログ
 
-Both hooks append one JSON line per decision to `.harness-gate/log.jsonl` (override with `--log`).
-A logging failure never stops a gate. Record shape (keys in this fixed order):
+両 hooks は判定ごとに JSON 一行を `.harness-gate/log.jsonl` へ追加する（`--log` で変更）。
+ログ記録の失敗でゲートを止めてはならない。記録形状（キーはこの固定順）:
 
-| Key | Value |
+| キー | 値 |
 | --- | --- |
-| `ts` | ISO timestamp |
+| `ts` | ISO タイムスタンプ |
 | `hook` | `gate-hook` \| `stop-gate` |
 | `event` | `PreToolUse` \| `Stop` |
-| `session` | Claude Code `session_id`, or `null` |
+| `session` | Claude Code の `session_id`、または `null` |
 | `decision` | `block` \| `pass` \| `skip` \| `release` |
-| `reason` | gate-hook: `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `ok`. stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`, or on a block the first failed step name (`spec-lint` `trace-check` `contract-run` `typecheck` `lint` `test` `system`, `timeout:<step>`) |
-| `target` | gate-hook: the gated file path relative to the root. Otherwise `null` |
-| `uc` | gate-hook: the ids of the in-progress UCs that were checked. Otherwise `null` |
-| `round` | stop-gate: the round number on a block / release. Otherwise `null` |
-| `failures` | stop-gate: every failed step name on a block / release. Otherwise `null` |
-| `ms` | Milliseconds the decision took |
+| `reason` | gate-hook: `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `ok`。stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`、または阻止時の最初の失敗ステップ名（`spec-lint` `trace-check` `contract-run` `typecheck` `lint` `test` `system`、`timeout:<step>`） |
+| `target` | gate-hook: root からのゲート対象ファイル相対パス。それ以外は `null` |
+| `uc` | gate-hook: 検査した進行中 UC の ID。それ以外は `null` |
+| `round` | stop-gate: 阻止 / 解除時の回数。それ以外は `null` |
+| `failures` | stop-gate: 阻止 / 解除時の全失敗ステップ名。それ以外は `null` |
+| `ms` | 判定にかかったミリ秒 |
 
-### Summarising
+### 集計
 
 ```bash
 node .harness/tools/gate-hook/gate-log.mjs --summary [--log .harness-gate/log.jsonl] [--since 14]
 ```
 
-prints, per hook, gated / block counts (gate-hook), runs / block / release / skip counts (stop-gate), a
-breakdown of block reasons, and the marker `降格候補` (demotion candidate) after any hook with zero blocks
-in the window.
+hook ごとにゲート対象 / 阻止件数（gate-hook）、実行 / 阻止 / 解除 / スキップ件数（stop-gate）、
+阻止理由の内訳を表示し、期間内に阻止ゼロの hook の後に `降格候補` 印を付ける。
 
-A `jq` one-liner for the same question:
+同じ確認のための `jq` 一行:
 
 ```bash
 jq -r 'select(.decision=="block") | "\(.ts) \(.hook) \(.reason) \(.target // (.failures|join(",")))"' .harness-gate/log.jsonl
 ```
 
-**Rule:** a gate with zero blocks over roughly 14 days of real use is a demotion candidate — it may be
-costing latency without catching anything. The decision to demote (or to keep it as insurance) is made
-by a human from this data; the tool only surfaces the count.
+**規則:** 実使用で約 14 日間阻止ゼロのゲートは降格候補。何も検出せず待ち時間だけを増やしている可能性がある。
+降格するか保険として残すかは、このデータを見て人間が判断する。ツールは件数だけを示す。
 
-## Limits (use them knowing these)
+## 制約（理解したうえで使う）
 
-- **Keep the scenario suite (`e2e/**`, `UITests/**`) out of `--code`.** The scenario test is written
-  together with the implementation once the UC is `active` and its contract `fixed`, so the gate would only
-  add noise there; the Stop gate and `trace-check` C15 cover it.
-- **Writes via Bash (`sed -i`, redirects, and so on) pass straight through** the PreToolUse gate, because
-  the matcher covers only the Write/Edit family. A design that also blocks Bash misfires too often
-  (obstructing builds and test runs), so it is deliberately out of scope.
-- **Neither hook distinguishes the main agent from subagents** for PreToolUse. A legitimate Write by an
-  implementation producer passes the same check, but legitimate implementation only happens once the UC,
-  its REQs, and its contract are all in place, so the extra net is harmless (indeed it also stops a
-  producer that strays).
-- **`Stop` does not fire for subagent stops** (that is `SubagentStop`, which stop-gate ignores). The
-  terminal gate judges the main agent's turn only.
-- **Suite duration is the host's responsibility.** stop-gate runs whatever `commands` declares, on every
-  stop with changes. Keep the declared commands fast (or scoped) and set `--timeout` / the hook `timeout`
-  accordingly; a slow suite makes every turn slow.
-- **Without git, stop-gate runs every time** — change detection needs a repository with at least one commit.
-- **The walking skeleton** (§3; the explicit exception that writes behavior before the contract is fixed)
-  should work outside the mainline code tree (e.g. `skeleton/`) and be excluded with `--exclude`, or be
-  placed outside the gated globs.
-- If a UC's `phase:` or a status drifts from reality, the PreToolUse decision drifts with it.
-  spec-lint (`../spec-lint/`) and trace-check (`../trace-check/`) confirm consistency at commit time.
+- **シナリオスイート（`e2e/**`、`UITests/**`）は `--code` に含めない。** UC が `active`、契約が `fixed` に
+  なったら実装とともにシナリオテストを書くため、ここへのゲートはノイズだけを増やす。Stop gate と
+  `trace-check` C15 が担当する。
+- **Bash（`sed -i`、リダイレクトなど）の書き込みは PreToolUse ゲートをそのまま通る。** matcher は
+  Write/Edit 系だけに適用する。Bash も阻止する設計は誤検出が多すぎる（ビルドとテストを妨げる）ため、
+  意図的に対象外とする。
+- PreToolUse では**どちらの hook も主 agent と子 agent を区別しない**。実装作成者の正当な Write も
+  同じ検査を通るが、正当な実装は UC、REQs、契約が揃ってからのみ行うので追加の網は害を与えない
+  （実際、逸脱する作成者も止める）。
+- **子 agent の終了では `Stop` は発火しない**（それは `SubagentStop` で、stop-gate は無視する）。
+  最終ゲートは主 agent のターンだけを判定する。
+- **スイート実行時間は利用プロジェクトの責任。** stop-gate は変更のある毎回の終了時に `commands` の
+  宣言を実行する。宣言コマンドを速くするか範囲を絞り、`--timeout` / hook の `timeout` を合わせる。
+  遅いスイートは全ターンを遅くする。
+- **git なしでは stop-gate は毎回実行する。** 変更検出には少なくとも一コミットの repository が必要。
+- **walking skeleton**（§3。契約固定前に動作を書く明示的な例外）は本流のコードツリー外（例: `skeleton/`）で
+  作業し、`--exclude` で除外するか、ゲート対象 glob 外に置く。
+- UC の `phase:` や status が実態とずれたら PreToolUse 判定もずれる。
+  spec-lint（`../spec-lint/`）と trace-check（`../trace-check/`）がコミット時に整合を確認する。
 
-## Checking that it works
+## 動作確認
 
 ```bash
-# PreToolUse gate
+# PreToolUse ゲート
 echo '{"tool_input":{"file_path":"src/x.js"},"cwd":"/path/to/project","session_id":"manual"}' \
   | node tools/gate-hook/gate-hook.mjs --code 'src/**'
-echo $?   # 2 unless an in-progress UC, its REQs, and its contract are all in place (the block reason goes to stderr)
+echo $?   # 進行中 UC、REQs、契約がすべて揃っていなければ 2（阻止理由は stderr）
 
-# Stop gate
+# Stop ゲート
 echo '{"session_id":"manual","cwd":"/path/to/project","hook_event_name":"Stop","stop_hook_active":false}' \
   | CLAUDE_PROJECT_DIR=/path/to/project node tools/gate-hook/stop-gate.mjs
-echo $?   # 0 when every declared check passes (skips are listed on stdout); 2 with the failing steps' tail on stderr
+echo $?   # 宣言済み全検査の成功時は 0（skip は stdout に一覧化）。失敗は 2 とし末尾出力を stderr に表示
 
-# Regression tests (temp directories only; nothing on disk is touched)
+# 回帰テスト（一時ディレクトリのみ。既存のディスク内容には触れない）
 node --test 'tools/gate-hook/test/*.test.mjs'
 ```

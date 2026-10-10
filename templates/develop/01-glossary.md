@@ -1,6 +1,6 @@
 ---
 id: GLOSSARY
-status: draft          # draft | living (the orchestrator marks it living on human approval)
+status: draft          # draft | living（人間承認後に orchestrator が living にする）
 ---
 
 # 用語集（ユビキタス言語）
@@ -13,8 +13,8 @@ status: draft          # draft | living (the orchestrator marks it living on hum
 | <ドメイン語> | <1 文の定義> | `<ClassName / EnumCase>` | <使ってはいけない別名> |
 
 <!--
-- A concept that has states gets one row per state value as well (e.g. ProjectStatus.OPEN = 掲載中).
-- Forbidden synonyms are collected from the variants actually found in existing code and documents.
-- Glossary conformance is persuasive control only (R-901): it is a review viewpoint, not a machine check.
-Write the content in Japanese.
+- 状態を持つ概念には、状態値ごとの行も作る（例: ProjectStatus.OPEN = 掲載中）。
+- 禁止同義語は、既存コードと文書で実際に見つかった表記揺れから集める。
+- 用語集への準拠は説得による制御のみ（R-901）。レビュー観点であり、機械検査ではない。
+本文は日本語で書く。
 -->

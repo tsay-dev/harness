@@ -1,7 +1,7 @@
 ---
 name: grill-me
-description: An exhaustive interview to sharpen a plan or design.
+description: 計画や設計を磨くために、漏れなく詳しく質問する。
 disable-model-invocation: true
 ---
 
-Run a `/grilling` session.
+`/grilling` セッションを実行する。

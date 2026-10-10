@@ -3,7 +3,7 @@ description: "📦 成果物のスキーマと閉じた語彙"
 applyTo: "**/videos/**"
 ---
 
-> **External executable assets:** tools and templates are not APM dependencies. Resolve `HARNESS_ROOT` to the separate harness checkout (normally `.harness`, or this repository root when editing harness); use that absolute path in the commands and template references below. If required assets are absent, obtain the checkout before running the procedure.
+> **外部の実行資産:** ツールとテンプレートは APM の依存関係ではない。`HARNESS_ROOT` を別途用意した harness のチェックアウト（通常は `.harness`。harness を編集するときはこのリポジトリのルート）に解決し、以下のコマンドとテンプレート参照にはその絶対パスを使う。必要な資産が無ければ、手順を実行する前にチェックアウトを取得する。
 
 
 # 📦 成果物のスキーマと閉じた語彙
@@ -108,7 +108,7 @@ speech_rate: 6.5        # channel/voice.md 由来。文字/秒
 - `image.*` は**英語**で書く。どの画像生成サービスにも貼れる中立な構造化記述にするため、
   特定サービスの重み付け記法（`::`、`--ar`、`(word:1.2)` など）は**使わない**。`aspect` は文字列で持つ。
 - `image.style` と `image.negative` は **`channel/style.md` のコードブロックを1文字も変えずにコピーする**。
-  言い換えるな・足すな・削るな。並列に走る producer が各自で英訳・アレンジすると画風が割れ、
+  言い換えるな・足すな・削るな。並列に走る制作者が各自で英訳・アレンジすると画風が割れ、
   本人には自分の1シーンしか見えないので誰も気づかない（機械検査 C14 / C16 がこの一致を見る）。
 - `transition_out` は**次のシーンの `transition_in` と一致させる**。境界の演出は2シーンが共有する1つの事象であり、
   片側だけ変えると繋ぎ目が破綻する（機械検査 C15）。
@@ -239,7 +239,7 @@ video_id: <id>
 指摘は**根拠と場所を必ず持たせる**。曖昧な感想は人間の確認コストを増やすだけで価値がない。
 
 ```markdown
-## 差し戻し（objective・機械的に正誤が決まる）
+## 差し戻し（客観的・機械的に正誤が決まる）
 - [ ] SC-03 `caption` — channel/identity.md の禁止表現「絶対」を使用
 
 ## ⚠ 人間判断（解釈が割れる）

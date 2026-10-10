@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | `develop-core` | develop / attack / docs-migrate の skills、develop agents（5 体）、docs・comments 共通則 | システム開発の共通手続き |
 | `rules-next` | Next.js の規約葉だけ | Next.js 開発。通常は develop-core と組み合わせる |
+| `rules-cloudflare-hono-react` | Workers + Hono + React SPA、D1 + Drizzle の規約葉だけ | Cloudflare 開発。通常は develop-core と組み合わせる。DO / R2 は使用時のみ |
 | `rules-crow` | crow の規約葉だけ | crow 開発 |
 | `rules-expo` | Expo の規約葉だけ | Expo 開発 |
 | `rules-swiftui` | SwiftUI の規約葉だけ | SwiftUI 開発 |
@@ -45,7 +46,9 @@ apm install --target codex tsay-dev/harness/packages/develop-core
 apm install --target codex tsay-dev/harness/packages/rules-next
 ```
 
-Expo は `rules-next` を `rules-expo` に、SwiftUI は `rules-swiftui` に、crow は `rules-crow` に替えます。翻訳だけなら `translate-manga` のみを指定します。上の GitHub 例は、この構成を含む版が公開された後に使えます。公開前のローカル検証、対象ハーネスの選択、固定版、更新、既存ホストの移行は [APM 導入ガイド](docs/apm.md)を参照してください。
+Cloudflare + Hono + React SPA は `rules-next` を `rules-cloudflare-hono-react` に、Expo は `rules-expo` に、SwiftUI は `rules-swiftui` に、crow は `rules-crow` に替えます。翻訳だけなら `translate-manga` のみを指定します。上の GitHub 例は、この構成を含む版が公開された後に使えます。公開前のローカル検証、対象ハーネスの選択、固定版、更新、既存ホストの移行は [APM 導入ガイド](docs/apm.md)を参照してください。
+
+Cloudflare 向けは React と Hono を対応する機能名で分ける feature-based 構成を標準にします。React は `apps/web/src/features/` と薄い `routes/`、Hono は `apps/api/src/features/` の routes → service → repository、共有 Zod 契約は `packages/shared/src/<feature>/schemas.ts` に置きます。配置・公開境界の正本は [common-coding](packages/rules-cloudflare-hono-react/.apm/instructions/common-coding.instructions.md) です。`rules-next` は継承せず、開発手続きと検証ゲートは `develop-core` を使います。
 
 APM は標準の `install` / `compile` を提供しますが、**このハーネスでは常駐ゼロのため `install` を基本にし、規約本文を root の `AGENTS.md` などへまとめる `compile` は実行しません**。遅延ロードを持たない対象では、skill 起動後に `apm_modules/` にある選択済み規約の対象メタデータを調べ、必要な葉だけを担当 agent に渡します。
 
@@ -86,6 +89,7 @@ harness/
         agents/develop/<name>.agent.md
         instructions/<scene>-<concern>.instructions.md
     rules-next/          # apm.yml + .apm/instructions/
+    rules-cloudflare-hono-react/
     rules-crow/
     rules-expo/
     rules-swiftui/
@@ -225,4 +229,4 @@ orchestrator が必ずこの順で診断し、「テストが落ちたから UC 
 3. パッケージの認識・単独導入・不要用途の混入なし・参照の到達性を確認する。
 4. 選んだ対象向けの生成物を再生成して差分を確認する。**生成物を直接直さない。**
 
-会話、docs 成果物、コミットメッセージ、コード内コメントは日本語。プロンプト正本・ツール README・テンプレートのガイダンスは英語を基本とし、テンプレートの日本語見出しは維持します。案件固有の事実は各消費プロジェクトの `AGENTS.md` / `CLAUDE.md` に書きます。
+会話、docs 成果物、コミットメッセージ、コード内コメントは日本語。プロンプト正本・ツール README・テンプレートのガイダンスも日本語とし、テンプレートの日本語見出しと frontmatter のキーは維持します。案件固有の事実は各消費プロジェクトの `AGENTS.md` / `CLAUDE.md` に書きます。
