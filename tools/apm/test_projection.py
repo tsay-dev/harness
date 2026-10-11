@@ -155,7 +155,9 @@ class Projection(unittest.TestCase):
                     self.assertEqual(source.name, name + '.agent.md')
                     self.assertNotRegex(text, r'(?m)^model:')
                     self.assertRegex(text, r'(?m)^x-model-tier: (top|mid|light)$')
-                    self.assertIn('パッケージ正本の解決', text)
+                    # ADR-0047: agent 本文は相対リンクを持たない。Codex の TOML はリンクを書き換えないので、末端ファイルはオーケストレーターがパスで渡す
+                    relative = [url for url in re.findall(r'\[[^\]\n]+\]\(([^)\n]+)\)', text) if '://' not in url and not url.startswith('/')]
+                    self.assertEqual(relative, [], f'{source}: agent 本文の相対リンク {relative}')
                 for url in re.findall(r'\[[^\]\n]+\]\(([^)\n]+)\)', text):
                     path = url.split('#')[0]
                     if path and '://' not in path and not path.startswith('/'):
@@ -168,7 +170,7 @@ class Projection(unittest.TestCase):
             'packages/develop-core/.apm/skills/develop/references/*.md': 115,
             'packages/develop-core/.apm/skills/attack/SKILL.md': 35,
             'packages/develop-core/.apm/skills/docs-migrate/SKILL.md': 50,
-            'packages/develop-core/.apm/agents/develop/*.agent.md': 50,
+            'packages/develop-core/.apm/agents/develop/*.agent.md': 47,
             'packages/develop-core/.apm/instructions/*.instructions.md': 125,
         }
         for pattern, limit in budgets.items():

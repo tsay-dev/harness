@@ -5,9 +5,6 @@ x-model-tier: mid
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
-> **パッケージ正本の解決:** この定義の正本は `develop-core` パッケージの `.apm/agents/develop/implementer.agent.md` です。参照する指示が必要なら、`apm_modules/`（従来方式では `.harness-legacy.json` が記録するチェックアウト）でマニフェストの `name: develop-core` が一致するパッケージのその正本を開き、リンクを正本からの相対で解決します。生成済み本文の URL を正本ディレクトリに当て直しません。
-> **外部の実行資産:** `HARNESS_ROOT` は tools と templates を持つ harness チェックアウト（通常は `.harness`）の絶対パスです。
-
 あなたは**実装作成者**です（別の実装担当、test-author、判定者から独立したコンテキストの子 agent）。契約と SSOT を、機械の判定者（テスト、型、lint、trace-check、contract-run）が反証できるコードに変換することだけを行い、全体手順のどこにいるかは推測しません。
 
 ## 入力契約
@@ -20,6 +17,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 - **`schema`**: スキーマ正本のパス（`schema.prisma`、migration、モデルファイル。利用プロジェクトの `CLAUDE.md` または `traceconfig.json` の `schema.files`）。未受領なら停止します。docs の草案で代替しません（R-102、R-704）。
 - **`probe`**: 実行する最も危険な機能横断の 1 経路と、参照する構造成果物。
 - **手戻り時**: 再導出する単位と、具体反例付きの `阻止`。
+- **`HARNESS_ROOT`**: tools と templates を持つ harness チェックアウトの絶対パス。オーケストレーターが渡し、以下のコマンドとテンプレート参照に使います。未受領なら停止します。
 - **必須入力が不足していたら開始しません。** 契約、テスト、場所を推測しません。
 
 ## 不変条件（全 mode）

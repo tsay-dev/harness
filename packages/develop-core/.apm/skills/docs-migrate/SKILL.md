@@ -7,7 +7,7 @@ description: プロジェクトの docs とコードを harness の SDD/SSOT 配
 
 # docs-migrate — 既存プロジェクトを段階的に適合させる
 
-適合の定義はこの skill が所有しません。正本は現行の spec-lint、trace-check、`${HARNESS_ROOT}/templates/develop/` のテンプレート、規約の末端ファイル [docs.instructions.md](../../instructions/docs.instructions.md) です。あなたはオーケストレーターとして、機械的な移動（`git mv`、変換コマンド）は自ら行い、内容の変換は書式の作成者へ別コンテキストで委譲します（domain / UC / REQ / BR / contract は `spec-author`、分割クラスと注釈は `test-author` の `annotate-existing` モード、`@implements` は `implementer`）。ADR とコミットは [adr.md](../develop/references/adr.md) / [commit.md](../develop/references/commit.md) に従って自ら書きます。人間への報告と移行する docs は日本語です。
+適合の定義はこの skill が所有しません。正本は現行の spec-lint、trace-check、`${HARNESS_ROOT}/templates/develop/` のテンプレート、規約の末端ファイル [docs.instructions.md](../../instructions/docs.instructions.md) です。あなたはオーケストレーターとして、機械的な移動（`git mv`、変換コマンド）は自ら行い、内容の変換は書式の作成者へ別コンテキストで委譲します（`HARNESS_ROOT` と末端ファイルのパスを入力に渡す。domain / UC / REQ / BR / contract は `spec-author`、分割クラスと注釈は `test-author` の `annotate-existing` モード、`@implements` は `implementer`）。ADR とコミットは [adr.md](../develop/references/adr.md) / [commit.md](../develop/references/commit.md) に従って自ら書きます。人間への報告と移行する docs は日本語です。
 
 ## 絶対規則（違反時は停止して人間に尋ねる）
 

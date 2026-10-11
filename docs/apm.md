@@ -90,13 +90,7 @@ Claude / Cursor 向けには scoped instructions をそれぞれの形式へ展�
 
 ### Codex agent の参照解決
 
-APM 0.30.0 は Codex の生成 TOML に埋め込む agent 本文の相対リンクを書き換えない。各 agent の正本冒頭にある **パッケージ正本の解決** 規約で、必要な参照を次のように解決する。
-
-1. `apm_modules/` の manifest を正確な package `name` で照合し、所属 package を見つける。
-2. 規約に記載された `.apm/agents/.../*.agent.md` の元ファイルを開く。
-3. **その元ファイルに記されたリンク**を元ファイル基準で解決し、要求された instruction だけを読む。
-
-生成済み本文の URL を元ディレクトリに当て直さない。他 target では URL が既に書き換えられている場合がある。互換展開では `.harness-legacy.json` の source checkout から同じ元ファイルを解決する。この規約は参照先を探す手順だけを持ち、規約本文の常時読み込みやコピーを行わない。
+APM 0.30.0 は Codex の生成 TOML に埋め込む agent 本文の相対リンクを書き換えない。そのため agent 本文は相対リンクを持たず（`tools/apm/test_projection.py` が検査）、規約の末端ファイルと `HARNESS_ROOT` はオーケストレーターが Task 入力でパスとして渡す（ADR-0047）。skill 本文のリンクは APM と互換展開が書き換える。
 
 ### モデル設定の差異
 

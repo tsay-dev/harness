@@ -3,8 +3,6 @@ description: "📚 docs の SDD / SSOT 規約（ID 付きルール）"
 applyTo: "docs/**,traceconfig.json"
 ---
 
-> **外部の実行資産:** `HARNESS_ROOT` は tools と templates を持つ harness チェックアウト（通常は `.harness`）の絶対パスです。
-
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
 
 > 対象はすべてのプラットフォームの `docs/` 配下の全ファイルです。指摘では ID で引用します（`R-101`）。
