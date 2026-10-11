@@ -35,7 +35,7 @@ class Projection(unittest.TestCase):
         for target in ('claude', 'cursor', 'grok', 'codex'):
             self.run_projection(target)
         self.assertEqual(first, self.snapshot())
-        self.assertFalse(any('manga' in name or 'expo' in name or 'video' in name for name in first))
+        self.assertFalse(any('cloudflare' in name or 'expo' in name or 'grilling' in name for name in first))
         self.assertFalse((self.host / 'AGENTS.md').exists())
         self.assertFalse((self.host / '.claude/settings.json').exists())
         self.assertFalse((self.host / 'tools').exists())
@@ -77,17 +77,13 @@ class Projection(unittest.TestCase):
             actual[tier].add(source.stem.removesuffix('.agent'))
         self.assertEqual(actual, expected_develop)
 
-        for package in ('produce-video', 'render-media', 'translate-manga'):
-            for source in (ROOT / 'packages' / package / '.apm/agents').rglob('*.agent.md'):
-                self.assertRegex(source.read_text(), r'(?m)^x-model-tier: top$')
-
     def test_shrink_removes_owned_files_only(self):
-        self.run_projection('claude', ('develop-core', 'rules-next', 'translate-manga'))
+        self.run_projection('claude', ('develop-core', 'rules-next', 'grilling'))
         custom = self.host / '.claude/agents/my-agent.md'
         custom.write_text('handwritten')
         self.run_projection('claude')
         self.assertEqual(custom.read_text(), 'handwritten')
-        self.assertFalse(any('manga' in name for name in self.snapshot()))
+        self.assertFalse(any('grilling' in name for name in self.snapshot()))
 
     def test_handwritten_collision_untouched(self):
         custom = self.host / '.codex/agents/spec-author.toml'
@@ -159,11 +155,41 @@ class Projection(unittest.TestCase):
                     self.assertEqual(source.name, name + '.agent.md')
                     self.assertNotRegex(text, r'(?m)^model:')
                     self.assertRegex(text, r'(?m)^x-model-tier: (top|mid|light)$')
-                    self.assertIn('パッケージ正本の解決', text)
+                    # ADR-0047: agent 本文は相対リンクを持たない。Codex の TOML はリンクを書き換えないので、末端ファイルはオーケストレーターがパスで渡す
+                    relative = [url for url in re.findall(r'\[[^\]\n]+\]\(([^)\n]+)\)', text) if '://' not in url and not url.startswith('/')]
+                    self.assertEqual(relative, [], f'{source}: agent 本文の相対リンク {relative}')
+                    # ADR-0048: agent は読む規約を名指ししない（届いた規約に従う）
+                    self.assertNotRegex(text, r'\.instructions\.md|末端ファイル', f'{source}: agent 本文が規約を名指ししている')
+                if source.name.endswith('.instructions.md') and 'rules-' in source.parts[1]:
+                    # ADR-0048: rules は skill と agent を知らない
+                    self.assertNotRegex(text, r'\bdevelop\b|完了条件|終端|spec-author|test-author|implementer|reviewer|attacker', f'{source}: 規約が skill または agent を参照している')
                 for url in re.findall(r'\[[^\]\n]+\]\(([^)\n]+)\)', text):
                     path = url.split('#')[0]
                     if path and '://' not in path and not path.startswith('/'):
                         self.assertTrue((source.parent / path).exists(), f'{source}: {url}')
+
+    def test_prompt_sources_stay_within_line_budget(self):
+        # ADR-0044: プロンプト正本の行数上限。ラチェットなので縮む方向にだけ動かし、超えたら本文を削る側で解く。
+        budgets = {
+            'packages/develop-core/.apm/skills/develop/SKILL.md': 65,
+            'packages/develop-core/.apm/skills/develop/references/*.md': 115,
+            'packages/develop-core/.apm/skills/attack/SKILL.md': 35,
+            'packages/develop-core/.apm/skills/docs-migrate/SKILL.md': 50,
+            'packages/develop-core/.apm/agents/develop/*.agent.md': 47,
+            'packages/develop-core/.apm/instructions/*.instructions.md': 125,
+            'packages/rules-cloudflare-hono-react/.apm/instructions/*.instructions.md': 40,
+            'packages/rules-next/.apm/instructions/*.instructions.md': 50,
+            'packages/rules-expo/.apm/instructions/*.instructions.md': 60,
+            'packages/rules-swiftui/.apm/instructions/*.instructions.md': 60,
+            # crow は非公開フレームワークの事実を持つため大きい。それでも縮む方向にだけ動かす
+            'packages/rules-crow/.apm/instructions/*.instructions.md': 270,
+        }
+        for pattern, limit in budgets.items():
+            sources = list(ROOT.glob(pattern))
+            self.assertTrue(sources, pattern)
+            for source in sources:
+                lines = len(source.read_text().splitlines())
+                self.assertLessEqual(lines, limit, f'{source.relative_to(ROOT)}: {lines} 行 > 上限 {limit}')
 
     def test_frontmatter_plain_values_are_valid_yaml(self):
         # 引用符なしの値に ": " や " #" があると YAML として読めず、APM は frontmatter 全体を無視する。
