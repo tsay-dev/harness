@@ -24,10 +24,10 @@ Next.js（App Router）の UI 表層が対象。対象外なら破棄する。�
 
 外観とロジックは oracle が異なる（目視と機械テスト）ため、別コンテキストの実装者が扱う。route ファイル = 読み取り配線、view コンポーネント = 表示。
 
-| 実装者 | 書くもの | 書かないもの |
+| 役割 | 書くもの | 書かないもの |
 | --- | --- | --- |
-| 外観担当（`implementer` appearance）| 表示用コンポーネント（props だけで表示が決まる）と styling。データは契約に適合する固定 mock を props に流す | ユースケース、infrastructure、Server Action の本体、`fetch` の import |
-| ロジック担当（`implementer` logic）| 読み取り配線（params 検証、ユースケース呼び出し、props への写像）、Client 末端の局所 UI 状態、既存 Server Action の呼び出しと props 経由の受け渡し | JSX 構造や styling の作り直し、Server Actions / Route Handlers の本体 |
+| 外観 | 表示用コンポーネント（props だけで表示が決まる）と styling。データは契約に適合する固定 mock を props に流す | ユースケース、infrastructure、Server Action の本体、`fetch` の import |
+| ロジック | 読み取り配線（params 検証、ユースケース呼び出し、props への写像）、Client 末端の局所 UI 状態、既存 Server Action の呼び出しと props 経由の受け渡し | JSX 構造や styling の作り直し、Server Actions / Route Handlers の本体 |
 
 - props 型は両者の契約。UI 実装者が定義・export し、ロジック実装者がそれに写像する。ロジック側が独断で props 型を変えない。不足を見つけた担当は実装を止めて報告する。
 - 空 / エラー / 権限なし / 境界（長文、0 行、巨大な数）は view props で表し、UI 側はその由来を知らない。segment の枠での待機は `loading.tsx`、view 内の待機（再試行後、部分更新）は `loading` / `error` prop。同じ意味を両方で持たない。

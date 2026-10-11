@@ -5,7 +5,7 @@ applyTo: "**/e2e/**,**/playwright.config.*"
 
 # React SPA / Workers — システムテスト
 
-develop の「UC ごとに主シナリオ 1 つ」を Playwright に接続する。第二のフロントエンド単体スイートは導入しない。
+UC ごとに主シナリオ 1 つのシナリオテストを Playwright で書く。第二のフロントエンド単体スイートは導入しない。
 
 ## 環境
 

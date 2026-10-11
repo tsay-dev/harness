@@ -1,11 +1,11 @@
 ---
-description: "Cloudflare / Hono / React — テストスイート、契約入口の対応付け、develop の接続"
+description: "Cloudflare / Hono / React — テストスイート、契約入口の対応付け、注釈"
 applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,**/tests/**,**/e2e/**,**/vitest.config.*,**/playwright.config.*,apps/api/src/index.ts,apps/api/src/features/**/*.routes.ts"
 ---
 
 # Cloudflare / Hono / React — テストの接続
 
-develop のテスト手順をこのスタックに接続する。ゲートと作成者 / 判定者の責任は変えない。フロントエンド単体テストのリーフはなく、develop はフロントエンド単体テストを作らない。
+このスタックでテストを置く場所、入口、注釈を定める。フロントエンド単体テストのリーフはなく、フロントエンド単体テストは作らない。
 
 ## スイート
 
@@ -35,4 +35,4 @@ develop のテスト手順をこのスタックに接続する。ゲートと作
 
 - 既定 / 統合ケースは外側のグループを `UC-nnn <title>` とし、各テスト本文の先頭行に `// @covers REQ-nnn#class` を置く（`tests.covers_placement: after`）。シナリオテストは[システムテスト](system-testing.instructions.md)の注釈を使う。
 - 時刻と乱数を注入し、外部境界だけをフェイクにし、共有状態を片付ける。実時間の sleep で同期しない。
-- 修正ラウンドでは選択実行だけを行い、全件は完了条件と CI で 1 回実行する。タイトルとコメントは日本語。
+- タイトルとコメントは日本語。

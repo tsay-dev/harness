@@ -21,17 +21,17 @@ applyTo: "**/*.swift,**/Package.swift"
 - harness はディレクトリ名を固定しない（`Presentation/UI` か平らかはホストの `CLAUDE.md`）。分離自体と Shared への昇格条件は固定する。
 - 依存は `root → feature → parts → ui` の一方向。下位は上位を import せず、同レベル同士も import しない。子から親への通知は親が渡したクロージャで行う。`ui` / `parts` から Domain の実装や Data に触れない。
 
-## UI 実装担当者とロジック実装担当者の境界（develop の要件）
+## 外観とロジックの境界
 
-外観は人間の目、ロジックは機械テストと oracle が異なるため、別コンテキストの実装担当者が扱う。root = 配線、presentational = 表示を構造として分け、画面の外観の本体は root の下の View に置く。
+外観は人間の目で、ロジックは機械テストで判定するため、別の担当が別コンテキストで扱う。root = 配線、presentational = 表示を構造として分け、画面の外観の本体は root の下の View に置く。
 
-| 実装担当者 | 書くもの | 書かないもの |
+| 役割 | 書くもの | 書かないもの |
 | --- | --- | --- |
-| **UI 実装担当者** | presentational View（渡された値とクロージャで表示が決まる）とスタイリング。データは契約に適合する固定モックとして引数に流れ込み、Preview も fake DI | UseCase / Repository / `URLSession` の import |
-| **ロジック実装担当者** | ViewModel / Router / UseCase の接続、root の配線、Domain / Data。既存 View の引数に写像する | 見た目の構造やスタイリングの作り直し |
+| **外観** | presentational View（渡された値とクロージャで表示が決まる）とスタイリング。データは契約に適合する固定モックとして引数に流れ込み、Preview も fake DI | UseCase / Repository / `URLSession` の import |
+| **ロジック** | ViewModel / Router / UseCase の接続、root の配線、Domain / Data。既存 View の引数に写像する | 見た目の構造やスタイリングの作り直し |
 
 - View の入力（initializer の引数、渡すモデル型）は UI 側が定義し、ロジック側がそこに写像する。ロジック側は View を自分に都合のよい引数に書き換えない。
-- どちらかが不足を見つけたら、その側は実装を止めて報告する（各実装担当者の出力契約に従う）。
+- どちらかが不足を見つけたら、その側は実装を止めて報告する。
 - loading / empty / error / no-permission / boundary（長文、0 行、巨大な数）は表示側から見て入力として表す。`ui` / `parts` は値とクロージャだけで閉じ、`feature` は ViewModel を保持してよいが UseCase を知らない形を保つ。
 - リストの行 View は `ui` / `parts` に置き、行の中で UseCase を起動しない。データは親の feature / ViewModel が揃えてから渡す。
 

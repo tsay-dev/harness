@@ -13,7 +13,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 - **UC ディレクトリ**（`UC.md`、全 `REQ-nnn.md`、`contract.yaml`）、REQ が指す BR、`docs/01-glossary.md` をパスで。entity・列・状態名は用語集のコード識別子に従います。
 - **BE テスト（Red）**: あればパスまたは UC タグ。`logic` では開始後に届くことがあります。契約と REQ 文から実装し、テスト付きの再起動を想定します。
 - **UC のシナリオテスト**（`@scenario UC-nnn`）: 完了時入力としてだけ受け取ります。frontend の `logic` は接続して成功させ、`appearance` は再起動時に識別子と文言をテストの導出結果へ合わせます。編集しません。
-- **フレームワーク規約**: パスで届きます。開始前に全部読み、未受領なら規約なしとして進みます（カタログ探索や創作はしない）。testing 末端ファイルからは「operation → entry」規約だけを読みます。
+- **規約**: 書くパスに対応する規約が届きます（Claude では `paths` で自動、ほかはオーケストレーターがパスで渡す）。開始前に全部読み、未受領なら規約なしとして進みます（カタログ探索や創作はしない）。
 - **`schema`**: スキーマ正本のパス（`schema.prisma`、migration、モデルファイル。利用プロジェクトの `CLAUDE.md` または `traceconfig.json` の `schema.files`）。未受領なら停止します。docs の草案で代替しません（R-102、R-704）。
 - **`probe`**: 実行する最も危険な機能横断の 1 経路と、参照する構造成果物。
 - **手戻り時**: 再導出する単位と、具体反例付きの `阻止`。
@@ -22,11 +22,11 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 
 ## 不変条件（全 mode）
 
-- 操作の入口は testing 末端ファイルの「operation → entry」規約の場所に置きます。テストと契約アダプターはそこを呼びます。
+- 操作の入口は、届いた規約の「operation → entry」対応表が示す場所に置きます。テストと契約アダプターはそこを呼びます。
 - **テストを弱めず、契約・要件を歪めません。** 抑制、lint-disable、緩い assertion、出荷コードに埋めた mock は偽の成功です。整合できなければ、何と何が矛盾するかを報告して停止します。
 - テストは選択実行します。渡された Red を UC タグで選び、同じ経路の隣接 `UC-nnn` スイートへ広げます。既定スイート全体は入力で求められたときだけ実行します。排他的資源のため規約が禁止する場合だけ省略でき、その場合は未実行と必要な実行（UC ID、スイート、影響範囲）を明示します。
 - 検証コマンドは `traceconfig.json` の `commands`、次に利用プロジェクトの `CLAUDE.md`、標準の script 宣言から取り、捏造しません。
-- 実現単位に `@implements REQ-nnn` / `@implements BR-nnn`（usecase 入口は `@implements UC-nnn`）を付けます。配置は comments 末端ファイルに従います。
+- 実現単位に `@implements REQ-nnn` / `@implements BR-nnn`（usecase 入口は `@implements UC-nnn`）を付けます。配置は届いた規約に従います。
 - 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C5,C6,C7,C14` と `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc <UC-nnn>` を実行し、違反は自ら直します（「未宣言」は未実行であり成功ではありません）。
 - `appearance` と `schema` の結果を自己承認しません。人間が決める点を返します。
 
@@ -35,7 +35,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 | mode | 範囲 | 差分 |
 | --- | --- | --- |
 | `logic` | リクエスト処理、API クライアント、状態管理、入力検証、純粋関数 | Red テストを Red → Green → Refactor で成功させる。API クライアントは契約適合の本物の実装（契約外の要求・想定応答は禁止）。既存の見た目へ接続し、作り直さない。FE / UI の単体テストは書かない。frontend では UC のシナリオテストが完了時入力で、保留マーカーを外し、UC のシナリオだけを選択実行して成功させる。シナリオテストは編集せず、主シナリオにないステップを要求するなら報告して停止 |
-| `appearance` | 対象プラットフォームの markup / styling だけ | 契約の応答形に適合する固定 mock を入力に、すべての UI 状態（error / loading / empty / permission / boundary）を作る。ロジックとテストなし。可視文言は用語集の語、操作を起動する control の識別子属性は操作名、入力は `<operation>.<field>`（属性は frontend-coding 末端ファイル、ADR-0037）。文言 → 識別子表を報告し、見た目は人間の目視で決着する |
+| `appearance` | 対象プラットフォームの markup / styling だけ | 契約の応答形に適合する固定 mock を入力に、すべての UI 状態（error / loading / empty / permission / boundary）を作る。ロジックとテストなし。可視文言は用語集の語、操作を起動する control の識別子属性は操作名、入力は `<operation>.<field>`（属性は届いた規約、ADR-0037）。文言 → 識別子表を報告し、見た目は人間の目視で決着する |
 | `schema` | entity、relation、key、constraint をスキーマ正本自体へ | 状態 × イベント表の各状態を実 entity が保持し、`enforced_at` が DB の各 BR の制約に `@implements BR-nnn`（C13）。ロジックは作らない。複数の強制点があれば、除くと正しさが壊れる点を保証の SSOT として提案し、決着させない。食い違う `enforced_at` は編集せず報告。`trace-check --only C5,C13` |
 | `probe` | 最も危険な機能横断の 1 経路を端から端まで | 構造が実動作を支えることの証明。最短で実 I/O へ到達し、磨かず、使い捨てで本流に入れない。注釈、テスト、経路以外の検証なし |
 

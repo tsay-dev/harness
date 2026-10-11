@@ -5,13 +5,13 @@ applyTo: "**/e2e/**,**/playwright.config.*"
 
 # 🎭 Next.js — システムスイート（ブラウザーを起動するシナリオテスト）
 
-Next.js（App Router）でなければ破棄する。シナリオテストの定義と時期は develop が所管し（R-1106–R-1108。全件は完了条件と CI だけ）、この文書は runner、フォルダー、locator、pending マーカー、注釈だけを定める。既定スイートは [common-testing](common-testing.instructions.md)。テスト名とコメントは日本語。
+Next.js（App Router）でなければ破棄する。シナリオテストの定義は R-1106–R-1108。この文書は runner、フォルダー、locator、pending マーカー、注釈だけを定める。既定スイートは [common-testing](common-testing.instructions.md)。テスト名とコメントは日本語。
 
 ## runner とフォルダー
 
 - Playwright（`@playwright/test`）、プロジェクト根の `e2e/`、設定は `playwright.config.ts`。フォルダーを変える利用先は `CLAUDE.md` と `traceconfig.json` の `tests.system.dirs` に宣言する。
 - `e2e/` を既定スイートの探索から除外し、`tests.system.dirs` と `tests.dirs` を重ねない（重なるとシナリオテストが `@covers` のないテストとして C11 に報告される）。
-- 全件は `npx playwright test`、UC 選択は `npx playwright test --grep "UC-012"`。終端ゲートに含めるなら `traceconfig.json` の `commands.system` に宣言する。CI では宣言の有無にかかわらず実行する。
+- 全件は `npx playwright test`、UC 選択は `npx playwright test --grep "UC-012"`。`traceconfig.json` の `commands.system` に宣言する。CI では宣言の有無にかかわらず実行する。
 - 利用先の `CLAUDE.md` が宣言するシナリオ環境（`webServer`、投入済みデータ、使い捨てアカウント）の実アプリケーションを操作する。backend を mock にしない。
 
 ## シナリオテストの形

@@ -5,13 +5,13 @@ applyTo: "**/e2e/**,**/.maestro/**"
 
 # Expo — システムテスト
 
-develop の「UC ごとに主シナリオ 1 つ」（R-1106–R-1108）を simulator / 実機に接続する。既定スイートは[共通テスト](common-testing.instructions.md)。Expo でなければ適用外として破棄する。flow 名とコメントは日本語。
+UC ごとに主シナリオ 1 つのシナリオテスト（R-1106–R-1108）を simulator / 実機で書く。既定スイートは[共通テスト](common-testing.instructions.md)。Expo でなければ適用外として破棄する。flow 名とコメントは日本語。
 
 ## 環境
 
 - 既定 runner は Maestro（`.maestro/`、または利用先が選ぶなら `e2e/` 配下の YAML flow）。利用先が既に採用していれば Detox でもよく、その場合は以下に相当する規約を `CLAUDE.md` に宣言する。harness はこれ以上 runner を固定しない。
 - フォルダーは `traceconfig.json` の `tests.system.dirs` に宣言し（Maestro では `extensions: [".yaml", ".yml"]`）、`tests.dirs` と重ねず、Jest の `testPathIgnorePatterns` に入れる。
-- 全スイートは単一コマンド（`maestro test .maestro/`）。終端ゲートに含めるなら `commands.system` に宣言する。CI では宣言の有無にかかわらず実行する。UC 選択は `maestro test --include-tags UC-nnn .maestro/`。
+- 全スイートは単一コマンド（`maestro test .maestro/`）。`traceconfig.json` の `commands.system` に宣言する。CI では宣言の有無にかかわらず実行する。UC 選択は `maestro test --include-tags UC-nnn .maestro/`。
 - 対象アプリは利用先の `CLAUDE.md` が宣言するシナリオ環境（backend の種類、base URL の切替、投入済みデータ、使い捨てアカウント、権限 dialog を事前許可する起動引数）へ接続する。producer が発明しない。アプリ内 mock は使わない。
 
 ## シナリオ flow の形
@@ -52,4 +52,4 @@ tags:
 ## simulator は排他資源
 
 - 並行起動された producer は flow を実行しない（simulator 起動、`maestro test`）。編集と静的検査までで止め、flow が未実行であることと実行が必要な UC tag を報告に明記する。例外は新しい 1 flow の作成直後の選択実行と、外観の目視起動（人間ゲート）。
-- 並行区間終了後のまとめた実行は、`CLAUDE.md` に宣言した 1 端末に固定し、起動済み simulator を再利用して UC tag で選択実行する。全体実行は完了条件と CI だけ。
+- 並行区間終了後のまとめた実行は、`CLAUDE.md` に宣言した 1 端末に固定し、起動済み simulator を再利用して UC tag で選択実行する。

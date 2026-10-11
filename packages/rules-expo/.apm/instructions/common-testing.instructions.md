@@ -5,24 +5,24 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 
 # Expo — テストの接続
 
-develop のテスト手順をこのスタックに接続する。ゲートと作成者 / 判定者の責任は変えない。フロントエンド単体テストのリーフはなく、develop はフロントエンド単体テストを作らない。Expo でなければ適用外として破棄する。テスト名とコメントは日本語。
+このスタックでテストを置く場所、入口、注釈を定める。フロントエンド単体テストのリーフはなく、フロントエンド単体テストは作らない。Expo でなければ適用外として破棄する。テスト名とコメントは日本語。
 
 ## スイート（実行に必要なもので分ける）
 
 | スイート | 判定基準 | 既定の配置 | 実行 |
 | --- | --- | --- | --- |
-| 既定 | 外部環境を起動しない（mock は境界のみ）。契約適合テストもここ | 対象構造を反映した `__tests__/` または同じ場所の `*.test.ts(x)` | Red-Green ループ。修正ラウンドでは選択実行、全件は完了条件と CI だけ |
+| 既定 | 外部環境を起動しない（mock は境界のみ）。契約適合テストもここ | 対象構造を反映した `__tests__/` または同じ場所の `*.test.ts(x)` | Red-Green ループ。UC による選択実行ができる |
 | 結合 | 実 API または実サービスに接続する | `tests/integration/` | 境界のみ（返却前、commit 前、CI） |
 | システム | simulator、実機、browser を起動する。シナリオ flow だけを持つ | `.maestro/` または `e2e/` | [システムテスト](system-testing.instructions.md) |
 
 - runner は Jest と `jest-expo` preset。素の `react-native` preset や独自の ts-jest 設定を作らない。
-- 単一コマンドで実行でき、終了コードで Red / Green が決まる。未導入なら導入が開始のゲート。選択、設定、コマンドはプロジェクトの `CLAUDE.md` に記録し、`traceconfig.json` に `commands.test`、終端ゲートで使うなら `commands.system` を宣言する。
+- 単一コマンドで実行でき、終了コードで Red / Green が決まる。未導入なら先に導入する。選択、設定、コマンドはプロジェクトの `CLAUDE.md` に記録し、`traceconfig.json` に `commands.test`、`commands.system` を宣言する。
 - フォルダーで分離し、`tests/integration` と `e2e` / `.maestro` を `testPathIgnorePatterns` に入れる。simulator も server もないマシンで既定スイートが Green になること。
 - 外部環境を起動しない契約適合テストは既定スイートに属し、結合スイートへ移さない。
 
 ## 操作 → 入口（実装を読まずに導出）
 
-`test-author` と `implementer` はそれぞれ `contract.yaml` と下表から入口を導出し、互いからは導出しない。レイヤーは[データフロー](frontend-dataflow.instructions.md)、module の配置は利用プロジェクトの `CLAUDE.md` が定める。
+テストを書く側と実装を書く側はそれぞれ `contract.yaml` と下表から入口を導出し、互いの成果物からは導出しない。レイヤーは[データフロー](frontend-dataflow.instructions.md)、module の配置は利用プロジェクトの `CLAUDE.md` が定める。
 
 | 契約の transport | テストが import するファイル | 呼ぶ export |
 | --- | --- | --- |

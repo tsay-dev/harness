@@ -30,14 +30,8 @@ Next.js（App Router）のサーバー側処理が対象。対象外なら破棄
 - ユースケースのシナリオ結果（`ok` / `reason` など）と呼び出し側向けの形は異なってよく、ミューテーション・コントローラーが境界で写像する。伝え方はプロジェクト全体で 1 方式に揃え、demo と実装でフィールド名を混在させない。
 - 外から来る値は外側の入口の境界で 1 回だけ実行時スキーマ検証（既定は zod。別のものは `CLAUDE.md` に宣言）し、通過したものだけをユースケースへ渡す。ユースケースや domain で再検証を要求しない。業務の不変条件は domain の責務であり、スキーマ検証の代わりにならない。
 
-## 実装の担当
+## 配置の境界
 
-| 成果物 | 実装者 |
-| --- | --- |
-| domain / use cases / infrastructure の本体 | `implementer`（logic、backend） |
-| Server Actions / Route Handlers の本体（検証、ユースケース呼び出し、`revalidatePath` など）| `implementer`（logic、backend） |
-| `page` / `layout` の読み取り配線（params 検証、既存ユースケース呼び出し、view への props 受け渡し）| `implementer`（logic、frontend） |
-| 表示用の外観 | `implementer`（appearance） |
-| `middleware.ts`（薄い境界のみ）| `implementer`（logic、backend。分ける場合は `CLAUDE.md` に宣言）|
-
-frontend はユースケースと Actions を呼び、props で渡すだけで、本体を作ったり膨らませたりしない。読み取りに必要なユースケースがなければ backend 側の logic 担当が先に用意する。backend は page の JSX を作らない。
+- domain / use cases / infrastructure の本体と、Server Actions / Route Handlers の本体（検証、ユースケース呼び出し、`revalidatePath` など）、`middleware.ts` はサーバー側のコード。
+- `page` / `layout` の読み取り配線（params 検証、既存ユースケース呼び出し、view への props 受け渡し）はユースケースと Actions を呼んで props で渡すだけで、本体を作ったり膨らませたりしない。読み取りに必要なユースケースがなければ先にサーバー側に用意する。
+- 表示用の外観は props だけで表示が決まる。page の JSX をサーバー側の本体に置かない。

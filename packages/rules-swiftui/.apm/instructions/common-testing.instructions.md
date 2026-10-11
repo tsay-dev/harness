@@ -5,7 +5,7 @@ applyTo: "**/*Tests.swift,**/*Test.swift,**/*Tests/**,**/*Spec.swift"
 
 # 🧪 SwiftUI — 共通のテスト規則（全レイヤー）
 
-develop のテスト原則を SwiftUI iOS に接続する配線だけを持つ。View のユニットテストの葉はなく、develop は FE ユニットテストを作らない。シナリオ（XCUITest）は[システムスイート](system-testing.instructions.md)、実行の時機と排他は[テスト実行](common-test-execution.instructions.md)。テスト名とコメントは日本語。
+SwiftUI iOS でテストを置く場所、入口、注釈だけを持つ。View のユニットテストの葉はなく、FE ユニットテストは作らない。シナリオ（XCUITest）は[システムスイート](system-testing.instructions.md)、実行の時機と排他は[テスト実行](common-test-execution.instructions.md)。テスト名とコメントは日本語。
 
 ## ランナー
 
@@ -14,7 +14,7 @@ develop のテスト原則を SwiftUI iOS に接続する配線だけを持つ�
 
 ## 操作 → 入口（実装を読まずに導出）
 
-`test-author` と `implementer` はそれぞれ `contract.yaml` と下表から入口を導出し、互いからは導出しない。実装が入口を別の場所に置いたなら実装を移す（R-801）。
+テストを書く側と実装を書く側はそれぞれ `contract.yaml` と下表から入口を導出し、互いの成果物からは導出しない。実装が入口を別の場所に置いたなら実装を移す（R-801）。
 
 | 契約（`contract.yaml`） | テストが構築する型 | 呼ぶ入口 |
 | --- | --- | --- |
@@ -42,7 +42,6 @@ func loginSucceeds() async throws {
 - モックは境界だけ（Repository、時計、乱数）。Domain Entity をモックしない。既定スイートで `URLSession` 実装を実ネットワークにつながず、HTTP を試すなら fake の `URLProtocol` で閉じる。
 - 実時間の `sleep` / `Task.sleep` で待たない。アニメーション完了を待たず、検証対象にしない。ViewModel のテストはテスト関数側でも `@MainActor` を揃える。
 - テストは順序に依存しない。共有可変グローバルや singleton を変えたら元に戻す。`.shared` に依存するテストは設計の崩れの兆候。
-- 修正ラウンドでは選択実行、全件は完了条件と CI だけ。
 
 ## スイートの分離（実行に必要なもので分ける）
 

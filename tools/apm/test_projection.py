@@ -158,6 +158,11 @@ class Projection(unittest.TestCase):
                     # ADR-0047: agent 本文は相対リンクを持たない。Codex の TOML はリンクを書き換えないので、末端ファイルはオーケストレーターがパスで渡す
                     relative = [url for url in re.findall(r'\[[^\]\n]+\]\(([^)\n]+)\)', text) if '://' not in url and not url.startswith('/')]
                     self.assertEqual(relative, [], f'{source}: agent 本文の相対リンク {relative}')
+                    # ADR-0048: agent は読む規約を名指ししない（届いた規約に従う）
+                    self.assertNotRegex(text, r'\.instructions\.md|末端ファイル', f'{source}: agent 本文が規約を名指ししている')
+                if source.name.endswith('.instructions.md') and 'rules-' in source.parts[1]:
+                    # ADR-0048: rules は skill と agent を知らない
+                    self.assertNotRegex(text, r'\bdevelop\b|完了条件|終端|spec-author|test-author|implementer|reviewer|attacker', f'{source}: 規約が skill または agent を参照している')
                 for url in re.findall(r'\[[^\]\n]+\]\(([^)\n]+)\)', text):
                     path = url.split('#')[0]
                     if path and '://' not in path and not path.startswith('/'):
