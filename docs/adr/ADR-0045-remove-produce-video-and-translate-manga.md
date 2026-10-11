@@ -1,7 +1,7 @@
 ---
 id: ADR-0045
 title: produce-video と translate-manga のパッケージと実行資産を削除する
-status: accepted
+status: superseded
 date: 2026-10-11
 ---
 

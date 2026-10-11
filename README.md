@@ -16,10 +16,9 @@
 | `rules-crow` | crow の規約葉だけ | crow 開発 |
 | `rules-expo` | Expo の規約葉だけ | Expo 開発 |
 | `rules-swiftui` | SwiftUI の規約葉だけ | SwiftUI 開発 |
-| `render-media` | メディア生成の skills・agents・規約 | 別途用意した制作定義（台本・コマ定義・タイムライン）から実メディアへ変換 |
 | `grilling` | grilling / grill-me の skills | 計画・設計のインタビュー |
 
-**root の全部入りパッケージはありません。** 複数用途が必要なプロジェクトは、必要なパッケージをそれぞれ明示します。Next.js 向けに develop-core と rules-next を選んでも Expo・SwiftUI・crow・メディア生成は入りません。
+**root の全部入りパッケージはありません。** 複数用途が必要なプロジェクトは、必要なパッケージをそれぞれ明示します。Next.js 向けに develop-core と rules-next を選んでも Expo・SwiftUI・crow は入りません。
 
 ## APM で導入する
 
@@ -91,7 +90,6 @@ harness/
     rules-crow/
     rules-expo/
     rules-swiftui/
-    render-media/        # skill + agents + instructions
     grilling/
   tools/                 # 検証・生成器など。APM外
   templates/             # 文書書式。APM外

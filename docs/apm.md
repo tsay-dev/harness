@@ -31,13 +31,12 @@ APM 0.30.0 の実装・最小 package で、instructions は `.apm/instructions/
 | `.claude/rules/develop/web/crow/**` | `packages/rules-crow/.apm/instructions/` |
 | `.claude/rules/develop/native/expo/**` | `packages/rules-expo/.apm/instructions/` |
 | `.claude/rules/develop/native/swiftui/**` | `packages/rules-swiftui/.apm/instructions/` |
-| `.claude/{skills,agents,rules}/translate-manga-ko-ja/`、`.claude/{skills,agents,rules}/produce-video/`、`.claude/tools/produce-video/` | 削除（ADR-0045）。移行先はない |
-| `.claude/{skills,agents,rules}/render-media/` | `packages/render-media/.apm/{skills,agents,instructions}/` |
+| `.claude/{skills,agents,rules}/translate-manga-ko-ja/`、`.claude/{skills,agents,rules}/produce-video/`、`.claude/tools/produce-video/`、`.claude/{skills,agents,rules}/render-media/` | 削除（ADR-0046）。移行先はない |
 | `.claude/skills/{grilling,grill-me}/` | `packages/grilling/.apm/skills/` |
 | `.claude/tools/` | `tools/`（APM 外） |
 | `.claude/templates/` | `templates/`（APM 外） |
 
-agent ファイルには `.agent.md`、instruction ファイルには `.instructions.md` を使う。既存のメディア生成・インタビュー用途も独立した任意パッケージとして保存する。develop-core の依存に全スタックや全用途を加えない。
+agent ファイルには `.agent.md`、instruction ファイルには `.instructions.md` を使う。インタビュー用途（`grilling`）も独立した任意パッケージとして保存する。develop-core の依存に全スタックや全用途を加えない。
 
 ## 新規消費プロジェクト
 
@@ -109,7 +108,7 @@ APM 0.30.0 の native integrator が中立拡張を provider の model field に
 
 ## tools / templates を別途用意する
 
-APM packages は tools / templates を含まない。develop の検証・文書生成、メディアのレンダリングなどで必要なアセットを、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意する。
+APM packages は tools / templates を含まない。develop の検証・文書生成で必要なアセットを、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意する。
 
 ```bash
 # <release-tag> を実在する、package と整合するタグに置き換えて実行する
@@ -182,7 +181,7 @@ apm install --target codex /absolute/path/to/harness/packages/rules-next
 確認する項目:
 
 1. 全 manifest が APM 0.30.0 で認識され、各パッケージを単独で install できる。
-2. develop-core + rules-next の consumer に Expo / crow / SwiftUI / メディア生成のファイル・本文が出ない。render-media 単独に develop が入らない。
+2. develop-core + rules-next の consumer に Expo / crow / SwiftUI / Cloudflare のファイル・本文が出ない。grilling 単独に develop が入らない。
 3. installed package 内に tools / templates を同梱していない。
 4. Claude 出力の `paths` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
 5. Codex / Grok install が root `AGENTS.md` や全文 rules router を生成しない。
