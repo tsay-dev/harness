@@ -1,6 +1,6 @@
 ---
 description: "R2 — 非公開オブジェクト、認可済みアップロード / ダウンロード、整合性"
-applyTo: "apps/api/src/features/**/*.repository.ts,apps/api/src/features/**/*.routes.ts,apps/api/src/features/**/*.service.ts,apps/api/src/lib/**,apps/web/src/features/**/api/**,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/tests/integration/**"
+applyTo: "**/apps/api/src/features/**/*.repository.ts,**/apps/api/src/features/**/*.routes.ts,**/apps/api/src/features/**/*.service.ts,**/apps/api/src/lib/**,**/apps/web/src/features/**/api/**,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/tests/integration/**"
 ---
 
 # R2 — オブジェクトストレージ

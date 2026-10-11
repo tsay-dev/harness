@@ -1,6 +1,6 @@
 ---
 description: "Durable Objects — WebSocket ハイバネーション、永続状態、配送、復旧"
-applyTo: "apps/api/src/features/**/*.do.ts,apps/api/src/features/**/*.schema.ts,apps/api/src/features/**/*.routes.ts,apps/api/src/index.ts,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/tests/integration/**"
+applyTo: "**/apps/api/src/features/**/*.do.ts,**/apps/api/src/features/**/*.schema.ts,**/apps/api/src/features/**/*.routes.ts,**/apps/api/src/index.ts,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/tests/integration/**"
 ---
 
 # Durable Objects — リアルタイム

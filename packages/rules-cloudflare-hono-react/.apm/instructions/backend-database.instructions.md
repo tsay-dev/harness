@@ -1,6 +1,6 @@
 ---
 description: "D1 / Drizzle — スキーマ、レビュー済み SQL マイグレーション、クエリ、原子性"
-applyTo: "**/drizzle.config.*,apps/api/migrations/**,apps/api/src/db/**,apps/api/src/features/**/*.repository.ts,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/tests/integration/**"
+applyTo: "**/drizzle.config.*,**/apps/api/migrations/**,**/apps/api/src/db/**,**/apps/api/src/features/**/*.repository.ts,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/tests/integration/**"
 ---
 
 # D1 / Drizzle — 永続化

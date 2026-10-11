@@ -1,6 +1,6 @@
 ---
 description: "Cloudflare Static Assets — Worker の振り分け、API エラー、SPA フォールバック"
-applyTo: "**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/vite.config.*,apps/api/src/index.ts,apps/api/src/features/**/*.routes.ts,apps/web/public/_headers,apps/web/public/_redirects,**/tests/integration/**,**/e2e/**"
+applyTo: "**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/vite.config.*,**/apps/api/src/index.ts,**/apps/api/src/features/**/*.routes.ts,**/apps/web/public/_headers,**/apps/web/public/_redirects,**/tests/integration/**,**/e2e/**"
 ---
 
 # Cloudflare — アセットと API のルーティング

@@ -1,6 +1,6 @@
 ---
 description: "Hono / Workers — セッション、CSRF、認可、WebSocket のセキュリティ境界"
-applyTo: "apps/api/src/**,apps/web/src/lib/api-client.ts,apps/web/src/features/auth/**,**/tests/backend/**,**/tests/integration/**"
+applyTo: "**/apps/api/src/**,**/apps/web/src/lib/api-client.ts,**/apps/web/src/features/auth/**,**/tests/backend/**,**/tests/integration/**"
 ---
 
 # Hono / Workers — セキュリティ

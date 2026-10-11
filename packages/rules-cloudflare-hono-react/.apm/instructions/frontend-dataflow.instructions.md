@@ -1,6 +1,6 @@
 ---
 description: "React SPA / TanStack Query — サーバーキャッシュ、HTTP 失敗、変更、リアルタイム整合"
-applyTo: "apps/web/src/**,packages/shared/src/**"
+applyTo: "**/apps/web/src/**,**/packages/shared/src/**"
 ---
 
 # React SPA — データフロー

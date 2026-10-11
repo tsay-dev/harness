@@ -1,6 +1,6 @@
 ---
 description: "Cloudflare / Hono / React — スタックの適用範囲、ソースの境界、共通コーディング規約"
-applyTo: "apps/web/src/**,apps/api/src/**,packages/shared/src/**,**/tsconfig*.json,**/vite.config.*,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/drizzle.config.*,**/worker-configuration.d.ts"
+applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsconfig*.json,**/vite.config.*,**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/drizzle.config.*,**/worker-configuration.d.ts"
 ---
 
 # Cloudflare / Hono / React — 共通コーディング
