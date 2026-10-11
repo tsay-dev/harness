@@ -172,6 +172,12 @@ class Projection(unittest.TestCase):
             'packages/develop-core/.apm/skills/docs-migrate/SKILL.md': 50,
             'packages/develop-core/.apm/agents/develop/*.agent.md': 47,
             'packages/develop-core/.apm/instructions/*.instructions.md': 125,
+            'packages/rules-cloudflare-hono-react/.apm/instructions/*.instructions.md': 40,
+            'packages/rules-next/.apm/instructions/*.instructions.md': 50,
+            'packages/rules-expo/.apm/instructions/*.instructions.md': 60,
+            'packages/rules-swiftui/.apm/instructions/*.instructions.md': 60,
+            # crow は非公開フレームワークの事実を持つため大きい。それでも縮む方向にだけ動かす
+            'packages/rules-crow/.apm/instructions/*.instructions.md': 270,
         }
         for pattern, limit in budgets.items():
             sources = list(ROOT.glob(pattern))
