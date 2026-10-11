@@ -8,7 +8,7 @@ applyTo: "**/e2e/**,**/.maestro/**"
 > **対象: Expo（expo-router）の React Native アプリ。** Expo でなければこの文書を破棄する。
 >
 > **シナリオテストの定義、ユースケースごとに 1 本とする理由、実行時期は develop プロセスが所管する**
-> （`docs.instructions.md` R-1106–R-1108、`references/playbook.md`「テスト実行の粒度」）。この文書が持つのは
+> （`docs.instructions.md` R-1106–R-1108。全件実行は完了条件と CI だけ）。この文書が持つのは
 > **simulator / 実機でその規約を成立させる配線**だけである。runner、フォルダー、locator の優先順、
 > pending マーカー、UC タグ、`@scenario` 注釈、simulator の排他性を定める。
 > 既定スイートの規約は [common/testing.md](common-testing.instructions.md) にある。

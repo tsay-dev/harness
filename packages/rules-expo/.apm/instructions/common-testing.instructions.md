@@ -55,7 +55,7 @@ transpile の除外（`transformIgnorePatterns`）を既に揃えており、独
 - **範囲を絞った実行（UC タグ）**: 各テストの最外 `describe` を
   `describe('UC-012 <UC の題名>', ...)` にし、UC ID で機械的に選択できるようにする
   （`docs/goals/` 配下の UC ディレクトリ名と同じキー）。選択実行は `jest -t "UC-012"`。
-  **選択実行と既定スイート全体の実行のタイミングは develop skill の `references/playbook.md`「テスト実行の粒度」を正本とする。** この末端文書は UC ID の付与・選択方法だけを定義する
+  **修正ラウンドでは選択実行だけを行い、既定スイート全体は完了条件と CI で 1 回実行する。** この末端文書は UC ID の付与・選択方法だけを定義する
 - **要求の検証**: 各テストは宣言済み分割クラスをちょうど 1 つ示し、本体の先頭行に `// @covers REQ-045#class` を置く（`trace-check` C10 / C11 が読む。先に REQ の `## 検証方針` でクラスを宣言する）
 
 ---
@@ -84,7 +84,7 @@ transpile の除外（`transformIgnorePatterns`）を既に揃えており、独
 
 | スイート | 判定基準（これだけで決める）| 場所（既定）| 実行頻度 |
 | --- | --- | --- | --- |
-| **既定**（unit）| 外部環境を起動しない（mock は境界のみ）| そのまま（対象構造を反映した配置、`__tests__/`）| Red-Green ループで使うスイート（ラウンド中は選択実行、境界では全体実行。develop skill の `references/playbook.md`「テスト実行の粒度」）|
+| **既定**（unit）| 外部環境を起動しない（mock は境界のみ）| そのまま（対象構造を反映した配置、`__tests__/`）| Red-Green ループで使うスイート（ラウンド中は選択実行、全体実行は完了条件と CI だけ）|
 | **結合** | **実 API または実サービスに接続する** | `tests/integration/` | 境界のみ（返却前、commit 前、CI）|
 | **システム** | **simulator、実機、browser を起動する** | `.maestro/` または `e2e/`（Maestro / Detox の規約）| シナリオ flow（UC ごと 1 本）。FE 配線ラウンドでは UC タグで選択実行、境界で一度全体実行（`commands.system` を宣言した場合の終端チェックリスト、CI）。[system-testing.md](system-testing.instructions.md) |
 

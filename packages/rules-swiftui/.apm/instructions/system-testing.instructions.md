@@ -8,7 +8,7 @@ applyTo: "**/UITests/**,**/*UITests.swift,**/*UITest.swift"
 > **適用範囲: SwiftUI を使うネイティブ iOS アプリ。** 該当しなければ破棄する。
 >
 > **シナリオテストとは何か、なぜ UC ごとに 1 本なのか、いつ実行するかは develop プロセスが定義する**
-> （`docs.instructions.md` R-1106–R-1108、`references/playbook.md` の「テスト実行の粒度」）。この文書が保持するのは
+> （`docs.instructions.md` R-1106–R-1108。全件実行は完了条件と CI だけ）。この文書が保持するのは
 > **それらの規則を XCUITest で成立させる配線**だけ: ターゲット、ロケーターの優先順位、pending マーカー、UC
 > タグ、`@scenario` アノテーション。既定スイートの規則は [testing.md](common-testing.instructions.md)、**誰が、いつ
 > シミュレーターを実行するか**は [test-execution.md](common-test-execution.instructions.md) で、このスイートにも適用する。

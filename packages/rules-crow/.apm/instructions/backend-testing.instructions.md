@@ -224,7 +224,7 @@ PHPUnit の既定の探索は `tests` を再帰的に拾うため、**`<exclude>
 
 | スイート | 実行 | 実行タイミング |
 | --- | --- | --- |
-| 既定 | `phpunit --testsuite default` | red-green ループが選ぶスイート（ラウンド中は選択実行、境界では全体実行 — develop skill の `references/playbook.md`、*テスト実行の粒度* 節）。**DB のないマシンで green になる必要があります** |
+| 既定 | `phpunit --testsuite default` | red-green ループが選ぶスイート（ラウンド中は選択実行、全体実行は完了条件と CI だけ）。**DB のないマシンで green になる必要があります** |
 | Integration | `phpunit --testsuite integration` | 境界だけ（返却前、コミット前、CI） |
 
 `tests/` 直下（既定スイート）では、上の「crow の境界の置換」に従い DB ハンドルなどの境界を **必ずモックします**。

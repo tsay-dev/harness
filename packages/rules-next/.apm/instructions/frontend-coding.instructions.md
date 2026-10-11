@@ -8,7 +8,7 @@ applyTo: "**/next.config.*,**/app/**/page.tsx,**/app/**/layout.tsx,**/app/**/loa
 > **対象: Next.js（App Router）の UI 表層。** Next.js でなければ適用外として扱い、破棄する。
 >
 > **共通規約は [common/coding.md](common-coding.instructions.md)**。サーバー側の責務分離は
-> [backend/coding.md](backend-coding.instructions.md)（Actions の本体、玉ねぎ構造。FE 実装者の bundle に含まれる。develop skill の `references/bundles.md`「配送先の決定」）。
+> [backend/coding.md](backend-coding.instructions.md)（Actions の本体、玉ねぎ構造。FE 実装者の bundle に含まれる。develop skill の `references/bundles.md`）。
 > データの方向と状態の置き場所は [dataflow.md](frontend-dataflow.instructions.md) にある。
 > コンポーネントの粒度は [components.md](frontend-components.instructions.md)、画面の置き場所は [routing.md](frontend-routing.instructions.md) にある。
 > **FE 単体テストは作成しない**（フロントエンド単体テスト規約は置かない。共通の配線は [common/testing.md](common-testing.instructions.md)）。画面は UC のシナリオテスト（[system-testing.md](system-testing.instructions.md)）で端から端まで観測し、§5 が出力する文言と識別子で要素を探す。

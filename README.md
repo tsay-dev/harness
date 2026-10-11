@@ -106,9 +106,9 @@ APM 0.30.0 の instruction 探索は `.apm/instructions/` 直下です。旧 sce
 
 ## 開発の手続きは維持する
 
-配布単位を変えても、**作る主体と判定する主体を別 agent・別コンテキストに分ける**原則は変えません。skill は orchestrator の不変条件と完成の定義（手順は同梱の `references/` に任意参照）、agents は別コンテキストが要る役割の craft、instructions は規約です。skill が規約本文を要約・複製しません。
+配布単位を変えても、**作る主体と判定する主体を別 agent・別コンテキストに分ける**原則は変えません。skill は orchestrator の到達状態・不変条件・完成の定義（commit / ADR のガードレールと規約の配送契約は同梱の `references/`）、agents は別コンテキストが要る役割の入出力契約と不変条件、instructions は規約です。プロンプトに手順と機械が検査できる事項は置きません（ADR-0044）。skill が規約本文を要約・複製しません。
 
-壊れてはいけないこと（人間ゲート、producer ≠ judge、終端の検査リスト、閉じた語彙）は hook と lint で硬く強制し、うまくやる方法（順序・深さ・起動順）は skill の既定として柔らかく置きます。agent は「別コンテキストが必要か」（隔離・並列・独立性）でだけ分けます。
+壊れてはいけないこと（人間ゲート、producer ≠ judge、終端の検査リスト、閉じた語彙）は hook と lint で硬く強制し、うまくやる方法（順序・深さ・起動順）は orchestrator に任せ、skill には書きません。agent は「別コンテキストが必要か」（隔離・並列・独立性）でだけ分けます。
 
 各 agent の実行モデルは、中立な `x-model-tier`（top / mid / light）を agent source に一度だけ宣言します。provider 固有の family や version slug は adapter の tier 対応表へ分離し、agent 名の割当表を別に作りません。native APM がモデル指定を変換しない場合は、orchestrator が元 source の tier を起動時に適用します。
 

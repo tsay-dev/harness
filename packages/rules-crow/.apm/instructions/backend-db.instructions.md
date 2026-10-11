@@ -8,7 +8,7 @@ applyTo: "**/crow3_*/**/db_design.txt"
 > crow の **DB 設計の唯一の SSOT** は、crow 独自形式のテキストファイル `db_design.txt` です。
 > crow は **このファイルから直接マイグレーションを生成します**（TypeScript の Prisma における `schema.prisma` に相当）。
 > したがって、develop の DB 設計成果物（`mode: schema` の `implementer` の出力）は **`db_design.txt` 自体に書き込みます**。
-> 手順は develop skill の `references/playbook.md`（*docs 成果物の配置* 節）と `references/bundles.md`（フレームワーク規約の受け渡し）に従います。
+> 成果物の置き場と作成者は harness の `templates/develop/README.md`、フレームワーク規約の受け渡しは develop skill の `references/bundles.md` に従います。
 >
 > **内容を日本語で書いてください**（ファイル内のコメントと説明文）。
 

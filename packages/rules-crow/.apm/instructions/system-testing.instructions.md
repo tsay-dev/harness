@@ -8,7 +8,7 @@ applyTo: "**/crow3_*/e2e/**,**/crow3_*/playwright.config.*"
 > **対象：crow（crow3）アプリケーション。** crow でなければこの文書は適用しません。
 >
 > **シナリオテストとは何か、なぜユースケースごとに一つか、いつ実行するかは develop のプロセスが定義します**
-> （`docs.instructions.md` R-1106–R-1108、`references/playbook.md` *テスト実行の粒度*）。この文書は
+> （`docs.instructions.md` R-1106–R-1108。全件実行は完了条件と CI だけ）。この文書は
 > **それらの規約を crow 上のブラウザーで成立させる接続**だけを扱います。ランナー、フォルダー、ロケーターの優先順位、
 > 未実装マーカー、UC タグ、`@scenario` アノテーションです。既定スイートの規約は [common/testing.md](common-testing.instructions.md) にあります。
 >

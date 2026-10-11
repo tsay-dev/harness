@@ -60,7 +60,7 @@ applyTo: "**/*Tests.swift,**/*Test.swift,**/*Tests/**,**/*Spec.swift"
 - Swift Testing は `@Suite("UC-012 …")` を使う。XCTest は最外側のクラス名または名前に `UC-012` を含める
 - **各テストは宣言済みの分割クラスを正確に 1 つ指定する。** 本体の先頭行に `// @covers REQ-045#class` を置く（`trace-check` C10 / C11 が読む。先に REQ の `## 検証方針` でクラスを宣言する）
 - ランナーに合った具体的な選択コマンドを `CLAUDE.md` に書く
-- **選択実行と既定スイート全体をいつ実行するかの正本は、develop skill の `references/playbook.md` の「テスト実行の粒度」節。** この末端文書は UC ID によるタグ付けと選択方法だけを定義する
+- **修正ラウンドでは選択実行だけを行い、既定スイート全体は完了条件と CI で 1 回実行する。** この末端文書は UC ID によるタグ付けと選択方法だけを定義する
 - **新しいテストをタグなしにしない**（選択実行の時機は [test-execution.md](common-test-execution.instructions.md) と develop skill の「テスト実行の粒度」節）
 
 ---
@@ -115,7 +115,7 @@ unit / integration / system というテストレベル名を先に決めて分�
 
 | スイート | 基準（これだけで決まる） | 配置（既定例） | 実行頻度 |
 | --- | --- | --- | --- |
-| **既定**（unit） | シミュレーターも実 API も起動しない（モックは境界のみ） | 対象と対応する配置、`Tests/` など | Red-Green ループが取り出すスイート（ラウンド中は選択、境界で全体実行。develop skill の `references/playbook.md` の「テスト実行の粒度」節） |
+| **既定**（unit） | シミュレーターも実 API も起動しない（モックは境界のみ） | 対象と対応する配置、`Tests/` など | Red-Green ループが取り出すスイート（ラウンド中は選択、全体実行は完了条件と CI だけ） |
 | **統合** | **実 API または実サービスに接続する** | `Tests/Integration/` など | 境界のみ |
 | **システム** | **シミュレーターまたは実機を起動する**（XCUITest） | `UITests/`（別テストターゲット） | シナリオテスト（UC ごとに 1 本）。FE 配線ラウンドでは UC クラスで選択し、境界で全体を 1 回（`commands.system` を宣言した場合の終端リスト、CI）。[system-testing.md](system-testing.instructions.md) |
 

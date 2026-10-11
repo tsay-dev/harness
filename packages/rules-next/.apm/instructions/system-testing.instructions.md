@@ -8,7 +8,7 @@ applyTo: "**/e2e/**,**/playwright.config.*"
 > **対象: Next.js（App Router）の TypeScript プロジェクト。** Next.js でなければ適用外として扱い、破棄する。
 >
 > **シナリオテストの定義、ユースケースごとに 1 本とする理由、実行時期は develop プロセスが所管する**
-> （`docs.instructions.md` R-1106–R-1108、`references/playbook.md`「テスト実行の粒度」）。この文書が持つのは
+> （`docs.instructions.md` R-1106–R-1108。全件実行は完了条件と CI だけ）。この文書が持つのは
 > **Next.js のブラウザー上でその規約を成立させる配線**だけである。runner、フォルダー、locator の優先順、
 > pending マーカー、UC タグ、`@scenario` 注釈を定める。既定スイートの規約は [common/testing.md](common-testing.instructions.md) にある。
 >

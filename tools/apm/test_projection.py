@@ -164,6 +164,23 @@ class Projection(unittest.TestCase):
                     if path and '://' not in path and not path.startswith('/'):
                         self.assertTrue((source.parent / path).exists(), f'{source}: {url}')
 
+    def test_prompt_sources_stay_within_line_budget(self):
+        # ADR-0044: プロンプト正本の行数上限。ラチェットなので縮む方向にだけ動かし、超えたら本文を削る側で解く。
+        budgets = {
+            'packages/develop-core/.apm/skills/develop/SKILL.md': 65,
+            'packages/develop-core/.apm/skills/develop/references/*.md': 115,
+            'packages/develop-core/.apm/skills/attack/SKILL.md': 35,
+            'packages/develop-core/.apm/skills/docs-migrate/SKILL.md': 50,
+            'packages/develop-core/.apm/agents/develop/*.agent.md': 50,
+            'packages/develop-core/.apm/instructions/*.instructions.md': 125,
+        }
+        for pattern, limit in budgets.items():
+            sources = list(ROOT.glob(pattern))
+            self.assertTrue(sources, pattern)
+            for source in sources:
+                lines = len(source.read_text().splitlines())
+                self.assertLessEqual(lines, limit, f'{source.relative_to(ROOT)}: {lines} 行 > 上限 {limit}')
+
     def test_frontmatter_plain_values_are_valid_yaml(self):
         # 引用符なしの値に ": " や " #" があると YAML として読めず、APM は frontmatter 全体を無視する。
         for source in (ROOT / 'packages').rglob('*.md'):
