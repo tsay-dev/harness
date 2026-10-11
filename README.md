@@ -1,28 +1,35 @@
 # harness
 
-エージェントの skill / agent / rules の正本を管理する、ベンダー中立の APM モノレポです。必要なパッケージだけ各プロジェクトへ取り込み、Claude / Grok / Codex / Cursor 向けに展開します。特定ベンダーの設定集ではありません。
+エージェントの skill / agent / rules の正本を管理する、ベンダー中立の APM モノレポです。必要なパッケージだけを各プロジェクトへ取り込み、Claude / Codex / Cursor / Grok 向けに展開します。特定ベンダーの設定集ではありません。
 
-**正本は `packages/`、実行アセットは `tools/`、書式は `templates/`。`.claude/`・`.agents/`・`.codex/`・`.cursor/`・`.grok/` は生成物で、直接編集しません。** GitHub 上のこのリポジトリで一元管理します。
+**正本は `packages/`、実行アセットは `tools/`、書式は `templates/`。`.claude/`・`.agents/`・`.codex/`・`.cursor/`・`.grok/` は生成物で、直接編集しません。** ルートの `AGENTS.md`・`CLAUDE.md` はこのリポジトリ自身の作業規約です。
 
-配布元のこのリポジトリには、各ベンダー向けの生成フォルダを置く必要はありません。必要な消費プロジェクト、または一時的な検証先にだけ展開します。ルートの `AGENTS.md`・`CLAUDE.md` は、このリポジトリ自身の作業規約として残します。
+## 到達状態
+
+harness が目指すのは、**人間が承認した仕様から、実装とその検証が互いに独立に導出され、両者の紐づきを機械が検査して完了を判定できる状態**です（ADR-0044）。到達の順序や深さはオーケストレーターが決め、プロンプトには到達状態、不変条件、入出力契約と、機械が検査せずモデルが自力では到達しない知識だけを置きます。手順、機械が検査する事項の再説明、重複、チェックリストは置きません。
+
+- **仕様は人間が承認した 1 箇所にある。** `docs/` の SSOT は人間ゲートで `active` になり、コードは正本になりません。人間ゲートは SSOT、UI の見た目、DB スキーマの 3 つだけです。
+- **検証は実装から独立に導出される。** テストは仕様と契約から実装を読まずに書かれ、判定者は作成者と別コンテキストです。
+- **紐づきは機械で検査できる。** spec-lint（書式とライフサイクル）、trace-check（C1–C15 のトレーサビリティ）、contract-run（契約 examples の実行）、ホストの typecheck / lint / test / system が判定します。
+- **完了は閉じたリストで判定される。** 上記がすべて exit 0 で reviewer の `阻止` がゼロのときだけ完了です。ホストが Stop hook に `tools/gate-hook/stop-gate.mjs` を設置すると機械が強制します。
 
 ## 必要な用途とスタックだけを選ぶ
 
 | パッケージ | 内容 | 選ぶ場面 |
 | --- | --- | --- |
-| `develop-core` | develop / attack / docs-migrate の skills、develop agents（5 体）、docs・comments 共通則 | システム開発の共通手続き |
-| `rules-next` | Next.js の規約葉だけ | Next.js 開発。通常は develop-core と組み合わせる |
-| `rules-cloudflare-hono-react` | Workers + Hono + React SPA、D1 + Drizzle の規約葉だけ | Cloudflare 開発。通常は develop-core と組み合わせる。DO / R2 は使用時のみ |
-| `rules-crow` | crow の規約葉だけ | crow 開発 |
-| `rules-expo` | Expo の規約葉だけ | Expo 開発 |
-| `rules-swiftui` | SwiftUI の規約葉だけ | SwiftUI 開発 |
+| `develop-core` | develop / attack / docs-migrate の skills、develop の agent 5 体、docs・comments の共通規約 | システム開発 |
+| `rules-next` | Next.js の規約葉 | Next.js 開発。develop-core と組み合わせる |
+| `rules-cloudflare-hono-react` | Workers + Hono + React SPA、D1 + Drizzle の規約葉 | Cloudflare 開発。develop-core と組み合わせる |
+| `rules-crow` | crow の規約葉 | crow 開発 |
+| `rules-expo` | Expo の規約葉 | Expo 開発 |
+| `rules-swiftui` | SwiftUI の規約葉 | SwiftUI 開発 |
 | `grilling` | grilling / grill-me の skills | 計画・設計のインタビュー |
 
-**root の全部入りパッケージはありません。** 複数用途が必要なプロジェクトは、必要なパッケージをそれぞれ明示します。Next.js 向けに develop-core と rules-next を選んでも Expo・SwiftUI・crow は入りません。
+全部入りのパッケージはありません。複数用途が必要なプロジェクトは、必要なパッケージをそれぞれ明示します。
 
 ## APM で導入する
 
-消費プロジェクトの `apm.yml` に、選ぶパッケージだけを記述します。下は Next.js の例です。
+消費プロジェクトの `apm.yml` に、選ぶパッケージだけを記述します。
 
 ```yaml
 name: my-next-app
@@ -35,46 +42,24 @@ dependencies:
 ```
 
 ```bash
-# 消費プロジェクトで実行
 apm install
-
-# CLI から依存を追加する場合
-apm install --target codex tsay-dev/harness/packages/develop-core
-apm install --target codex tsay-dev/harness/packages/rules-next
 ```
 
-Cloudflare + Hono + React SPA は `rules-next` を `rules-cloudflare-hono-react` に、Expo は `rules-expo` に、SwiftUI は `rules-swiftui` に、crow は `rules-crow` に替えます。上の GitHub 例は、この構成を含む版が公開された後に使えます。公開前のローカル検証、対象ハーネスの選択、固定版、更新、既存ホストの移行は [APM 導入ガイド](docs/apm.md)を参照してください。
+`tools/` と `templates/` は APM パッケージ外です。spec-lint / trace-check やテンプレートを使う工程では、このリポジトリを別途 `.harness/` などへ取得して版を固定します。フック、CI、ブランチ保護の設置と検証コマンドの宣言は消費プロジェクトの責務です。公開前のローカル検証、対象の選択、固定版、既存ホストの移行は [APM 導入ガイド](docs/apm.md) にあります。
 
-Cloudflare 向けは React と Hono を対応する機能名で分ける feature-based 構成を標準にします。React は `apps/web/src/features/` と薄い `routes/`、Hono は `apps/api/src/features/` の routes → service → repository、共有 Zod 契約は `packages/shared/src/<feature>/schemas.ts` に置きます。配置・公開境界の正本は [common-coding](packages/rules-cloudflare-hono-react/.apm/instructions/common-coding.instructions.md) です。`rules-next` は継承せず、開発手続きと検証ゲートは `develop-core` を使います。
+## 常駐ゼロ
 
-APM は標準の `install` / `compile` を提供しますが、**このハーネスでは常駐ゼロのため `install` を基本にし、規約本文を root の `AGENTS.md` などへまとめる `compile` は実行しません**。遅延ロードを持たない対象では、skill 起動後に `apm_modules/` にある選択済み規約の対象メタデータを調べ、必要な葉だけを担当 agent に渡します。
-
-### 一緒に入らないもの
-
-他用途・他スタックは依存に指定しなければ入りません。`tools/` と `templates/` は APM パッケージ外です。検証や制作で必要な場合だけ、このリポジトリを別途 `.harness/` などへ取得し、その版を固定します。
-
-```bash
-# 例: 実在するリリースタグを指定して別途取得する
-# git clone --branch <release-tag> https://github.com/tsay-dev/harness.git .harness
-```
-
-develop の spec-lint / trace-check、文書テンプレート、render 用アダプタなどを使う工程では、対応アセットを先に用意します。フック・CI・ブランチ保護の設置と検証コマンドの宣言は消費プロジェクトの責務です。`settings.json` を自動ルーターにしません。
-
-## 常駐ゼロの意味
-
-インストール単位と読み込み単位を分けます。まず用途とスタックで不要なファイルを入れず、そのうえで作業に必要な本文だけを読みます。skill の発見用メタデータまで存在しないという意味ではなく、規約本文をベースラインへ常時注入しない方針です。
+インストール単位と読み込み単位を分けます。用途とスタックで不要なファイルを入れず、作業に必要な本文だけを読みます。
 
 - 手続きは skill の明示起動、または description による発見が入口です。
-- 規約葉の正本は APM の中立メタデータ `applyTo` で対象ファイル群を宣言します。Claude 向け展開では `paths:` に変換します。
-- 他ハーネスに Claude 相当の遅延ロードがあるとは仮定しません。必要な規約だけを skill が担当 agent へ渡します。
-- craft は各 agent の本文に置き、起動時に読みます。書式の正本は `templates/` に置きます。
-- 常駐する索引、ルーター用の `AGENTS.md` / `CLAUDE.md`、settings の自動注入は作りません。
+- 規約葉は中立メタデータ `applyTo` で対象ファイルを宣言します。Claude 向け展開では `paths:` に変換され、書くファイルに合わせて自動で読み込まれます。遅延ロードのない対象では、オーケストレーターが `applyTo` と書くパスを照合して葉のパスを渡します。
+- 規約本文を常駐させる索引、ルーター用の `AGENTS.md` / `CLAUDE.md`、`settings.json` の自動注入は作りません。APM の `compile` は使いません。
 
-規約の対象範囲は「担当者が書くファイル」で決めます。テスト規約ならテストの住所、DB 規約なら native スキーマの住所です。広すぎる glob も狭すぎる glob も誤配布になるため、パッケージを分けた後も対象を精密に保ちます。
+## 参照の方向
+
+参照は **skills → agents** の 1 本だけです（ADR-0048）。オーケストレーターは起動する agent の名前、mode、tier を知ります。agent は読むべき規約を名指しせず、書くパスに対応して届いた規約に従います。規約葉は skill も agent も知らず、そのパスに置くファイルの事実だけを持ちます。`tools/apm/test_projection.py` が逆方向の参照と、ファイル種別ごとの行数上限を検査します。
 
 ## 正本の構成
-
-APM が認識する package anatomy に従い、各パッケージは `apm.yml` と `.apm/` を持ちます。利用する種類だけを置きます。
 
 ```text
 harness/
@@ -82,145 +67,28 @@ harness/
     develop-core/
       apm.yml
       .apm/
-        skills/<name>/SKILL.md
+        skills/<name>/SKILL.md      # 到達状態、不変条件、完了条件。references/ にガードレールと配送契約
         agents/develop/<name>.agent.md
         instructions/<scene>-<concern>.instructions.md
-    rules-next/          # apm.yml + .apm/instructions/
+    rules-next/                     # apm.yml + .apm/instructions/
     rules-cloudflare-hono-react/
     rules-crow/
     rules-expo/
     rules-swiftui/
     grilling/
-  tools/                 # 検証・生成器など。APM外
-  templates/             # 文書書式。APM外
+  tools/                            # spec-lint、trace-check、contract-run、gate-hook、git-lint、apm。APM 外
+  templates/                        # 文書書式。APM 外
   docs/apm.md
-  init.sh                # 選択パッケージからの互換展開
-  README.md
-  AGENTS.md
-  CLAUDE.md
+  docs/adr/
+  init.sh                           # 選択パッケージからの互換展開
 ```
 
-APM 0.30.0 の instruction 探索は `.apm/instructions/` 直下です。旧 scene / platform / framework / layer の関係はファイル名に残し、APM が見つけられない独自ツリーを作りません。規約は一葉一関心で、共通則を各 framework の葉へ複製しません。
+develop の agent は `spec-author`、`test-author`（`track: backend-logic / scenario`）、`implementer`（`mode: logic / appearance / schema / probe`）、`reviewer`（`mode: structure / slice / proposal`）、`attacker` の 5 体で、別コンテキストが必要な場合だけ分けています。各 agent は `x-model-tier`（top / mid / light）を 1 つ宣言し、プロバイダーのモデル名はアダプターの対応表だけが持ちます。
 
-## 開発の手続きは維持する
+## docs の SDD / SSOT
 
-配布単位を変えても、**作る主体と判定する主体を別 agent・別コンテキストに分ける**原則は変えません。skill は orchestrator の到達状態・不変条件・完成の定義（commit / ADR のガードレールと規約の配送契約は同梱の `references/`）、agents は別コンテキストが要る役割の入出力契約と不変条件、instructions は規約です。プロンプトに手順と機械が検査できる事項は置きません（ADR-0044）。skill が規約本文を要約・複製しません。
-
-壊れてはいけないこと（人間ゲート、producer ≠ judge、終端の検査リスト、閉じた語彙）は hook と lint で硬く強制し、うまくやる方法（順序・深さ・起動順）は orchestrator に任せ、skill には書きません。agent は「別コンテキストが必要か」（隔離・並列・独立性）でだけ分けます。
-
-各 agent の実行モデルは、中立な `x-model-tier`（top / mid / light）を agent source に一度だけ宣言します。provider 固有の family や version slug は adapter の tier 対応表へ分離し、agent 名の割当表を別に作りません。native APM がモデル指定を変換しない場合は、orchestrator が元 source の tier を起動時に適用します。
-
-develop の agent は 5 体です。`spec-author`（domain / UC / REQ・BR / 契約）、`test-author`（実装を読まずに書く。`track: backend-logic` は分割クラスと Red の BE テスト、`track: scenario` は UC 主シナリオの写しであるシナリオテスト 1 本）、`implementer`（logic / appearance / schema / probe のモード）、`reviewer`（別コンテキストの反証、read-only）、`attacker`（`/attack` 専用）。orchestrator は実装とテストを書かず、commit と ADR は skill 同梱の手順（`references/commit.md` / `adr.md`）に従って自分で行います。
-
-完成の定義は終端の閉じたリストです: spec-lint、trace-check、contract-run（契約の examples をホストのアダプタ経由で実行）、ホストの typecheck / lint / test、宣言時は system（シナリオテスト全件を 1 回）、そして reviewer の `阻止` ゼロ。reviewer の指摘は `阻止`（機械検査に変換できる反例付き）と `持ち越し` の 2 段で、`持ち越し` は `docs/verification/DEFERRED.md` に記録して同一スライスでは直しません。ホストは Claude Code の Stop hook に `tools/gate-hook/stop-gate.mjs` を明示設置すると、終了時に機械がこのリストを強制します。
-
-ブランチの切り方とコミットメッセージの書式は `references/commit.md` が定め、機械で決まる部分（名前の形・接頭辞・`type` の語彙・モノレポでの `scope`）は `tools/git-lint` が検査します（ADR-0039）。ホストが `traceconfig.json` に `git` を宣言したときだけ実行され、モノレポは `git.units` にユニット名とディレクトリを書きます。再利用ワークフロー `.github/workflows/spec-gate.yml` が PR ごとに同じ検査を走らせるので、ホストが既定ブランチの保護でそのジョブを必須チェックにすると、通らない PR は merge できません。ブランチ保護の設定はホストの責務です。モノレポでは docs と UC の番号がユニットごとにあるため、コミットの `UC:` トレーラの UC は、そのコミットの `scope` が指すユニットの docs で引きます（ADR-0040）。
-
-`attack` は人間が依頼する任意の攻撃で、develop の通常ループには混ぜません。役割の詳細は各 skill / agent が正本です。
-
-### docs の SDD / SSOT
-
-成果物は 1 ID 1 ファイルです。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は中央に置きます。DB 設計は docs の案ではなく、ホストの migration / schema.prisma / model など native スキーマに書きます。
-
-人間ゲートの文書は `draft → active → withdrawn`、機械ループの契約は `draft → fixed`。工程状態は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません（`docs/verification/DEFERRED.md` は反例を持つ内容なので唯一の例外）。テストは `@covers REQ-nnn#class`、シナリオテストは `@scenario UC-nnn`、実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流を指します。spec-lint は書式・ライフサイクル・契約のキー閉集合、trace-check は C1–C15 のトレーサビリティ、contract-run は契約 examples の実行を検証し、既存違反には baseline ラチェットを使います。契約の `errors` の並びが唯一の評価順で（R-1207）、散文に順序を再掲しません。
-
-### シナリオテスト（E2E）の位置づけ
-
-ブラウザ・シミュレータ・実機を起動する system suite は、**UC の主シナリオの実行可能な写し**として develop の phase の内側に置きます（ADR-0035〜0037）。SSOT は `UC.md` の主シナリオと事後条件、表示文言は `01-glossary.md`、識別子は `contract.yaml` の operation 名と request フィールド名で、テストコードを SSOT にはしません。1 UC につき正常系 1 本だけを書き、失敗系・境界は REQ の分割クラス（デフォルトスイート）が担います。書く時期は契約 `fixed` 直後で、実装と同時に `test-author (track: scenario)` が pending マーカー付きで filing し、FE 配線の `implementer (logic)` がマーカーを外して緑にします。走らせるのは境界だけ（修正ラウンドでは当該 UC の選択のみ、終端リストと CI で全件）で、赤緑ループには混ぜません。
-
-#### 誰が・いつ・どの SSOT から・何を走らせるか
-
-```mermaid
-flowchart TB
-  classDef producer fill:#EEEDFE,stroke:#534AB7,color:#26215C
-  classDef judge fill:#E1F5EE,stroke:#0F6E56,color:#04342C
-  classDef orch fill:#F1EFE8,stroke:#888780,color:#2C2C2A
-  classDef gate fill:#FAEEDA,stroke:#BA7517,color:#412402
-
-  subgraph P1["Phase 1 定義 — phase: 定義"]
-    direction LR
-    SA1["spec-author<br/>入力: vision / glossary / actors, 既存 BR<br/>出力: UC.md, REQ-nnn.md, BR<br/>実行: spec-lint, trace-check C4,C9,C12"]:::producer
-    G1["人間ゲート: docs を active に"]:::gate
-    SA1 --> G1
-  end
-
-  subgraph P3["Phase 3 構造 — phase: 構造"]
-    direction LR
-    IS["implementer (schema)<br/>入力: UC dir, DB の BR, glossary, schema 源<br/>出力: schema 差分 + 保証点の提案<br/>実行: trace-check C5,C13"]:::producer
-    G3["人間ゲート: schema"]:::gate
-    SA3["spec-author (contract)<br/>入力: UC dir, 確定 schema, _shared<br/>出力: contract.yaml (draft)<br/>実行: spec-lint"]:::producer
-    RV3["reviewer (structure, 任意)<br/>read-only, 阻止 / 持ち越し"]:::judge
-    O3["orchestrator<br/>spec-lint 緑 + 阻止ゼロ → x-status: fixed"]:::orch
-    IS --> G3 --> SA3 --> RV3 --> O3
-  end
-
-  subgraph P4["Phase 4 実装 — phase: 実装（契約 fixed の上で四並列）"]
-    direction LR
-    TA["test-author (backend-logic)<br/>入力: UC dir + contract + BR, testing 葉<br/>出力: 検証方針, Red BE テスト (@covers)<br/>実行: 新規のみ選択実行, C3,C10,C11"]:::producer
-    TS["test-author (scenario)<br/>入力: UC.md 主シナリオ + 事後条件, contract examples, system-testing 葉<br/>出力: シナリオテスト 1 本 (@scenario, pending)<br/>実行: 新規のみ選択実行, C15"]:::producer
-    IL["implementer (logic, BE)<br/>入力: contract + REQ 文, rules 葉<br/>出力: 実装 (@implements)<br/>実行: UC タグ + 影響範囲の選択, C5,C6,C7,C14, contract-run --uc"]:::producer
-    IA["implementer (appearance)<br/>入力: contract の応答形 (mock), frontend 葉<br/>出力: 全 UI 状態 + 導出した識別子<br/>実行: typecheck / lint"]:::producer
-  end
-  O4a["orchestrator: ロケータ照合（ズレたら appearance を 1 回再起動）"]:::orch
-  G4["人間ゲート: 見た目"]:::gate
-  IF["implementer (logic, FE 配線)<br/>入力: fixed contract, 承認済み appearance, シナリオテスト (closing)<br/>出力: 要求処理・状態・API クライアント<br/>実行: pending を外し当該 UC のシナリオだけ選択実行 → 緑"]:::producer
-  O4b["orchestrator: BE の pair を閉じる（C1,C10,C11 clean, 選択緑, contract-run --uc）"]:::orch
-
-  subgraph P5["検証 — phase: 検証（reviewer は最大 2 回）"]
-    direction LR
-    RV["reviewer (slice)<br/>入力: UC dir, contract, BR, 実装, テスト, シナリオ, DEFERRED<br/>出力: 阻止 (反例付き) / 持ち越し<br/>実行: spec-lint, trace-check 全件, contract-run, UC 選択"]:::judge
-    O5["orchestrator<br/>阻止 → クラス追加 or lint 規則 → 機械ループ<br/>持ち越し → DEFERRED.md"]:::orch
-    RV --> O5
-  end
-
-  subgraph P6["完了 — 終端リスト（stop-gate が Stop ごとに強制）"]
-    direction LR
-    M["機械: spec-lint → trace-check (C1–C15) → contract-run → typecheck → lint → test (default 全件) → system (宣言時, 全件)"]:::judge
-    O6["orchestrator: 全部 exit 0 + 阻止ゼロ → commit → phase: 完了"]:::orch
-    M --> O6
-  end
-
-  P1 --> P3 --> P4
-  TS --> O4a
-  IA --> O4a --> G4 --> IF --> O4b
-  TA --> O4b
-  IL --> O4b
-  O4b --> P5 --> P6
-```
-
-生成する側（紫）と判定する側（緑）は必ず別コンテキストで、orchestrator（灰）は状態遷移と照合だけを行います。
-
-#### テストを走らせる瞬間
-
-| 走らせる瞬間 | default（単体・契約準拠） | integration | system（シナリオ） |
-| --- | --- | --- | --- |
-| test-author が filing した直後 | 新規テストだけ選択実行（Red 確認） | — | 新規 1 本だけ選択実行（Red / pending 確認） |
-| 修正ラウンド（implementer） | UC タグ + 影響範囲の選択 | — | FE 配線のときだけ当該 UC の 1 本 |
-| reviewer（slice） | UC タグの選択 | — | — |
-| 終端リスト（commit 前、stop-gate） | 全件 1 回 | — | 全件 1 回（`commands.system` 宣言時） |
-| CI | 全件 | 全件 | 全件 |
-
-修正ラウンドで default / system の全件を撃つことは禁止です。integration の走らせ方はホストが定義します。
-
-#### シナリオテストが赤になったときの三分岐
-
-orchestrator が必ずこの順で診断し、「テストが落ちたから UC を直す」へ直行しません。
-
-1. 主シナリオと契約が既にその動作を決めている → **実装の欠陥**。`implementer (logic)` に artifact 単位の制約として戻す。
-2. テストが主シナリオに無い手順や DOM 構造を固定している → **SSOT は正しい**。`test-author (track: scenario)` に再導出させる。
-3. 主シナリオ自体がその操作を表現できない → **SSOT 変更**。`spec-author` 🙋 で `UC.md` を直し、テストと実装の両方を再導出。
-
-## APM と旧 init.sh の使い分け
-
-新規消費プロジェクトでは APM でパッケージを選びます。`init.sh` と provider-sync は、APM を使わない環境の互換展開・リポジトリ開発時の生成確認のために残します。入力は同じ中立ソースです。
-
-**同じ消費プロジェクトで APM と `init.sh` の管理を混ぜません。** 旧 `.claude` symlink / submodule / copy の環境は、新方式を上書き実行せず、版とローカル変更を確認してから移行します。手順は [docs/apm.md](docs/apm.md) にあります。
+成果物は 1 ID 1 ファイルです。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は `docs/` 直下に置きます。DB 設計はホストのネイティブスキーマが正本です。人間ゲートの文書は `draft → active → withdrawn`、契約は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません。テストは `@covers REQ-nnn#class`、シナリオテストは `@scenario UC-nnn`、実装は `@implements` で上流を指し、trace-check が紐づきを検査します。書式の正本は [templates/develop](templates/develop/README.md) です。
 
 ## このリポジトリを編集するとき
 
-1. [CLAUDE.md](CLAUDE.md) の作業規律を読む。Codex の入口は [AGENTS.md](AGENTS.md)。
-2. `packages/`、`tools/`、`templates/` の該当する正本を修正する。
-3. パッケージの認識・単独導入・不要用途の混入なし・参照の到達性を確認する。
-4. 選んだ対象向けの生成物を再生成して差分を確認する。**生成物を直接直さない。**
-
-会話、docs 成果物、コミットメッセージ、コード内コメントは日本語。プロンプト正本・ツール README・テンプレートのガイダンスも日本語とし、テンプレートの日本語見出しと frontmatter のキーは維持します。案件固有の事実は各消費プロジェクトの `AGENTS.md` / `CLAUDE.md` に書きます。
+[CLAUDE.md](CLAUDE.md) の作業規律に従い、`packages/`、`tools/`、`templates/` の正本を修正して生成物を再生成します。持続的な設計判断は `docs/adr/` に記録します。会話、docs 成果物、プロンプト正本、コミットメッセージ、コード内コメントは日本語です。案件固有の事実は各消費プロジェクトの `AGENTS.md` / `CLAUDE.md` に書きます。
