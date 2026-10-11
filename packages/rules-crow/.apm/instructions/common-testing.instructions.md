@@ -5,125 +5,49 @@ applyTo: "**/crow3_*/tests/**,**/crow3_*/phpunit.xml*"
 
 # 🧪 crow — 共通テスト規約（全層）
 
-> **テストの原則（何を、なぜ検証するか）は develop の開発プロセスに従います。**
-> GWT からのテスト導出、テスト設計と実装を別コンテキストに分けて相関を断つこと、
-> Red→Green→Refactor、敵対的検証（必要なら `/attack`）で締めることは
-> 開発全体に共通するため、ここでは再記載せず、そちらに従います。
->
-> この文書は **crow でテストを書くときに守る事項**を定義します。
-> 層固有の書式は [backend/testing.md](backend-testing.instructions.md) にあります。
-> **フロントエンドのユニットテスト規約は配置しません**（develop では FE ユニットテストを作成しません）。ブラウザーを起動する、ユースケースごとに一つのシナリオテストからなる system スイートは [system-testing.md](system-testing.instructions.md) にあります。
-> **共通規約を層別の規約へ複写しないでください**（SSOT はこの一か所です）。
->
-> **テスト名とコメントは日本語で書いてください。**
+crow でテストを書くときに全層で成り立つ事項。PHPUnit 固有の書式は [backend-testing](backend-testing.instructions.md)、ブラウザーを起動するシナリオテストは [system-testing](system-testing.instructions.md)。FE のユニットテスト規約は置かない（develop では FE ユニットテストを作成しない）。テスト名とコメントは日本語で書く。
 
----
+## テスト対象は手書きの Domain だけ
 
-## テスト対象はドメイン（手書き）だけ
-
-crow には **(A) `engine/kernel/` のフレームワーク本体**と **(B) `db_design.txt` から注入される生成メンバー**があります。
-どちらもフレームワークの責務です。**信頼し、アプリ側の Red や特性テストの SUT にしないでください。**
+crow には (A) `engine/kernel/` のフレームワーク本体と (B) `db_design.txt` から注入される生成メンバーがあり、どちらもフレームワークの責務として信頼する。
 
 | 作成する | 作成しない |
 | --- | --- |
-| `app/` 配下で **手書きした** Domain メソッド、拡張フック、`action_*` の振る舞い | **`engine/kernel/**` 自体の振る舞い**（入力キー形式の網羅、validation、viewpart 解決、CSRF など） |
-| GWT や契約が要求するアプリ固有の判定・導出・失敗経路 | crow が注入する生成メンバー（定数マップ、`_*_str()`、`sql_select_all()` など） |
-|  | enum や定数に値が増えるたび組み合わせが膨らむ「生成 API・kernel API の網羅と特性テスト」 |
+| `app/` 配下で手書きした Domain メソッド、拡張フック、`action_*` の振る舞い。GWT や契約が要求するアプリ固有の判定・導出・失敗経路 | `engine/kernel/**` 自体の振る舞い（入力キー形式の網羅、validation、viewpart 解決、CSRF など） |
+| | crow が注入する生成メンバー（定数マップ、`_*_str()`、`sql_select_all()` など）と、enum や定数が増えるたび膨らむ生成 API・kernel API の網羅や特性テスト |
 
-理由：kernel や生成部分の写経は、フレームワーク更新や enum の追加のたびにケースを増やし、保守コストだけを生みます。反証すべきなのは **自分が書いた意味**です。
+- GWT が enum 値や日時入力を扱う場合でも、SUT はその入力を受け取る手書きロジックやゲートであり、`get_<field>_map()` や `crow_db_table_model::input_from_request()` ではない。
+- 既存スイートに kernel や生成部分のテストがあっても手本にしない。
 
-- **GWT が enum 値や日時入力を扱う場合でも**、検証するのはその入力を受け取った **手書きロジックやゲート**の振る舞いであり、`get_<field>_map()` や `crow_db_table_model::input_from_request()` の正しさではありません
-- アプリが kernel の制約に合わせて書かれていても、**SUT はアプリ側に置きます**。kernel の実測した振る舞いを固定する「engine 特性テスト」は develop の Red の対象外です（フレームワーク本体のテストは crow 自身のリポジトリの責務です）
-- 既存スイートに kernel や生成部分のテストがあっても、**手本にして増殖させないでください**
-- 生成メンバーの列挙は [backend/model.md](backend-model.instructions.md) §3.6 の「生成メンバーを再定義しない」に従います。層固有の対象切り分けは [backend/testing.md](backend-testing.instructions.md) にあります
+## 実行に必要なものでスイートを分ける
 
-## 一つのテスト = 一つの振る舞い
+テストレベル名でなく、実行に何を起動する必要があるかで分け、フォルダーで分離する（タグやアノテーションでは分けない）。
 
-- 一つのテストは **一つの振る舞い**を検証します。無関係なアサーションを詰め込まないでください
-- **テスト本文に条件分岐やループを書かないでください。** そのロジックは「テストのバグ」を生みます。
-  分岐したくなったら、別のテストにするか、ランナーのデータ駆動機能を使います
-
-## 正常系だけで終わらせない
-
-開発プロセスの「失敗・空・権限・境界を条件に含める」をテストケースとして実装します。
-成功経路だけのテストは、通っても何も保証しません。
-**ただし「網羅」の対象は手書きのドメインロジックだけです**（上の節を参照）。kernel や生成部分の入力形式・値一覧をケースへ展開して、網羅したと主張しないでください。
-
-## モックは境界だけ
-
-- モックするのは **「境界」だけ：DB・外部 I/O・ネットワーク・時刻・乱数**
-- **内部ロジックはモックしないでください。** モックだらけのテストは実装の写経となり、反証力を失います
-
-## 決定的にする（不安定なテストを作らない）
-
-- 実時刻・乱数・ネットワーク・ファイルシステムへ **暗黙に依存しないでください**。必要なものは注入し、テストで固定します
-- テストは **順序に依存しません**。共有状態を持ち込まず、変更したものは必ず復元します
-
-## 一つのコマンドで実行する
-
-- **一つのコマンドですべて実行し、終了コードで red / green を決めます。** CI も同じコマンドを実行します
-- これを満たさない構成は、develop の Phase4（機械オラクルが駆動する red-green ループ）に使えません
-
-## 実行に必要なものによってスイートを分ける
-
-先にテストレベル名（unit / integration / system）を選んで分類するのでなく、
-**そのテストを実行するために何を起動する必要があるか**で分けます。この基準は判断不要で
-機械的に決まり、「red-green ループに混ぜてよいか」と一致します。
-
-| スイート | 判定基準（これだけで決まる） | 実行頻度 |
+| スイート | 判定基準 | 実行 |
 | --- | --- | --- |
-| **既定**（unit） | 外部環境を起動しない（境界だけをモック） | red-green ループが選ぶスイート（ラウンド中は選択実行、全体実行は完了条件と CI だけ） |
-| **Integration** | **実 DB または実サービスへ接続する** | 境界だけ（返却前、コミット前、CI） |
-| **System** | **ブラウザーまたは実機を起動する** | シナリオテスト（UC ごとに一つ）。FE 接続ラウンドでは UC で選択し、境界では全体を一度実行（`commands.system` 宣言時の終端チェックリスト、CI）— [system-testing.md](system-testing.instructions.md) |
+| 既定（unit） | 外部環境を起動しない（境界だけをモック）。DB もブラウザーもないマシンで green になる | red-green ループ。修正ラウンドでは UC による選択実行、全件は完了条件と CI だけ |
+| Integration | 実 DB または実サービスへ接続する | 境界だけ（返却前、コミット前、CI） |
+| System | ブラウザーまたは実機を起動する。UC ごとに一つのシナリオテストだけを置く（`tests/` の外の `e2e/`） | FE 接続ラウンドでは UC で選択、全件は `commands.system` 宣言時の終端チェックリストと CI |
 
-配置と実行コマンドは [backend/testing.md](backend-testing.instructions.md) が定義します。
-
-- **フォルダーで分離します。** タグやアノテーションによる分離では、実行コマンドの設定漏れで既定スイートに混入しても気づけません。
-  フォルダーを分ければ、**既定スイートのコマンドがそのパスを拾わないこと**で機械的に保証できます
-- **既定スイートは DB もブラウザーもないマシンで green になる必要があります。** これが崩れると Phase4 が成立しません
-- 「一つのコマンドで実行」は **スイートごとに一つのコマンド**という意味です。integration や system を既定スイートのコマンドに混ぜないでください
-
-### 契約適合テストは既定スイートに置く
-
-バックエンドの契約適合テスト（入出力・純粋関数 — [backend/testing.md](backend-testing.instructions.md)）は外部環境を起動しないため、**integration テストではありません**。上の基準では既定スイートに属します。
-
-**integration スイートへ移してはいけません。** develop の Phase4 の red-green ループを担うのは **BE テスト**です（FE ユニットテストは作成せず、シナリオテストはループでなく境界で締めます）。
-ループから外れた瞬間、Phase4 で接続不備を捕捉する手段がなくなります。
-
-### system スイートにはシナリオテストだけを置く
-
-ユースケースごとに一つのシナリオテストで、`UC.md` の主シナリオの実行可能な投影です（`docs.instructions.md` R-1106–R-1108）。書き方（配信されたページに対する Playwright、ロケーターの優先順位、未実装マーカー）は [system-testing.md](system-testing.instructions.md) にあります。この文書は **配置（`tests/` の外の `e2e/`）と「既定スイートに混ぜない」**だけを定義します。そこが空フォルダーなら、人が利用するすべての active UC に対する C15 違反であり、放置してよい不足ではありません。
+- 「一つのコマンドで実行し終了コードで red / green を決める」はスイートごとに一つのコマンドという意味。integration や system を既定スイートのコマンドに混ぜない。
+- バックエンドの契約適合テスト（入出力・純粋関数）は外部環境を起動しないため既定スイートに属し、integration へ移さない。Phase4 の red-green ループを担うのは BE テストである。
+- `e2e/` が空フォルダーなら、人が利用するすべての active UC に対する C15 違反。
 
 ## テストから操作を呼び出す（operation → entry）
 
-契約適合テストは、実装から知った識別子でなく **契約が示す入口**から operation を呼び出します。
-`test-author` と `implementer` はそれぞれ `contract.yaml` と下の表から入口を導出し、互いからは導出しません
-（実装より先にテストが存在する場合も、その逆もあります）。命名は [backend/action.md](backend-action.instructions.md) §2.4 に従います。
+契約適合テストは実装から知った識別子でなく契約が示す入口から operation を呼ぶ。`test-author` と `implementer` はそれぞれ `contract.yaml` と下の表から入口を導出し、互いからは導出しない。実装が入口を別の場所へ置いた場合は実装を移す（R-801）。
 
 | 契約（`contract.yaml`） | テストが読み込むファイル | 呼び出す入口 |
 | --- | --- | --- |
-| `transport: http`、operation `getProgressRows`、`wire.path: /progress/get_progress_rows` | `app/.../module_progress.php` — `wire.path` の先頭セグメントに対応する `module_<resource>`（ルーティングが異なる場合は利用先の `CLAUDE.md` に対応を宣言） | `action_get_progress_rows` — `action_` + operation 名の snake_case。テストは [backend/testing.md](backend-testing.instructions.md)「crow の境界の置換」に従って `crow_request` と `$hdb` を置換し、`exit_ok` / `exit_ng` の payload を読む |
-| その action の背後の判定（validation・権限・導出） | `app/classes/_common_/model_<table>.php` | action が委譲する手書きの `model_*` メソッド — 推奨 SUT。行オブジェクト・配列を引数として呼び出す |
-| 利用先の `commands.contract_adapter`（`traceconfig.json`）を介する任意の operation | なし — operation 名と example でアダプターをプロセス内実行。テストコードに実装の識別子は出現しない | — |
+| `transport: http`、operation `getProgressRows`、`wire.path: /progress/get_progress_rows` | `app/.../module_progress.php` — `wire.path` の先頭セグメントに対応する `module_<resource>`（ルーティングが異なる場合は利用先の `CLAUDE.md` に対応を宣言） | `action_get_progress_rows` — `action_` + operation 名の snake_case。`crow_request` と `$hdb` を置換し、`exit_ok` / `exit_ng` の payload を読む |
+| その action の背後の判定（validation・権限・導出） | `app/classes/_common_/model_<table>.php` | action が委譲する手書きの `model_*` メソッド — 推奨 SUT。行オブジェクト・配列を引数として呼ぶ |
+| 利用先の `commands.contract_adapter`（`traceconfig.json`）を介する任意の operation | なし — operation 名と example でアダプターをプロセス内実行 | — |
 
-実装が入口を別の場所へ置いた場合は、実装を移します。テストは契約から導出するためです（R-801）。
+## UC タグと `@covers`
 
-## 範囲を指定した実行（UC タグ）と要件の網羅（`@covers`）
-
-全体実行に加え、一つのコマンドで **機能ごとの選択実行**を可能にします。
-
-- **すべてのテストに UC ID（`UC-nnn` — `docs/goals/` 配下の UC ディレクトリ名と同じキー）を機械で選択できる形式で付けます**（group 属性やテスト名の接頭辞。具体的な構文は層別の規約にあります）
-- **各テストは宣言済みの分割クラスを一つだけ、doc コメントに `@covers REQ-nnn#class` で示します**（`trace-check` C10 / C11 が読みます。テストのないクラス、クラスのないテスト、未宣言クラスは違反です。先に REQ の `## 検証方針` でクラスを宣言してください — 記述位置は層別の規約にあります）
-- これにより「今回の修正に関係するテスト」は、判断でなく **`UC-nnn` からの機械的な解決**になります。**修正ラウンドでは選択実行だけを行い、既定スイート全体は完了条件と CI で 1 回実行します。** この規約は UC ID の付け方と選択方法だけを定義します
-- タグのないテストは範囲指定実行から脱落し、回帰検出を境界まで遅らせます。**新規テストをタグなしにしないでください**
+- すべてのテストに UC ID（`UC-nnn` — `docs/goals/` 配下の UC ディレクトリ名と同じキー）を機械で選択できる形式で付ける（構文は層別の規約）。タグのないテストは選択実行から脱落する。
+- 各テストは宣言済みの分割クラスを一つだけ、doc コメントの `@covers REQ-nnn#class` で示す（`trace-check` C10 / C11 が読む。クラスは先に REQ の `## 検証方針` で宣言する）。
 
 ## 命名
 
-- 識別子は [common/coding.md](common-coding.instructions.md) に従い snake_case とします。
-  ただし、**テストフレームワークが必須とする識別子を優先します**（PHPUnit の `setUp()` など）
-- テスト名だけで「**何をしたら何が起きるか**」が分かる必要があります
-
-## カバレッジは指標であり目標ではない
-
-カバレッジ率は、見ていないところを知る手がかりであり、**達成すべき目標にはしません**。
-開発プロセスに従い、**テストの green は前提条件であり、完了の定義ではありません**。green の後に敵対的検証（`reviewer`、必要なら `/attack`）で不備を明らかにします。
+識別子は snake_case。ただしテストフレームワークが必須とする識別子（PHPUnit の `setUp()` など）を優先する。テスト名だけで「何をしたら何が起きるか」が分かること。
