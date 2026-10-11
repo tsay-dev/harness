@@ -1,6 +1,6 @@
 ---
 description: "Hono — 機能の routes、services、repositories、型付き RPC 契約"
-applyTo: "apps/api/src/**,packages/shared/src/**,**/tests/backend/**,**/tests/integration/**"
+applyTo: "**/apps/api/src/**,**/packages/shared/src/**,**/tests/backend/**,**/tests/integration/**"
 ---
 
 # Hono — 機能の境界

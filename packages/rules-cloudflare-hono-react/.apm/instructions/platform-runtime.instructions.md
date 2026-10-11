@@ -1,6 +1,6 @@
 ---
 description: "Cloudflare Workers — ランタイム互換性、バインディング、秘密情報、環境設定"
-applyTo: "**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/vite.config.*,**/worker-configuration.d.ts,apps/api/src/**,**/tests/integration/**,**/vitest.config.*"
+applyTo: "**/wrangler.toml,**/wrangler.json,**/wrangler.jsonc,**/vite.config.*,**/worker-configuration.d.ts,**/apps/api/src/**,**/tests/integration/**,**/vitest.config.*"
 ---
 
 # Cloudflare Workers — ランタイム

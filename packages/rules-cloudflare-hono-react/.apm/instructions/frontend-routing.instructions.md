@@ -1,6 +1,6 @@
 ---
 description: "React SPA / TanStack Router — 機能の境界、薄い routes、ナビゲーション"
-applyTo: "apps/web/src/**,**/vite.config.*,**/e2e/**,**/playwright.config.*"
+applyTo: "**/apps/web/src/**,**/vite.config.*,**/e2e/**,**/playwright.config.*"
 ---
 
 # React SPA — 機能のルーティング
