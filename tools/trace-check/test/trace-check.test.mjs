@@ -182,3 +182,38 @@ test("C19: レポートに実現単位の内訳を出し、unit_pattern が無�
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.doesNotMatch(r.stdout, /\[C19\]/);
 });
+
+//  C20 用: テストで検証する NFR、measured_by で計測する NFR、どちらも無い NFR
+function makeNfrRoot() {
+	const root = mkdtempSync(join(tmpdir(), "harness trace-check nfr "));
+	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
+	for (const k of ["_comment", "contract", "schema", "source", "layering"]) delete cfg[k];
+	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+	const w = (rel, text) => {
+		mkdirSync(dirname(join(root, rel)), { recursive: true });
+		writeFileSync(join(root, rel), text);
+	};
+	const nfr = (id, status, measuredBy) => `---\nid: ${id}\ncategory: performance\n${measuredBy ? `measured_by: ${measuredBy}\n` : ""}status: ${status}\n---\n\n# ${id}\n\n> p95 が 300ms 以下\n`;
+	w("docs/nfr/NFR-001.md", nfr("NFR-001", "active"));
+	w("docs/nfr/NFR-002.md", nfr("NFR-002", "active", "perf/load.js"));
+	w("docs/nfr/NFR-003.md", nfr("NFR-003", "active"));
+	w("docs/nfr/NFR-004.md", nfr("NFR-004", "active", "perf/missing.js"));
+	w("docs/nfr/NFR-005.md", nfr("NFR-005", "draft"));
+	w("perf/load.js", "// 負荷試験\n");
+	w("tests/perf.test.ts", "// @covers NFR-001\ntest('一覧の応答', () => {});\n");
+	w("e2e/perf.spec.ts", "// @covers NFR-009\ntest('存在しない NFR', () => {});\n");
+	return root;
+}
+
+test("C20: active な NFR にテストか measured_by を求め、measured_by の不在と未定義 NFR への @covers も検出する", (t) => {
+	const root = makeNfrRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--strict");
+	assert.match(r.stdout, /\[C20\] NFR-003 \(active\) を検証するテストも measured_by も無い/);
+	assert.match(r.stdout, /\[C20\] NFR-004 の measured_by perf\/missing\.js が無い/);
+	assert.match(r.stdout, /\[C20\] perf\.spec\.ts:1: 未定義の NFR-009 を @covers している/);
+	assert.doesNotMatch(r.stdout, /\[C20\].*NFR-00[125]/);
+	assert.match(r.stdout, /OK NFR-002  \[active\]  measured_by:perf\/load\.js/);
+	//  NFR だけを @covers するテストは C11 の「@covers の無いテスト」にならない
+	assert.doesNotMatch(r.stdout, /\[C11\].*一覧の応答/);
+});

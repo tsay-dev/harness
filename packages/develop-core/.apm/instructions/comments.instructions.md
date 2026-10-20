@@ -21,6 +21,6 @@ applyTo: "**/*.swift,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.mjs,**/*.cjs,**/*.ph
 
 - **本番コード**: 実現単位（ユースケースクラス、ルール関数、検査を強制する分岐）の doc comment に `@implements REQ-nnn` / `@implements BR-nnn` / `@implements UC-nnn`。複数 ID は `,` または `/` で区切って 1 行に書けます（`/// @implements UC-001, REQ-009 / BR-015`）。ファイルヘッダーではなく単位に置きます（C14 は存在を要求し、粒度はこの文書が定めます）。
 - **仕様を持たない実現単位**（REQ を持たない技術部品、ADR-0051）: `@implements` の代わりに、同じ位置へ `traceconfig.json` の `source.exempt_pattern` の印（既定 `// 仕様外: <理由>`）を書きます。どちらも無い単位は C19 が検出します（`source.unit_pattern` の宣言時）。
-- **テストコード**: テストごとに `@covers REQ-nnn#class` を宣言済みクラスにちょうど 1 つ。位置は利用プロジェクトが `traceconfig.json` の `tests.covers_placement` に宣言し（`before` = テスト直上の doc comment、`after` = 本体の先頭行）、C10 / C11 が検査します。
+- **テストコード**: テストごとに `@covers REQ-nnn#class` を宣言済みクラスにちょうど 1 つ。位置は利用プロジェクトが `traceconfig.json` の `tests.covers_placement` に宣言し（`before` = テスト直上の doc comment、`after` = 本体の先頭行）、C10 / C11 が検査します。NFR を検証するテストは同じ位置に `@covers NFR-nnn`（クラスなし、C20）。
 - **スキーマ正本**（migration、`schema.prisma`、モデルファイル）: ルールを強制する制約に、その書式のコメント構文で `@implements BR-nnn`（`-- @implements BR-007`）。C13 と C14 が読みます。
 - 注釈は現在の仕様の参照先です。要件の撤回や移動と同じ変更で更新・削除します。

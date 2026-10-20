@@ -48,6 +48,9 @@
 //    C19  traceconfig の source.unit_pattern に一致する実現単位が、@implements か source.exempt_pattern の印（仕様外）を
 //         持つか（C14 の逆方向）。注釈の帰属は source.implements_placement（before / after）の窓だけを見る。
 //         unit_pattern 未設定なら判定しない
+//    C20  active な NFR が、テスト（tests と tests.system）の @covers NFR-nnn（nfr_pattern）か、frontmatter の
+//         measured_by（計測の所在。実在するパス）を持つか。measured_by のパスが無い場合と、テストが未定義の NFR を
+//         @covers する場合も違反（ADR-0054）
 //
 //  使い方:
 //    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（baseline との差分で判定）
@@ -360,6 +363,22 @@ function actorKinds(cfg) {
 }
 const isHumanActor = (kinds, actor) => !(actor in kinds) || kinds[actor].startsWith("人間");
 
+//  テストが検証する NFR: nfr -> [検証箇所]。tests と tests.system の両方を見る（負荷・性能の検査はどちらにも置かれうる）
+const DEFAULT_NFR_PATTERN = "@covers\\s+(NFR-\\d{3})";
+function collectNfrCoverage(cfg) {
+	const re = new RegExp(cfg.nfr_pattern || DEFAULT_NFR_PATTERN, "g");
+	const sys = cfg.tests?.system;
+	const files = [...iterFiles(cfg, "tests"), ...(sys?.dirs || []).flatMap((d) => walk(join(cfg._root, d), sys.extensions || []))];
+	const found = {};
+	for (const path of files)
+		read(path)
+			.split(/\r?\n/)
+			.forEach((line, i) => {
+				for (const m of line.matchAll(re)) (found[m[1]] ||= []).push(`${basename(path)}:${i + 1}`);
+			});
+	return found;
+}
+
 //  docs.vision の「成功の定義」表から KPI-nn を読む（先頭セルが KPI-nn で始まる行）。docs.vision 未宣言なら null（C18 は origin を判定しない）
 function visionKpis(cfg) {
 	if (!cfg.docs?.vision) return null;
@@ -579,7 +598,8 @@ function runChecks(cfg) {
 			failures.push(`[C11] ${w}: 未宣言のクラス ${c.req}#${c.klass} を指している。テストを増やす前に検証方針へクラスを宣言すること（生成上限）`);
 	}
 	//  C11 の派生: @covers を持たないテスト関数（tests.test_pattern があるときだけ。注釈忘れは上限にも下限にも映らない）
-	const unannotated = collectUnannotatedUnits(cfg, "tests", "test_pattern", "covers_placement", cfg.covers_pattern);
+	//  NFR を検証するテスト（@covers NFR-nnn）も注釈済みと数える（C20）
+	const unannotated = collectUnannotatedUnits(cfg, "tests", "test_pattern", "covers_placement", `(?:${cfg.covers_pattern})|(?:${cfg.nfr_pattern || DEFAULT_NFR_PATTERN})`);
 	if (unannotated) {
 		for (const w of unannotated.missing)
 			failures.push(`[C11] ${w}: @covers の無いテスト（tests.test_pattern に一致）。仕様外なら tests.exempt_pattern の印を書く`);
@@ -672,6 +692,23 @@ function runChecks(cfg) {
 			if (u.status === "active") for (const a of values(u.actor)) if (!actors.has(a)) failures.push(`[C18] ${uid} の actor ${a} が ${cfg.docs.actors} に無い`);
 		}
 
+	//  C20: active な NFR は検証の所在（テストの @covers NFR-nnn か、実在する measured_by のパス）を持つ
+	const nfrCoverage = collectNfrCoverage(cfg);
+	const nfrs = {}; //  id -> { status, measuredBy }
+	for (const f of walk(p(cfg, "docs.nfr_dir"), [".md"])) {
+		const fm = frontmatter(f);
+		if (fm.id) nfrs[fm.id] = { status: fm.status || "active", measuredBy: values(fm.measured_by) };
+	}
+	for (const id of Object.keys(nfrs).sort()) {
+		const n = nfrs[id];
+		if (n.status !== "active") continue;
+		for (const m of n.measuredBy) if (!existsSync(join(cfg._root, m))) failures.push(`[C20] ${id} の measured_by ${m} が無い`);
+		if (!nfrCoverage[id] && n.measuredBy.length === 0)
+			failures.push(`[C20] ${id} (active) を検証するテストも measured_by も無い（テストに @covers ${id} を書くか、計測の所在を measured_by に書く）`);
+	}
+	for (const id of Object.keys(nfrCoverage).sort())
+		if (!(id in nfrs)) failures.push(`[C20] ${nfrCoverage[id].join(", ")}: 未定義の ${id} を @covers している`);
+
 	//  C12: 重複 ID（採番衝突）
 	for (const [ident, files] of Object.entries(collectDefinitions(cfg)).sort())
 		if (files.length > 1) failures.push(`[C12] ${ident} が複数箇所で定義されている（${files.map((f) => rel(cfg, f)).join(", ")}）`);
@@ -708,6 +745,11 @@ function runChecks(cfg) {
 	for (const br of Object.keys(brs).sort()) {
 		const files = [...(implementsMap[br] || [])].sort();
 		lines.push(`  ${files.length ? "OK " : "NG "}${br}  ${files.join(", ") || "(実装参照なし)"}`);
+	}
+	lines.push("-".repeat(68), " NFR -> 検証（生成）");
+	for (const id of Object.keys(nfrs).sort()) {
+		const where = [...(nfrCoverage[id] || []), ...nfrs[id].measuredBy.map((m) => `measured_by:${m}`)];
+		lines.push(`  ${where.length ? "OK " : "NG "}${id}  [${nfrs[id].status}]  ${where.join(", ") || "(検証の所在なし)"}`);
 	}
 	lines.push("=".repeat(68));
 	return { failures, report: lines.join("\n") };
