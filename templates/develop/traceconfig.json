@@ -63,9 +63,9 @@
       "src/infra/**",
       "src/shared/**"
     ],
-    "unit_pattern": "^export\\s+(?:default\\s+)?(?:async\\s+)?function\\*?\\s*(\\w*)\\s*[<(]|^export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+(\\w+)|^export\\s+(?:const|let)\\s+(\\w+)\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:<[^>]*>\\s*)?(?:\\(|\\w+\\s*=>|\\w+\\s*\\(\\s*(?:async\\s*)?(?:\\(|function\\b|\\w+\\s*=>))|^export\\s+default\\s+(?:(\\w+)\\s*;?\\s*$|(?:async\\s*)?(?:\\(|\\w+\\s*\\())|^export\\s*\\{(?!\\s*type\\b)\\s*([^}]*?)\\s*(?:\\}\\s*;?\\s*)?$",
+    "unit_pattern": "^export\\s+(?:default\\s+)?(?:async\\s+)?function\\*?\\s*(\\w*)\\s*[<(]|^export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+(\\w+)|^export\\s+(?:const|let)\\s+(\\w+)\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:<[^>]*>\\s*)?(?:\\(|function\\b|\\w+\\s*=>|\\w+\\s*\\(\\s*(?:async\\s*)?(?:\\(|function\\b|\\w+\\s*=>))|^export\\s+default\\s+(?:(\\w+)\\s*;?\\s*$|(?:async\\s*)?(?:\\(|\\w+\\s*\\())|^export\\s*\\{(?!(?:\\s*type\\s+\\w+(?:\\s+as\\s+\\w+)?\\s*,?)*\\s*\\})\\s*([^}]*?)\\s*(?:\\}\\s*;?\\s*)?$",
     "implements_placement": "before",
-    "entry_pattern": "\\.(?:get|post|put|patch|delete|all)\\(\\s*[\"'`](\\/[^\"'`]*)|(?:^\\s*|\\b(?:app|router|routes?|\\w*(?:App|Router|Routes)))\\.(?:get|post|put|patch|delete|all)\\(\\s*$|\\.on\\(\\s*[\"'`][A-Z]+[\"'`]\\s*,\\s*[\"'`](\\/[^\"'`]*)"
+    "entry_pattern": "\\.(?:get|post|put|patch|delete|all)\\(\\s*[\"'`](\\/[^\"'`]*)|\\.route\\(\\s*[\"'`](\\/[^\"'`]*)|\\.on\\(\\s*(?:[\"'`][A-Z]+[\"'`]|\\[[^\\]]*\\])\\s*,\\s*[\"'`](\\/[^\"'`]*)"
   },
   "tests": {
     "dirs": [
@@ -76,7 +76,7 @@
       ".tsx"
     ],
     "test_pattern": "^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent|each\\(.*?\\)|for\\(.*?\\)))*\\(\\s*[\"'`](.+?)[\"'`]|^\\s*x?(?:it|test)(?:\\.\\w+)*\\.(?:each|for)[(`]\\s*\\[?\\s*$|^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent))*\\(\\s*$",
-    "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)\\b.*\\{[^}]*\\bskip:\\s*true",
+    "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)(?:\\.\\w+)*\\(\\s*[\"'`].*?[\"'`]\\s*,\\s*\\{[^}]*\\b(?:skip|todo):\\s*true",
     "covers_placement": "before",
     "system": {
       "dirs": [
@@ -86,7 +86,7 @@
         ".ts"
       ],
       "test_pattern": "^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent|each\\(.*?\\)|for\\(.*?\\)))*\\(\\s*[\"'`](.+?)[\"'`]|^\\s*x?(?:it|test)(?:\\.\\w+)*\\.(?:each|for)[(`]\\s*\\[?\\s*$|^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent))*\\(\\s*$",
-      "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)\\b.*\\{[^}]*\\bskip:\\s*true",
+      "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)(?:\\.\\w+)*\\(\\s*[\"'`].*?[\"'`]\\s*,\\s*\\{[^}]*\\b(?:skip|todo):\\s*true",
       "scenario_placement": "before"
     }
   },

@@ -595,13 +595,30 @@ function commentJudge(cfg, sec, label) {
 //    before ＝ 単位の印の行と、直上に連続するコメント行（空行・コード行・別の単位の印で切れる）→ doc コメントの流儀
 //    after  ＝ 単位の印の行と、次の行がコメント行ならその行 → 本体 1 行目の流儀
 //  窓を広く取ると、別の単位の本体に書いた注釈がこの単位の紐づきに数えられ、紐づかない単位が紐づいて見える
+//  改行した呼び出しの頭（行末が "("）は、続く行を関数の本体が始まる行（=> / function / 行末の {）まで、最大 JOIN_MAX 行つなげてから印を当てる
+//  （Prettier がミドルウェアやオプションの引数で折り返したルートやテスト。つなげないと黙って単位から漏れる）
+const JOIN_MAX = 6;
+function headOf(lines, i) {
+	if (!/\(\s*$/.test(lines[i])) return null;
+	let text = lines[i].replace(/\s+$/, "");
+	let end = i;
+	for (let j = i + 1; j < lines.length && j <= i + JOIN_MAX; j++) {
+		text += " " + lines[j].trim();
+		end = j;
+		if (/=>|\bfunction\b|\{\s*$/.test(lines[j])) break;
+	}
+	return { text, end };
+}
+
 function unitsOf(lines, unitRe, placement, judge) {
 	const units = [];
 	lines.forEach((line, i) => {
-		const t = unitRe.exec(line);
+		const head = headOf(lines, i);
+		const joined = head ? unitRe.exec(head.text) : null;
+		const t = joined || unitRe.exec(line);
 		if (t) {
 			const name = t.slice(1).find((x) => x);
-			units.push({ line: i, name: name ?? `line ${i + 1}`, capture: name ?? "", window: [i] });
+			units.push({ line: i, end: joined ? head.end : i, joined: joined ? head.text : null, name: name ?? `line ${i + 1}`, capture: name ?? "", window: [i] });
 		}
 	});
 	const unitLines = new Set(units.map((u) => u.line));
@@ -612,8 +629,9 @@ function unitsOf(lines, unitRe, placement, judge) {
 			owner.set(j, idx);
 			u.window.push(j);
 		};
+		for (let j = u.line + 1; j <= u.end && !unitLines.has(j); j++) take(j); //  つなげた行は単位の一部
 		if (placement === "before") for (let j = u.line - 1; j >= 0 && !unitLines.has(j) && lines[j].trim() && judge.isCommentLine(lines[j]); j--) take(j);
-		else if (u.line + 1 < lines.length && !unitLines.has(u.line + 1) && judge.isCommentLine(lines[u.line + 1])) take(u.line + 1);
+		else if (u.end + 1 < lines.length && !unitLines.has(u.end + 1) && judge.isCommentLine(lines[u.end + 1])) take(u.end + 1);
 	});
 	return { units, owner };
 }
@@ -642,6 +660,7 @@ function scanTests(cfg, sec, label, files, placementKey, kinds) {
 				else filePending ??= where(i);
 			});
 		for (const u of units) {
+			if (pendingRe && u.joined && pendingRe.test(u.joined)) u.pending ??= where(u.line);
 			u.where = where(u.line);
 			u.ann = Object.fromEntries(Object.keys(kinds).map((k) => [k, []]));
 			if (filePending) {
@@ -975,15 +994,15 @@ function runChecks(cfg, { asActive = false } = {}) {
 	const brs = Object.fromEntries(Object.entries(brDocs).map(([id, d]) => [id, d.status]));
 	const nfrDocs = loadDocs(p(cfg, "docs.nfr_dir"), asActive);
 	const contracts = readContracts(corpus);
+	for (const k of ["docs.actors", "docs.vision", "docs.glossary", "docs.shared"]) {
+		const v = lookup(cfg, k);
+		if (typeof v === "string" && existsSync(join(cfg._root, v)) && !statSync(join(cfg._root, v)).isFile()) configError(`${k} はファイルにする（実際: ${v} はディレクトリ）`);
+	}
 	const kinds = actorKinds(cfg);
 	const failures = [];
 	const notYet = []; //  義務が無いので違反にしない、宣言した固定パスの不在
 	const fail = (id, msg) => failures.push(`[${id}] ${msg}`);
 
-	for (const k of ["docs.actors", "docs.vision", "docs.glossary", "docs.shared"]) {
-		const v = lookup(cfg, k);
-		if (typeof v === "string" && existsSync(join(cfg._root, v)) && !statSync(join(cfg._root, v)).isFile()) configError(`${k} はファイルにする（実際: ${v} はディレクトリ）`);
-	}
 	const srcSec = declared(cfg.source);
 	const testSec = declared(cfg.tests);
 	const sysSec = testSec ? declared(testSec.system) : null;
@@ -1232,7 +1251,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 		}
 		for (const e of source.entries) {
 			if (!e.ops.length) {
-				fail("C21", `${e.where} "${e.name}": @operation の無い境界の入口（source.entry_pattern に一致）。契約に操作を宣言して紐づける${e.hash ? HASH_HINT : ""}`);
+				fail("C21", `${e.where} "${e.name}": @operation の無い境界の入口（source.entry_pattern に一致）。契約に操作を宣言して紐づける（外部境界のクライアントの呼び出しなら、そのファイルを source.entry_exclude に入れる）${e.hash ? HASH_HINT : ""}`);
 				continue;
 			}
 			for (const { key } of e.ops) {

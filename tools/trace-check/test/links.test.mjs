@@ -295,7 +295,7 @@ test("テンプレートの既定の印: Playwright / Vitest の保留、export 
 	assert.doesNotMatch(u, /"(helper|LIMIT)"/);
 	const routes = { "src/infra/routes.ts": '// @operation UC-001#createX\napp.post("/x/:id{[0-9]+}", h);\napp.delete(\n  "/x/:id",\n  zValidator("param", s),\n  async (c) => c.json({}),\n);\n' };
 	const r = run(project(t, { files: routes }), "--only", "C21").stdout;
-	assert.match(r, /\[C21\] src\/infra\/routes\.ts:3 "line 3": @operation の無い境界の入口/);
+	assert.match(r, /\[C21\] src\/infra\/routes\.ts:3 "\/x\/:id": @operation の無い境界の入口/);
 	assert.doesNotMatch(r, /wire\.path/);
 	const each = { "tests/x.test.ts": '// @covers REQ-001#ok\nit.each([\n  [1, 2],\n])("each %s", () => {});\n' };
 	assert.equal(run(project(t, { files: each }), "--only", "C1,C10,C11,C26").status, 0);
@@ -368,7 +368,7 @@ test("テンプレートの既定の印: テストのデータの skip: true は
 	assert.equal(run(project(t, { files: data }), "--only", "C1,C10").status, 0);
 	const wrapped = { "tests/x.test.ts": '// @covers REQ-001#ok\ntest(\n  "ok",\n  { tag: ["@a"] },\n  async () => {},\n);\ntest(\n  "bare",\n  async () => {},\n);\n// @covers REQ-001#ok\ntest.for([1, 2])("for %i", () => {});\n' };
 	const w = run(project(t, { files: wrapped }), "--only", "C11").stdout;
-	assert.match(w, /\[C11\] tests\/x\.test\.ts:7 "line 7": @covers の無いテスト/);
+	assert.match(w, /\[C11\] tests\/x\.test\.ts:7 "bare": @covers の無いテスト/);
 	assert.doesNotMatch(w, /どのテストにも属さない/);
 	const units = {
 		"src/usecase/y.ts": 'export const TIMEOUT_MS = Number(process.env.T);\nexport const logger = createLogger("usecase");\nexport { type Input as CreateInput };\nexport default defineUseCase(async () => {});\nexport {\n  createX,\n};\n',
@@ -383,4 +383,44 @@ test("設定エラー（exit 2）: docs.actors / vision がディレクトリ", 
 	const r = run(project(t, { configure: (cfg) => (cfg.docs.vision = "docs/adr") }));
 	assert.equal(r.status, 2, r.stdout + r.stderr);
 	assert.match(r.stderr, /docs\.vision はファイルにする/);
+});
+
+//  ---- 最終の再検証で見つかった退行の回帰（改行した呼び出しの頭をつなげてから印を当てる） ----
+
+test("改行したルートは受け手の名前によらず入口で、パスも照合する。Express の route() と app.on の配列も入口", (t) => {
+	const files = {
+		"src/infra/routes.ts":
+			'const users = new Hono();\n// @operation UC-001#createX\nusers.post("/x/:id", h);\nusers.delete(\n  "/admin/reset-everything",\n  zValidator("param", s),\n  async (c) => c.json({}),\n);\nrouter.route("/r").get(h);\napp.on(["PUT", "DELETE"], "/o", h);\n',
+	};
+	const out = run(project(t, { files }), "--only", "C21").stdout;
+	assert.match(out, /\[C21\] src\/infra\/routes\.ts:4 "\/admin\/reset-everything": @operation の無い境界の入口/);
+	assert.match(out, /\[C21\] src\/infra\/routes\.ts:9 "\/r": @operation の無い境界の入口/);
+	assert.match(out, /\[C21\] src\/infra\/routes\.ts:10 "\/o": @operation の無い境界の入口/);
+});
+
+test("改行したテストの { skip: true } と { todo: true } は保留、本体の期待値の skip: true は保留でない。after の窓は改行した頭の次の行", (t) => {
+	const wrapped = { "tests/x.test.ts": '// @covers REQ-001#ok\nit(\n  "登録できる（長い題名）",\n  { skip: true, timeout: 10_000 },\n  async () => {},\n);\n' };
+	assert.match(run(project(t, { files: wrapped }), "--only", "C1").stdout, /\[C1\] REQ-001 を被覆するテストは保留のテスト/);
+	const todo = { "tests/x.test.ts": '// @covers REQ-001#ok\nit("ok", { todo: true }, () => {});\n' };
+	assert.match(run(project(t, { files: todo }), "--only", "C1").stdout, /保留のテスト/);
+	const body = { "tests/x.test.ts": '// @covers REQ-001#ok\nit("ok", () => expect(f({ skip: true })).toBe(1));\n' };
+	assert.equal(run(project(t, { files: body }), "--only", "C1").status, 0);
+	const after = {
+		"tests/x.test.ts": 'it(\n  "ok",\n  { timeout: 1 },\n  async () => {\n    // @covers REQ-001#ok\n    expect(1).toBe(1);\n  },\n);\n',
+	};
+	const r = run(project(t, { files: after, configure: (cfg) => (cfg.tests.covers_placement = "after") }), "--only", "C1,C10,C11");
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test("テンプレートの unit_pattern: 関数式の const と type 混じりの export は単位、export {} は単位でない", (t) => {
+	const files = { "src/usecase/y.ts": "export const deleteX = function () {};\nexport const purgeX = async function () {};\nexport { type Input, purgeAll };\nexport {};\n" };
+	const out = run(project(t, { files }), "--only", "C19").stdout;
+	for (const name of ["deleteX", "purgeX", "type Input, purgeAll"]) assert.match(out, new RegExp(`"${name}"`));
+	assert.doesNotMatch(out, /y\.ts:4/);
+});
+
+test("設定エラー（exit 2）: docs.actors がディレクトリでもクラッシュしない", (t) => {
+	const r = run(project(t, { configure: (cfg) => (cfg.docs.actors = "docs/rules") }));
+	assert.equal(r.status, 2, r.stdout + r.stderr);
+	assert.match(r.stderr, /docs\.actors はファイルにする/);
 });

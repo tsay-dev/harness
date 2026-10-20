@@ -33,3 +33,4 @@ harness のひな形 `traceconfig.json` から変える値だけを示す。示�
 - 制約は Drizzle のスキーマ定義の `.unique()`、`uniqueIndex("…")`、`unique("…")`、`check("…")`。生成された SQL マイグレーションは走査しない。
 - 共有エラーコードはブラウザも読むので `packages/shared/src` に置く。
 - `@covers` はテスト本文の先頭行に置く（[テストの接続](common-testing.instructions.md)）ので `after`。シナリオテストはひな形のまま。
+- 技術部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!apps/api/src/middleware/**"`）。外さなければ `@covers` の無いテストとして C11 になる。
