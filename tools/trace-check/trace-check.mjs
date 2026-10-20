@@ -31,7 +31,8 @@
 //    C11  全テストが宣言済みクラスを指しているか（方針にないテスト ＝ 生成上限違反）。
 //         traceconfig の tests.test_pattern があれば、@covers を持たないテスト関数も数える（注釈忘れは機械の目に映らない穴）。
 //         テストの同一性は「ファイル＋テスト名」（test_pattern の捕捉 1）。注釈の帰属は tests.covers_placement の宣言
-//         （before ＝ テスト印の直前のコメント / after ＝ 本体 1 行目）どおりの窓だけを見る。推測はしない
+//         （before ＝ テスト印の直前のコメント / after ＝ 本体 1 行目）どおりの窓だけを見る。推測はしない。
+//         例外の印は持たない。仕様を持たないテスト（技術部品の自己検査）は tests.dirs の外に置く（ADR-0055）
 //    C12  同一 ID が複数箇所で定義されていないか（採番衝突）
 //    C13  enforced_at に database を含む BR が、スキーマ源（traceconfig の schema.files）から @implements されているか
 //         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは reviewer の判断に残る）
@@ -45,9 +46,9 @@
 //         表が未定義の REQ や別の UC の REQ を指す場合と、表のどのセルからも導出されていない REQ（withdrawn を除く）が違反
 //    C18  active な GOAL の actor / origin と active な UC の actor が、docs.actors の表と docs.vision の KPI 表に
 //         定義されているか。docs.actors / docs.vision が未宣言ならその参照は判定しない（ADR-0052）
-//    C19  traceconfig の source.unit_pattern に一致する実現単位が、@implements か source.exempt_pattern の印（仕様外）を
-//         持つか（C14 の逆方向）。注釈の帰属は source.implements_placement（before / after）の窓だけを見る。
-//         unit_pattern 未設定なら判定しない
+//    C19  traceconfig の source.unit_dirs（実現単位を置く場所）にある、source.unit_pattern に一致する単位がすべて
+//         @implements を持つか（C14 の逆方向）。例外の印は持たず、仕様を持たない技術部品は unit_dirs の外に置く。
+//         注釈の帰属は source.implements_placement（before / after）の窓だけを見る。unit_dirs 未設定なら判定しない（ADR-0055）
 //    C20  active な NFR が、テスト（tests と tests.system）の @covers NFR-nnn（nfr_pattern）か、frontmatter の
 //         measured_by（計測の所在。実在するパス）を持つか。measured_by のパスが無い場合と、テストが未定義の NFR を
 //         @covers する場合も違反（ADR-0054）
@@ -405,15 +406,20 @@ function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source"))
 
 //  単位の印（テストなら tests.test_pattern、実現単位なら source.unit_pattern。捕捉 1 ＝ 名前）があるとき、注釈を持たない単位を数える。
 //  単位の同一性は「ファイル＋名前」で、行番号は表示にだけ使う（台帳の鍵が行ずれに依存しない）。
-//  注釈（@covers / @implements / exempt_pattern の印）の帰属は placement の宣言どおりの窓だけを見る:
+//  注釈（@covers / @implements）の帰属は placement の宣言どおりの窓だけを見る:
 //    before ＝ 直前の単位の印の後からこの印の行まで（同じ行を含む）→ 次の単位のもの（doc コメントの流儀）
 //    after  ＝ 単位の印の行から次の印の前まで → 直前の単位のもの（本体 1 行目の流儀）
 //  窓の外にある注釈はどの単位にも属さないので、それ自体を違反として出す（置き場の宣言違反）
+//  例外の印（旧 exempt_pattern）は持たない。仕様を持たないものは宣言した場所の外に置く（ADR-0055）
 const COVERS_PLACEMENTS = ["before", "after"];
 
-function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotationPattern) {
+function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotationPattern, files) {
 	const sec = cfg[section];
 	if (!sec || !sec[unitKey]) return null;
+	if ("exempt_pattern" in sec) {
+		console.error(`trace-check: ${section}.exempt_pattern は廃止（ADR-0055）。仕様を持たないものは ${section === "tests" ? "tests.dirs" : "source.unit_dirs"} の外に置き、キーを削除する`);
+		process.exit(2);
+	}
 	const unitRe = new RegExp(sec[unitKey]);
 	if (new RegExp(`${unitRe.source}|`).exec("").length < 2) {
 		console.error(`trace-check: ${section}.${unitKey} には名前の捕捉グループ ( ) が要る（未注釈の単位の同一性は名前で持つ）`);
@@ -425,9 +431,8 @@ function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotation
 		process.exit(2);
 	}
 	const annotationRe = new RegExp(annotationPattern);
-	const exemptRe = sec.exempt_pattern ? new RegExp(sec.exempt_pattern) : null;
-	const out = { total: 0, exempt: 0, missing: [], orphans: [], placement };
-	for (const path of iterFiles(cfg, section)) {
+	const out = { total: 0, missing: [], orphans: [], placement };
+	for (const path of files) {
 		const lines = read(path).split(/\r?\n/);
 		const units = []; //  { line, name }
 		const marks = []; //  { line, kind, text }
@@ -435,11 +440,9 @@ function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotation
 			const t = unitRe.exec(line);
 			if (t) units.push({ line: i, name: t[1] ?? `line ${i + 1}` });
 			const c = annotationRe.exec(line);
-			if (c) marks.push({ line: i, kind: "annotated", text: c[0] });
-			else if (exemptRe && exemptRe.test(line)) marks.push({ line: i, kind: "exempt", text: line.trim() });
+			if (c) marks.push({ line: i, text: c[0] });
 		});
 		const annotated = new Set();
-		const exempt = new Set();
 		let k = 0; //  units[k] ＝ 印の行以上で最初の単位
 		for (const m of marks) {
 			while (k < units.length && units[k].line < m.line) k++;
@@ -447,13 +450,12 @@ function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotation
 			if (placement === "before") owner = k < units.length ? k : null;
 			else if (k < units.length && units[k].line === m.line) owner = k;
 			else owner = k > 0 ? k - 1 : null;
-			if (owner !== null) (m.kind === "annotated" ? annotated : exempt).add(owner);
-			else if (m.kind === "annotated") out.orphans.push(`${basename(path)}:${m.line + 1} "${m.text}"`);
+			if (owner !== null) annotated.add(owner);
+			else out.orphans.push(`${basename(path)}:${m.line + 1} "${m.text}"`);
 		}
 		units.forEach((t, idx) => {
 			out.total++;
-			if (exempt.has(idx) && !annotated.has(idx)) out.exempt++;
-			else if (!annotated.has(idx)) out.missing.push(`${basename(path)}:${t.line + 1} "${t.name}"`);
+			if (!annotated.has(idx)) out.missing.push(`${basename(path)}:${t.line + 1} "${t.name}"`);
 		});
 	}
 	return out;
@@ -599,21 +601,28 @@ function runChecks(cfg) {
 	}
 	//  C11 の派生: @covers を持たないテスト関数（tests.test_pattern があるときだけ。注釈忘れは上限にも下限にも映らない）
 	//  NFR を検証するテスト（@covers NFR-nnn）も注釈済みと数える（C20）
-	const unannotated = collectUnannotatedUnits(cfg, "tests", "test_pattern", "covers_placement", `(?:${cfg.covers_pattern})|(?:${cfg.nfr_pattern || DEFAULT_NFR_PATTERN})`);
+	const unannotated = collectUnannotatedUnits(cfg, "tests", "test_pattern", "covers_placement", `(?:${cfg.covers_pattern})|(?:${cfg.nfr_pattern || DEFAULT_NFR_PATTERN})`, iterFiles(cfg, "tests"));
 	if (unannotated) {
 		for (const w of unannotated.missing)
-			failures.push(`[C11] ${w}: @covers の無いテスト（tests.test_pattern に一致）。仕様外なら tests.exempt_pattern の印を書く`);
+			failures.push(`[C11] ${w}: @covers の無いテスト（tests.test_pattern に一致）。技術部品の自己検査なら tests.dirs の外に置く`);
 		for (const w of unannotated.orphans)
 			failures.push(`[C11] ${w}: どのテストにも属さない @covers（tests.covers_placement: ${unannotated.placement} ＝ ${unannotated.placement === "before" ? "テスト印の直前のコメント" : "テスト印の行から本体の先頭"}に置く）`);
 	}
 
-	//  C19: 実現単位（source.unit_pattern に一致する行）は @implements か仕様外の印を持つ（C14 の逆方向。仕様を指さない本番コードの検出）。
-	//  検査を強制する分岐の中の @implements（comments の規約）は単位の窓の外に出うるので、テストと違い帰属なし注釈は違反にしない。
-	//  source.unit_pattern 未設定なら判定しない
-	const unannotatedUnits = collectUnannotatedUnits(cfg, "source", "unit_pattern", "implements_placement", cfg.implements_pattern);
+	//  C19: 実現単位を置く場所（source.unit_dirs）の単位（source.unit_pattern に一致する行）はすべて @implements を持つ
+	//  （C14 の逆方向。仕様を指さない本番コードの検出）。検査を強制する分岐の中の @implements（comments の規約）は
+	//  単位の窓の外に出うるので、テストと違い帰属なし注釈は違反にしない。source.unit_dirs 未設定なら判定しない
+	const unitDirs = cfg.source?.unit_dirs;
+	if (unitDirs && !cfg.source.unit_pattern) {
+		console.error("trace-check: source.unit_dirs を宣言したら source.unit_pattern（実現単位の印。捕捉 1 ＝ 単位名）も要る");
+		process.exit(2);
+	}
+	const unannotatedUnits = unitDirs
+		? collectUnannotatedUnits(cfg, "source", "unit_pattern", "implements_placement", cfg.implements_pattern, unitDirs.flatMap((d) => walk(join(cfg._root, d), cfg.source.extensions)))
+		: null;
 	if (unannotatedUnits) {
 		for (const w of unannotatedUnits.missing)
-			failures.push(`[C19] ${w}: @implements の無い実現単位（source.unit_pattern に一致）。仕様を持たない技術部品なら source.exempt_pattern の印と理由を書く`);
+			failures.push(`[C19] ${w}: @implements の無い実現単位（source.unit_dirs にあり source.unit_pattern に一致）。仕様を持たない技術部品なら unit_dirs の外に置く`);
 	}
 
 	//  C13: DB で強制する規則にはスキーマ側の制約（@implements）が要る。schema 未設定なら判定しない
@@ -721,9 +730,9 @@ function runChecks(cfg) {
 	lines.push(
 		`  GOAL: ${Object.keys(corpus.goals).length} (active: ${nActiveGoals}) / UC: ${Object.keys(corpus.ucs).length}` +
 			` / REQ: ${Object.keys(corpus.reqs).length} / 分割クラス: ${nClasses} / BR: ${Object.keys(brs).length} / テスト: ${nTests}` +
-			(unannotated ? ` / テスト関数: ${unannotated.total}（@covers なし ${unannotated.missing.length} / 仕様外 ${unannotated.exempt} / 帰属なし注釈 ${unannotated.orphans.length}）` : "") +
+			(unannotated ? ` / テスト関数: ${unannotated.total}（@covers なし ${unannotated.missing.length} / 帰属なし注釈 ${unannotated.orphans.length}）` : "") +
 			(scenarios ? ` / シナリオテスト: ${Object.values(scenarios).reduce((n, w) => n + w.length, 0)}` : "") +
-			(unannotatedUnits ? ` / 実現単位: ${unannotatedUnits.total}（@implements なし ${unannotatedUnits.missing.length} / 仕様外 ${unannotatedUnits.exempt}）` : ""),
+			(unannotatedUnits ? ` / 実現単位: ${unannotatedUnits.total}（@implements なし ${unannotatedUnits.missing.length}）` : ""),
 	);
 	for (const goal of Object.keys(corpus.goals).sort()) {
 		const g = corpus.goals[goal];

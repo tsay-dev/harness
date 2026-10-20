@@ -144,43 +144,64 @@ test("C18: docs.vision が未宣言なら origin を判定しない", (t) => {
 	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09/);
 });
 
-//  C19 用: source.unit_pattern を宣言した最小の本番コード
-function makeSourceRoot({ placement = "before", unitPattern = true } = {}) {
+//  C19 用: 実現単位を置く場所（source.unit_dirs）と、その外の技術部品（infra）
+function makeSourceRoot({ placement = "before", configure = () => {} } = {}) {
 	const root = mkdtempSync(join(tmpdir(), "harness trace-check source "));
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	for (const k of ["_comment", "contract", "schema", "layering"]) delete cfg[k];
 	delete cfg.tests.system;
 	cfg.source.implements_placement = placement;
-	if (!unitPattern) delete cfg.source.unit_pattern;
+	configure(cfg);
 	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
-	mkdirSync(join(root, "src"), { recursive: true });
-	const body =
+	const w = (rel, text) => {
+		mkdirSync(dirname(join(root, rel)), { recursive: true });
+		writeFileSync(join(root, rel), text);
+	};
+	w(
+		"src/usecase/register.ts",
 		placement === "before"
-			? "/** @implements REQ-001 */\nexport function register() {}\n\n// 仕様外: 日付整形の技術部品（REQ を持たない）\nexport const formatDate = () => {};\n\nexport class Unlinked {}\n\nfunction helper() {}\n"
-			: "export function register() {\n\t// @implements REQ-001\n}\n\nexport const formatDate = () => {\n\t// 仕様外: 日付整形の技術部品（REQ を持たない）\n};\n\nexport class Unlinked {}\n";
-	writeFileSync(join(root, "src", "app.ts"), body);
+			? "/** @implements REQ-001 */\nexport function register() {}\n\nexport class Unlinked {}\n\nfunction helper() {}\n"
+			: "export function register() {\n\t// @implements REQ-001\n}\n\nexport class Unlinked {}\n",
+	);
+	//  REQ を持たない技術部品は unit_dirs の外に置き、注釈も印も持たない
+	w("src/infra/date.ts", "export const formatDate = () => {};\n");
 	return root;
 }
 
 for (const placement of ["before", "after"])
-	test(`C19: @implements も仕様外の印も無い実現単位を検出する（implements_placement: ${placement}）`, (t) => {
+	test(`C19: source.unit_dirs の実現単位に @implements が無ければ違反、unit_dirs の外は見ない（implements_placement: ${placement}）`, (t) => {
 		const root = makeSourceRoot({ placement });
 		t.after(() => rmSync(root, { recursive: true, force: true }));
 		const r = run(root, "--only", "C19", "--strict");
 		assert.equal(r.status, 1, r.stdout + r.stderr);
-		assert.match(r.stdout, /\[C19\] app\.ts:\d+ "Unlinked": @implements の無い実現単位/);
+		assert.match(r.stdout, /\[C19\] register\.ts:\d+ "Unlinked": @implements の無い実現単位/);
 		assert.doesNotMatch(r.stdout, /\[C19\].*"(register|formatDate|helper)"/);
 	});
 
-test("C19: レポートに実現単位の内訳を出し、unit_pattern が無ければ判定しない", (t) => {
+test("C19: レポートに実現単位の内訳を出し、unit_dirs が無ければ判定しない", (t) => {
 	const root = makeSourceRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
-	assert.match(run(root, "--strict").stdout, /実現単位: 3（@implements なし 1 \/ 仕様外 1）/);
-	const off = makeSourceRoot({ unitPattern: false });
+	assert.match(run(root, "--strict").stdout, /実現単位: 2（@implements なし 1）/);
+	const off = makeSourceRoot({ configure: (cfg) => delete cfg.source.unit_dirs });
 	t.after(() => rmSync(off, { recursive: true, force: true }));
 	const r = run(off, "--only", "C19", "--strict");
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.doesNotMatch(r.stdout, /\[C19\]/);
+});
+
+test("設定エラー: unit_dirs に unit_pattern が無い、または廃止した exempt_pattern が残っている", (t) => {
+	const cases = [
+		[(cfg) => delete cfg.source.unit_pattern, /source\.unit_dirs を宣言したら source\.unit_pattern/],
+		[(cfg) => (cfg.source.exempt_pattern = "//\\s*仕様外:"), /source\.exempt_pattern は廃止/],
+		[(cfg) => (cfg.tests.exempt_pattern = "//\\s*仕様外:"), /tests\.exempt_pattern は廃止/],
+	];
+	for (const [configure, message] of cases) {
+		const root = makeSourceRoot({ configure });
+		t.after(() => rmSync(root, { recursive: true, force: true }));
+		const r = run(root, "--strict");
+		assert.equal(r.status, 2, r.stdout + r.stderr);
+		assert.match(r.stderr, message);
+	}
 });
 
 //  C20 用: テストで検証する NFR、measured_by で計測する NFR、どちらも無い NFR

@@ -70,7 +70,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-702 (MUST)** 層の依存方向は lint / C6（`traceconfig.json` の `layering`）で強制します。
 - **R-703 (MUST)** `traceconfig.json` に `contract` を設定すると、実装のエラーコードと `_shared` の `errorCodes` の一致を C7 が検査します。
 - **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`traceconfig.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本で `@implements BR-nnn` 付きの制約として実現します（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
-- **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14。`source` のない docs のみの利用プロジェクトは対象外）。逆向き（どの仕様も指さない実現単位）は C19 が検出し、仕様を持たない単位は仕様外の印で明示します。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
+- **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14。`source` のない docs のみの利用プロジェクトは対象外）。逆向き（実現単位を置く場所 `source.unit_dirs` の、どの仕様も指さない単位）は C19 が検出します。仕様を持たない技術部品はその場所の外に置きます。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
 
 ## 8. 変更手順
 

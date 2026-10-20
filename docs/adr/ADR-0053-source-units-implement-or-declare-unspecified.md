@@ -1,7 +1,7 @@
 ---
 id: ADR-0053
 title: 宣言した実現単位は @implements か仕様外の印を持ち、どちらも無い単位を trace-check が検出する
-status: proposed
+status: superseded
 date: 2026-10-20
 ---
 

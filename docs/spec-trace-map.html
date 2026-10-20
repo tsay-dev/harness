@@ -183,7 +183,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <h2>2. docs と code のつながり</h2>
   <figure>
     <div class="scroll">
-      <svg viewBox="0 0 920 724" role="img" aria-label="docs と code をつなぐ 11 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位は仕様か仕様外の印のどちらかを持つ。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
+      <svg viewBox="0 0 920 724" role="img" aria-label="docs と code をつなぐ 11 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位を置く場所の単位はすべて仕様を指す。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
         <defs>
           <marker id="b-anno" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-anno"/></marker>
           <marker id="b-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-open"/></marker>
@@ -254,12 +254,12 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <text class="elj mid" x="460" y="556">語と識別子から導く（R-1108）</text>
         <g class="pill open"><rect x="390" y="570" width="140" height="16" rx="8"/><text x="460" y="582">reviewer（機械なし）</text></g>
 
-        <!-- 9 実現単位 → 仕様か仕様外の印 -->
-        <g class="node"><rect x="20" y="606" width="230" height="44" rx="6"/><text class="ntj" x="135" y="633">REQ・BR・UC か「仕様外」の印</text></g>
-        <g class="node"><rect x="670" y="606" width="230" height="44" rx="6"/><text class="ntj" x="785" y="633">すべての実現単位</text></g>
+        <!-- 9 unit_dirs の実現単位 → 仕様 -->
+        <g class="node"><rect x="20" y="606" width="230" height="44" rx="6"/><text class="nt" x="135" y="633">REQ・BR・UC</text></g>
+        <g class="node"><rect x="670" y="606" width="230" height="44" rx="6"/><text class="ntj" x="785" y="633">unit_dirs のすべての単位</text></g>
         <line x1="668" y1="628" x2="254" y2="628" class="e anno" marker-end="url(#b-anno)"/>
-        <text class="elj mid" x="460" y="620">どちらも無い単位を検出</text>
-        <g class="pill anno"><rect x="370" y="634" width="180" height="16" rx="8"/><text x="460" y="646">C19（unit_pattern 宣言時）</text></g>
+        <text class="elj mid" x="460" y="620">@implements の無い単位を検出（例外なし）</text>
+        <g class="pill anno"><rect x="380" y="634" width="160" height="16" rx="8"/><text x="460" y="646">C19（unit_dirs 宣言時）</text></g>
 
         <!-- 10 NFR ← テスト / measured_by -->
         <g class="node"><rect x="20" y="670" width="230" height="44" rx="6"/><text class="nt" x="135" y="697">NFR-nnn</text></g>
@@ -269,7 +269,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="pill anno"><rect x="445" y="698" width="30" height="16" rx="8"/><text x="460" y="710">C20</text></g>
       </svg>
     </div>
-    <figcaption>コードからの紐づけは注釈の「存在」と「参照先の実在」を検査します。C14 は仕様 → コードの向き（active な REQ・BR を指す注釈が 1 つ以上あるか）、C19 はコード → 仕様の向き（宣言した実現単位がすべて仕様を指すか、仕様外と明示されているか）を見ます。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト。<code>test_pattern</code> 設定時は注釈のないテストも）で上下両方から締めます。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
+    <figcaption>コードからの紐づけは注釈の「存在」と「参照先の実在」を検査します。C14 は仕様 → コードの向き（active な REQ・BR を指す注釈が 1 つ以上あるか）、C19 はコード → 仕様の向き（<code>source.unit_dirs</code> の単位がすべて仕様を指すか）を見ます。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト。<code>test_pattern</code> 設定時は <code>tests.dirs</code> の注釈のないテストも）で上下両方から締めます。どちらも例外の印は無く、REQ を持たない技術部品とその自己検査は宣言した場所の外に置きます。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
   </figure>
 </section>
 
@@ -331,7 +331,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C8</td><td>active な GOAL を実現する UC がない</td><td><span class="tag ok">UC → GOAL</span></td></tr>
         <tr><td>C9</td><td>配置と frontmatter が食い違う（ディレクトリと id、REQ が自分の uc の下にない、UC の goal とディレクトリ）</td><td><span class="tag ok">UC → GOAL・REQ → UC・契約 → UC</span></td></tr>
         <tr><td>C10</td><td>宣言した分割クラスにテストがない、または active な REQ がクラスを 1 つも宣言しない（下限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
-        <tr><td>C11</td><td>テストがクラスを指定しない・未宣言のクラスを指す・注釈がない（上限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
+        <tr><td>C11</td><td>テストがクラスを指定しない・未宣言のクラスを指す・<code>tests.dirs</code> のテストに注釈がない（上限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
         <tr><td>C12</td><td>同じ ID が複数のファイルで定義されている</td><td><span class="tag ok">すべての ID</span></td></tr>
         <tr><td>C13</td><td>DB で強制する BR に、スキーマ正本の <code>@implements</code> がない</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
         <tr><td>C14</td><td>active な REQ・BR を <code>@implements</code> する実装がない</td><td><span class="tag anno">本番コード → REQ・BR</span></td></tr>
@@ -339,7 +339,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C16</td><td>active な UC・REQ が、定義されていない BR を参照している</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
         <tr><td>C17</td><td>active な UC の表が未定義の REQ や別の UC の REQ を指す、または REQ が表のどのセルからも導出されていない</td><td><span class="tag ok">UC の表 ↔ REQ</span></td></tr>
         <tr><td>C18</td><td>active な GOAL・UC の actor、GOAL の origin が、アクター表・vision の KPI 表に無い</td><td><span class="tag ok">GOAL・UC → ACT・KPI</span></td></tr>
-        <tr><td>C19</td><td>宣言した実現単位（<code>source.unit_pattern</code>）が、<code>@implements</code> も「仕様外」の印も持たない</td><td><span class="tag anno">実現単位 → 仕様</span></td></tr>
+        <tr><td>C19</td><td>実現単位を置く場所（<code>source.unit_dirs</code>）の単位が <code>@implements</code> を持たない</td><td><span class="tag anno">実現単位 → 仕様</span></td></tr>
         <tr><td>C20</td><td>active な NFR に、検証するテスト（<code>@covers NFR-nnn</code>）も実在する <code>measured_by</code> も無い、またはテストが未定義の NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
       </tbody>
     </table>
@@ -352,7 +352,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>注釈した単位が本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>「仕様外」の印が正当か（REQ にすべき振る舞いを技術部品として逃がしていないか）。<code>source.unit_pattern</code> を宣言していない利用プロジェクトでは、仕様を指さない本番コードは検査されない。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>宣言した場所の外（infra など）に置かれたコードに、REQ にすべき業務ルールが紛れていないか。<code>source.unit_dirs</code> を宣言していない利用プロジェクトでは、仕様を指さない本番コードは検査されない。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>NFR のテストや <code>measured_by</code> の計測が、閾値を本当に測っているか。C20 が見るのは検証の所在があることと、パスが実在することまで。</p></div>
     <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
   </div>

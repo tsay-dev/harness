@@ -43,7 +43,7 @@ node trace-check.mjs --only C9,C12                            # 指定検査だ�
 | C8 | `active` GOAL を実現する UC がない | — |
 | C9 | 配置と frontmatter が不一致: ディレクトリ接頭辞 ≠ `id`、`GOAL.md` / `UC.md` 欠落、REQ ファイル名 ≠ `id`、REQ が自身の `uc:` 直下にない、UC の `goal:` ≠ そのディレクトリ | R-1006 / R-1007 |
 | C10 | 宣言された分割クラスにテストがない、または `active` REQ がクラスを一つも宣言しない（下限） | R-1101 / R-1104 |
-| C11 | テストがクラスを指定しない、または未宣言のクラスを指定する（生成テストの上限）。`tests.test_pattern` 設定時は、`@covers` が全くないテスト関数も検出する。未注釈テストは、それ以外では C10 / C11 から見えない。`tests.exempt_pattern`（明示的な `// 仕様外:` 印）があるテストは欠落ではなく除外として数える。テストの識別は**ファイル + 名前**（`test_pattern` は名前を捕捉する必要がある）で、台帳は行番号に依存しない。注釈位置は推測せず**宣言**する: `tests.covers_placement: before`（既定。テスト印の直上の文書コメント）または `after`（印の行と本文の先頭行）。trace-check はその範囲だけを調べ、どの範囲にも属さない `@covers` はテストに属さないと報告する | R-1102 / R-1103 |
+| C11 | テストがクラスを指定しない、または未宣言のクラスを指定する（生成テストの上限）。`tests.test_pattern` 設定時は、`@covers` が全くないテスト関数も検出する。未注釈テストは、それ以外では C10 / C11 から見えない。例外の印は無く、仕様を持たないテスト（REQ を持たない技術部品の自己検査）は `tests.dirs` の外に置く（ADR-0055。旧 `tests.exempt_pattern` が残っていれば設定エラー）。テストの識別は**ファイル + 名前**（`test_pattern` は名前を捕捉する必要がある）で、台帳は行番号に依存しない。注釈位置は推測せず**宣言**する: `tests.covers_placement: before`（既定。テスト印の直上の文書コメント）または `after`（印の行と本文の先頭行）。trace-check はその範囲だけを調べ、どの範囲にも属さない `@covers` はテストに属さないと報告する | R-1102 / R-1103 |
 | C12 | 同じ ID が複数ファイルで定義される（採番衝突） | R-204 |
 | C13 | `enforced_at` が DB を指定する BR に、スキーマソース内の `@implements BR-nnn` がない（`schema.files` / `schema.dirs`。設定時のみ） | R-704 |
 | C14 | `active` REQ または `active` BR に、`source` またはスキーマソース内の `@implements` がない（C5 の逆。`source` 設定時のみ）。UC レベルの `@implements UC-nnn` は専門技術（`comments.md`）であり、この検査の対象ではない | R-705 |
@@ -51,7 +51,7 @@ node trace-check.mjs --only C9,C12                            # 指定検査だ�
 | C16 | `active` UC / REQ の本文（frontmatter の `br:` を含む）が、定義されていない BR を参照する（C4 の逆方向。`withdrawn` の BR は定義済みと数える） | R-203 |
 | C17 | `active` UC の表と、その UC に属する REQ が 1 対 1 に対応しない: 表が未定義の REQ や別の UC の REQ を指す、または REQ（`withdrawn` を除く）が表のどのセルからも導出されていない。UC 本文に REQ の一覧を置かない規律（R-404）なので、本文に現れる REQ ID はすべて表のセルとして扱う | R-404 |
 | C18 | `active` GOAL の `actor` / `origin`、`active` UC の `actor` が、`docs.actors` の表（`ACT-nn`）または `docs.vision` の KPI 表（先頭セルが `KPI-nn` の行）に無い。キーが未宣言ならその参照は判定しない | R-203 |
-| C19 | `source.unit_pattern` に一致する実現単位（ユースケースクラス、ルール関数など。捕捉 1 が単位名）が、`@implements` も `source.exempt_pattern` の印（仕様を持たない技術部品の明示。既定 `// 仕様外: <理由>`）も持たない（C14 の逆方向）。注釈の帰属は `source.implements_placement`（`before` / `after`、C11 と同じ窓）。検査を強制する分岐の中の注釈は窓の外に出うるため、テストと違い帰属なしの `@implements` は違反にしない。`unit_pattern` 設定時のみ | R-705 |
+| C19 | `source.unit_dirs`（実現単位を置く場所）にあり `source.unit_pattern` に一致する単位（ユースケースクラス、ルール関数など。捕捉 1 が単位名）が `@implements` を持たない（C14 の逆方向）。例外の印は無く、REQ を持たない技術部品は `unit_dirs` の外（infra など）に置く（ADR-0055）。注釈の帰属は `source.implements_placement`（`before` / `after`、C11 と同じ窓）。検査を強制する分岐の中の注釈は窓の外に出うるため、テストと違い帰属なしの `@implements` は違反にしない。`unit_dirs` 設定時のみ（このとき `unit_pattern` は必須） | R-705 |
 | C20 | `active` NFR が、テスト（`tests` と `tests.system`）の `@covers NFR-nnn`（`nfr_pattern`。省略時も同じ既定）も、frontmatter の `measured_by`（テスト以外の計測の所在。リポジトリ直下からのパス）も持たない。`measured_by` のパスが実在しない場合と、テストが未定義の NFR を `@covers` する場合も違反。C11 は NFR だけを `@covers` するテストも注釈済みと数える | R-104 |
 
 C1 / C2 / C8 / C10 / C14–C18 / C20 は `active` docs のみが対象。`draft` REQ / BR はまだ要求せず、
@@ -81,7 +81,7 @@ node tools/trace-check/trace-check.mjs                     # 以後は新規違�
 
 テストと 20 検査がすべて正常なら、機械的に以下が成立する。すべての active GOAL に UC があり、active REQ にテストがある。
 宣言された全分割クラスにテストがあり、**方針外のテストが存在しない**。コードとテストが参照する ID が存在する。
-active REQ / BR はソースかスキーマから注釈される（`@implements`）。宣言した実現単位はすべて仕様を指すか、仕様外と明示されている（C19）。active NFR は検証するテストか計測の所在を持つ（C20）。死んだ規則も ID の重複定義もなく、文書が参照する BR・REQ・アクター・KPI は定義されており、UC の表と REQ は 1 対 1 に対応する。
+active REQ / BR はソースかスキーマから注釈される（`@implements`）。実現単位を置く場所の単位はすべて仕様を指す（C19）。active NFR は検証するテストか計測の所在を持つ（C20）。死んだ規則も ID の重複定義もなく、文書が参照する BR・REQ・アクター・KPI は定義されており、UC の表と REQ は 1 対 1 に対応する。
 配置と frontmatter が一致する。依存方向と契約語彙が実装と一致する。DB で保証する規則はスキーマソースの制約に注釈される。
 人間向け active UC はシナリオテストを持つ（システムスイートの宣言時）。
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "利用プロジェクト直下に traceconfig.json として置く。tools/trace-check が読む。orchestrator が一度ひな形を置き、利用プロジェクトが自身の配置に合わせて source/tests/layering を編集する。実装に単一エラーコード正本がない場合は contract ブロックを省略する（C7 はスキップ）。schema ブロックは DB 設計のネイティブな正本（migrations / schema.prisma / model ファイル）を指定し、アプリが永続データを所有しない場合は省略する（C13 はスキップ）。implements_pattern の捕捉 1 は一覧でもよい（`@implements UC-001, REQ-009 / BR-015`）。trace-check が , または / で分割する。tests.test_pattern はテスト関数を指定する（一行一正規表現）。グループ 1 にテスト名を必ず捕捉する。テストの識別はファイル + 名前であり、行番号ではない（Swift Testing: \"^\\s*@Test(?:\\([^)]*\\))?\\s+func\\s+(\\w+)\"）。設定時は C11 が @covers の全くないテストも報告するが、tests.exempt_pattern（明示的な仕様外の印）のあるものは除外する。tests.covers_placement は注釈の位置を宣言し、trace-check はそこだけを調べる: \"before\"（既定）= テスト印の直上の文書コメント、\"after\" = テスト印の行と本文の先頭行。どのテストの範囲にも属さない @covers 自体も違反。test_pattern を省略すればこの検査をスキップする。--next は .trace-reservations.json に予約を記録する（一時的。コミットしない）。layering.layer_pattern は layering.root 配下のどのパス階層を層名とするかを指定する: \"{layer}\"（既定）は第一階層、\"*/{layer}\" は第二階層（Features/<name>/Domain）。* は任意の一ディレクトリに一致する。commands ブロックは tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run（contract_adapter）だけが読み、trace-check は無視する。docs.verification_* は人間と利用プロジェクト向けの宣言。spec-lint は固定した --docs 相対パスのファイルを読む。nfr_pattern は NFR を検証するテストの注釈で、C20 が tests と tests.system の両方から拾う（省略時も同じ既定）。active な NFR は、このテストか、NFR の frontmatter の measured_by（テスト以外の計測の所在。実在するパス）のどちらかを持つ。C11 は nfr_pattern だけを持つテストも注釈済みと数える。source.unit_pattern は実現単位（ユースケースクラス、ルール関数など @implements を付ける単位）の印を指定する（一行一正規表現。グループ 1 に単位名を必ず捕捉する。同一性はファイル + 名前）。設定時は C19 が @implements も source.exempt_pattern の印（仕様を持たない技術部品の明示。理由を書く）も無い単位を報告する。source.implements_placement は注釈の位置で、tests.covers_placement と同じ before（既定）/ after。unit_pattern を省略すれば C19 をスキップする。tests.system はシステム（シナリオ）スイート、すなわちブラウザ、シミュレーター、デバイスを起動するフォルダーを指定する。tests.dirs と必ず分離する（重複すると C11 が @covers のないテストとして報告）。設定時は C15 が人間アクターの全 active UC（02-actors.md の 種別 が 人間 で始まる）に少なくとも一つの @scenario UC-nnn（scenario_pattern）付きテストを要求し、未定義 UC を指定する @scenario を報告する。docs.actors は C15 と C18 が読むアクター表、docs.vision は C18 が読む KPI 表（成功の定義）を持つ vision。どちらも省略すれば C18 のその参照（actor / origin）をスキップする。tests.system を省略すれば C15 をスキップする。",
+  "_comment": "利用プロジェクト直下に traceconfig.json として置く。tools/trace-check が読む。orchestrator が一度ひな形を置き、利用プロジェクトが自身の配置に合わせて source/tests/layering を編集する。実装に単一エラーコード正本がない場合は contract ブロックを省略する（C7 はスキップ）。schema ブロックは DB 設計のネイティブな正本（migrations / schema.prisma / model ファイル）を指定し、アプリが永続データを所有しない場合は省略する（C13 はスキップ）。implements_pattern の捕捉 1 は一覧でもよい（`@implements UC-001, REQ-009 / BR-015`）。trace-check が , または / で分割する。tests.test_pattern はテスト関数を指定する（一行一正規表現）。グループ 1 にテスト名を必ず捕捉する。テストの識別はファイル + 名前であり、行番号ではない（Swift Testing: \"^\\s*@Test(?:\\([^)]*\\))?\\s+func\\s+(\\w+)\"）。設定時は C11 が @covers の全くないテストも報告する。例外の印は無いので、仕様を持たないテスト（REQ を持たない技術部品の自己検査）は tests.dirs の外に置く（ADR-0055）。tests.covers_placement は注釈の位置を宣言し、trace-check はそこだけを調べる: \"before\"（既定）= テスト印の直上の文書コメント、\"after\" = テスト印の行と本文の先頭行。どのテストの範囲にも属さない @covers 自体も違反。test_pattern を省略すればこの検査をスキップする。--next は .trace-reservations.json に予約を記録する（一時的。コミットしない）。layering.layer_pattern は layering.root 配下のどのパス階層を層名とするかを指定する: \"{layer}\"（既定）は第一階層、\"*/{layer}\" は第二階層（Features/<name>/Domain）。* は任意の一ディレクトリに一致する。commands ブロックは tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run（contract_adapter）だけが読み、trace-check は無視する。docs.verification_* は人間と利用プロジェクト向けの宣言。spec-lint は固定した --docs 相対パスのファイルを読む。nfr_pattern は NFR を検証するテストの注釈で、C20 が tests と tests.system の両方から拾う（省略時も同じ既定）。active な NFR は、このテストか、NFR の frontmatter の measured_by（テスト以外の計測の所在。実在するパス）のどちらかを持つ。C11 は nfr_pattern だけを持つテストも注釈済みと数える。source.unit_dirs は実現単位（ユースケースクラス、ルール関数など @implements を付ける単位）を置く場所で、source.unit_pattern はその単位の印（一行一正規表現。グループ 1 に単位名を必ず捕捉する。同一性はファイル + 名前）。設定時は C19 が unit_dirs 内で @implements の無い単位を報告する。例外の印は無いので、REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は unit_dirs の外（infra など）に置く（ADR-0055）。source.implements_placement は注釈の位置で、tests.covers_placement と同じ before（既定）/ after。unit_dirs を省略すれば C19 をスキップする。tests.system はシステム（シナリオ）スイート、すなわちブラウザ、シミュレーター、デバイスを起動するフォルダーを指定する。tests.dirs と必ず分離する（重複すると C11 が @covers のないテストとして報告）。設定時は C15 が人間アクターの全 active UC（02-actors.md の 種別 が 人間 で始まる）に少なくとも一つの @scenario UC-nnn（scenario_pattern）付きテストを要求し、未定義 UC を指定する @scenario を報告する。docs.actors は C15 と C18 が読むアクター表、docs.vision は C18 が読む KPI 表（成功の定義）を持つ vision。どちらも省略すれば C18 のその参照（actor / origin）をスキップする。tests.system を省略すれば C15 をスキップする。",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",
@@ -49,9 +49,12 @@
     "extensions": [
       ".ts"
     ],
+    "unit_dirs": [
+      "src/domain",
+      "src/usecase"
+    ],
     "unit_pattern": "^\\s*export\\s+(?:default\\s+)?(?:async\\s+)?(?:function\\*?|class|const)\\s+(\\w+)",
-    "implements_placement": "before",
-    "exempt_pattern": "//\\s*仕様外:"
+    "implements_placement": "before"
   },
   "tests": {
     "dirs": [
@@ -62,7 +65,6 @@
     ],
     "test_pattern": "^\\s*(?:it|test)\\(\\s*[\"'`](.+?)[\"'`]",
     "covers_placement": "before",
-    "exempt_pattern": "//\\s*仕様外:",
     "system": {
       "dirs": [
         "e2e"
