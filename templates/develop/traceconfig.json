@@ -1,5 +1,5 @@
 {
-  "_comment": "利用プロジェクト直下に traceconfig.json として置く。tools/trace-check が読む。orchestrator が一度ひな形を置き、利用プロジェクトが自身の配置に合わせて編集する。紐づきの検査に要るキー（docs.actors / vision / glossary / shared、source とその unit_dirs / unit_pattern / entry_pattern、tests とその test_pattern / system / system.test_pattern、schema とその constraint_pattern、contract）は省略できない（省略は設定エラー）。対象が無いなら { \"none\": \"<理由>\" } と宣言し、trace-check はその範囲を検査せず、レポートに理由を出す。baseline と、コードに書く例外の印は無い（ADR-0056）。implements_pattern の捕捉 1 は一覧でもよい（`@implements UC-001, REQ-009 / BR-015`）。trace-check が , または / で分割する。注釈の位置（*_placement）は before（既定）＝ 単位の印の直上に連続する行（空行で切れる）か、after ＝ 単位の印の行と次の行で、trace-check はその範囲だけを調べる。tests.dirs は仕様のテストを置く場所で、tests.test_pattern はテスト関数の印（一行一正規表現。グループ 1 にテスト名を必ず捕捉する。識別はファイル + 名前。Swift Testing: \"^\\s*@Test(?:\\([^)]*\\))?\\s+func\\s+(\\w+)\"）。C11 は tests.dirs の全テストに @covers を求め、どのテストにも属さない @covers も違反にする。REQ を持たない技術部品の自己検査は tests.dirs の外に置く。tests.system はシステム（シナリオ）スイート、すなわちブラウザ、シミュレーター、デバイスを起動するフォルダーで、tests.dirs と必ず分離する（重複すると C11 が @covers のないテストとして報告）。C15 は人間アクターの全 active UC（docs.actors の 種別 が 人間 で始まる）に @scenario UC-nnn（scenario_pattern）付きテストを求め、tests.system.test_pattern に一致する全テストに @scenario を求め、撤回済み・未定義の UC を指す @scenario を報告する。source.unit_dirs は実現単位（ユースケースクラス、ルール関数など @implements を付ける単位）を置く場所で、source.unit_pattern はその単位の印（グループ 1 に単位名）。C19 は unit_dirs の全単位に @implements を求める。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は unit_dirs の外（infra など）に置く。source.entry_pattern は境界の入口（ルート登録、ハンドラーなど）の印（グループ 1 に入口の名前。パスなど）。C21 は各入口に @operation UC-nnn#operationName（operation_pattern）を求め、@operation が撤回されていない UC の契約に実在する操作を指すこと、fixed 契約の全操作がソースのどこかの @operation から指されることを検査する。入口を持たないなら entry_pattern を none にする。schema はスキーマの正本（migrations / schema.prisma / model ファイル）で、schema.constraint_pattern は業務ルールを強制する制約の印（グループ 1 に名前。無ければ行で識別する）。C13 は DB で強制する BR に、C23 は constraint_pattern に一致する全制約に @implements BR-nnn を求める。主キーなどルールでない制約は constraint_pattern に一致させない。アプリが永続データを所有しないなら schema を none にする。contract は実装のエラーコード正本で、C7 は実装のコード ⊆ 共有語彙（docs.shared の errorCodes）を、C24 は共有語彙の全コードがどれかの契約の errors で使われることを検査する。単一の正本が無いなら contract を none にする。docs.actors は C15 と C18、docs.vision は C18（KPI 表）、docs.glossary は C25（living の用語集のコード識別子列の識別子が source に存在するか）が読む。nfr_pattern は NFR を検証するテストの注釈で、C20 が tests と tests.system の両方から拾う。active な NFR は、このテストか、NFR の frontmatter の measured_by（テスト以外の計測の所在。実在するパス）のどちらかを持つ。layering は紐づきではなく層の向きの検査（C6）で、省略できる。layering.layer_pattern は layering.root 配下のどのパス階層を層名とするかを指定する: \"{layer}\"（既定）は第一階層、\"*/{layer}\" は第二階層（Features/<name>/Domain）。* は任意の一ディレクトリに一致する。commands ブロックは tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run（contract_adapter）だけが読み、trace-check は無視する。docs.verification_* は人間と利用プロジェクト向けの宣言。spec-lint は固定した --docs 相対パスのファイルを読む。--next は .trace-reservations.json に予約を記録する（一時的。コミットしない）。",
+  "_comment": "利用プロジェクト直下に traceconfig.json として置く（orchestrator が人間の承認を得て書く。値はスタックの rules-* の common-traceconfig が差分を示す）。tools/trace-check / spec-lint / contract-run / gate-hook が読む。キーの意味と検査項目は tools/trace-check/README.md。紐づきの宣言（docs.actors / vision / glossary / shared、source、tests、tests.system、schema、contract とその子）は省略できない。対象が無いなら { \"none\": \"<理由>\" } と書く。none と範囲の一致 0 件が通るのは、それを求める active な文書・fixed な契約が無い間だけ（C26）。baseline と、コードに書く例外の印は無い（ADR-0056）。dirs 系はパスか glob の配列で、\"!\" で始まるものは除外。注釈はコメントの中だけを数える（comment_pattern）。正規表現は u フラグでコンパイルする。",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",
@@ -8,11 +8,11 @@
     "nfr": "\\bNFR-\\d{3}\\b",
     "adr": "\\bADR-\\d{4}\\b"
   },
-  "covers_pattern": "@covers\\s+(REQ-\\d{3})(?:#([\\w-]+))?",
-  "scenario_pattern": "@scenario\\s+(UC-\\d{3})",
-  "nfr_pattern": "@covers\\s+(NFR-\\d{3})",
+  "covers_pattern": "@covers\\s+(REQ-\\d{3})(?!\\d)(?:#([\\w-]+))?",
+  "scenario_pattern": "@scenario\\s+(UC-\\d{3})(?!\\d)",
+  "nfr_pattern": "@covers\\s+(NFR-\\d{3})(?!\\d)",
   "operation_pattern": "@operation\\s+(UC-\\d{3})#(\\w+)",
-  "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?:\\s*[,/]\\s*(?:REQ|BR|UC)-\\d{3})*)",
+  "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?!\\d)(?:\\s*[,、/]\\s*(?:REQ|BR|UC)-\\d{3}(?!\\d))*)",
   "docs": {
     "goals_dir": "docs/goals",
     "goals_backlog": "docs/goals-backlog.md",
@@ -27,11 +27,10 @@
     "glossary": "docs/01-glossary.md"
   },
   "commands": {
-    "_comment": "利用プロジェクト自身の検証をそれぞれシェル一行で指定する（cwd = 利用プロジェクト直下）。stop-gate は typecheck -> lint -> test の順に実行し、最初の失敗で停止する。欠落キーはスキップと報告し、推測してはならない。contract_adapter は tools/contract-run が JSONL（stdin: 一行一リクエスト、stdout: 一行一応答）で通信し、全契約例をプロセス内実行するプロセス。実行する実例（fixed 契約の owned: true の操作）があるのにアダプターが無い場合と、skip を返した例は contract-run が失敗にする（ADR-0056）。system はシナリオ（システム）スイート全体を一度実行するコマンド。宣言時は stop-gate が test 後に実行し、未宣言はスキップと報告する。test の探索に含めず、毎回の終了時のブラウザ / シミュレーター実行がこの利用プロジェクトには遅すぎるなら未宣言にする（CI では引き続き実行）。",
+    "_comment": "tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run が読み、trace-check は読まない（cwd = 利用プロジェクト直下）。typecheck / lint / test / system はシェル 1 行か { \"none\": \"<理由>\" } で必ず宣言する（欠落は失敗。tests を宣言していれば test は none にできない）。stop-gate は typecheck -> lint -> test -> system の順に実行する。system はシナリオスイート全体を 1 回実行するコマンドで、終了ごとに走らせるには遅すぎるなら理由付きの none にする（CI では実行する）。contract_adapter は契約の実例を実行するプロセス（JSONL。stdin 1 行 1 リクエスト / stdout 1 行 1 応答）。test-author が書いてから宣言する。fixed 契約の owned の操作があるのに未宣言なら contract-run が失敗にする（ADR-0056）。",
     "typecheck": "npx tsc --noEmit",
     "lint": "npx eslint .",
     "test": "npm test --silent",
-    "contract_adapter": "npx tsx scripts/contract-adapter.ts",
     "system": "npx playwright test"
   },
   "policy": {
@@ -46,27 +45,38 @@
   },
   "source": {
     "dirs": [
-      "src"
+      "src",
+      "!**/*.test.*",
+      "!**/*.spec.*"
     ],
     "extensions": [
-      ".ts"
+      ".ts",
+      ".tsx"
     ],
     "unit_dirs": [
-      "src/domain",
-      "src/usecase"
+      "src/usecase/**"
     ],
-    "unit_pattern": "^\\s*export\\s+(?:default\\s+)?(?:async\\s+)?(?:function\\*?|class|const)\\s+(\\w+)",
+    "support_dirs": [
+      "src/index.*",
+      "src/*.d.ts",
+      "src/domain/**",
+      "src/infra/**",
+      "src/shared/**"
+    ],
+    "unit_pattern": "^export\\s+(?:default\\s+)?(?:async\\s+)?function\\*?\\s*(\\w*)\\s*[<(]|^export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+(\\w+)|^export\\s+(?:const|let)\\s+(\\w+)\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:<[^>]*>\\s*)?(?:\\(|\\w+\\s*=>|\\w+\\s*\\(\\s*(?:async\\s*)?(?:\\(|function\\b|\\w+\\s*=>))|^export\\s+default\\s+(?:(\\w+)\\s*;?\\s*$|(?:async\\s*)?(?:\\(|\\w+\\s*\\())|^export\\s*\\{(?!\\s*type\\b)\\s*([^}]*?)\\s*(?:\\}\\s*;?\\s*)?$",
     "implements_placement": "before",
-    "entry_pattern": "^\\s*\\w+\\.(?:get|post|put|patch|delete)\\(\\s*[\"'`]([^\"'`]+)"
+    "entry_pattern": "\\.(?:get|post|put|patch|delete|all)\\(\\s*[\"'`](\\/[^\"'`]*)|(?:^\\s*|\\b(?:app|router|routes?|\\w*(?:App|Router|Routes)))\\.(?:get|post|put|patch|delete|all)\\(\\s*$|\\.on\\(\\s*[\"'`][A-Z]+[\"'`]\\s*,\\s*[\"'`](\\/[^\"'`]*)"
   },
   "tests": {
     "dirs": [
       "tests"
     ],
     "extensions": [
-      ".ts"
+      ".ts",
+      ".tsx"
     ],
-    "test_pattern": "^\\s*(?:it|test)\\(\\s*[\"'`](.+?)[\"'`]",
+    "test_pattern": "^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent|each\\(.*?\\)|for\\(.*?\\)))*\\(\\s*[\"'`](.+?)[\"'`]|^\\s*x?(?:it|test)(?:\\.\\w+)*\\.(?:each|for)[(`]\\s*\\[?\\s*$|^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent))*\\(\\s*$",
+    "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)\\b.*\\{[^}]*\\bskip:\\s*true",
     "covers_placement": "before",
     "system": {
       "dirs": [
@@ -75,14 +85,16 @@
       "extensions": [
         ".ts"
       ],
-      "test_pattern": "^\\s*(?:it|test)\\(\\s*[\"'`](.+?)[\"'`]"
+      "test_pattern": "^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent|each\\(.*?\\)|for\\(.*?\\)))*\\(\\s*[\"'`](.+?)[\"'`]|^\\s*x?(?:it|test)(?:\\.\\w+)*\\.(?:each|for)[(`]\\s*\\[?\\s*$|^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent))*\\(\\s*$",
+      "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)\\b.*\\{[^}]*\\bskip:\\s*true",
+      "scenario_placement": "before"
     }
   },
   "schema": {
     "files": [
       "prisma/schema.prisma"
     ],
-    "constraint_pattern": "^\\s*(\\w+)\\s+\\S+.*@unique|^\\s*@@unique\\(\\[([^\\]]+)\\]"
+    "constraint_pattern": "^\\s*(\\w+)\\s+\\S+(?:(?!\\/\\/).)*@unique\\b|^\\s*@@unique\\(\\s*(?:fields:\\s*)?\\[([^\\]]+)\\]"
   },
   "layering": {
     "root": "src",
@@ -102,6 +114,6 @@
   },
   "contract": {
     "error_source": "src/domain/errors.ts",
-    "error_code_pattern": "code\\s*=\\s*['\"]([A-Z_]+)['\"]"
+    "error_code_pattern": "\\bcode\\s*[:=]\\s*['\"]([A-Z][A-Z0-9_]*)['\"]"
   }
 }

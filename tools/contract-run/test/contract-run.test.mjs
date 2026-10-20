@@ -319,3 +319,11 @@ test("配列は長さと要素ごとの部分集合で比べ、ネストした�
 	assert.equal(r.status, 1);
 	assert.match(r.stdout, /items\[1\]\.status: 期待 "ok" \/ 実際 "pending"/);
 });
+
+test("--docs の先に goals が無ければ、実例が無いとして通さず exit 2（ADR-0056）", (t) => {
+	const root = makeHost();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--docs", "documentation");
+	assert.equal(r.status, 2, r.stdout + r.stderr);
+	assert.match(r.stderr, /documentation\/goals が無い/);
+});

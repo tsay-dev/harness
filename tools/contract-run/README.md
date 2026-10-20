@@ -29,7 +29,7 @@ node tools/contract-run/contract-run.mjs [--root <host root>] [--config tracecon
 | --- | --- |
 | `--root` | 利用プロジェクト直下（既定: 現在のディレクトリ）。アダプターはここを cwd に実行 |
 | `--config` | 読む `traceconfig.json`（既定: `<root>/traceconfig.json`）。設定欠落は exit `2`。探索はしない |
-| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は `<docs>/goals/**/UC-*/contract.yaml` 配下で探す |
+| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は `<docs>/goals/**/UC-*/contract.yaml` 配下で探す。`<docs>/goals` が無ければ exit `2` |
 | `--uc` | `x-uc` が一致する契約だけ（繰り返し指定、またはカンマ区切り） |
 | `--all` | `draft` 契約も実行（既定: `x-status: fixed` のみ） |
 | `--include-external` | `owned: false` 操作も実行（既定: `owned: true` のみ）。外部境界は写しであり自身のものではないため明示選択 |
@@ -47,8 +47,9 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 ```
 
 終了コード: `0` = `fail` も `skip` もない / `1` = 一つ以上の `fail` か `skip`、または実行する実例があるのにアダプターが無い /
-`2` = 設定またはアダプターエラー（`traceconfig.json` 欠落、解析不能な契約、アダプターの異常終了 /
-タイムアウト / プロトコル違反）。`operations: {}` の操作は表示せずスキップする。
+`2` = 設定またはアダプターエラー（`traceconfig.json` 欠落、`<docs>/goals` が無い、解析不能な契約、アダプターの異常終了 /
+タイムアウト / プロトコル違反）。`<docs>/goals` の不在を失敗にするのは、`--docs` の書き損じで「実行する実例が無い」と
+黙って通らないため（ADR-0056）。docs をまだ持たない利用プロジェクトは `docs/goals/` を作る（空なら `.gitkeep` を置く）。`operations: {}` の操作は表示せずスキップする。
 `response` も `error` もない例は、それ自体を `fail` として報告する（不正な例。アダプターへは送らない）。
 
 `commands.contract_adapter` が**未宣言**で、実行する実例があれば失敗（`1`）にする（ADR-0056）:
@@ -140,7 +141,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 | ツール | 証明するもの | 証明しないもの |
 | --- | --- | --- |
 | `spec-lint` | 契約の書式とライフサイクル（語彙、`examples` の存在と `request` との整合） | コードの存在 |
-| `trace-check` | 参照の解決: `@covers` / `@implements`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、層 | コードの動作 |
+| `trace-check` | 参照の解決: `@covers` / `@implements`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、入口と契約の操作の `@operation`（C21）、層 | コードの動作 |
 | **`contract-run`** | 実装が各例に契約の**形状**と**コード**で応答すること | REQ の**意味** |
 | テスト（`## 検証方針`） | 分割クラスごとの REQ の意味 | — |
 
@@ -159,6 +160,7 @@ contract-run は形状を実行する。正常な実行 + テスト成功 + trac
 ```
 
 `commands` ブロックは `tools/gate-hook`（最終ゲート）とこのツールだけが読み、trace-check は無視する。
+`contract_adapter` はテンプレートに無い。アダプターを書いてから宣言する（`traceconfig.json` の変更なので人間が承認する。ADR-0057）。
 アダプターができるまでは、実行する実例があれば contract-run は失敗する。推測でアダプターを作らない。
 
 ## 制約
@@ -170,5 +172,5 @@ contract-run は形状を実行する。正常な実行 + テスト成功 + trac
 - skip は失敗。集計は未実行の例の数を示し、終了コードを `1` にする。
 - 一実行一プロセス。アダプターは一つの寿命で全例を扱う。例間の分離が必要ならアダプターが行う
   （一行ごとのトランザクション、新規メモリー内ストア）。
-- YAML reader は spec-lint と同じ厳格な部分集合（anchors、aliases、block scalars はエラー）。
-  spec-lint が拒否する契約は、ここでは `fail` でなく exit `2`。
+- YAML reader は spec-lint・trace-check と共有する `tools/_shared/strict-yaml.mjs`（厳格な部分集合。anchors、aliases、
+  block scalars はエラー）。ツールごとに契約を違う値に読まない（ADR-0056）。spec-lint が拒否する契約は、ここでは `fail` でなく exit `2`。

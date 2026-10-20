@@ -47,8 +47,8 @@ test("C15: 人間アクターの active UC にシナリオテストを要求し�
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root, "--only", "C15");
 	assert.equal(r.status, 1, r.stdout + r.stderr);
-	assert.match(r.stdout, /\[C15\] UC-003 \(active、アクター ACT-01\) にシナリオテストが存在しない/);
-	assert.match(r.stdout, /\[C15\] register\.spec\.ts:3: 未定義の UC-999 を @scenario している/);
+	assert.match(r.stdout, /\[C15\] UC-003 \(active、アクター ACT-01\) のシナリオテストが存在しない/);
+	assert.match(r.stdout, /\[C15\] e2e\/register\.spec\.ts:3: 未定義の UC-999 を @scenario している/);
 	assert.doesNotMatch(r.stdout, /\[C15\] UC-001 /);
 	assert.doesNotMatch(r.stdout, /\[C15\] UC-002 /);
 	assert.doesNotMatch(r.stdout, /\[C15\] UC-004 /);
@@ -66,9 +66,9 @@ test("レポート: 各 UC の行にシナリオテストの所在を出す", (t
 	const root = makeRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root);
-	assert.match(r.stdout, /UC-001 \(UC-001-register\/\)  \[実装\]  scenario:register\.spec\.ts:1/);
+	assert.match(r.stdout, /UC-001 \(UC-001-register\/\)  \[実装\]  scenario:e2e\/register\.spec\.ts:1/);
 	assert.match(r.stdout, /UC-003 \(UC-003-browse\/\)  \[実装\]  scenario:-/);
-	assert.match(r.stdout, /シナリオテスト: 2/);
+	assert.match(r.stdout, /シナリオテスト: 2（保留 0）/);
 });
 
 //  C16–C18 用: BR / REQ / vision を持つ docs。draft と withdrawn、HTML コメント、プレースホルダーは判定の外に置く
@@ -94,9 +94,9 @@ function makeRefRoot({ vision = true } = {}) {
 	w("docs/goals/GOAL-02-draft/GOAL.md", `${fm({ id: "GOAL-02", actor: "ACT-07", origin: "KPI-07", status: "draft" })}# GOAL-02\n`);
 	const uc = (id, actor, status, body) => `${fm({ id, title: "t", actor, goal: "GOAL-01", status, phase: "定義" })}# ${id}\n\n${body}`;
 	w(`${g}/UC-001-register/UC.md`, uc("UC-001", "ACT-08", "active",
-		"- 適用される業務規則: BR-001, BR-009\n\n<!-- 例: BR-007 や REQ-007 はコメントなので数えない -->\n\n| 状態 \\ イベント | 登録 | 取消 |\n| --- | --- | --- |\n| 未登録 | REQ-001 | REQ-002 |\n| 登録済 | REQ-003 | REQ-000 |\n"));
-	w(`${g}/UC-002-browse/UC.md`, uc("UC-002", "ACT-01", "active", "| 状態 \\ イベント | 閲覧 |\n| --- | --- |\n| 登録済 | REQ-003 |\n"));
-	w(`${g}/UC-003-draft/UC.md`, uc("UC-003", "ACT-06", "draft", "- BR-006\n\n| 状態 \\ イベント | 閲覧 |\n| --- | --- |\n| 登録済 | REQ-006 |\n"));
+		"- 適用される業務規則: BR-001, BR-009\n\n## 主シナリオ\n\n1. REQ-008 は表の節の外なので数えない\n\n## 状態 × イベント表\n\n<!-- 例: BR-007 や REQ-007 はコメントなので数えない -->\n\n| 状態 \\ イベント | 登録 | 取消 |\n| --- | --- | --- |\n| 未登録 | REQ-001 | REQ-002 |\n| 登録済 | REQ-003 | REQ-000 |\n"));
+	w(`${g}/UC-002-browse/UC.md`, uc("UC-002", "ACT-01", "active", "## 状態 × イベント表\n\n| 状態 \\ イベント | 閲覧 |\n| --- | --- |\n| 登録済 | REQ-003 |\n"));
+	w(`${g}/UC-003-draft/UC.md`, uc("UC-003", "ACT-06", "draft", "- BR-006\n\n## 状態 × イベント表\n\n| 状態 \\ イベント | 閲覧 |\n| --- | --- |\n| 登録済 | REQ-006 |\n"));
 	const req = (id, uc, status, br) => `${fm({ id, pattern: "Ubiquitous", uc, ...(br ? { br } : {}), status })}# ${id}\n\n> 1 文\n`;
 	w(`${g}/UC-001-register/REQ-001.md`, req("REQ-001", "UC-001", "active", "BR-008"));
 	w(`${g}/UC-001-register/REQ-004.md`, req("REQ-004", "UC-001", "draft", "BR-005"));
@@ -123,7 +123,7 @@ test("C17: active な UC の表と REQ の 1 対 1 対応（未定義・他 UC �
 	assert.match(r.stdout, /\[C17\] UC-001 の表が未定義の REQ-002 を指している/);
 	assert.match(r.stdout, /\[C17\] UC-001 の表が UC-002 の REQ-003 を指している/);
 	assert.match(r.stdout, /\[C17\] REQ-004 が UC-001 の表のどのセルからも導出されていない/);
-	for (const id of ["REQ-000", "REQ-001", "REQ-005", "REQ-006", "REQ-007"]) assert.doesNotMatch(r.stdout, new RegExp(`\\[C17\\].*${id}`));
+	for (const id of ["REQ-000", "REQ-001", "REQ-005", "REQ-006", "REQ-007", "REQ-008"]) assert.doesNotMatch(r.stdout, new RegExp(`\\[C17\\].*${id}`));
 	assert.doesNotMatch(r.stdout, /\[C17\] UC-002/);
 });
 
@@ -177,7 +177,7 @@ for (const placement of ["before", "after"])
 		t.after(() => rmSync(root, { recursive: true, force: true }));
 		const r = run(root, "--only", "C19");
 		assert.equal(r.status, 1, r.stdout + r.stderr);
-		assert.match(r.stdout, /\[C19\] register\.ts:\d+ "Unlinked": @implements の無い実現単位/);
+		assert.match(r.stdout, /\[C19\] src\/usecase\/register\.ts:\d+ "Unlinked": @implements の無い実現単位/);
 		assert.doesNotMatch(r.stdout, /\[C19\].*"(register|formatDate|helper)"/);
 	});
 
@@ -229,7 +229,13 @@ function makeNfrRoot() {
 	w("docs/nfr/NFR-003.md", nfr("NFR-003", "active"));
 	w("docs/nfr/NFR-004.md", nfr("NFR-004", "active", "perf/missing.js"));
 	w("docs/nfr/NFR-005.md", nfr("NFR-005", "draft"));
-	w("perf/load.js", "// 負荷試験\n");
+	w("perf/load.js", "// 負荷試験（NFR-002）\n");
+	//  measured_by は docs の外のファイルで、中にその NFR の ID が現れること
+	w("docs/nfr/NFR-006.md", nfr("NFR-006", "active", "perf/other.js"));
+	w("docs/nfr/NFR-007.md", nfr("NFR-007", "active", "docs/rules/perf.md"));
+	w("docs/nfr/NFR-008.md", nfr("NFR-008", "active", "https://example.com/dashboard"));
+	w("perf/other.js", "// 別の計測\n");
+	w("docs/rules/perf.md", "NFR-007 の計測\n");
 	w("tests/perf.test.ts", "// @covers NFR-001\ntest('一覧の応答', () => {});\n");
 	w("e2e/perf.spec.ts", "// @covers NFR-009\ntest('存在しない NFR', () => {});\n");
 	return root;
@@ -241,7 +247,10 @@ test("C20: active な NFR にテストか measured_by を求め、measured_by �
 	const r = run(root);
 	assert.match(r.stdout, /\[C20\] NFR-003 \(active\) を検証するテストも measured_by も無い/);
 	assert.match(r.stdout, /\[C20\] NFR-004 の measured_by perf\/missing\.js が無い/);
-	assert.match(r.stdout, /\[C20\] perf\.spec\.ts:1: 未定義の NFR-009 を @covers している/);
+	assert.match(r.stdout, /\[C20\] e2e\/perf\.spec\.ts:1: 未定義の NFR-009 を @covers している/);
+	assert.match(r.stdout, /\[C20\] NFR-006 の measured_by perf\/other\.js の中に NFR-006 が現れない/);
+	assert.match(r.stdout, /\[C20\] NFR-007 の measured_by docs\/rules\/perf\.md は docs の外/);
+	assert.match(r.stdout, /\[C20\] NFR-008 の measured_by https:\/\/example\.com\/dashboard はリポジトリ内のファイルにする/);
 	assert.doesNotMatch(r.stdout, /\[C20\].*NFR-00[125]/);
 	assert.match(r.stdout, /OK NFR-002  \[active\]  measured_by:perf\/load\.js/);
 	//  NFR だけを @covers するテストは C11 の「@covers の無いテスト」にならない
@@ -295,14 +304,14 @@ function makeFullRoot() {
 	w("docs/nfr/NFR-001.md", `${fm({ id: "NFR-001", category: "performance", status: "withdrawn" })}# NFR-001\n`);
 	w(`${g}/GOAL.md`, `${fm({ id: "GOAL-01", actor: "ACT-01", origin: "KPI-01", status: "active" })}# GOAL-01\n`);
 	const uc = (id, status, body) => `${fm({ id, title: "t", actor: "ACT-01", goal: "GOAL-01", status, phase: "実装" })}# ${id}\n\n${body}`;
-	w(`${g}/UC-001-register/UC.md`, uc("UC-001", "active", "利用者が案件を登録し、掲載中にする。\n\n- BR-002, BR-003\n\n| 状態 \\ イベント | 登録 | 取消 |\n| --- | --- | --- |\n| 未登録 | REQ-001 | REQ-002 |\n"));
+	w(`${g}/UC-001-register/UC.md`, uc("UC-001", "active", "利用者が案件を登録し、掲載中にする。\n\n- BR-002, BR-003\n\n## 状態 × イベント表\n\n| 状態 \\ イベント | 登録 | 取消 |\n| --- | --- | --- |\n| 未登録 | REQ-001 | REQ-002 |\n"));
 	w(`${g}/UC-002-old/UC.md`, uc("UC-002", "withdrawn", ""));
 	const req = (id, status, extra = {}) => `${fm({ id, pattern: "Ubiquitous", uc: "UC-001", ...extra, status })}# ${id}\n\n> 1 文\n\n## 検証方針\n\n- **分割クラス**:\n  - \`#ok\` — 正常\n`;
 	w(`${g}/UC-001-register/REQ-001.md`, req("REQ-001", "active", { br: "BR-001" }));
 	w(`${g}/UC-001-register/REQ-002.md`, req("REQ-002", "withdrawn"));
 	const contract = (uc, ops) =>
 		`x-uc: ${uc}\nx-status: fixed\noperations:\n` +
-		ops.map((op) => `  ${op}:\n    transport: http\n    errors:\n      - code: INVALID_INPUT\n        when: 不正\n      - code: FORBIDDEN\n        when: 権限なし\n`).join("");
+		ops.map((op) => `  ${op}:\n    transport: http\n    direction: inbound\n    owned: true\n    errors:\n      - code: INVALID_INPUT\n        when: 不正\n      - code: FORBIDDEN\n        when: 権限なし\n`).join("");
 	w(`${g}/UC-001-register/contract.yaml`, contract("UC-001", ["createProject", "listProjects"]));
 	w(`${g}/UC-002-old/contract.yaml`, contract("UC-002", ["oldOp"]));
 	w(
@@ -329,19 +338,19 @@ test("撤回済みの仕様を指す注釈・参照は違反（C3 / C5 / C15 / C
 	const out = run(root, "--only", "C3,C5,C15,C16,C17,C20").stdout;
 	assert.match(out, /\[C3\] テストが撤回済みの REQ-002 を @covers している/);
 	assert.match(out, /\[C5\] コードが撤回済みの REQ-002 を参照/);
-	assert.match(out, /\[C15\] flow\.spec\.ts:4: 撤回済みの UC-002 を @scenario している/);
+	assert.match(out, /\[C15\] e2e\/flow\.spec\.ts:4: 撤回済みの UC-002 を @scenario している/);
 	assert.match(out, /\[C16\] UC-001 が撤回済みの BR-003 を参照している/);
 	assert.match(out, /\[C17\] UC-001 の表が撤回済みの REQ-002 を指している/);
-	assert.match(out, /\[C20\] project\.test\.ts:5: 撤回済みの NFR-001 を @covers している/);
+	assert.match(out, /\[C20\] tests\/project\.test\.ts:5: 撤回済みの NFR-001 を @covers している/);
 });
 
 test("注釈の窓は単位の直上に連続する行だけ。空行を挟んだ注釈は帰属せず、@scenario の無いシナリオテストも違反（C11 / C15）", (t) => {
 	const root = makeFullRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const out = run(root, "--only", "C11,C15").stdout;
-	assert.match(out, /\[C11\] project\.test\.ts:9 "separated": @covers の無いテスト/);
-	assert.match(out, /\[C11\] project\.test\.ts:7 "@covers REQ-001#ok": どのテストにも属さない @covers/);
-	assert.match(out, /\[C15\] flow\.spec\.ts:3 "bare": @scenario の無いシナリオテスト/);
+	assert.match(out, /\[C11\] tests\/project\.test\.ts:9 "separated": @covers の無いテスト/);
+	assert.match(out, /\[C11\] tests\/project\.test\.ts:7 "@covers REQ-001#ok": どのテストにも属さない @covers/);
+	assert.match(out, /\[C15\] e2e\/flow\.spec\.ts:3 "bare": @scenario の無いシナリオテスト/);
 	assert.doesNotMatch(out, /"(ok|old|perf|flow|old flow)":/);
 });
 
@@ -349,10 +358,10 @@ test("C21: 入口と契約の操作の双方向（@operation の無い入口、�
 	const root = makeFullRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const out = run(root, "--only", "C21").stdout;
-	assert.match(out, /\[C21\] routes\.ts:3 "\/projects": @operation の無い境界の入口/);
-	assert.match(out, /\[C21\] routes\.ts:4: 契約に無い操作 UC-001#deleteProject を @operation している/);
-	assert.match(out, /\[C21\] routes\.ts:6: 撤回済みの UC の操作 UC-002#oldOp を @operation している/);
-	assert.match(out, /\[C21\] UC-001#listProjects（fixed）を @operation する実装が無い/);
+	assert.match(out, /\[C21\] src\/infra\/routes\.ts:3 "\/projects": @operation の無い境界の入口/);
+	assert.match(out, /\[C21\] src\/infra\/routes\.ts:4: 契約に無い操作 UC-001#deleteProject を @operation している/);
+	assert.match(out, /\[C21\] src\/infra\/routes\.ts:6: 撤回済みの UC の操作 UC-002#oldOp を @operation している/);
+	assert.match(out, /\[C21\] UC-001#listProjects（fixed、owned かつ inbound）を @operation する入口が無い/);
 	assert.doesNotMatch(out, /createProject/);
 	assert.doesNotMatch(out, /\[C21\] UC-002#oldOp（fixed）/);
 });
@@ -363,7 +372,7 @@ test("C22–C25: REQ から辿れない BR、注釈の無い制約、使われ�
 	const out = run(root, "--only", "C22,C23,C24,C25").stdout;
 	assert.match(out, /\[C22\] BR-002 \(active\) を br: に持つ active な REQ が無い/);
 	assert.doesNotMatch(out, /\[C22\] BR-00[13]/);
-	assert.match(out, /\[C23\] schema\.prisma:5 "name": @implements の無い制約/);
+	assert.match(out, /\[C23\] prisma\/schema\.prisma:5 "name": @implements の無い制約/);
 	assert.doesNotMatch(out, /\[C23\].*"code"/);
 	assert.match(out, /\[C24\] 共有語彙のエラーコード UNUSED_CODE がどの契約の errors でも使われていない/);
 	assert.doesNotMatch(out, /\[C24\].*(INVALID_INPUT|FORBIDDEN)/);
@@ -373,14 +382,15 @@ test("C22–C25: REQ から辿れない BR、注釈の無い制約、使われ�
 	assert.doesNotMatch(out, /\[C25\].*Invoice/);
 });
 
-test("C24 / C25: 宣言した共有語彙・用語集のファイルが無ければ違反、contract.exclude_codes は廃止", (t) => {
+test("C26: 宣言した共有語彙・用語集のファイルが無ければ違反、contract.exclude_codes は廃止", (t) => {
 	const root = makeFullRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	rmSync(join(root, "docs/_shared/components.yaml"));
 	rmSync(join(root, "docs/01-glossary.md"));
-	const out = run(root, "--only", "C24,C25").stdout;
-	assert.match(out, /\[C24\] 共有語彙 docs\/_shared\/components\.yaml が無い/);
-	assert.match(out, /\[C25\] 用語集 docs\/01-glossary\.md が無い/);
+	//  active な UC があるので、宣言した固定パスの不在は C26（作るか none にする）
+	const out = run(root, "--only", "C26").stdout;
+	assert.match(out, /\[C26\] docs\.shared の docs\/_shared\/components\.yaml が無い（active な UC がある）。作る/);
+	assert.match(out, /\[C26\] docs\.glossary の docs\/01-glossary\.md が無い（active な UC がある）。作る/);
 	const cfgPath = join(root, "traceconfig.json");
 	const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
 	cfg.contract.exclude_codes = ["INTERNAL"];

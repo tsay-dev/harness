@@ -250,3 +250,39 @@ test("作業指針: 150 行を超える CLAUDE.md・AGENTS.md はそれぞれ er
 	assert.match(r.out, /CLAUDE\.md: 作業指針が 150 行を超える/);
 	assert.match(r.out, /AGENTS\.md: 作業指針が 150 行を超える/);
 });
+
+test("frontmatter の曖昧な書き方（先頭が空白の行、キーの重複、区切りもどき）は違反（ADR-0056）", () => {
+	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
+	try {
+		writeMinimalDocs(root);
+		const file = join(root, "docs/goals/GOAL-01-a/UC-001-b/REQ-001.md");
+		writeFileSync(file, readFileSync(file, "utf8").replace(/^status: (\w+)$/m, "status: draft\n status: $1\nstatus: $1"));
+		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		const out = r.stdout + r.stderr;
+		assert.equal(r.status, 1, out);
+		assert.match(out, /先頭が空白の行がある/);
+		assert.match(out, /キー "status" が重複している/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("docs/goals が無ければ設定エラー（exit 2）、アクターの種別は 人間 / システム で始める", () => {
+	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
+	try {
+		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		assert.equal(r.status, 2, r.stdout + r.stderr);
+		assert.match(r.stderr, /docs\/goals が無い/);
+		writeMinimalDocs(root);
+		const actors = (kind) =>
+			`---\nid: ACTORS\nstatus: living\n---\n\n# アクター\n\n## アクター一覧（この表は閉じている）\n\n| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | ${kind} | 登録する |\n`;
+		writeFileSync(join(root, "docs/02-actors.md"), actors("利用者（人間）"));
+		const bad = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		assert.match(bad.stdout + bad.stderr, /ACT-01: 種別は 人間 \/ システム のどちらかで始める/);
+		writeFileSync(join(root, "docs/02-actors.md"), actors("人間 / 認証済"));
+		const good = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		assert.doesNotMatch(good.stdout + good.stderr, /種別は/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

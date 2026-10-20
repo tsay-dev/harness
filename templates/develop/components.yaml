@@ -23,11 +23,12 @@ authSchemes: {}
 # 契約の `errors[].code` の閉じた語彙。未定義コードはエラー
 # 値はコードの意味を一行で説明する（発生条件は契約の `when:` に置く）
 # trace-check C7 は実装のエラーコードがこれらのキーの部分集合か検査する（traceconfig.json の `contract` 設定時）
-errorCodes:
-  INVALID_INPUT: 入力が要件を満たさない
-  FORBIDDEN: 権限がない
-  NOT_FOUND: 対象が存在しない
-  PERMISSION_DENIED: OS の権限が拒否されている   # requires: を宣言する操作で使う
+# 既定で定義するコードはない。契約の errors[] が実際に使うものだけを足す（使われないコードは C24 の違反）
+errorCodes: {}
+  # INVALID_INPUT: 入力が要件を満たさない
+  # FORBIDDEN: 権限がない
+  # NOT_FOUND: 対象が存在しない
+  # PERMISSION_DENIED: OS の権限が拒否されている   # requires: を宣言する操作で使う
 
 # 二つ以上の UC が使う共有 DTO
 # $ref の参照先（docs/goals/<GOAL>/<UC>/contract.yaml から）: ../../../_shared/components.yaml#/schemas/<Name>
