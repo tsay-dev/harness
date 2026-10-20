@@ -20,7 +20,7 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
 - **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
   作業指針は地図だけを持つ。メッセージに実際の行数を入れず、baseline のキーを編集で動かさない）。
 - **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
-  （C9）、採番衝突は `../trace-check/` の 18 検査の担当。
+  （C9）、採番衝突は `../trace-check/` の 19 検査の担当。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
   意図的に狭い YAML 部分集合用の手書き parser（理由: `docs/adr/ADR-0002`）で構造を検査する:
   `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、`entry` は `deeplink` / `push` のみ、

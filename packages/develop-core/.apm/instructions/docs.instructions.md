@@ -6,7 +6,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
 
 > 対象はすべてのプラットフォームの `docs/` 配下の全ファイルです。指摘では ID で引用します（`R-101`）。
-> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C18）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
+> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C19）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
 
 ## 1. SSOT の原則
 
@@ -70,7 +70,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-702 (MUST)** 層の依存方向は lint / C6（`traceconfig.json` の `layering`）で強制します。
 - **R-703 (MUST)** `traceconfig.json` に `contract` を設定すると、実装のエラーコードと `_shared` の `errorCodes` の一致を C7 が検査します。
 - **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`traceconfig.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本で `@implements BR-nnn` 付きの制約として実現します（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
-- **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14。`source` のない docs のみの利用プロジェクトは対象外）。C14 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
+- **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14。`source` のない docs のみの利用プロジェクトは対象外）。逆向き（どの仕様も指さない実現単位）は C19 が検出し、仕様を持たない単位は仕様外の印で明示します。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
 
 ## 8. 変更手順
 

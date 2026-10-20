@@ -183,7 +183,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <h2>2. docs と code のつながり</h2>
   <figure>
     <div class="scroll">
-      <svg viewBox="0 0 920 660" role="img" aria-label="docs と code をつなぐ 10 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。用語集からロケーターを導く線と、どの仕様にも紐づかない本番コードは機械が検査しない。">
+      <svg viewBox="0 0 920 660" role="img" aria-label="docs と code をつなぐ 10 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位は仕様か仕様外の印のどちらかを持つ。用語集からロケーターを導く線だけは機械が検査しない。">
         <defs>
           <marker id="b-anno" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-anno"/></marker>
           <marker id="b-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-open"/></marker>
@@ -254,15 +254,15 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <text class="elj mid" x="460" y="556">語と識別子から導く（R-1108）</text>
         <g class="pill open"><rect x="390" y="570" width="140" height="16" rx="8"/><text x="460" y="582">reviewer（機械なし）</text></g>
 
-        <!-- 9 紐づかないコード（未検査） -->
-        <g class="node dim"><rect x="20" y="606" width="230" height="44" rx="6"/><text class="ns" x="135" y="633">（指す仕様なし）</text></g>
-        <g class="node"><rect x="670" y="606" width="230" height="44" rx="6"/><text class="ntj" x="785" y="633">注釈のない本番コード</text></g>
-        <line x1="668" y1="628" x2="254" y2="628" class="e open"/>
-        <text class="elj mid" x="460" y="620">仕様に紐づかないコード</text>
-        <g class="pill open"><rect x="430" y="634" width="60" height="16" rx="8"/><text x="460" y="646">未検査</text></g>
+        <!-- 9 実現単位 → 仕様か仕様外の印 -->
+        <g class="node"><rect x="20" y="606" width="230" height="44" rx="6"/><text class="ntj" x="135" y="633">REQ・BR・UC か「仕様外」の印</text></g>
+        <g class="node"><rect x="670" y="606" width="230" height="44" rx="6"/><text class="ntj" x="785" y="633">すべての実現単位</text></g>
+        <line x1="668" y1="628" x2="254" y2="628" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="elj mid" x="460" y="620">どちらも無い単位を検出</text>
+        <g class="pill anno"><rect x="370" y="634" width="180" height="16" rx="8"/><text x="460" y="646">C19（unit_pattern 宣言時）</text></g>
       </svg>
     </div>
-    <figcaption>コードからの紐づけは注釈の「存在」と「参照先の実在」を検査します。C14 は「active な REQ・BR を指す注釈が 1 つ以上あるか」という仕様 → コードの片方向だけで、注釈のない本番コードは見つかりません。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト。<code>test_pattern</code> 設定時は注釈のないテストも）で上下両方から締めます。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
+    <figcaption>コードからの紐づけは注釈の「存在」と「参照先の実在」を検査します。C14 は仕様 → コードの向き（active な REQ・BR を指す注釈が 1 つ以上あるか）、C19 はコード → 仕様の向き（宣言した実現単位がすべて仕様を指すか、仕様外と明示されているか）を見ます。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト。<code>test_pattern</code> 設定時は注釈のないテストも）で上下両方から締めます。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
   </figure>
 </section>
 
@@ -299,7 +299,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
       <tbody>
         <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、閉じた語彙（status・phase・pattern・transport・direction）、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
         <tr><td>spec-lint gate</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
-        <tr><td>trace-check</td><td>下の C1–C18。docs 同士、docs と code、層の向き、ID の衝突</td><td>注釈した単位が文を本当に実現しているか</td></tr>
+        <tr><td>trace-check</td><td>下の C1–C19。docs 同士、docs と code、層の向き、ID の衝突</td><td>注釈した単位が文を本当に実現しているか</td></tr>
         <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。アダプター未宣言なら「未実行」</td></tr>
         <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
         <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか</td><td>docs・設定・harness 資産への書き込み（常に許可）</td></tr>
@@ -309,7 +309,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     </table>
   </div>
 
-  <h3>trace-check の 18 検査と、図のどの線か</h3>
+  <h3>trace-check の 19 検査と、図のどの線か</h3>
   <div class="table">
     <table>
       <thead><tr><th>#</th><th>失敗する条件</th><th>線</th></tr></thead>
@@ -332,6 +332,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C16</td><td>active な UC・REQ が、定義されていない BR を参照している</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
         <tr><td>C17</td><td>active な UC の表が未定義の REQ や別の UC の REQ を指す、または REQ が表のどのセルからも導出されていない</td><td><span class="tag ok">UC の表 ↔ REQ</span></td></tr>
         <tr><td>C18</td><td>active な GOAL・UC の actor、GOAL の origin が、アクター表・vision の KPI 表に無い</td><td><span class="tag ok">GOAL・UC → ACT・KPI</span></td></tr>
+        <tr><td>C19</td><td>宣言した実現単位（<code>source.unit_pattern</code>）が、<code>@implements</code> も「仕様外」の印も持たない</td><td><span class="tag anno">実現単位 → 仕様</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -343,7 +344,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>注釈した単位が本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">どこも検査しない</span><p>どの仕様も指していない本番コード。C14 は仕様 → コードの片方向で、コード → 仕様の網羅は見ない。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>「仕様外」の印が正当か（REQ にすべき振る舞いを技術部品として逃がしていないか）。<code>source.unit_pattern</code> を宣言していない利用プロジェクトでは、仕様を指さない本番コードは検査されない。</p></div>
     <div class="gap"><span class="who">どこも検査しない</span><p>NFR の閾値が守られているか。NFR は書式と ID の衝突だけが検査対象で、計測は <code>verification/GLOBAL.md</code> に列挙するだけ。</p></div>
     <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
   </div>

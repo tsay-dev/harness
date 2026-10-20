@@ -143,3 +143,42 @@ test("C18: docs.vision が未宣言なら origin を判定しない", (t) => {
 	assert.doesNotMatch(r.stdout, /origin/);
 	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09/);
 });
+
+//  C19 用: source.unit_pattern を宣言した最小の本番コード
+function makeSourceRoot({ placement = "before", unitPattern = true } = {}) {
+	const root = mkdtempSync(join(tmpdir(), "harness trace-check source "));
+	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
+	for (const k of ["_comment", "contract", "schema", "layering"]) delete cfg[k];
+	delete cfg.tests.system;
+	cfg.source.implements_placement = placement;
+	if (!unitPattern) delete cfg.source.unit_pattern;
+	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+	mkdirSync(join(root, "src"), { recursive: true });
+	const body =
+		placement === "before"
+			? "/** @implements REQ-001 */\nexport function register() {}\n\n// 仕様外: 日付整形の技術部品（REQ を持たない）\nexport const formatDate = () => {};\n\nexport class Unlinked {}\n\nfunction helper() {}\n"
+			: "export function register() {\n\t// @implements REQ-001\n}\n\nexport const formatDate = () => {\n\t// 仕様外: 日付整形の技術部品（REQ を持たない）\n};\n\nexport class Unlinked {}\n";
+	writeFileSync(join(root, "src", "app.ts"), body);
+	return root;
+}
+
+for (const placement of ["before", "after"])
+	test(`C19: @implements も仕様外の印も無い実現単位を検出する（implements_placement: ${placement}）`, (t) => {
+		const root = makeSourceRoot({ placement });
+		t.after(() => rmSync(root, { recursive: true, force: true }));
+		const r = run(root, "--only", "C19", "--strict");
+		assert.equal(r.status, 1, r.stdout + r.stderr);
+		assert.match(r.stdout, /\[C19\] app\.ts:\d+ "Unlinked": @implements の無い実現単位/);
+		assert.doesNotMatch(r.stdout, /\[C19\].*"(register|formatDate|helper)"/);
+	});
+
+test("C19: レポートに実現単位の内訳を出し、unit_pattern が無ければ判定しない", (t) => {
+	const root = makeSourceRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	assert.match(run(root, "--strict").stdout, /実現単位: 3（@implements なし 1 \/ 仕様外 1）/);
+	const off = makeSourceRoot({ unitPattern: false });
+	t.after(() => rmSync(off, { recursive: true, force: true }));
+	const r = run(off, "--only", "C19", "--strict");
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.doesNotMatch(r.stdout, /\[C19\]/);
+});

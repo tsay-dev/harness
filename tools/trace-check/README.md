@@ -4,7 +4,7 @@ harness に同梱する依存なしの Node ツール。docs の SSOT（GOAL →
 （テスト、実装）の**トレーサビリティ**を機械的に検証する。対象はカバレッジ、参照、配置、
 層、契約語彙。sdd-kit の `trace_check.py` の Node 移植（移植理由: `docs/adr/ADR-0003`）。
 
-- **検証するもの**: 下記の 18 検査。**書式とライフサイクル**（frontmatter、節、ステータス語彙、
+- **検証するもの**: 下記の 19 検査。**書式とライフサイクル**（frontmatter、節、ステータス語彙、
   契約構造）は `../spec-lint/` の担当。両ツールは重複しない。
 - **読むもの**: 利用プロジェクト直下の `traceconfig.json`（`templates/develop/traceconfig.json` から一度ひな形を置き、
   利用プロジェクトが `source` / `tests` / `schema` / `layering` / `contract` を維持）。
@@ -29,7 +29,7 @@ node trace-check.mjs --only C9,C12                            # 指定検査だ�
 
 終了コード: `0` = 新規違反なし / `1` = 新規違反 / `2` = 使用法エラー。Node のみ。
 
-## 18 の検査
+## 19 の検査
 
 | # | 失敗条件 | 規則 |
 | --- | --- | --- |
@@ -51,6 +51,7 @@ node trace-check.mjs --only C9,C12                            # 指定検査だ�
 | C16 | `active` UC / REQ の本文（frontmatter の `br:` を含む）が、定義されていない BR を参照する（C4 の逆方向。`withdrawn` の BR は定義済みと数える） | R-203 |
 | C17 | `active` UC の表と、その UC に属する REQ が 1 対 1 に対応しない: 表が未定義の REQ や別の UC の REQ を指す、または REQ（`withdrawn` を除く）が表のどのセルからも導出されていない。UC 本文に REQ の一覧を置かない規律（R-404）なので、本文に現れる REQ ID はすべて表のセルとして扱う | R-404 |
 | C18 | `active` GOAL の `actor` / `origin`、`active` UC の `actor` が、`docs.actors` の表（`ACT-nn`）または `docs.vision` の KPI 表（先頭セルが `KPI-nn` の行）に無い。キーが未宣言ならその参照は判定しない | R-203 |
+| C19 | `source.unit_pattern` に一致する実現単位（ユースケースクラス、ルール関数など。捕捉 1 が単位名）が、`@implements` も `source.exempt_pattern` の印（仕様を持たない技術部品の明示。既定 `// 仕様外: <理由>`）も持たない（C14 の逆方向）。注釈の帰属は `source.implements_placement`（`before` / `after`、C11 と同じ窓）。検査を強制する分岐の中の注釈は窓の外に出うるため、テストと違い帰属なしの `@implements` は違反にしない。`unit_pattern` 設定時のみ | R-705 |
 
 C1 / C2 / C8 / C10 / C14–C18 は `active` docs のみが対象。`draft` REQ / BR はまだ要求せず、
 `withdrawn` はもう要求しない。C11 はすべてのテストに適用する。
@@ -77,9 +78,9 @@ node tools/trace-check/trace-check.mjs                     # 以後は新規違�
 
 ## 正常な検査が保証することと限界
 
-テストと 18 検査がすべて正常なら、機械的に以下が成立する。すべての active GOAL に UC があり、active REQ にテストがある。
+テストと 19 検査がすべて正常なら、機械的に以下が成立する。すべての active GOAL に UC があり、active REQ にテストがある。
 宣言された全分割クラスにテストがあり、**方針外のテストが存在しない**。コードとテストが参照する ID が存在する。
-active REQ / BR はソースかスキーマから注釈される（`@implements`）。死んだ規則も ID の重複定義もなく、文書が参照する BR・REQ・アクター・KPI は定義されており、UC の表と REQ は 1 対 1 に対応する。
+active REQ / BR はソースかスキーマから注釈される（`@implements`）。宣言した実現単位はすべて仕様を指すか、仕様外と明示されている（C19）。死んだ規則も ID の重複定義もなく、文書が参照する BR・REQ・アクター・KPI は定義されており、UC の表と REQ は 1 対 1 に対応する。
 配置と frontmatter が一致する。依存方向と契約語彙が実装と一致する。DB で保証する規則はスキーマソースの制約に注釈される。
 人間向け active UC はシナリオテストを持つ（システムスイートの宣言時）。
 
