@@ -10,7 +10,7 @@ harness が目指すのは、**人間が承認した仕様から、実装とそ�
 
 - **仕様は人間が承認した 1 箇所にある。** `docs/` の SSOT は人間ゲートで `active` になり、コードは正本になりません。人間ゲートは SSOT、UI の見た目、DB スキーマの 3 つだけです。
 - **検証は実装から独立に導出される。** テストは仕様と契約から実装を読まずに書かれ、判定者は作成者と別コンテキストです。
-- **紐づきは機械で検査できる。** spec-lint（書式とライフサイクル）、trace-check（C1–C15 のトレーサビリティ）、contract-run（契約 examples の実行）、ホストの typecheck / lint / test / system が判定します。
+- **紐づきは機械で検査できる。** spec-lint（書式とライフサイクル）、trace-check（C1–C18 のトレーサビリティ）、contract-run（契約 examples の実行）、ホストの typecheck / lint / test / system が判定します。
 - **完了は閉じたリストで判定される。** 上記がすべて exit 0 で reviewer の `阻止` がゼロのときだけ完了です。ホストが Stop hook に `tools/gate-hook/stop-gate.mjs` を設置すると機械が強制します。
 
 ## 必要な用途とスタックだけを選ぶ

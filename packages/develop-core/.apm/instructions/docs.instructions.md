@@ -6,7 +6,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
 
 > 対象はすべてのプラットフォームの `docs/` 配下の全ファイルです。指摘では ID で引用します（`R-101`）。
-> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C15）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
+> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C18）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
 
 ## 1. SSOT の原則
 
@@ -20,7 +20,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 
 - **R-201 (MUST)** ID は不変、内容は変更可能です。廃止は `status: withdrawn` であり削除ではありません。
 - **R-202 (MUST)** `GOAL-nn` / `UC-nnn` / `REQ-nnn` / `BR-nnn` / `NFR-nnn` / `ADR-nnnn` / `ACT-nn` / `KPI-nn`。番号は再利用しません。桁幅は `traceconfig.json` で変えます。
-- **R-203 (MUST)** 1 ID に 1 ファイル、frontmatter の `id:` に宣言します（例外は `goals-backlog.md` の `###` 見出しと ACT / KPI 表だけ）。本文に現れるほかの ID は参照です。
+- **R-203 (MUST)** 1 ID に 1 ファイル、frontmatter の `id:` に宣言します（例外は `goals-backlog.md` の `###` 見出しと ACT / KPI 表だけ）。本文に現れるほかの ID は参照で、参照先の定義は C16（BR）・C17（REQ）・C18（ACT・KPI）が検査します。
 - **R-204 (MUST)** 採番は `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --next <goal|uc|req|br|nfr|adr>`（原子的な予約。`--reserve N` で連番、`--next req` は UC 表が予約した ID も数える）。二重定義は C12 が検出します。
 - **R-205 (MUST)** 数値部は固定幅のゼロ埋めです。番号に所属や分類を埋め込みません（所属は frontmatter、R-1007）。
 
@@ -49,7 +49,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-401 (MUST)** 1 要件に 1 文、外部から観測可能な振る舞いだけです。判定: 実装の全行を置き換えてもその文は真か。偽になり得るなら設計です（文の数は spec-lint）。
 - **R-402 (MUST)** `pattern:` に `Ubiquitous` / `Event-driven` / `State-driven` / `Unwanted behaviour` / `Optional` のいずれかを明示します（spec-lint）。
 - **R-403 (SHOULD)** 各 UC に最低 1 つの `Unwanted behaviour` 要件を置きます。
-- **R-404 (MUST)** REQ を導出したセルは UC の表が保持し、対応をほかに置きません。
+- **R-404 (MUST)** REQ を導出したセルは UC の表が保持し、対応をほかに置きません。表と UC の REQ は 1 対 1 です（C17）。
 
 ## 5. ユースケース
 

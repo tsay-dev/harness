@@ -1,4 +1,4 @@
-//  trace-check の回帰検証（C15: シナリオテストの存在）。一時ディレクトリに最小の docs / e2e を組む。
+//  trace-check の回帰検証（C15: シナリオテストの存在、C16–C18: docs 同士の参照先の実在）。一時ディレクトリに最小の docs / e2e を組む。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -68,4 +68,78 @@ test("レポート: 各 UC の行にシナリオテストの所在を出す", (t
 	assert.match(r.stdout, /UC-001 \(UC-001-register\/\)  \[実装\]  scenario:register\.spec\.ts:1/);
 	assert.match(r.stdout, /UC-003 \(UC-003-browse\/\)  \[実装\]  scenario:-/);
 	assert.match(r.stdout, /シナリオテスト: 2/);
+});
+
+//  C16–C18 用: BR / REQ / vision を持つ docs。draft と withdrawn、HTML コメント、プレースホルダーは判定の外に置く
+function makeRefRoot({ vision = true } = {}) {
+	const root = mkdtempSync(join(tmpdir(), "harness trace-check refs "));
+	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
+	for (const k of ["_comment", "contract", "schema", "source", "layering"]) delete cfg[k];
+	delete cfg.tests.system;
+	if (!vision) delete cfg.docs.vision;
+	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+
+	const w = (rel, text) => {
+		mkdirSync(dirname(join(root, rel)), { recursive: true });
+		writeFileSync(join(root, rel), text);
+	};
+	const fm = (fields) => `---\n${Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n\n`;
+	const g = "docs/goals/GOAL-01-register";
+	w("docs/00-vision.md", `${fm({ id: "VISION", status: "frozen" })}# Vision\n\n## 成功の定義\n\n| 指標 | 現状 | 目標 |\n| --- | --- | --- |\n| KPI-01 登録率 | 10% | 30% |\n`);
+	w("docs/02-actors.md", `${fm({ id: "ACTORS", status: "living" })}| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | 人間 | 登録する |\n`);
+	w("docs/rules/BR-001.md", `${fm({ id: "BR-001", title: "t", enforced_at: "domain 層", status: "active" })}# BR-001\n`);
+	w(`${g}/GOAL.md`, `${fm({ id: "GOAL-01", actor: "ACT-09", origin: "KPI-01, KPI-02", status: "active" })}# GOAL-01\n`);
+	w("docs/goals/GOAL-02-draft/GOAL.md", `${fm({ id: "GOAL-02", actor: "ACT-07", origin: "KPI-07", status: "draft" })}# GOAL-02\n`);
+	const uc = (id, actor, status, body) => `${fm({ id, title: "t", actor, goal: "GOAL-01", status, phase: "定義" })}# ${id}\n\n${body}`;
+	w(`${g}/UC-001-register/UC.md`, uc("UC-001", "ACT-08", "active",
+		"- 適用される業務規則: BR-001, BR-009\n\n<!-- 例: BR-007 や REQ-007 はコメントなので数えない -->\n\n| 状態 \\ イベント | 登録 | 取消 |\n| --- | --- | --- |\n| 未登録 | REQ-001 | REQ-002 |\n| 登録済 | REQ-003 | REQ-000 |\n"));
+	w(`${g}/UC-002-browse/UC.md`, uc("UC-002", "ACT-01", "active", "| 状態 \\ イベント | 閲覧 |\n| --- | --- |\n| 登録済 | REQ-003 |\n"));
+	w(`${g}/UC-003-draft/UC.md`, uc("UC-003", "ACT-06", "draft", "- BR-006\n\n| 状態 \\ イベント | 閲覧 |\n| --- | --- |\n| 登録済 | REQ-006 |\n"));
+	const req = (id, uc, status, br) => `${fm({ id, pattern: "Ubiquitous", uc, ...(br ? { br } : {}), status })}# ${id}\n\n> 1 文\n`;
+	w(`${g}/UC-001-register/REQ-001.md`, req("REQ-001", "UC-001", "active", "BR-008"));
+	w(`${g}/UC-001-register/REQ-004.md`, req("REQ-004", "UC-001", "draft", "BR-005"));
+	w(`${g}/UC-001-register/REQ-005.md`, req("REQ-005", "UC-001", "withdrawn"));
+	w(`${g}/UC-002-browse/REQ-003.md`, req("REQ-003", "UC-002", "active", "BR-001"));
+	return root;
+}
+
+test("C16: active な UC / REQ が参照する未定義の BR を検出し、draft・コメント・プレースホルダーは数えない", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--only", "C16", "--strict");
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	assert.match(r.stdout, /\[C16\] UC-001 が未定義の BR-009 を参照している/);
+	assert.match(r.stdout, /\[C16\] REQ-001 が未定義の BR-008 を参照している/);
+	for (const id of ["BR-001", "BR-005", "BR-006", "BR-007"]) assert.doesNotMatch(r.stdout, new RegExp(`\\[C16\\].*${id}`));
+});
+
+test("C17: active な UC の表と REQ の 1 対 1 対応（未定義・他 UC の REQ・表に無い REQ）を検出し、withdrawn と draft UC は数えない", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--only", "C17", "--strict");
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	assert.match(r.stdout, /\[C17\] UC-001 の表が未定義の REQ-002 を指している/);
+	assert.match(r.stdout, /\[C17\] UC-001 の表が UC-002 の REQ-003 を指している/);
+	assert.match(r.stdout, /\[C17\] REQ-004 が UC-001 の表のどのセルからも導出されていない/);
+	for (const id of ["REQ-000", "REQ-001", "REQ-005", "REQ-006", "REQ-007"]) assert.doesNotMatch(r.stdout, new RegExp(`\\[C17\\].*${id}`));
+	assert.doesNotMatch(r.stdout, /\[C17\] UC-002/);
+});
+
+test("C18: active な GOAL / UC の actor と GOAL の origin が表に無ければ違反、draft は数えない", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--only", "C18", "--strict");
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09 が docs\/02-actors\.md に無い/);
+	assert.match(r.stdout, /\[C18\] GOAL-01 の origin KPI-02 が docs\/00-vision\.md に無い/);
+	assert.match(r.stdout, /\[C18\] UC-001 の actor ACT-08 が docs\/02-actors\.md に無い/);
+	for (const id of ["KPI-01", "ACT-01", "ACT-06", "ACT-07", "KPI-07"]) assert.doesNotMatch(r.stdout, new RegExp(`\\[C18\\].*${id}`));
+});
+
+test("C18: docs.vision が未宣言なら origin を判定しない", (t) => {
+	const root = makeRefRoot({ vision: false });
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--only", "C18", "--strict");
+	assert.doesNotMatch(r.stdout, /origin/);
+	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09/);
 });

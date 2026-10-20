@@ -135,11 +135,13 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="470" y="290" width="170" height="64" rx="6"/><text class="nt" x="555" y="318">contract.yaml</text><text class="ns" x="555" y="338">境界の形・エラー順・実例</text></g>
         <g class="node"><rect x="730" y="290" width="150" height="64" rx="6"/><text class="nt" x="805" y="318">components.yaml</text><text class="ns" x="805" y="338">共有語彙 errorCodes</text></g>
 
-        <!-- GOAL → vision / actors（未検査） -->
-        <line x1="240" y1="152" x2="174" y2="102" class="e open" marker-end="url(#a-open)"/>
+        <!-- GOAL → vision / actors -->
+        <line x1="240" y1="152" x2="174" y2="102" class="e ok" marker-end="url(#a-ok)"/>
         <text class="el" x="212" y="114">origin:</text>
-        <line x1="240" y1="178" x2="174" y2="178" class="e open" marker-end="url(#a-open)"/>
+        <g class="pill ok"><rect x="176" y="80" width="34" height="16" rx="8"/><text x="193" y="92">C18</text></g>
+        <line x1="240" y1="178" x2="174" y2="178" class="e ok" marker-end="url(#a-ok)"/>
         <text class="el mid" x="207" y="170">actor:</text>
+        <g class="pill ok"><rect x="190" y="184" width="34" height="16" rx="8"/><text x="207" y="196">C18</text></g>
 
         <!-- UC → GOAL -->
         <line x1="470" y1="172" x2="394" y2="172" class="e ok" marker-end="url(#a-ok)"/>
@@ -150,15 +152,16 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <line x1="730" y1="158" x2="644" y2="158" class="e ok" marker-end="url(#a-ok)"/>
         <text class="el mid" x="686" y="150">uc:</text>
         <g class="pill ok"><rect x="671" y="164" width="30" height="16" rx="8"/><text x="686" y="176">C9</text></g>
-        <line x1="642" y1="192" x2="726" y2="192" class="e open" marker-end="url(#a-open)"/>
+        <line x1="642" y1="192" x2="726" y2="192" class="e ok" marker-end="url(#a-ok)"/>
         <text class="elj mid" x="686" y="210">表のセル</text>
+        <g class="pill ok"><rect x="669" y="216" width="34" height="16" rx="8"/><text x="686" y="228">C17</text></g>
 
         <!-- REQ → BR / UC → BR -->
         <line x1="805" y1="140" x2="805" y2="80" class="e ok" marker-end="url(#a-ok)"/>
         <text class="el" x="813" y="114">br:</text>
         <polyline points="600,140 600,48 726,48" class="e ok" marker-end="url(#a-ok)"/>
         <text class="elj mid" x="664" y="40">→ BR-nnn</text>
-        <g class="pill ok"><rect x="630" y="58" width="68" height="16" rx="8"/><text x="664" y="70">C4（逆向き）</text></g>
+        <g class="pill ok"><rect x="630" y="58" width="68" height="16" rx="8"/><text x="664" y="70">C4・C16</text></g>
 
         <!-- contract → UC / components / REQ の状態 -->
         <line x1="555" y1="290" x2="555" y2="208" class="e ok" marker-end="url(#a-ok)"/>
@@ -172,7 +175,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="pill ok"><rect x="704" y="258" width="60" height="16" rx="8"/><text x="734" y="270">spec-lint</text></g>
       </svg>
     </div>
-    <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。C4 は「どこからも参照されない BR」を検出しますが、「参照先の BR が存在するか」は見ません。UC の状態 × イベント表のセルから REQ への対応も、機械は存在を確かめません。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
+    <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。BR は C4 が「どこからも参照されない BR」を、C16 が「参照先の BR が無い」を検出します。C17 は UC の表と REQ の 1 対 1（未定義の REQ、別の UC の REQ、表に無い REQ）を、C18 は GOAL・UC の actor と GOAL の origin が表に定義されているかを見ます（UC の actor は図では省略）。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
   </figure>
 </section>
 
@@ -296,7 +299,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
       <tbody>
         <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、閉じた語彙（status・phase・pattern・transport・direction）、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
         <tr><td>spec-lint gate</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
-        <tr><td>trace-check</td><td>下の C1–C15。docs 同士、docs と code、層の向き、ID の衝突</td><td>注釈した単位が文を本当に実現しているか</td></tr>
+        <tr><td>trace-check</td><td>下の C1–C18。docs 同士、docs と code、層の向き、ID の衝突</td><td>注釈した単位が文を本当に実現しているか</td></tr>
         <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。アダプター未宣言なら「未実行」</td></tr>
         <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
         <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか</td><td>docs・設定・harness 資産への書き込み（常に許可）</td></tr>
@@ -306,7 +309,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     </table>
   </div>
 
-  <h3>trace-check の 15 検査と、図のどの線か</h3>
+  <h3>trace-check の 18 検査と、図のどの線か</h3>
   <div class="table">
     <table>
       <thead><tr><th>#</th><th>失敗する条件</th><th>線</th></tr></thead>
@@ -326,6 +329,9 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C13</td><td>DB で強制する BR に、スキーマ正本の <code>@implements</code> がない</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
         <tr><td>C14</td><td>active な REQ・BR を <code>@implements</code> する実装がない</td><td><span class="tag anno">本番コード → REQ・BR</span></td></tr>
         <tr><td>C15</td><td>人間アクターの active な UC にシナリオテストがない、または存在しない UC を <code>@scenario</code> している</td><td><span class="tag anno">シナリオテスト → UC</span></td></tr>
+        <tr><td>C16</td><td>active な UC・REQ が、定義されていない BR を参照している</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
+        <tr><td>C17</td><td>active な UC の表が未定義の REQ や別の UC の REQ を指す、または REQ が表のどのセルからも導出されていない</td><td><span class="tag ok">UC の表 ↔ REQ</span></td></tr>
+        <tr><td>C18</td><td>active な GOAL・UC の actor、GOAL の origin が、アクター表・vision の KPI 表に無い</td><td><span class="tag ok">GOAL・UC → ACT・KPI</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -337,7 +343,6 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>注釈した単位が本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">どこも検査しない</span><p>GOAL の <code>origin:</code>・<code>actor:</code> が実在する KPI・ACT か、UC・REQ が参照する BR が実在するか（C4 は逆向きだけ）、UC の表のセルが指す REQ が実在するか。</p></div>
     <div class="gap"><span class="who">どこも検査しない</span><p>どの仕様も指していない本番コード。C14 は仕様 → コードの片方向で、コード → 仕様の網羅は見ない。</p></div>
     <div class="gap"><span class="who">どこも検査しない</span><p>NFR の閾値が守られているか。NFR は書式と ID の衝突だけが検査対象で、計測は <code>verification/GLOBAL.md</code> に列挙するだけ。</p></div>
     <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>

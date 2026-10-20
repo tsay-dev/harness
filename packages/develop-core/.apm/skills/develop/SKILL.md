@@ -27,7 +27,7 @@ description: >-
 次を**すべて**満たしたときだけスライスは完了です。
 
 1. `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" validate` が exit 0。
-2. `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` の新規違反がゼロ（C1–C15）。
+2. `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` の新規違反がゼロ（C1–C18）。
 3. `commands.contract_adapter` 宣言時は `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` の `fail` がゼロ。未宣言なら「未実行」と報告します。
 4. 利用プロジェクトの `commands.typecheck` / `lint` / `test` が exit 0。
 5. `commands.system` 宣言時はシナリオスイート全体が 1 回 exit 0。未宣言なら「未実行」と報告します。

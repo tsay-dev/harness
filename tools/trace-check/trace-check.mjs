@@ -40,6 +40,11 @@
 //    C15  アクター種別が人間（docs.actors の表で 種別 が「人間」で始まる）の active な UC に、system suite
 //         （traceconfig の tests.system）の @scenario UC-nnn を持つシナリオテストが 1 件以上あるか。
 //         @scenario が未定義の UC を指す場合も違反。tests.system 未設定なら判定しない（ADR-0035）
+//    C16  active な UC / REQ が参照する BR が定義されているか（C4 の逆方向。参照先の実在）
+//    C17  active な UC の表（本文に現れる REQ ID）と、その UC に属する REQ が 1 対 1 に対応しているか（R-404）。
+//         表が未定義の REQ や別の UC の REQ を指す場合と、表のどのセルからも導出されていない REQ（withdrawn を除く）が違反
+//    C18  active な GOAL の actor / origin と active な UC の actor が、docs.actors の表と docs.vision の KPI 表に
+//         定義されているか。docs.actors / docs.vision が未宣言ならその参照は判定しない（ADR-0052）
 //
 //  使い方:
 //    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（baseline との差分で判定）
@@ -136,7 +141,7 @@ function definedInDir(dir) {
 
 class Corpus {
 	constructor(cfg) {
-		this.goals = {}; //  id -> { status, dir }
+		this.goals = {}; //  id -> { status, actor, origin, dir }
 		this.ucs = {}; //  id -> { goal, actor, status, phase, dir, goalDir, file }
 		this.reqs = {}; //  id -> { uc, status, dir, goalDir, file, hasPolicy, classes }
 		this.pathViolations = [];
@@ -156,7 +161,7 @@ class Corpus {
 			const gfm = frontmatter(gfile);
 			if (gfm.id !== dirGoal)
 				this.pathViolations.push(`${r(gfile)}: frontmatter id (${gfm.id}) がディレクトリ名 (${dirGoal}) と一致しない`);
-			this.goals[gfm.id || dirGoal] = { status: gfm.status || "active", dir: gdir };
+			this.goals[gfm.id || dirGoal] = { status: gfm.status || "active", actor: gfm.actor || "", origin: gfm.origin || "", dir: gdir };
 
 			//  旧形式（ゴール直下の UC-*.md / REQ-*.md）は配置違反
 			for (const f of listFiles(gdir, (n) => /^(UC|REQ)-\d+.*\.md$/.test(n)))
@@ -351,6 +356,21 @@ function actorKinds(cfg) {
 	return kinds;
 }
 const isHumanActor = (kinds, actor) => !(actor in kinds) || kinds[actor].startsWith("人間");
+
+//  docs.vision の「成功の定義」表から KPI-nn を読む（先頭セルが KPI-nn で始まる行）。docs.vision 未宣言なら null（C18 は origin を判定しない）
+function visionKpis(cfg) {
+	if (!cfg.docs?.vision) return null;
+	const file = join(cfg._root, cfg.docs.vision);
+	const kpis = new Set();
+	if (existsSync(file)) for (const m of read(file).matchAll(/^\|\s*(KPI-\d+)\b/gm)) kpis.add(m[1]);
+	return kpis;
+}
+
+//  文書の本文が参照する ID。HTML コメントは案内文なので除く。番号が 0 だけの ID はテンプレートのプレースホルダーで、
+//  残っていれば spec-lint が報告するのでここでは数えない
+const isPlaceholder = (id) => /-0+$/.test(id);
+const referencedIds = (file, re) =>
+	[...new Set([...read(file).replace(/<!--[\s\S]*?-->/g, "").matchAll(re)].map((m) => m[0]))].filter((id) => !isPlaceholder(id)).sort();
 
 //  implements_pattern の捕捉 1 は「ID の並び」でもよい（`@implements UC-001, REQ-009 / BR-015`）。区切りで割って 1 件ずつ数える
 function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source")) {
@@ -601,6 +621,44 @@ function runChecks(cfg) {
 		for (const uid of Object.keys(scenarios).sort())
 			if (!(uid in corpus.ucs)) failures.push(`[C15] ${scenarios[uid].join(", ")}: 未定義の ${uid} を @scenario している`);
 	}
+
+	//  C16: active な UC / REQ が参照する BR は定義されている（C4 の逆方向）。withdrawn の BR も定義済みと数える
+	for (const [id, doc] of [...Object.entries(corpus.ucs), ...Object.entries(corpus.reqs)].sort(([a], [b]) => a.localeCompare(b))) {
+		if (doc.status !== "active") continue;
+		for (const br of referencedIds(doc.file, brRe)) if (!(br in brs)) failures.push(`[C16] ${id} が未定義の ${br} を参照している`);
+	}
+
+	//  C17: active な UC の表とその UC の REQ が 1 対 1 に対応する（R-404）。UC 本文に REQ の一覧を置かない規律なので、
+	//  本文に現れる REQ ID はすべて表のセル（状態 × イベント表と例外系の走査）として扱う
+	const reqRe = new RegExp(cfg.id_patterns.req, "g");
+	for (const uid of Object.keys(corpus.ucs).sort()) {
+		if (corpus.ucs[uid].status !== "active") continue;
+		const cells = referencedIds(corpus.ucs[uid].file, reqRe);
+		for (const rid of cells) {
+			const rq = corpus.reqs[rid];
+			if (!rq) failures.push(`[C17] ${uid} の表が未定義の ${rid} を指している（予約した REQ を作るか、セルを直す）`);
+			else if (rq.uc !== uid) failures.push(`[C17] ${uid} の表が ${rq.uc} の ${rid} を指している`);
+		}
+		for (const [rid, rq] of Object.entries(corpus.reqs).sort())
+			if (rq.uc === uid && rq.status !== "withdrawn" && !cells.includes(rid)) failures.push(`[C17] ${rid} が ${uid} の表のどのセルからも導出されていない`);
+	}
+
+	//  C18: active な GOAL の actor / origin と UC の actor は、アクター表と vision の KPI 表に定義されている。
+	//  docs.actors / docs.vision が未宣言ならその参照は判定しない（宣言済みで表が無ければ、すべて未定義になる）
+	const actors = cfg.docs?.actors ? new Set(Object.keys(actorKinds(cfg))) : null;
+	const kpis = visionKpis(cfg);
+	const values = (v) => (v || "").split(/\s*,\s*/).filter((x) => x && !isPlaceholder(x));
+	for (const goal of Object.keys(corpus.goals).sort()) {
+		const g = corpus.goals[goal];
+		if (g.status !== "active") continue;
+		if (actors) for (const a of values(g.actor)) if (!actors.has(a)) failures.push(`[C18] ${goal} の actor ${a} が ${cfg.docs.actors} に無い`);
+		if (kpis) for (const k of values(g.origin)) if (!kpis.has(k)) failures.push(`[C18] ${goal} の origin ${k} が ${cfg.docs.vision} に無い`);
+	}
+	if (actors)
+		for (const uid of Object.keys(corpus.ucs).sort()) {
+			const u = corpus.ucs[uid];
+			if (u.status === "active") for (const a of values(u.actor)) if (!actors.has(a)) failures.push(`[C18] ${uid} の actor ${a} が ${cfg.docs.actors} に無い`);
+		}
 
 	//  C12: 重複 ID（採番衝突）
 	for (const [ident, files] of Object.entries(collectDefinitions(cfg)).sort())
