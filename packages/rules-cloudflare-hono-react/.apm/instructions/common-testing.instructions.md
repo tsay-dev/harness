@@ -35,4 +35,4 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 
 - 既定 / 統合ケースは外側のグループを `UC-nnn <title>` とし、各テスト本文の先頭行に `// @covers REQ-nnn#class` を置く（`tests.covers_placement: after`）。シナリオテストは[システムテスト](system-testing.instructions.md)の注釈を使う。
 - 時刻と乱数を注入し、外部境界だけをフェイクにし、共有状態を片付ける。実時間の sleep で同期しない。
-- タイトルとコメントは日本語。
+- タイトルとコメントは `traceconfig.json` の `policy.language`（未宣言なら日本語）。

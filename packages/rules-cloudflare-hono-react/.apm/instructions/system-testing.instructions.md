@@ -19,4 +19,4 @@ UC ごとに主シナリオ 1 つのシナリオテストを Playwright で書�
 - 操作は `UC.md` の `## 主シナリオ` から、最終アサーションは `成功時` から導出する。失敗の分割や実装から見つけたナビゲーションを加えない。
 - フロントエンド接続前は `test.fixme` で作成し、フロントエンド実装者が `test` に置き換えて成功させる。`test.fixme` を `test.fail` で隠さない。
 - ロケーターは[外観 / シナリオの共有契約](frontend-routing.instructions.md)から導出する。Playwright の自動待機と web-first アサーションを使い、`waitForTimeout` は禁止。シナリオは使い捨てデータで独立させ、時刻依存は制御する。再試行で通る成功は欠陥として扱う。
-- タイトルとコメントは日本語。
+- タイトルとコメントは `traceconfig.json` の `policy.language`（未宣言なら日本語）。

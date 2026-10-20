@@ -30,6 +30,10 @@
     "contract_adapter": "npx tsx scripts/contract-adapter.ts",
     "system": "npx playwright test"
   },
+  "policy": {
+    "_comment": "組織とプロジェクトで変わる方針の値（ADR-0050）。develop-core と rules-* はここをキー名で読み、未宣言なら記した既定値を使う。方法論そのもの（人間ゲート、作成者 ≠ 判定者、成果物の型）はここに置かない。language は会話と成果物（docs、契約の説明文、ADR、コミットメッセージ、コード内コメント、テストのタイトル、利用者向けの文言）の言語で、BCP 47 の言語タグ。未宣言なら ja。harness 自身のプロンプト正本の言語（ADR-0043）とは別。",
+    "language": "ja"
+  },
   "git": {
     "_comment": "tools/git-lint が読む（ブランチ名とコミットメッセージのヘッダー。再利用 CI workflow が全 pull request で実行）。spec-lint gate も units を読み、コミットの UC: trailer を scope の単位の docs で探す。このブロックを削除すれば両方を未検査にする。git-lint は未検査と報告し、成功としては扱わない。この例のブランチは <type>/<topic>。モノレポでは独立デプロイするアプリや共有パッケージごとに名前とディレクトリを対応付ける units を追加する。例: \"units\": { \"app-a\": \"apps/a\", \"ui\": \"packages/ui\" }。その場合のブランチは <unit>/<topic>（単位に属さない変更は repo/<topic>）で、コミット scope は単位か repo が必須。orchestrator はここから単位を読み、配置から推測してはならない。exempt_branches は bot 用の未検査ブランチの glob（** / * / ?）一覧。",
     "exempt_branches": [

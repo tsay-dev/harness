@@ -36,4 +36,4 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsc
 - React 機能の `index.ts` は意図的な公開 API。外部はそこから import し、機能内部は直接相互に import する。ほかの場所に再 export の連鎖を作らない。
 - `packages/shared/src/<feature>/schemas.ts` にはブラウザで安全な HTTP / WebSocket の Zod スキーマと推論型だけを置く。DB スキーマ、行、サービス実装、バインディングは置かない。
 - ブラウザコードはサーバーのランタイムモジュール、バインディング、DB スキーマ、秘密情報を import しない。Hono の `AppType` の `import type` だけが例外で、バンドルから消えること。
-- 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーとバインディング宣言は手編集せず再生成する。コメントとユーザー向け文言は日本語。
+- 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーとバインディング宣言は手編集せず再生成する。コメントとユーザー向け文言は `traceconfig.json` の `policy.language`（未宣言なら日本語）。
