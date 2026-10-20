@@ -17,6 +17,8 @@
 //  判定規則（fail-open / fail-closed の境界）:
 //    - docs 配下・.claude 配下・--code 非マッチ・--exclude マッチ → 許可（exit 0）。
 //      SSOT を書く行為はゲートの前提なので docs は常に通す。
+//    - traceconfig.json → 止めずに人間の承認を求める（permissionDecision: "ask"）。検査の範囲（none の宣言、
+//      注釈の正規表現、commands）を決めるファイルで、書き換えれば検査を外せるため（ADR-0057）。
 //    - 実装コードへの書き込みで、
 //        docs/goals が無い / phase=実装|検証 の UC が無い /
 //        該当 UC が active でない / draft の REQ がある / 契約が無い・fixed でない
@@ -29,7 +31,7 @@
 //    は結果を問わず 1 行ずつ .harness-gate/log.jsonl に記録する（gate-log.mjs）。
 //    母数＝ゲートされた書き込み、なので「ブロック率」がそのまま読める。
 //    reason 語彙: misconfig | no-goals | no-active-phase | uc-not-active | req-draft |
-//                 contract-missing | contract-not-fixed | ok
+//                 contract-missing | contract-not-fixed | ok | traceconfig（decision: ask）
 //
 //  設定はフックコマンドの引数で渡す（設定ファイルを増やさない。submodule 配置でも
 //  取り込み先の settings.local.json に閉じる）:
@@ -205,12 +207,27 @@ function main() {
 	const rel = relative(root, abs).split(sep).join("/");
 	if (rel.startsWith("..")) process.exit(0); //  プロジェクト外（scratchpad 等）
 
-	//  SSOT・harness 自身・trace 設定・ゲートのログ置き場は常に通す（ゲートを通すための行為を塞がない）。
+	//  SSOT・harness 自身・ゲートのログ置き場は常に通す（ゲートを通すための行為を塞がない）。
 	//  ここまでの exit 0 はゲート判定に達していないので記録しない（母数＝ゲートされた書き込み）。
 	const docsDir = opts.docs.replace(/\/+$/, "");
 	if (rel === docsDir || rel.startsWith(docsDir + "/")) process.exit(0);
 	if ([".claude/", ".agents/", ".codex/", ".cursor/", ".grok/", "apm_modules/", ".harness/", ".harness-gate/"].some(prefix => rel.startsWith(prefix))) process.exit(0);
-	if (rel === "traceconfig.json") process.exit(0);
+	//  traceconfig.json は検査の範囲を決める。人間の承認だけで変える（ADR-0057）
+	if (rel === "traceconfig.json") {
+		ctx.target = rel;
+		log("ask", "traceconfig", ctx);
+		process.stdout.write(
+			JSON.stringify({
+				hookSpecificOutput: {
+					hookEventName: "PreToolUse",
+					permissionDecision: "ask",
+					permissionDecisionReason:
+						"[gate-hook] traceconfig.json は検査の範囲（none の宣言、注釈の正規表現、commands）を決めるため、人間の承認で変える（ADR-0057）。差分を確認してから許可する",
+				},
+			}) + "\n",
+		);
+		process.exit(0);
+	}
 
 	if (matchesAny(rel, opts.exclude)) process.exit(0);
 	if (!matchesAny(rel, opts.code)) process.exit(0);

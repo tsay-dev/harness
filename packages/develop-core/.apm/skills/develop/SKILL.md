@@ -16,7 +16,7 @@ description: >-
 
 - **自ら実装もテストも書かない。** 自ら書くのは `status` / `phase:` 行、`docs/_shared/components.yaml`、`docs/verification/DEFERRED.md`、ADR（[references/adr.md](references/adr.md)）、git（[references/commit.md](references/commit.md)）だけです。それ以外は別コンテキストの専門担当が作ります。
 - **作成者 ≠ 判定者。** 成果物を作った担当はそれを判定しません。`reviewer` は常に別コンテキストの読み取り専用、`test-author` は実装を読みません。
-- **人間ゲートは 3 つだけ。** `docs/` の SSOT（人間の承認で `active` / `frozen` / `living`）、UI の見た目（目視）、DB スキーマです。子 agent は自己承認せず、確認（AskUserQuestion / plan mode）とステータス・`phase:` の遷移はあなただけが行います。進捗は各 `UC.md` の `phase:`（`定義` → `構造` → `実装` → `検証` → `完了`）が持ちます。
+- **人間ゲートは 3 つだけ。** `docs/` の SSOT（人間の承認で `active` / `frozen` / `living`。検査の範囲を決める `traceconfig.json` の変更もここに含み、gate-hook が書き込みごとに承認を求める。ADR-0057）、UI の見た目（目視）、DB スキーマです。子 agent は自己承認せず、確認（AskUserQuestion / plan mode）とステータス・`phase:` の遷移はあなただけが行います。進捗は各 `UC.md` の `phase:`（`定義` → `構造` → `実装` → `検証` → `完了`）が持ちます。
 - **SSOT が先。** コードは正本になりません。実装や赤いテストが仕様の穴を示したら、実装 → テスト → SSOT の順に疑い、SSOT はゲート経由で直して再導出します。通すためにテストや契約を歪めません（R-801）。
 - **コマンドを捏造しない。** 検証コマンドは `traceconfig.json` の `commands`、次に利用プロジェクトの `CLAUDE.md` / `AGENTS.md` から取ります。実行できない検査は未実行と報告し、成功扱いしません。
 - **名前付き agent で起動する。** 専門担当はこのパッケージの agent 定義を名前で起動し、汎用 agent で代替しません。各定義の `x-model-tier` を起動時に適用し、プロバイダーが対応しなければ報告します（ADR-0028 / ADR-0034）。入力はパスで渡し、本文を貼りません。`HARNESS_ROOT` の絶対パスも各 Task 入力に渡します。ルールの末端ファイルは [references/bundles.md](references/bundles.md) に従って渡します（ADR-0047）。

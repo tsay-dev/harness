@@ -27,7 +27,8 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 
 | 書き込み対象 | 判定 | ログ記録 |
 | --- | --- | --- |
-| `docs/` 配下（UC、REQ、契約）、`traceconfig.json`、`.harness-gate/` | 常に許可（SSOT の書き込みはゲートの前提条件） | なし |
+| `docs/` 配下（UC、REQ、契約）、`.harness-gate/` | 常に許可（SSOT の書き込みはゲートの前提条件） | なし |
+| `traceconfig.json` | 止めずに人間の承認を求める（`permissionDecision: "ask"`）。検査の範囲（none の宣言、注釈の正規表現、`commands`）を決め、書き換えれば検査を外せるため（ADR-0057） | あり（`ask` / `traceconfig`） |
 | `.claude/` / `.agents/` / `.codex/` / `.cursor/` / `.grok/` / `apm_modules/` / `.harness/` 配下、`--exclude` に一致、または `--code` に不一致 | 許可（ゲート外） | なし |
 | 実装コード + `docs/goals` なし | **阻止**（`no-goals` → Phase 1） | あり |
 | 実装コード + phase が実装\|検証の UC なし | **阻止**（`no-active-phase`。開始前に UC の `phase:` を進める） | あり |

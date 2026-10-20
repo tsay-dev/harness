@@ -360,7 +360,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C22</td><td>active な BR を <code>br:</code> に持つ active な REQ が無い</td><td><span class="tag ok">REQ → BR</span></td></tr>
         <tr><td>C23</td><td>スキーマの制約（<code>schema.constraint_pattern</code>）に <code>@implements</code> が無い</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
         <tr><td>C24</td><td>共有語彙のエラーコードがどの契約の errors でも使われていない</td><td><span class="tag ok">components → 契約</span></td></tr>
-        <tr><td>C25</td><td>用語集のコード識別子がソースに無い</td><td><span class="tag anno">用語集 → コード</span></td></tr>
+        <tr><td>C25</td><td>active な UC・REQ が使う用語の、用語集のコード識別子がソースに無い</td><td><span class="tag anno">用語集 → コード</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -372,7 +372,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>注釈した単位が本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>宣言した場所の外（infra など）に置かれたコードに、REQ にすべき業務ルールが紛れていないか。<code>source.unit_dirs</code> を宣言していない利用プロジェクトでは、仕様を指さない本番コードは検査されない。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>宣言した場所の外（infra など）に置かれたコードに、REQ にすべき業務ルールが紛れていないか。none の宣言を含む <code>traceconfig.json</code> の変更は人間が承認する（gate-hook が確認を求める）。<code>source.unit_dirs</code> を宣言していない利用プロジェクトでは、仕様を指さない本番コードは検査されない。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>NFR のテストや <code>measured_by</code> の計測が、閾値を本当に測っているか。C20 が見るのは検証の所在があることと、パスが実在することまで。</p></div>
     <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
   </div>

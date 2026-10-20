@@ -72,3 +72,19 @@ test("gate-hook: --log でログの置き場を変えられる", (t) => {
 	assert.ok(existsSync(join(root, "out", "gate.jsonl")));
 	assert.equal(readLog(root).length, 0);
 });
+
+test("gate-hook: traceconfig.json への書き込みは止めずに人間の承認を求め、ask として記録する（ADR-0057）", (t) => {
+	const root = mkdtempSync(join(tmpdir(), "harness gate-hook "));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = runHook(root, { tool_input: { file_path: "traceconfig.json" }, cwd: root, session_id: "s1" }, ["--code", "**"]);
+	assert.equal(r.status, 0, r.stderr);
+	const out = JSON.parse(r.stdout);
+	assert.equal(out.hookSpecificOutput.hookEventName, "PreToolUse");
+	assert.equal(out.hookSpecificOutput.permissionDecision, "ask");
+	assert.match(out.hookSpecificOutput.permissionDecisionReason, /人間の承認/);
+	const log = readLog(root);
+	assert.equal(log.length, 1);
+	assert.equal(log[0].decision, "ask");
+	assert.equal(log[0].reason, "traceconfig");
+	assert.equal(log[0].target, "traceconfig.json");
+});

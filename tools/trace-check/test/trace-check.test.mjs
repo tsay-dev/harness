@@ -285,7 +285,7 @@ function makeFullRoot() {
 	w("docs/02-actors.md", `${fm({ id: "ACTORS", status: "living" })}| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | 人間 | 登録する |\n`);
 	w(
 		"docs/01-glossary.md",
-		`${fm({ id: "GLOSSARY", status: "living" })}| 用語 | 定義 | コード識別子 | 禁止同義語 |\n| --- | --- | --- | --- |\n| 案件 | 登録する単位 | \`Project\` | 仕事 |\n| 掲載中 | 公開状態 | \`ProjectStatus.OPEN\` | — |\n| <語> | <定義> | \`<ClassName / EnumCase>\` | <別名> |\n`,
+		`${fm({ id: "GLOSSARY", status: "living" })}| 用語 | 定義 | コード識別子 | 禁止同義語 |\n| --- | --- | --- | --- |\n| 案件 | 登録する単位 | \`Project\` | 仕事 |\n| 掲載中 | 公開状態 | \`ProjectStatus.OPEN\` | — |\n| 請求書 | 未着手の機能の語 | \`Invoice\` | — |\n| <語> | <定義> | \`<ClassName / EnumCase>\` | <別名> |\n`,
 	);
 	w("docs/_shared/components.yaml", "authSchemes: {}\nerrorCodes:\n  INVALID_INPUT: 入力が不正\n  FORBIDDEN: 権限が無い\n  UNUSED_CODE: どこでも使わない\n");
 	const br = (id, status) => `${fm({ id, title: "t", enforced_at: "domain 層", status })}# ${id}\n`;
@@ -295,7 +295,7 @@ function makeFullRoot() {
 	w("docs/nfr/NFR-001.md", `${fm({ id: "NFR-001", category: "performance", status: "withdrawn" })}# NFR-001\n`);
 	w(`${g}/GOAL.md`, `${fm({ id: "GOAL-01", actor: "ACT-01", origin: "KPI-01", status: "active" })}# GOAL-01\n`);
 	const uc = (id, status, body) => `${fm({ id, title: "t", actor: "ACT-01", goal: "GOAL-01", status, phase: "実装" })}# ${id}\n\n${body}`;
-	w(`${g}/UC-001-register/UC.md`, uc("UC-001", "active", "- BR-002, BR-003\n\n| 状態 \\ イベント | 登録 | 取消 |\n| --- | --- | --- |\n| 未登録 | REQ-001 | REQ-002 |\n"));
+	w(`${g}/UC-001-register/UC.md`, uc("UC-001", "active", "利用者が案件を登録し、掲載中にする。\n\n- BR-002, BR-003\n\n| 状態 \\ イベント | 登録 | 取消 |\n| --- | --- | --- |\n| 未登録 | REQ-001 | REQ-002 |\n"));
 	w(`${g}/UC-002-old/UC.md`, uc("UC-002", "withdrawn", ""));
 	const req = (id, status, extra = {}) => `${fm({ id, pattern: "Ubiquitous", uc: "UC-001", ...extra, status })}# ${id}\n\n> 1 文\n\n## 検証方針\n\n- **分割クラス**:\n  - \`#ok\` — 正常\n`;
 	w(`${g}/UC-001-register/REQ-001.md`, req("REQ-001", "active", { br: "BR-001" }));
@@ -357,7 +357,7 @@ test("C21: 入口と契約の操作の双方向（@operation の無い入口、�
 	assert.doesNotMatch(out, /\[C21\] UC-002#oldOp（fixed）/);
 });
 
-test("C22–C25: REQ から辿れない BR、注釈の無い制約、使われない共有エラーコード、ソースに無い用語集の識別子", (t) => {
+test("C22–C25: REQ から辿れない BR、注釈の無い制約、使われない共有エラーコード、承認済みの仕様が使う用語のうちソースに無い識別子", (t) => {
 	const root = makeFullRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const out = run(root, "--only", "C22,C23,C24,C25").stdout;
@@ -369,6 +369,8 @@ test("C22–C25: REQ から辿れない BR、注釈の無い制約、使われ�
 	assert.doesNotMatch(out, /\[C24\].*(INVALID_INPUT|FORBIDDEN)/);
 	assert.match(out, /\[C25\] 用語集の「掲載中」のコード識別子 OPEN がソースに無い/);
 	assert.doesNotMatch(out, /\[C25\].*(Project |ProjectStatus|ClassName)/);
+	//  承認済みの仕様がまだ使っていない用語（未着手の機能）は、コードが無くても違反にしない
+	assert.doesNotMatch(out, /\[C25\].*Invoice/);
 });
 
 test("C24 / C25: 宣言した共有語彙・用語集のファイルが無ければ違反、contract.exclude_codes は廃止", (t) => {

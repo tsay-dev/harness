@@ -11,7 +11,7 @@
 //    hook      "gate-hook" | "stop-gate"
 //    event     "PreToolUse" | "Stop"
 //    session   Claude Code の session_id（無ければ null）
-//    decision  "block" | "pass" | "skip" | "release"
+//    decision  "block" | "pass" | "skip" | "release" | "ask"（gate-hook が人間の承認を求めた。traceconfig.json）
 //    reason    判定理由の語彙（各フックが定める）
 //    target    書き込み対象の相対パス（gate-hook のみ。他は null）
 //    uc        検査した UC id の配列（gate-hook のみ。他は null）
@@ -94,10 +94,12 @@ function summarize(records, sinceDays) {
 	const lines = [`gate-log: 直近 ${sinceDays} 日（${records.length} 件）`];
 
 	//  gate-hook: 母数はゲート判定に達した書き込みだけ（docs や対象外は記録されない）
-	const gh = records.filter((r) => r.hook === "gate-hook");
+	//  ask（traceconfig.json の変更に人間の承認を求めた件数）は実装ゲートの母数に含めず、別に数える
+	const ghAll = records.filter((r) => r.hook === "gate-hook");
+	const gh = ghAll.filter((r) => r.decision !== "ask");
 	const ghBlocks = gh.filter((r) => r.decision === "block");
 	const lastBlock = ghBlocks.length ? ghBlocks[ghBlocks.length - 1].ts : "なし";
-	lines.push(`gate-hook: gated ${gh.length} / block ${ghBlocks.length} / last block: ${lastBlock}`);
+	lines.push(`gate-hook: gated ${gh.length} / block ${ghBlocks.length} / last block: ${lastBlock} / ask（traceconfig）${ghAll.length - gh.length}`);
 	if (ghBlocks.length === 0) lines.push("  降格候補（期間内のブロック 0 件。降格の判断は人間が行う）");
 	else lines.push(...reasonBreakdown(ghBlocks));
 

@@ -55,7 +55,7 @@
 //    C22  active な BR が、active な REQ の br: から参照されているか（規則を検証するテストに辿れること）
 //    C23  スキーマの制約（schema.constraint_pattern）がすべて @implements を持つか（C13 の逆方向）
 //    C24  共有語彙（docs.shared）の全エラーコードが、撤回されていない UC のどれかの契約の errors で使われているか（C7 の逆方向）
-//    C25  living の用語集（docs.glossary）のコード識別子が、ソース（とスキーマ）に存在するか
+//    C25  living の用語集（docs.glossary）のうち、active な UC / REQ の本文が使う用語のコード識別子が、ソース（とスキーマ）に存在するか
 //
 //  使い方:
 //    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（違反が 1 件でもあれば FAIL）
@@ -884,10 +884,16 @@ function runChecks(cfg) {
 			if (!used.has(code)) failures.push(`[C24] 共有語彙のエラーコード ${code} がどの契約の errors でも使われていない（${cfg.docs.shared}）`);
 	}
 
-	//  C25: living の用語集のコード識別子はソース（とスキーマ）に存在する
-	const idents = hasSource ? glossaryIdentifiers(cfg) : [];
-	if (idents === null) failures.push(`[C25] 用語集 ${cfg.docs.glossary} が無い（宣言した場所に置くか、docs.glossary を none にする）`);
-	if (idents && idents.length) {
+	//  C25: active な UC / REQ の本文が使う用語のコード識別子は、ソース（とスキーマ）に存在する。
+	//  用語集は語をコードより先に置く（テンプレートの規律）ので、まだ承認された仕様が使っていない用語は求めない（C1 と同じく active が起点）
+	const glossary = hasSource ? glossaryIdentifiers(cfg) : [];
+	if (glossary === null) failures.push(`[C25] 用語集 ${cfg.docs.glossary} が無い（宣言した場所に置くか、docs.glossary を none にする）`);
+	const specText = [...Object.values(corpus.ucs), ...Object.values(corpus.reqs)]
+		.filter((d) => d.status === "active")
+		.map((d) => read(d.file).replace(/<!--[\s\S]*?-->/g, ""))
+		.join("\n");
+	const idents = (glossary || []).filter(({ term }) => term && specText.includes(term));
+	if (idents.length) {
 		const words = new Set();
 		for (const path of [...iterFiles(cfg, "source"), ...(schema || [])]) for (const w of read(path).match(/[A-Za-z_]\w*/g) || []) words.add(w);
 		for (const { term, ident } of idents)
