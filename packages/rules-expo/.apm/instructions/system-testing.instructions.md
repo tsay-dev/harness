@@ -10,7 +10,7 @@ UC ごとに主シナリオ 1 つのシナリオテスト（R-1106–R-1108）�
 ## 環境
 
 - 既定 runner は Maestro（`.maestro/`、または利用先が選ぶなら `e2e/` 配下の YAML flow）。利用先が既に採用していれば Detox でもよく、その場合は以下に相当する規約を `CLAUDE.md` に宣言する。harness はこれ以上 runner を固定しない。
-- フォルダーは `traceconfig.json` の `tests.system.dirs` に宣言し（Maestro では `extensions: [".yaml", ".yml"]`）、`tests.dirs` と重ねず、Jest の `testPathIgnorePatterns` に入れる。
+- フォルダーは `traceconfig.json` の `tests.system.dirs` に宣言し、`tests.dirs` と重ねず、Jest の `testPathIgnorePatterns` に入れる。
 - 全スイートは単一コマンド（`maestro test .maestro/`）。`traceconfig.json` の `commands.system` に宣言する。CI では宣言の有無にかかわらず実行する。UC 選択は `maestro test --include-tags UC-nnn .maestro/`。
 - 対象アプリは利用先の `CLAUDE.md` が宣言するシナリオ環境（backend の種類、base URL の切替、投入済みデータ、使い捨てアカウント、権限 dialog を事前許可する起動引数）へ接続する。producer が発明しない。アプリ内 mock は使わない。
 
@@ -18,8 +18,8 @@ UC ごとに主シナリオ 1 つのシナリオテスト（R-1106–R-1108）�
 
 ```yaml
 # @scenario UC-012
-appId: com.example.app
 name: UC-012 案件を登録する
+appId: com.example.app
 tags:
   - UC-012
   - pending
@@ -34,9 +34,9 @@ tags:
 - assertVisible: "案件A"
 ```
 
-- UC ごとに 1 flow。1 行目の YAML コメントに `# @scenario UC-nnn`、UC ID を `name` の接頭辞と `tags` の両方に置く。`@covers` は付けない。
+- UC ごとに 1 flow。1 行目の YAML コメントに `# @scenario UC-nnn`、その直下の行に `name:` を置き（`trace-check` がこの行をテストの印として読む）、UC ID を `name` の接頭辞と `tags` の両方に置く。`@covers` は付けない。
 - 各ステップは `UC.md` の `## 主シナリオ` の番号付きステップ 1 つに、最後の `assertVisible` は `成功時` の事後条件に対応する。シナリオにないことは書かない。
-- 保留マーカーは `pending` tag。FE 配線の実装者が外すまで、全体実行（`commands.system`、CI）は `--exclude-tags pending` で除外する。`trace-check` C15 は tag の有無にかかわらず flow を検出する。
+- 保留マーカーは `pending` tag。FE 配線の実装者が外すまで、全体実行（`commands.system`、CI）は `--exclude-tags pending` で除外する。`pending` tag の flow は保留として C15 の被覆に数えられない。
 - 固定の `waitFor` / sleep を使わず Maestro の待機に任せる。animation を待たず最終状態を検証し、画面の見えている範囲より下を検証する前に `hideKeyboard`。前回実行の状態は `clearState: true` か実行ごとの使い捨てアカウントで消す。
 
 ## locator（探索せず導出する）

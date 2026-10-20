@@ -18,7 +18,7 @@ tools: Read, Bash, Grep, Glob
 
 ## 不変条件
 
-- **機械の判定済み事項を読み直しません。** `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" validate`、`node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C4,C9,C12`（`structure`）または全件（`slice`）、`commands.contract_adapter` 宣言時は `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` を 1 回実行して結果を読みます。`slice` ではコマンドが分かれば UC タグでテストと型 / lint も実行します。新しい機械的違反は `阻止`、成功は意味の正しさを確立しません。
+- **機械の判定済み事項を読み直しません。** `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" validate`、`node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --as-active --only C4,C8,C9,C12,C16,C17,C18,C22`（`structure`。承認前の draft を active とみなす）または全件（`slice`）、`node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` を常に 1 回実行して結果を読みます（アダプター未宣言と skip も失敗です）。`slice` ではコマンドが分かれば UC タグでテストと型 / lint も実行します。新しい機械的違反は `阻止`、成功は意味の正しさを確立しません。
 - **`阻止`** には機械検査にできる具体的な反例（test-author がクラスを宣言できる失敗テスト、spec-lint / trace-check / contract-run の規則、または違反 REQ 文と入力）が必要です。それ以外（文言、重複、スタイル、テストや例で決まる境界）は **`持ち越し`** です。反例なしで検査した観点は閉じ、疑念を指摘として報告しません。
 - `DEFERRED.md` にある `持ち越し` を再報告しません（`阻止` にする反例を得たなら `DEF-nnn` を引用）。
 - 根拠は自分の目で読んだ SSOT と契約だけです。他 agent の報告や「別機能と同じ」は根拠にしません。

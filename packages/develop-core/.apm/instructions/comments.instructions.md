@@ -17,11 +17,11 @@ applyTo: "**/*.swift,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.mjs,**/*.cjs,**/*.ph
 
 ## トレーサビリティ注釈（ID のみ）
 
-`trace-check`（`"${HARNESS_ROOT}/tools/trace-check/"`）が読む、必ず入れる唯一のコメントです。要件を言い換えず ID だけを書きます（R-701。存在しない・撤回済みの ID は C5 など）。単位への注釈は、単位の行か、その直上に連続する行（空行を挟まない）に書きます（`after` を宣言した場合は単位の行か次の行）。
+`trace-check`（`"${HARNESS_ROOT}/tools/trace-check/"`）が読む、必ず入れる唯一のコメントです。要件を言い換えず ID だけを書きます（R-701。存在しない・撤回済みの ID は C5 など）。注釈は**コメントの中**に書きます（文字列リテラルの中の注釈は数えません）。単位への注釈は、単位の行か、その直上に連続するコメント行（空行・コード行で切れる）に書きます（`after` を宣言した場合は単位の行か次の行）。行頭が `#` / `@` の行の注釈は、その前に `//` などのコメント開始記号があるか、`traceconfig.json` の `comment_pattern` がその言語の `#` をコメントと宣言した場合だけ数えます。
 
-- **本番コード**: 実現単位（ユースケースクラス、ルール関数、検査を強制する分岐）の doc comment に `@implements REQ-nnn` / `@implements BR-nnn` / `@implements UC-nnn`。複数 ID は `,` または `/` で区切って 1 行に書けます（`/// @implements UC-001, REQ-009 / BR-015`）。ファイルヘッダーではなく単位に置きます（C14 は存在を要求し、粒度はこの文書が定めます）。
-- **REQ を持たない技術部品**（ADR-0051）: `traceconfig.json` の `source.unit_dirs`（実現単位を置く場所）の外に置き、`@implements` を付けません。その自己検査は `tests.dirs` の外に置きます。例外の印はありません。`unit_dirs` の単位に `@implements` が無ければ C19 が、`tests.dirs` のテストに `@covers` が無ければ C11 が検出します（ADR-0055）。
-- **境界の入口と外部境界のクライアント**: 契約の操作を受ける入口（`source.entry_pattern` に一致する行）と、外部の操作を呼ぶクライアントに `@operation UC-nnn#operationName`。入口に無い、契約に無い操作を指す、fixed 契約の操作をどこも指さない、のいずれも C21 が検出します。
-- **テストコード**: テストごとに `@covers REQ-nnn#class` を宣言済みクラスにちょうど 1 つ。位置は利用プロジェクトが `traceconfig.json` の `tests.covers_placement` に宣言し、C10 / C11 が検査します。シナリオテストは同じ位置に `@scenario UC-nnn`（C15）。NFR を検証するテストは同じ位置に `@covers NFR-nnn`（クラスなし、C20）。
+- **本番コード**: 実現単位（ユースケースクラス、ルール関数、検査を強制する分岐）の doc comment に `@implements REQ-nnn` / `@implements BR-nnn` / `@implements UC-nnn`。複数 ID は `,`、`、`、`/` で区切って 1 行に書けます（`/// @implements UC-001, REQ-009 / BR-015`）。ファイルヘッダーではなく単位に置きます（C14 は存在を要求し、粒度はこの文書が定めます）。`unit_dirs` の単位は REQ か BR を少なくとも 1 つ指します（UC だけではテストに辿れない。C19）。
+- **REQ を持たない技術部品**（ADR-0051）: `traceconfig.json` の `source.support_dirs` に置き、`@implements` を求められません（`source.dirs` のファイルは `unit_dirs` か `support_dirs` のどちらかに入る。C27）。その自己検査は `tests.dirs` の外に置きます。`unit_dirs` の単位に `@implements` が無ければ C19 が、`tests.dirs` のテストに `@covers` が無ければ C11 が検出します（ADR-0055）。
+- **境界の入口と外部境界のクライアント**: 契約の操作を受ける入口（`source.entry_pattern` に一致する行）と、外部の操作を呼ぶクライアントの単位（`source.unit_pattern` に一致する行。`support_dirs` でもよい）の窓に `@operation UC-nnn#operationName`。入口の窓に書くのは `direction: inbound` の操作で、owned かつ inbound の操作は入口の窓の注釈だけが実装を指します。どちらの窓にも帰属しない、入口に無い、契約に無い操作を指す、fixed 契約の操作をどこも指さない、のいずれも C21 が検出します。
+- **テストコード**: テストごとに `@covers REQ-nnn#class` を宣言済みクラスにちょうど 1 つ（2 つ以上は C11）。位置は利用プロジェクトが `traceconfig.json` の `tests.covers_placement` に宣言し、C10 / C11 が検査します。シナリオテストは同じ位置に `@scenario UC-nnn`（C15）。NFR を検証するテストは同じ位置に `@covers NFR-nnn`（クラスなし、REQ の `@covers` とは別に数える。C20）。保留のテスト（`pending_pattern` に一致）は被覆に数えません。テストの行以外にある保留の印（`describe.skip` など）はそのファイルの全テストを保留にします。
 - **スキーマ正本**（migration、`schema.prisma`、モデルファイル）: ルールを強制する制約に、その書式のコメント構文で `@implements BR-nnn`（`-- @implements BR-007`）。C13 / C14 / C23 が読みます（`schema.constraint_pattern` に一致する制約はすべて注釈を持つ）。
 - 注釈は現在の仕様の参照先です。要件の撤回や移動と同じ変更で更新・削除します。

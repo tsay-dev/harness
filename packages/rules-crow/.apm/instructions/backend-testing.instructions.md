@@ -30,7 +30,7 @@ action から呼ばれるもの（model / service / presenter / util）はリク
 - 既定スイートは `tests/` 配下に置き、テスト対象コードのディレクトリ構造を反映する。テスト対象単位（クラスまたは関数）ごとに一つのテストクラスとし、ファイル名とクラス名を一致させる。
 - PHPUnit の既定の探索は `*Test.php` 接尾辞であり、crow の snake_case 命名（`check_value_test.php`）は一つも探索されない。`<testsuite>` 内で `<directory suffix="_test.php">` を設定する。
 - UC タグはテストクラスの `#[Group('UC-012')]`（PHPUnit 9 以前は `@group UC-012`）。選択実行は `phpunit --group UC-012`。
-- 各テストメソッドの docblock に `@covers REQ-045#accept-standard`（一テストにつき宣言済みの分割クラスを一つ）。
+- 各テストメソッドの直上の行コメントに `@covers REQ-045#accept-standard`（一テストにつき宣言済みの分割クラスを一つ。docblock には書かない）。
 
 ## スイートの分離
 
@@ -65,6 +65,7 @@ action から呼ばれるもの（model / service / presenter / util）はリク
 - モックは crow の境界だけ: DB ハンドル（`crow::get_hdb()` に相当）と `crow_request`。operation に対して呼ぶ `module_*` / `action_*` / `model_*` は [common-testing](common-testing.instructions.md) の operation → entry から導出する。
 
 ```php
+//	@covers REQ-045#accept-standard
 public function test_returns_empty_list_when_no_row_matches()
 {
 	//	DB 境界をモック（内部ロジックはモックしない）

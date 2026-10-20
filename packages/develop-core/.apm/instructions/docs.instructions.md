@@ -6,7 +6,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
 
 > 対象はすべてのプラットフォームの `docs/` 配下の全ファイルです。指摘では ID で引用します（`R-101`）。
-> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C25）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
+> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C27）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
 
 ## 1. SSOT の原則
 
@@ -33,12 +33,12 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 | --- | --- | --- |
 | `00-vision.md` | 課題、対象者、計測可能な成功指標（KPI）、対象外 | 機能一覧、画面、技術選定 |
 | `01-glossary.md` | 用語、1 文の定義、コード識別子（active な仕様が使う語はコードに存在すること。C25）、禁止同義語 | クラス設計、テーブル定義 |
-| `02-actors.md` | actor の閉じた集合（`ACT-nn`、システム actor を含む） | goal を実現する UC（R-103） |
+| `02-actors.md` | actor の閉じた集合（`ACT-nn`、システム actor を含む。種別は「人間」か「システム」で始め、「システム」で始まる actor だけが人間でない。spec-lint / C15） | goal を実現する UC（R-103） |
 | `GOAL.md` / `goals-backlog.md` | R-301 の達成状態を actor の言葉で 1 文、`actor`、`origin`（KPI）、`domain`（R-1009。backlog の書式はテンプレート） | 達成手段、操作手順、配下 UC の一覧 |
 | `UC.md` | R-302 のシナリオ、状態 × イベント表、事前・事後条件、BR の**参照** | 実装設計、BR 本文、REQ 本文、導出 REQ の一覧、契約のエラー評価順序（R-1207） |
 | `REQ-nnn.md` | EARS 1 文、frontmatter（`pattern`、`uc`、`br`、`status`）、検証方針 | 実装手段、UI 詳細、テストケースの内容 |
 | `BR-nnn.md` | ルールの存在、意図、`enforced_at` | 参照元、機械可読にできる値（R-102）、契約のエラー評価順序（R-1207） |
-| `NFR-nnn.md` | 閾値 + 計測方法、検証の所在（テストの `@covers NFR-nnn` か `measured_by:`、C20） | 計測できないもの（R-104） |
+| `NFR-nnn.md` | 閾値 + 計測方法、検証の所在（保留でないテストの `@covers NFR-nnn` か `measured_by:`。`measured_by` は docs の goals / rules / nfr / adr の外にあるリポジトリ内のファイルで、中にその NFR の ID が現れる。外部の計測は ID と計測先を書いた runbook を指す。C20） | 計測できないもの（R-104） |
 | `ADR-nnnn-<slug>.md` | Context / Decision / Consequences、却下した選択肢と理由 | 現在の設計状態（ADR は更新せず置き換える） |
 | `verification/GLOBAL.md` | プロジェクト全体の「検証しない」範囲と理由 | REQ ごとの方針（REQ に置く） |
 | `verification/DEFERRED.md` | 機械検査にできない reviewer 指摘を解決・昇格まで 1 行ずつ保持（オーケストレーターのみ） | テストや lint が判定できる指摘、人間待ちの未決事項（issue 管理へ） |
@@ -70,14 +70,14 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-702 (MUST)** 層の依存方向は lint / C6（`traceconfig.json` の `layering`）で強制します。
 - **R-703 (MUST)** 実装のエラーコードは `_shared` の `errorCodes` に含まれ（C7）、`errorCodes` のコードはどれかの契約の `errors` で使われます（C24）。
 - **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`traceconfig.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本で `@implements BR-nnn` 付きの制約として実現します（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
-- **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14。`source` のない docs のみの利用プロジェクトは対象外）。逆向き（実現単位を置く場所 `source.unit_dirs` の、どの仕様も指さない単位）は C19 が検出します。仕様を持たない技術部品はその場所の外に置きます。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
+- **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14）。逆向き（実現単位を置く場所 `source.unit_dirs` の、どの仕様も指さない単位）は C19 が検出します。仕様を持たない技術部品は `source.support_dirs` に置き、`source.dirs` のファイルはどちらかに入れます（C27）。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
 
 ## 8. 変更手順
 
 - **R-801 (MUST) 上流優先。** 実装が仕様の誤りや穴を示したら、上流 SSOT を更新して再導出します（契約 → テスト → 実装）。
 - **R-802 (MUST)** 判断の変更は `supersedes:` を持つ新 ADR の追加で行い、既存 ADR を書き換えません。
 - **R-803 (MUST)** マージ条件はテスト成功かつ `spec-lint` / `trace-check` の違反ゼロです。
-- **R-804 (MUST)** 紐づきに例外を作りません。既知の違反を通す baseline、コードに書く例外の印、検査の黙った省略は持たず、対象が無いことは `traceconfig.json` に理由付きで宣言します（`{ "none": "<理由>" }`）。`traceconfig.json` の変更は人間が承認します（ADR-0057）。既存資料への導入は宣言の範囲を広げて進めます（ADR-0056）。
+- **R-804 (MUST)** 紐づきに例外を作りません。既知の違反を通す baseline、コードに書く例外の印、検査の黙った省略は持たず、対象が無いことは `traceconfig.json` に理由付きで宣言します（`{ "none": "<理由>" }`。それを求める active な文書・fixed な契約が無い間だけ通る。C26）。`traceconfig.json` の変更は人間が承認します（ADR-0057）。既存資料への導入は宣言の範囲を広げて進めます（ADR-0056）。
 
 ## 9. 統制の種類
 
@@ -103,7 +103,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-1103 (MUST)** テスト追加前に方針へクラスを宣言します。方針外のテストは C11 で失敗します（生成テストの上限）。
 - **R-1104 (MUST)** 各宣言済みクラスを最低 1 つのテストで覆います（C10）。検証しない入力領域はクラスにせず、理由とともに「検証しない」に書きます。
 - **R-1105 (SHOULD)** 同値クラスごとに 1 クラスです。複数クラスをまたぐ 1 テストは分割の失敗です。
-- **R-1106 (MUST)** `UC.md` の `## 主シナリオ` と `成功時` 事後条件が UC シナリオテストの SSOT です。actor が人間の各 `active` UC に正常系シナリオテストを 1 つ置き、`@scenario UC-nnn` を付けます（C15 は存在を検査）。失敗経路は REQ のクラスです。
+- **R-1106 (MUST)** `UC.md` の `## 主シナリオ` と `成功時` 事後条件が UC シナリオテストの SSOT です。actor が人間の各 `active` UC に正常系シナリオテストを 1 つ置き、`@scenario UC-nnn` を付けます（C15 は保留でないものの存在を検査）。失敗経路は REQ のクラスです。
 - **R-1107 (MUST)** シナリオテストは用語集の語でステップを実行し、事後条件を検証するだけです。シナリオにないステップ、DOM・ビュー階層の assertion は禁止で、追加ステップは先にゲート経由で `UC.md` を変えます。
 - **R-1108 (MUST)** ロケーターは実装を読まず、可視文言は `01-glossary.md`、識別子は契約の操作名とリクエストフィールド名から導出します（ADR-0037。構文はスタックの system-testing 末端ファイル）。食い違えば見た目を動かします。
 
