@@ -55,7 +55,7 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 
 ## tools / templates を別途用意する
 
-APM packages は tools / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。この checkout の `init.sh` は APM consumer に実行しない。
+APM packages は tools / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。この checkout の `init.sh` は APM consumer に実行しない。
 
 ```bash
 # <release-tag> を実在する、package と整合するタグに置き換える
@@ -63,13 +63,13 @@ APM packages は tools / templates を含まない。develop の検証と文書�
 
 node .harness/tools/spec-lint/spec-lint.mjs validate
 node .harness/tools/trace-check/trace-check.mjs
-node .harness/tools/contract-run/contract-run.mjs          # traceconfig.json の commands.contract_adapter 宣言時のみ実行される
+node .harness/tools/contract-run/contract-run.mjs          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
 node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計
 node .harness/tools/git-lint/git-lint.mjs branch           # traceconfig.json に git を宣言したホストのみ実行される
 ```
 
 - Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
-- ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `traceconfig.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
+- ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `traceconfig.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
 
 ## 旧 init.sh 利用者の移行
 

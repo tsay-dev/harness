@@ -99,9 +99,10 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <p>手書きの図（docs → codes → checks）と同じ並びで、harness の現在の実装をそのまま描いています。根拠は <code>docs.instructions.md</code> の R- 規則、<code>templates/develop/</code>、<code>tools/</code> の各検査ツールのコードです。</p>
   <ul class="points">
     <li><strong>docs</strong> は GOAL → UC → REQ と BR に加えて、UC ごとの <code>contract.yaml</code> と共有語彙 <code>components.yaml</code> があり、これがコードとの 2 つ目の接点になっています。</li>
-    <li><strong>code</strong> には本番コードとテストの 2 種類があり、どちらも注釈（<code>@implements</code> / <code>@covers</code> / <code>@scenario</code>）で仕様の ID を指します。</li>
+    <li><strong>code</strong> には本番コードとテストの 2 種類があり、どちらも注釈（<code>@implements</code> / <code>@covers</code> / <code>@scenario</code> / <code>@operation</code>）で仕様の ID を指します。注釈として数えるのはコメントの中にあるものだけで、どの単位の注釈かは単位の印の直上（または直後）のコメント行の「窓」で決まります。</li>
     <li><strong>checks</strong> は 2 つではなく 3 層です。文書と注釈を読む静的検査（spec-lint、trace-check）、実際に動かす検査（contract-run、テスト）、書き込み・終了・コミットで止める関所（gate-hook、stop-gate、spec-lint gate、git-lint）です。</li>
     <li>点線の紐づけは機械が検査せず、reviewer が担う線です。どの線にも、機械が見るのは注釈や参照の存在までで、意味の正しさは人間ゲートと reviewer が担います。</li>
+    <li>紐づきに例外はありません（ADR-0056）。baseline も、コードに書く例外の印もありません。対象が本当に無い範囲だけを <code>traceconfig.json</code> に理由付きの none で宣言し、active な文書が求める範囲は none にできません（義務表、C26）。</li>
   </ul>
 </header>
 
@@ -176,7 +177,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="pill ok"><rect x="704" y="258" width="60" height="16" rx="8"/><text x="734" y="270">spec-lint</text></g>
       </svg>
     </div>
-    <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。BR は C4 が「どこからも参照されない BR」を、C16 が「参照先の BR が無い・撤回済み」を、C22 が「active な REQ の <code>br:</code> から参照されない BR」を検出します。C17 は UC の表と REQ の 1 対 1（未定義の REQ、別の UC の REQ、表に無い REQ）を、C18 は GOAL・UC の actor と GOAL の origin が表に定義されているかを見ます（UC の actor は図では省略）。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
+    <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。BR は C4 が「どこからも参照されない BR」を、C16 が「参照先の BR が無い・draft・撤回済み」を、C22 が「active な REQ の <code>br:</code> から参照されない BR」を検出します。C17 は UC の「状態 × イベント表」「例外系の走査」の節と REQ の 1 対 1（未定義・撤回済みの REQ、別の UC の REQ、表に無い REQ、REQ が 1 件も無い UC）を、C18 は GOAL・UC の actor と GOAL の origin が表に定義されているかを見ます（UC の actor は図では省略）。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
   </figure>
 </section>
 
@@ -184,7 +185,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <h2>2. docs と code のつながり</h2>
   <figure>
     <div class="scroll">
-      <svg viewBox="0 0 920 852" role="img" aria-label="docs と code をつなぐ 13 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位を置く場所の単位はすべて仕様を指す。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
+      <svg viewBox="0 0 920 852" role="img" aria-label="docs と code をつなぐ 13 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位を置く場所の単位はすべて仕様を指し、ソースの全ファイルは実現単位か技術部品の置き場に分類される。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
         <defs>
           <marker id="b-anno" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-anno"/></marker>
           <marker id="b-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-open"/></marker>
@@ -218,7 +219,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="670" y="222" width="230" height="44" rx="6"/><text class="ntj" x="785" y="249">単体・結合テスト</text></g>
         <line x1="668" y1="244" x2="254" y2="244" class="e anno" marker-end="url(#b-anno)"/>
         <text class="el mid" x="460" y="236">@covers REQ-nnn#class</text>
-        <g class="pill anno"><rect x="372" y="250" width="176" height="16" rx="8"/><text x="460" y="262">C1 · C2 · C3 · C10 · C11</text></g>
+        <g class="pill anno"><rect x="342" y="250" width="236" height="16" rx="8"/><text x="460" y="262">C1 · C2 · C3 · C10 · C11（保留は数えない）</text></g>
 
         <!-- 4 UC シナリオ ← シナリオテスト -->
         <g class="node"><rect x="20" y="286" width="230" height="44" rx="6"/><text class="ntj" x="135" y="313">UC の主シナリオ・事後条件</text></g>
@@ -259,8 +260,8 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="20" y="606" width="230" height="44" rx="6"/><text class="nt" x="135" y="633">REQ・BR・UC</text></g>
         <g class="node"><rect x="670" y="606" width="230" height="44" rx="6"/><text class="ntj" x="785" y="633">unit_dirs のすべての単位</text></g>
         <line x1="668" y1="628" x2="254" y2="628" class="e anno" marker-end="url(#b-anno)"/>
-        <text class="elj mid" x="460" y="620">@implements の無い単位を検出（例外なし）</text>
-        <g class="pill anno"><rect x="380" y="634" width="160" height="16" rx="8"/><text x="460" y="646">C19（unit_dirs 宣言時）</text></g>
+        <text class="elj mid" x="460" y="620">@implements の無い単位・未分類のファイルを検出（例外なし）</text>
+        <g class="pill anno"><rect x="380" y="634" width="160" height="16" rx="8"/><text x="460" y="646">C19 · C27（分類）</text></g>
 
         <!-- 10 NFR ← テスト / measured_by -->
         <g class="node"><rect x="20" y="670" width="230" height="44" rx="6"/><text class="nt" x="135" y="697">NFR-nnn</text></g>
@@ -284,7 +285,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="pill anno"><rect x="445" y="826" width="30" height="16" rx="8"/><text x="460" y="838">C25</text></g>
       </svg>
     </div>
-    <figcaption>コードからの紐づけは注釈の「存在」と「参照先の実在」を検査します。C14 は仕様 → コードの向き（active な REQ・BR を指す注釈が 1 つ以上あるか）、C19 はコード → 仕様の向き（<code>source.unit_dirs</code> の単位がすべて仕様を指すか）を見ます。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト。<code>test_pattern</code> 設定時は <code>tests.dirs</code> の注釈のないテストも）で上下両方から締めます。どちらも例外の印は無く、REQ を持たない技術部品とその自己検査は宣言した場所の外に置きます。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
+    <figcaption>コードからの紐づけは、コメントの中の注釈の「存在」と「参照先の実在」を検査します。C14 は仕様 → コードの向き（active な REQ・BR を指す注釈が 1 つ以上あるか）、C19 はコード → 仕様の向き（<code>source.unit_dirs</code> の単位がすべて仕様を指すか）を見ます。C27 は <code>source.dirs</code> の全ファイルが <code>unit_dirs</code>（実現単位）か <code>support_dirs</code>（REQ を持たない技術部品）のどちらかに入るかを見るので、新しい置き場を作るだけで検査の外へは出られません。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト、<code>tests.dirs</code> の注釈のないテスト、1 テストに REQ が 2 つ）で上下両方から締めます。<code>pending_pattern</code> に一致する保留のテスト（<code>test.fixme</code> など）は C1・C10・C15・C20 の被覆に数えません。C1 は、draft に戻しても実装（<code>@implements</code>）が残る REQ にもテストを求めます。C21 は入口のパスと契約の <code>wire.path</code> も照合します。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
   </figure>
 </section>
 
@@ -293,20 +294,20 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <p>同じ検査でも、誰がいつ実行するかで役割が違います。gate-hook と stop-gate は利用プロジェクトが明示的に有効にしたときだけ動き、無効ならオーケストレーターが同じ条件を自分で守ります。</p>
   <div class="flow">
     <div class="step"><span class="when">1 · 仕様を書いた直後</span><h3>作成者の自己検査</h3>
-      <ul><li>ID 採番は <code>trace-check --next</code></li><li><code>spec-lint validate</code></li><li><code>trace-check --only C4,C9,C12</code></li></ul>
-      <p>その後、人間が承認して <code>active</code> にする。</p></div>
+      <ul><li>ID 採番は <code>trace-check --next</code></li><li><code>spec-lint validate</code></li><li><code>trace-check --as-active --only …</code>（承認後に出る違反を先に見る）</li></ul>
+      <p>その後、人間が承認して <code>active</code> にする。UC の active と契約の fixed は gate-hook が承認を求める。</p></div>
     <div class="step"><span class="when">2 · 実装を書く直前</span><h3>gate-hook（PreToolUse）</h3>
       <ul><li>UC が active</li><li>REQ に draft がない</li><li>契約が fixed</li><li>UC の phase が 実装 / 検証</li></ul>
-      <p>満たさなければ書き込みを止める。</p></div>
+      <p>満たさなければ書き込みを止める。traceconfig・検査器・hook の設定・workflow・status の降格は人間に承認を求める（ask）。</p></div>
     <div class="step"><span class="when">3 · ターン終了時</span><h3>stop-gate（Stop）</h3>
       <ul><li>spec-lint → trace-check → contract-run</li><li>typecheck → lint → test</li><li>system（シナリオテスト）</li></ul>
-      <p>コマンドは <code>traceconfig.json</code> の <code>commands</code> だけから取る。traceconfig.json が無ければ失敗。</p></div>
+      <p>コマンドは <code>traceconfig.json</code> の <code>commands</code> だけから取る（4 キーは宣言か none が必須）。traceconfig.json が無ければ失敗。例外でも止める（fail-closed）。</p></div>
     <div class="step"><span class="when">4 · コミット時</span><h3>spec-lint gate</h3>
       <ul><li><code>UC:</code> trailer の UC と REQ が active</li><li>契約が fixed</li></ul>
       <p>commit-msg hook への接続は任意。</p></div>
     <div class="step"><span class="when">5 · PR / CI</span><h3>git-lint ほか</h3>
-      <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>trace-check、テスト</li></ul>
-      <p><code>git</code> 未宣言なら「未検査」。</p></div>
+      <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>spec-lint・trace-check（<code>harness_ref</code> で固定した版。unit ごと）</li><li>traceconfig・status・workflow の変更をジョブ要約に出す</li></ul>
+      <p><code>git</code> 未宣言なら「未検査」。merge で止めるのはブランチ保護と CODEOWNERS。</p></div>
     <div class="step"><span class="when">6 · スライス完了</span><h3>判定と人間ゲート</h3>
       <ul><li>reviewer の「阻止」がゼロ</li><li>持ち越しは DEFERRED.md へ</li><li>UC の phase が 完了</li></ul>
       <p>テストが全部通っただけでは完了ではない。</p></div>
@@ -319,24 +320,24 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     <table>
       <thead><tr><th>ツール</th><th>見るもの</th><th>見ないもの</th></tr></thead>
       <tbody>
-        <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、閉じた語彙（status・phase・pattern・transport・direction）、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
+        <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、frontmatter の曖昧な書き方、閉じた語彙（status・phase・pattern・transport・direction・アクターの種別）、UC ディレクトリの余分な md、contract.yaml の無い active な UC、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
         <tr><td>spec-lint gate</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
-        <tr><td>trace-check</td><td>下の C1–C25。docs 同士、docs と code、層の向き、ID の衝突。紐づきの宣言が省略されていれば設定エラーで、対象が無い範囲は理由付きの none として報告に出す（baseline は無い）</td><td>注釈した単位が文を本当に実現しているか</td></tr>
+        <tr><td>trace-check</td><td>下の C1–C27。docs 同士、docs と code、層の向き、ID の衝突、宣言と義務の矛盾、ソースの分類。紐づきの宣言が省略されていれば設定エラーで、対象が無い範囲は理由付きの none として報告に出す（baseline は無い）</td><td>注釈した単位が文を本当に実現しているか</td></tr>
         <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。実行する実例があるのにアダプターが無い場合と skip は失敗</td></tr>
         <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
-        <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか</td><td>docs・設定・harness 資産への書き込み（常に許可）</td></tr>
+        <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか。traceconfig・検査器・hook の設定・workflow への書き込みと、status の降格、UC の active・契約の fixed への昇格は人間に承認を求める</td><td>Bash による書き込み、Claude Code 以外のプロバイダー、monorepo の unit の docs の status</td></tr>
         <tr><td>stop-gate</td><td>ターン終了時に上の検査を順に実行</td><td>ツリーに変更がないとき（省略）</td></tr>
         <tr><td>git-lint</td><td>ブランチ名の形（B1–B3）、コミットヘッダーの type・末尾ピリオド・monorepo の scope（M1–M3）</td><td>差分と名前が合っているか（reviewer）</td></tr>
       </tbody>
     </table>
   </div>
 
-  <h3>trace-check の 25 検査と、図のどの線か</h3>
+  <h3>trace-check の 27 検査と、図のどの線か</h3>
   <div class="table">
     <table>
       <thead><tr><th>#</th><th>失敗する条件</th><th>線</th></tr></thead>
       <tbody>
-        <tr><td>C1</td><td>active な REQ を <code>@covers</code> するテストがない</td><td><span class="tag anno">テスト → REQ</span></td></tr>
+        <tr><td>C1</td><td>active な REQ と、ソースから <code>@implements</code> されている withdrawn 以外の REQ に、保留でないテストの <code>@covers</code> がない</td><td><span class="tag anno">テスト → REQ</span></td></tr>
         <tr><td>C2</td><td>active な REQ に「検証方針」節がない</td><td><span class="tag ok">REQ 内</span></td></tr>
         <tr><td>C3</td><td>テストが存在しない・撤回済みの REQ を <code>@covers</code> している</td><td><span class="tag anno">テスト → REQ</span></td></tr>
         <tr><td>C4</td><td>どの UC・REQ からも参照されない BR がある</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
@@ -344,26 +345,69 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C6</td><td>禁止された層を import している（<code>layering</code>）</td><td><span class="tag anno">layering → import</span></td></tr>
         <tr><td>C7</td><td>実装のエラーコードが共有語彙の errorCodes に含まれない</td><td><span class="tag anno">エラーコード → components</span></td></tr>
         <tr><td>C8</td><td>active な GOAL を実現する UC がない</td><td><span class="tag ok">UC → GOAL</span></td></tr>
-        <tr><td>C9</td><td>配置と frontmatter が食い違う（ディレクトリと id、REQ が自分の uc の下にない、UC の goal とディレクトリ）</td><td><span class="tag ok">UC → GOAL・REQ → UC・契約 → UC</span></td></tr>
-        <tr><td>C10</td><td>宣言した分割クラスにテストがない、または active な REQ がクラスを 1 つも宣言しない（下限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
-        <tr><td>C11</td><td>テストがクラスを指定しない・未宣言のクラスを指す・<code>tests.dirs</code> のテストに注釈がない（上限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
+        <tr><td>C9</td><td>配置と frontmatter が食い違う（ディレクトリと id、REQ が自分の uc の下にない、UC の goal とディレクトリ）、<code>_shared</code> 以外の <code>_</code> ディレクトリや配置に無い md が検査の外にある</td><td><span class="tag ok">UC → GOAL・REQ → UC・契約 → UC</span></td></tr>
+        <tr><td>C10</td><td>宣言した分割クラスに保留でないテストがない、または active な REQ がクラスを 1 つも宣言しない（下限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
+        <tr><td>C11</td><td>テストがクラスを指定しない・未宣言のクラスを指す・<code>tests.dirs</code> のテストに注釈がない・1 テストに REQ の <code>@covers</code> が 2 つ以上・どのテストにも属さない <code>@covers</code>（上限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
         <tr><td>C12</td><td>同じ ID が複数のファイルで定義されている</td><td><span class="tag ok">すべての ID</span></td></tr>
-        <tr><td>C13</td><td>DB で強制する BR に、スキーマ正本の <code>@implements</code> がない</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
+        <tr><td>C13</td><td>DB で強制する active な BR に、スキーマ正本の <code>@implements</code> がない</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
         <tr><td>C14</td><td>active な REQ・BR を <code>@implements</code> する実装がない</td><td><span class="tag anno">本番コード → REQ・BR</span></td></tr>
-        <tr><td>C15</td><td>人間アクターの active な UC にシナリオテストがない、または存在しない UC を <code>@scenario</code> している</td><td><span class="tag anno">シナリオテスト → UC</span></td></tr>
-        <tr><td>C16</td><td>active な UC・REQ が、定義されていない BR を参照している</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
-        <tr><td>C17</td><td>active な UC の表が未定義の REQ や別の UC の REQ を指す、または REQ が表のどのセルからも導出されていない</td><td><span class="tag ok">UC の表 ↔ REQ</span></td></tr>
+        <tr><td>C15</td><td>人間アクター（種別が「システム」で始まらない）の active な UC に保留でないシナリオテストがない、<code>@scenario</code> の無いシナリオテストがある、または存在しない・撤回済みの UC を <code>@scenario</code> している</td><td><span class="tag anno">シナリオテスト → UC</span></td></tr>
+        <tr><td>C16</td><td>active な UC・REQ が、定義されていない・draft・撤回済みの BR を参照している</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
+        <tr><td>C17</td><td>active な UC の表（状態 × イベント表・例外系の走査）が未定義・撤回済みの REQ や別の UC の REQ を指す、REQ が表のどのセルからも導出されていない、または UC に REQ が 1 件も無い</td><td><span class="tag ok">UC の表 ↔ REQ</span></td></tr>
         <tr><td>C18</td><td>active な GOAL・UC の actor、GOAL の origin が、アクター表・vision の KPI 表に無い</td><td><span class="tag ok">GOAL・UC → ACT・KPI</span></td></tr>
-        <tr><td>C19</td><td>実現単位を置く場所（<code>source.unit_dirs</code>）の単位が <code>@implements</code> を持たない</td><td><span class="tag anno">実現単位 → 仕様</span></td></tr>
-        <tr><td>C20</td><td>active な NFR に、検証するテスト（<code>@covers NFR-nnn</code>）も実在する <code>measured_by</code> も無い、またはテストが未定義の NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
-        <tr><td>C21</td><td>境界の入口に <code>@operation</code> が無い、契約に無い操作を指す、fixed 契約の操作をどのコードも指さない</td><td><span class="tag anno">契約の操作 ↔ 入口</span></td></tr>
+        <tr><td>C19</td><td>実現単位を置く場所（<code>source.unit_dirs</code>）の単位が、REQ か BR を指す <code>@implements</code> を持たない（UC だけでは足りない）</td><td><span class="tag anno">実現単位 → 仕様</span></td></tr>
+        <tr><td>C20</td><td>active な NFR に、保留でない検証テスト（<code>@covers NFR-nnn</code>）も、条件を満たす <code>measured_by</code>（docs の外のリポジトリ内のファイルで、中に ID が現れる）も無い、またはテストが未定義・撤回済みの NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
+        <tr><td>C21</td><td>境界の入口に <code>@operation</code> が無い、入口の <code>@operation</code> が inbound の操作でない（パスの入口は http だけ）、owned かつ inbound の fixed 操作を入口が指さない、<code>@operation</code> が入口にも単位にも属さない・契約に無い操作を指す、入口のパスが契約の <code>wire.path</code> と合わない、fixed 契約の操作をどのコードも指さない</td><td><span class="tag anno">契約の操作 ↔ 入口</span></td></tr>
         <tr><td>C22</td><td>active な BR を <code>br:</code> に持つ active な REQ が無い</td><td><span class="tag ok">REQ → BR</span></td></tr>
         <tr><td>C23</td><td>スキーマの制約（<code>schema.constraint_pattern</code>）に <code>@implements</code> が無い</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
-        <tr><td>C24</td><td>共有語彙のエラーコードがどの契約の errors でも使われていない</td><td><span class="tag ok">components → 契約</span></td></tr>
-        <tr><td>C25</td><td>active な UC・REQ が使う用語の、用語集のコード識別子がソースに無い</td><td><span class="tag anno">用語集 → コード</span></td></tr>
+        <tr><td>C24</td><td>撤回されていない契約があるとき、共有語彙のエラーコードがどの契約の errors でも使われていない</td><td><span class="tag ok">components → 契約</span></td></tr>
+        <tr><td>C25</td><td>active な UC・REQ が使う用語の、用語集のコード識別子がソース（コメント行以外）に無い（用語集の status によらない）</td><td><span class="tag anno">用語集 → コード</span></td></tr>
+        <tr><td>C26</td><td>義務がある範囲の none、範囲・印の一致 0 件、active な UC があるときの固定パスの不在（下の義務表）</td><td><span class="tag ok">traceconfig ↔ 文書</span></td></tr>
+        <tr><td>C27</td><td><code>source.dirs</code> のファイルが <code>unit_dirs</code> にも <code>support_dirs</code> にも入らない、または <code>unit_dirs</code> のファイルが走査対象の拡張子でない、<code>unit_dirs</code> の中で <code>source.dirs</code> の <code>!</code> で外したのにテストの範囲にも入らない</td><td><span class="tag anno">ソースの全ファイル</span></td></tr>
       </tbody>
     </table>
   </div>
+
+  <h3>義務表（C26）: none にできない範囲</h3>
+  <p>active な文書と fixed な契約が「義務」を生みます。義務が無い間は none も空の範囲も通るので、新規プロジェクトの最初のターンと移行の途中は止まりません。文書を active にした時点で、対応する宣言が必要になります。</p>
+  <div class="table">
+    <table>
+      <thead><tr><th>義務を生むもの</th><th>none にできないキー</th></tr></thead>
+      <tbody>
+        <tr><td>active な REQ</td><td><code>source</code>、<code>source.unit_dirs</code>、<code>source.support_dirs</code>、<code>tests</code>、<code>tests.pending_pattern</code></td></tr>
+        <tr><td>実装の残る REQ</td><td><code>tests</code>（withdrawn 以外でソースから <code>@implements</code> されている REQ）</td></tr>
+        <tr><td>active な BR</td><td><code>source</code></td></tr>
+        <tr><td>人間向けの active な UC</td><td><code>tests</code>、<code>tests.system</code>、<code>tests.system.pending_pattern</code></td></tr>
+        <tr><td>active な UC</td><td><code>docs.glossary</code></td></tr>
+        <tr><td>fixed 契約の inbound の操作</td><td><code>source</code>、<code>source.entry_pattern</code>（owned かつ inbound）</td></tr>
+        <tr><td>fixed 契約の errors</td><td><code>contract</code>（owned の操作に errors がある）</td></tr>
+        <tr><td>撤回されていない契約の errors</td><td><code>contract</code>、<code>docs.shared</code></td></tr>
+        <tr><td>DB で強制する active な BR</td><td><code>schema</code>、<code>schema.constraint_pattern</code></td></tr>
+        <tr><td>ACT-nn を持つ active な GOAL・UC</td><td><code>docs.actors</code></td></tr>
+        <tr><td>KPI-nn を持つ active な GOAL</td><td><code>docs.vision</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>義務がある範囲で、単位・テスト・入口・制約の印の一致が 0 件なのも違反です。宣言した固定パスが無いことは、active な UC があれば違反（作るか、理由付きの none にする）、それ以外はレポートに「未作成」と出すだけです。</p>
+
+  <h3>分類（C27）: ソースの全ファイルの置き場</h3>
+  <p>active な REQ がある間、<code>source.dirs</code> の全ファイル（git が管理するもの。拡張子を問わない）は、仕様を実現する単位の置き場 <code>source.unit_dirs</code> か、REQ を持たない技術部品の置き場 <code>source.support_dirs</code> のどちらかに入ります。C19 が <code>@implements</code> を求めるのは <code>unit_dirs</code> の単位だけです。置き場を増やすことは <code>traceconfig.json</code> の変更なので、人間が承認します。</p>
+
+  <h3>gate-hook が人間に承認を求める書き込み（ask）</h3>
+  <div class="table">
+    <table>
+      <thead><tr><th>書き込み</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>**/traceconfig.json</td><td>検査の範囲（none の宣言、範囲、注釈の正規表現、commands）を決める。大文字小文字を無視し、unit のものも含む</td></tr>
+        <tr><td>.harness/**</td><td>検査器そのもの</td></tr>
+        <tr><td>.claude/settings*.json</td><td>hook の設定（ゲートを外せる）</td></tr>
+        <tr><td>.github/workflows/**</td><td>CI の検査と、固定した検査器の版（<code>harness_ref</code>）</td></tr>
+        <tr><td>status の降格</td><td>active → draft / withdrawn、fixed → draft、living / frozen → draft / withdrawn。義務を減らす</td></tr>
+        <tr><td>UC の active・契約の fixed</td><td>実装着手ゲートを開ける。新規作成で書く場合も。1 スライスで 2 回</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ほかの昇格（REQ・BR・NFR・GOAL の active など）と新規作成は止めずにログに残します。<code>.harness-gate/</code> への書き込みは止めます。Bash と Claude Code 以外のプロバイダーでの変更はこの ask を通らないので、merge 時に CODEOWNERS とブランチ保護で必須レビューにします（ADR-0057）。</p>
 </section>
 
 <section>
@@ -372,9 +416,12 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>注釈した単位が本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>宣言した場所の外（infra など）に置かれたコードに、REQ にすべき業務ルールが紛れていないか。none の宣言を含む <code>traceconfig.json</code> の変更は人間が承認する（gate-hook が確認を求める）。<code>source.unit_dirs</code> を宣言していない利用プロジェクトでは、仕様を指さない本番コードは検査されない。</p></div>
-    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>NFR のテストや <code>measured_by</code> の計測が、閾値を本当に測っているか。C20 が見るのは検証の所在があることと、パスが実在することまで。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>技術部品の置き場（<code>source.support_dirs</code>）に置かれたコードに、REQ にすべき業務ルールが紛れていないか。none の宣言と置き場を含む <code>traceconfig.json</code> の変更は人間が承認する（gate-hook が確認を求める）。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>NFR のテストや <code>measured_by</code> の計測が、閾値を本当に測っているか。C20 が見るのは、検証の所在が docs の外のファイルとして実在し、中に NFR の ID が現れることまで。外部の計測は runbook に ID と計測先を書く。</p></div>
     <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
+    <div class="gap"><span class="who">主張の外</span><p>テストが実際に実行されたこと。trace-check は紐づきの有無を見るだけで、<code>@covers</code> したテストが CI で走って通ったかは突き合わせない（ADR-0056 の M9）。</p></div>
+    <div class="gap"><span class="who">主張の外</span><p>C21 のパスの照合は文字列の比較。短い入口のパス（<code>/:id</code>）は別の操作の <code>wire.path</code> にも一致しうるし、method は見ない。行の正規表現で拾えない書き方の入口・単位も残る。</p></div>
+    <div class="gap"><span class="who">ブランチ保護</span><p>Bash や Claude Code 以外のプロバイダーでの <code>traceconfig.json</code> と status の変更は、gate-hook の承認を通らない。<code>traceconfig.json</code>・<code>docs/</code>・<code>.github/workflows/</code> を CODEOWNERS とブランチ保護で必須レビューにしない限り、機械では止まらない。monorepo の unit の docs の status も ask しない。</p></div>
   </div>
 
   <h3>横断文書</h3>
@@ -388,7 +435,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>verification/DEFERRED.md</td><td>機械検査にできない reviewer 指摘の台帳</td><td>spec-lint（行文法）</td></tr>
         <tr><td>goals-backlog.md</td><td>未着手のゴール。着手時にディレクトリへ昇格</td><td>spec-lint（書式）</td></tr>
         <tr><td>CLAUDE.md / AGENTS.md</td><td>利用プロジェクトの作業指針（地図）</td><td>spec-lint（150 行以下）</td></tr>
-        <tr><td>traceconfig.json</td><td>検査の設定（配置、注釈の正規表現、commands、layering、policy、git）</td><td>各ツールが読む</td></tr>
+        <tr><td>traceconfig.json</td><td>検査の設定（範囲と置き場、none の宣言、注釈とコメントの正規表現、保留の印、commands、layering、policy、git）</td><td>trace-check が宣言を検査（設定エラー・C26・C27）。変更は人間が承認（gate-hook の ask）</td></tr>
       </tbody>
     </table>
   </div>
