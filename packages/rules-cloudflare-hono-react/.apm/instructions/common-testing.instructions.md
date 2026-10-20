@@ -20,7 +20,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 
 ## 操作 → 入口（実装を読まずに導出）
 
-テストと実装を並行で始める前に、各操作の機能、ルートのマウント接頭辞、ランタイム非依存の route factory のパスと export（例: `apps/api/src/features/<feature>/<feature>.routes.ts` の `createChatRoutes`）、注入する repository / service 境界、fixture の提供元を利用プロジェクトが宣言する。factory は本番と同じチェーン化 routes を返してよいが、Object クラスを import したり import 時に実バインディングを要求したりしない。既定スイートに `apps/api/src/index.ts` の import を要求しない。
+テストと実装を並行で始める前に入口を決める。既定の命名では、機能 `<feature>` の操作はランタイム非依存の route factory `apps/api/src/features/<feature>/<feature>.routes.ts` の `create<Feature>Routes`（`<Feature>` は PascalCase。例: `createChatRoutes`）が受け、全機能を同じ接頭辞にマウントする。利用プロジェクトが作業指針に宣言するのは、UC または操作 → 機能の対応、接頭辞、既定の命名に従わない入口だけで、操作ごとの表、注入する依存、フェイクの使い方は写さない（依存の型は各機能の `*.deps.ts`、フェイクと fixture はテストの足場のコードとコメントが正本。R-1204・R-1010）。factory は本番と同じチェーン化 routes を返してよいが、Object クラスを import したり import 時に実バインディングを要求したりしない。既定スイートに `apps/api/src/index.ts` の import を要求しない。
 
 | 契約の transport | テストの入口 | 呼び出し |
 | --- | --- | --- |

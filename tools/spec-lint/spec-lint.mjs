@@ -1191,6 +1191,19 @@ function crossChecks(model) {
 	}
 }
 
+//  --- 利用プロジェクトの作業指針（docs と同じ階層の CLAUDE.md / AGENTS.md。R-1010）---
+//  地図だけを持つので行数で上限を掛ける。メッセージに実際の行数を入れないのは、baseline のキーを編集のたびに動かさないため
+const HOST_GUIDE_MAX_LINES = 150;
+function validateHostGuides(docsDir) {
+	for (const name of ["CLAUDE.md", "AGENTS.md"]) {
+		const file = join(dirname(docsDir), name);
+		if (!existsSync(file)) continue;
+		const text = readFileSync(file, "utf8").replace(/\r?\n$/, "");
+		if (text.split(/\r?\n/).length > HOST_GUIDE_MAX_LINES)
+			err(file, `作業指針が ${HOST_GUIDE_MAX_LINES} 行を超える — 構成・層の向き・命名規則・正本へのリンクだけを残し、写しと運用手順を正本へ移す（R-1010）`);
+	}
+}
+
 function cmdValidate(docsDir, opts) {
 	if (existsSync(join(docsDir, "specs"))) {
 		if (!opts.ignoreLegacy) {
@@ -1210,6 +1223,7 @@ function cmdValidate(docsDir, opts) {
 	}
 	const model = loadModel(docsDir);
 	crossChecks(model);
+	validateHostGuides(docsDir);
 	return reportWithBaseline(opts);
 }
 
