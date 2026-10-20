@@ -21,7 +21,7 @@ R-104 は「検証手段の無い文を要件にしない」と定め、NFR テ�
   - テスト（`tests` と `tests.system`）の `@covers NFR-nnn`。保留（`pending_pattern` に一致。ADR-0056）のテストは数えない。分割クラスは持たない。
   - NFR ファイルの frontmatter の `measured_by:`（テスト以外の計測の所在。複数はカンマ区切り）。各パスは次をすべて満たす。
     - リポジトリ直下からの相対パスで、リポジトリ内の**ファイル**。URL、絶対パス、リポジトリの外、ディレクトリは違反。
-    - docs の `goals_dir` / `rules_dir` / `nfr_dir` / `adr_dir` の外にある（NFR ファイル自身や ADR で自己充足させない）。
+    - traceconfig の `docs.*` で宣言した文書（`goals_dir` / `rules_dir` / `nfr_dir` / `adr_dir`、`verification_global` / `verification_deferred`、`shared`、`actors`、`vision`、`glossary` など）の外にある。NFR ファイル自身や ADR で自己充足させず、「検証しない範囲」の置き場である `GLOBAL.md` を計測の所在に数えない。docs の下でも、宣言した文書でない runbook（`docs/runbooks/` など）は指せる。
     - 中にその NFR の ID が現れる（計測のスクリプト、CI ジョブの定義、runbook のどれが何を測るかを ID で辿れる）。
   - 外部の SaaS やダッシュボードで測る NFR は、リポジトリ内の runbook に NFR の ID と計測先を書き、その runbook を `measured_by` に書く。
 - **C20**: active な NFR がどちらも持たない場合、`measured_by` が上の条件を満たさない場合、テストが未定義または撤回済みの NFR を `@covers` する場合、どのシナリオテストにも属さない `@covers NFR-nnn` を違反にする。テストが保留のものしか無いときは「skip を外す」と案内する。

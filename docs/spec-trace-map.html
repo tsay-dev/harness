@@ -356,7 +356,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C17</td><td>active な UC の表（状態 × イベント表・例外系の走査）が未定義・撤回済みの REQ や別の UC の REQ を指す、REQ が表のどのセルからも導出されていない、または UC に REQ が 1 件も無い</td><td><span class="tag ok">UC の表 ↔ REQ</span></td></tr>
         <tr><td>C18</td><td>active な GOAL・UC の actor、GOAL の origin が、アクター表・vision の KPI 表に無い</td><td><span class="tag ok">GOAL・UC → ACT・KPI</span></td></tr>
         <tr><td>C19</td><td>実現単位を置く場所（<code>source.unit_dirs</code>）の単位が、REQ か BR を指す <code>@implements</code> を持たない（UC だけでは足りない）</td><td><span class="tag anno">実現単位 → 仕様</span></td></tr>
-        <tr><td>C20</td><td>active な NFR に、保留でない検証テスト（<code>@covers NFR-nnn</code>）も、条件を満たす <code>measured_by</code>（docs の外のリポジトリ内のファイルで、中に ID が現れる）も無い、またはテストが未定義・撤回済みの NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
+        <tr><td>C20</td><td>active な NFR に、保留でない検証テスト（<code>@covers NFR-nnn</code>）も、条件を満たす <code>measured_by</code>（docs で宣言した文書の外のリポジトリ内のファイルで、中に ID が現れる。GLOBAL.md は不可）も無い、またはテストが未定義・撤回済みの NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
         <tr><td>C21</td><td>境界の入口に <code>@operation</code> が無い、入口の <code>@operation</code> が inbound の操作でない（パスの入口は http だけ）、owned かつ inbound の fixed 操作を入口が指さない、<code>@operation</code> が入口にも単位にも属さない・契約に無い操作を指す、入口のパスが契約の <code>wire.path</code> と合わない、fixed 契約の操作をどのコードも指さない</td><td><span class="tag anno">契約の操作 ↔ 入口</span></td></tr>
         <tr><td>C22</td><td>active な BR を <code>br:</code> に持つ active な REQ が無い</td><td><span class="tag ok">REQ → BR</span></td></tr>
         <tr><td>C23</td><td>スキーマの制約（<code>schema.constraint_pattern</code>）に <code>@implements</code> が無い</td><td><span class="tag anno">スキーマ → BR</span></td></tr>

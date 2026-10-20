@@ -42,7 +42,7 @@
 //    C17  active な UC の「状態 × イベント表」「例外系の走査」に現れる REQ と、その UC に属する REQ が 1 対 1 に対応し、1 件以上あるか（R-404）
 //    C18  active な GOAL の actor / origin と active な UC の actor が、docs.actors と docs.vision の表に定義されているか（ADR-0052）
 //    C19  source.unit_dirs の単位（source.unit_pattern）がすべて窓に @implements を持つか（C14 の逆方向。ADR-0055）
-//    C20  active な NFR が、保留でないテストの @covers NFR-nnn か measured_by（docs の外のファイルで、中に ID が現れる）を持つか（ADR-0054）
+//    C20  active な NFR が、保留でないテストの @covers NFR-nnn か measured_by（docs.* で宣言した文書の外のファイルで、中に ID が現れる）を持つか（ADR-0054）
 //    C21  境界の入口（source.entry_pattern）がすべて窓に @operation を持ち、@operation が入口か単位の窓に帰属し、撤回されていない UC の
 //         契約に実在する操作を指し、入口のパスが契約の wire.path と合い、fixed 契約の全操作がどこかの @operation から指されるか
 //    C22  active な BR が、active な REQ の br: から参照されているか（規則を検証するテストに辿れること）
@@ -1200,8 +1200,12 @@ function runChecks(cfg, { asActive = false } = {}) {
 				);
 
 	//  C20: active な NFR は検証の所在（保留でないテストの @covers NFR-nnn か、measured_by）を持つ。
-	//  measured_by は docs（goals / rules / nfr / adr）の外のファイルで、中にその NFR の ID が現れること（計測の所在を ID で辿る）
-	const docDirs = DOC_PATHS.map((k) => p(cfg, k));
+	//  measured_by は docs で宣言した文書（goals / rules / nfr / adr、verification_global / verification_deferred、shared、actors、vision、
+	//  glossary など docs.* のすべて）の外のファイルで、中にその NFR の ID が現れること（計測の所在を ID で辿る）。
+	//  GLOBAL.md は「検証しない範囲」の置き場で、NFR の ID を含んでも計測の所在にはならない
+	const docPaths = Object.entries(isMap(cfg.docs) ? cfg.docs : {})
+		.filter(([, v]) => typeof v === "string" && v.trim())
+		.map(([k, v]) => [`docs.${k}`, resolve(cfg._root, v)]);
 	const nfrMeasured = {};
 	for (const id of Object.keys(nfrDocs).sort()) {
 		const n = nfrDocs[id];
@@ -1213,7 +1217,10 @@ function runChecks(cfg, { asActive = false } = {}) {
 			if (/^[a-z][a-z0-9+.-]*:\/\//i.test(m) || isAbsolute(m) || r.startsWith("..")) fail("C20", `${id} の measured_by ${m} はリポジトリ内のファイルにする（外部の計測は runbook に ID と計測先を書き、その runbook を指す）`);
 			else if (!existsSync(abs)) fail("C20", `${id} の measured_by ${m} が無い`);
 			else if (!statSync(abs).isFile()) fail("C20", `${id} の measured_by ${m} はファイルにする（ディレクトリは不可）`);
-			else if (docDirs.some((d) => abs === d || abs.startsWith(d + "/") || abs.startsWith(d + "\\"))) fail("C20", `${id} の measured_by ${m} は docs の外（計測のスクリプト、設定、runbook）を指す`);
+			else if (docPaths.some(([, d]) => abs === d || abs.startsWith(d + "/") || abs.startsWith(d + "\\"))) {
+				const [key] = docPaths.find(([, d]) => abs === d || abs.startsWith(d + "/") || abs.startsWith(d + "\\"));
+				fail("C20", `${id} の measured_by ${m} は ${key} の文書で、計測の所在にならない。docs の外（計測のスクリプト、CI の定義、ID と計測先を書いた runbook）を指す`);
+			}
 			else if (!read(abs).includes(id)) fail("C20", `${id} の measured_by ${m} の中に ${id} が現れない（計測の所在に ID を書く）`);
 			else valid.push(m);
 		}

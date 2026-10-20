@@ -236,6 +236,12 @@ function makeNfrRoot() {
 	w("docs/nfr/NFR-008.md", nfr("NFR-008", "active", "https://example.com/dashboard"));
 	w("perf/other.js", "// 別の計測\n");
 	w("docs/rules/perf.md", "NFR-007 の計測\n");
+	//  GLOBAL.md（検証しない範囲の置き場）は NFR の ID を含んでも計測の所在にならない
+	w("docs/nfr/NFR-010.md", nfr("NFR-010", "active", "docs/verification/GLOBAL.md"));
+	w("docs/verification/GLOBAL.md", "# 検証しない範囲\n\n- NFR-010 は計測しない\n");
+	//  docs の下でも、宣言した文書でない runbook は計測の所在になる
+	w("docs/nfr/NFR-011.md", nfr("NFR-011", "active", "docs/runbooks/NFR-011.md"));
+	w("docs/runbooks/NFR-011.md", "# NFR-011 の計測\n\n計測先: 監視ダッシュボードの p95\n");
 	w("tests/perf.test.ts", "// @covers NFR-001\ntest('一覧の応答', () => {});\n");
 	w("e2e/perf.spec.ts", "// @covers NFR-009\ntest('存在しない NFR', () => {});\n");
 	return root;
@@ -249,9 +255,11 @@ test("C20: active な NFR にテストか measured_by を求め、measured_by �
 	assert.match(r.stdout, /\[C20\] NFR-004 の measured_by perf\/missing\.js が無い/);
 	assert.match(r.stdout, /\[C20\] e2e\/perf\.spec\.ts:1: 未定義の NFR-009 を @covers している/);
 	assert.match(r.stdout, /\[C20\] NFR-006 の measured_by perf\/other\.js の中に NFR-006 が現れない/);
-	assert.match(r.stdout, /\[C20\] NFR-007 の measured_by docs\/rules\/perf\.md は docs の外/);
+	assert.match(r.stdout, /\[C20\] NFR-007 の measured_by docs\/rules\/perf\.md は docs\.rules_dir の文書で、計測の所在にならない/);
+	assert.match(r.stdout, /\[C20\] NFR-010 の measured_by docs\/verification\/GLOBAL\.md は docs\.verification_global の文書で、計測の所在にならない/);
 	assert.match(r.stdout, /\[C20\] NFR-008 の measured_by https:\/\/example\.com\/dashboard はリポジトリ内のファイルにする/);
 	assert.doesNotMatch(r.stdout, /\[C20\].*NFR-00[125]/);
+	assert.match(r.stdout, /OK NFR-011  \[active\]  measured_by:docs\/runbooks\/NFR-011\.md/);
 	assert.match(r.stdout, /OK NFR-002  \[active\]  measured_by:perf\/load\.js/);
 	//  NFR だけを @covers するテストは C11 の「@covers の無いテスト」にならない
 	assert.doesNotMatch(r.stdout, /\[C11\].*一覧の応答/);
