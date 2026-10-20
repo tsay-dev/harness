@@ -27,8 +27,8 @@ description: >-
 次を**すべて**満たしたときだけスライスは完了です。
 
 1. `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" validate` が exit 0。
-2. `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` の新規違反がゼロ（C1–C20）。
-3. `commands.contract_adapter` 宣言時は `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` の `fail` がゼロ。未宣言なら「未実行」と報告します。
+2. `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` の違反がゼロ（C1–C25）。
+3. `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` が exit 0（`fail` も `skip` も無く、実行する実例があればアダプターで実行済み）。
 4. 利用プロジェクトの `commands.typecheck` / `lint` / `test` が exit 0。
 5. `commands.system` 宣言時はシナリオスイート全体が 1 回 exit 0。未宣言なら「未実行」と報告します。
 6. `reviewer`（`mode: slice`）が `阻止` ゼロで終了し、すべての `持ち越し` が `docs/verification/DEFERRED.md` の行になっている。

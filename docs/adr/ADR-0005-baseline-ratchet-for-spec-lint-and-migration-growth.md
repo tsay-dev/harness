@@ -1,7 +1,7 @@
 ---
 id: ADR-0005
 title: spec-lint にも baseline ラチェットを持たせ、移行中の baseline 増加を 2 点だけ例外として認める
-status: accepted
+status: superseded
 date: 2026-08-25
 ---
 

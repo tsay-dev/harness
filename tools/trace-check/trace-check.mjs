@@ -12,58 +12,60 @@
 //    所属の SSOT は frontmatter。パスは配置であり、両者の整合を C9 が検査する。
 //    各 REQ の「## 検証方針」は分割クラス `#name` を宣言する（下限 C10 / 上限 C11）。
 //
-//  既存プロジェクトへの漸進導入（baseline ラチェット）:
-//    --update-baseline で現状違反を台帳化 → 以降は新規違反のみ FAIL → 返済で縮め、空になったら --strict へ。
-//    台帳の鍵は行番号を落とした文字列（行がずれても既知の違反を新規と数えない。同じ鍵の件数は多重集合で比べる）。
+//  baseline（既知の違反を通す台帳）は持たない。違反はすべて失敗にする（ADR-0056）。既存プロジェクトへの導入は、
+//  紐づきの揃った範囲だけを宣言（tests.dirs / source.unit_dirs）し、docs を active にするのも紐づきが揃ってからにする。
 //
-//  検査項目:
+//  検査項目（紐づきに例外を作らない / ADR-0056）:
+//    宣言: 紐づきの検査に要るキーは traceconfig.json で省略できない。対象が無いなら { "none": "<理由>" } と宣言し、
+//          その範囲は検査せずにレポートへ理由を出す。撤回済み（withdrawn）の仕様を指す注釈・参照は「実在しない」と同じく違反。
+//          注釈の帰属窓は before ＝ 単位の印の行と直上に連続する行、after ＝ 単位の印の行と次の行。
 //    C1   すべての active な REQ が 1 件以上のテストに被覆されているか
 //    C2   すべての active な REQ に「## 検証方針」セクションがあるか
-//    C3   テストの @covers が実在する REQ を指しているか
+//    C3   テストの @covers が実在し撤回されていない REQ を指しているか
 //    C4   すべての BR がいずれかの UC / REQ から参照されているか（死んだ規則）
-//    C5   コードの @implements が実在する ID を指しているか（孤児参照）
-//    C6   レイヤの依存方向が内向きに保たれているか（traceconfig の layering）
+//    C5   コードの @implements が実在し撤回されていない ID を指しているか（孤児参照）
+//    C6   レイヤの依存方向が内向きに保たれているか（traceconfig の layering。紐づきではないので省略できる）
 //    C7   実装のエラーコード ⊆ 契約語彙（docs/_shared/components.yaml の errorCodes）か
 //    C8   すべての active な GOAL が 1 件以上の UC から参照されているか
 //    C9   パス整合: GOAL / UC ディレクトリ名と frontmatter id・goal の一致、ノード定義ファイルの存在、
 //         REQ のファイル名 = id、REQ が自身の uc の直下にあること
 //    C10  宣言された全分割クラスに 1 件以上のテストがあるか（未検証クラス / クラス未宣言）
 //    C11  全テストが宣言済みクラスを指しているか（方針にないテスト ＝ 生成上限違反）。
-//         traceconfig の tests.test_pattern があれば、@covers を持たないテスト関数も数える（注釈忘れは機械の目に映らない穴）。
-//         テストの同一性は「ファイル＋テスト名」（test_pattern の捕捉 1）。注釈の帰属は tests.covers_placement の宣言
-//         （before ＝ テスト印の直前のコメント / after ＝ 本体 1 行目）どおりの窓だけを見る。推測はしない。
-//         例外の印は持たない。仕様を持たないテスト（技術部品の自己検査）は tests.dirs の外に置く（ADR-0055）
+//         tests.test_pattern に一致する tests.dirs の全テストに @covers を求め、どのテストにも属さない @covers も違反。
+//         テストの同一性は「ファイル＋テスト名」（test_pattern の捕捉 1）。仕様を持たないテストは tests.dirs の外に置く（ADR-0055）
 //    C12  同一 ID が複数箇所で定義されていないか（採番衝突）
 //    C13  enforced_at に database を含む BR が、スキーマ源（traceconfig の schema.files）から @implements されているか
 //         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは reviewer の判断に残る）
-//    C14  すべての active な REQ / BR がソースまたはスキーマ源の 1 ユニット以上に @implements されているか
-//         （C5 の逆方向。孤児参照ではなく「注釈忘れ」。source 未設定の docs-only ホストでは判定しない）
+//    C14  すべての active な REQ / BR がソースまたはスキーマ源の 1 ユニット以上に @implements されているか（C5 の逆方向）
 //    C15  アクター種別が人間（docs.actors の表で 種別 が「人間」で始まる）の active な UC に、system suite
 //         （traceconfig の tests.system）の @scenario UC-nnn を持つシナリオテストが 1 件以上あるか。
-//         @scenario が未定義の UC を指す場合も違反。tests.system 未設定なら判定しない（ADR-0035）
-//    C16  active な UC / REQ が参照する BR が定義されているか（C4 の逆方向。参照先の実在）
+//         @scenario が未定義・撤回済みの UC を指す場合と、tests.system.test_pattern に一致する @scenario の無いテストも違反（ADR-0035）
+//    C16  active な UC / REQ が参照する BR が定義されていて、撤回されていないか（C4 の逆方向。参照先の実在）
 //    C17  active な UC の表（本文に現れる REQ ID）と、その UC に属する REQ が 1 対 1 に対応しているか（R-404）。
-//         表が未定義の REQ や別の UC の REQ を指す場合と、表のどのセルからも導出されていない REQ（withdrawn を除く）が違反
+//         表が未定義・撤回済みの REQ や別の UC の REQ を指す場合と、表のどのセルからも導出されていない REQ（withdrawn を除く）が違反
 //    C18  active な GOAL の actor / origin と active な UC の actor が、docs.actors の表と docs.vision の KPI 表に
-//         定義されているか。docs.actors / docs.vision が未宣言ならその参照は判定しない（ADR-0052）
+//         定義されているか（ADR-0052）
 //    C19  traceconfig の source.unit_dirs（実現単位を置く場所）にある、source.unit_pattern に一致する単位がすべて
-//         @implements を持つか（C14 の逆方向）。例外の印は持たず、仕様を持たない技術部品は unit_dirs の外に置く。
-//         注釈の帰属は source.implements_placement（before / after）の窓だけを見る。unit_dirs 未設定なら判定しない（ADR-0055）
+//         @implements を持つか（C14 の逆方向）。仕様を持たない技術部品は unit_dirs の外に置く（ADR-0055）
 //    C20  active な NFR が、テスト（tests と tests.system）の @covers NFR-nnn（nfr_pattern）か、frontmatter の
-//         measured_by（計測の所在。実在するパス）を持つか。measured_by のパスが無い場合と、テストが未定義の NFR を
-//         @covers する場合も違反（ADR-0054）
+//         measured_by（計測の所在。実在するパス）を持つか。measured_by のパスが無い場合と、テストが未定義・撤回済みの
+//         NFR を @covers する場合も違反（ADR-0054）
+//    C21  境界の入口（source.entry_pattern）がすべて @operation UC-nnn#name（operation_pattern）を持ち、@operation が
+//         撤回されていない UC の契約に実在する操作を指し、fixed 契約の全操作がソースのどこかの @operation から指されるか
+//    C22  active な BR が、active な REQ の br: から参照されているか（規則を検証するテストに辿れること）
+//    C23  スキーマの制約（schema.constraint_pattern）がすべて @implements を持つか（C13 の逆方向）
+//    C24  共有語彙（docs.shared）の全エラーコードが、撤回されていない UC のどれかの契約の errors で使われているか（C7 の逆方向）
+//    C25  living の用語集（docs.glossary）のコード識別子が、ソース（とスキーマ）に存在するか
 //
 //  使い方:
-//    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（baseline との差分で判定）
-//    node trace-check.mjs --update-baseline                            現状の違反を baseline に記録
-//    node trace-check.mjs --strict                                     baseline を無視して全違反を FAIL
+//    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（違反が 1 件でもあれば FAIL）
 //    node trace-check.mjs --index                                      1 行 1 ID の索引を出力（生成物）
 //    node trace-check.mjs --next <goal|uc|req|br|nfr|adr> [--reserve N]  次の空き ID を N 件（既定 1）出力し、同時に予約する（R-204）。
 //                                                                      予約は .trace-reservations.json に mkdir ロックで原子的に記録するので
 //                                                                      並行 Task が同時に呼んでも同じ番号は返らない。req は UC.md の表の ID も使用済み
 //    node trace-check.mjs --only C9,C12                                指定の検査項目だけ判定（producer の自己検査用）
 //
-//  終了コード: 0 = 新規違反なし / 1 = 新規違反あり / 2 = 使い方エラー
+//  終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 使い方・設定エラー
 //
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, writeFileSync } from "node:fs";
@@ -132,6 +134,49 @@ function loadConfig(root, configPath) {
 
 const p = (cfg, keyPath) => join(cfg._root, keyPath.split(".").reduce((n, k) => n[k], cfg));
 const rel = (cfg, path) => relative(cfg._root, path).split("\\").join("/");
+
+//  紐づきの検査に要る宣言（ADR-0056）。省略は設定エラーで、対象が無いなら { "none": "<理由>" } と宣言する。
+//  省略と不在を区別するのは、契約の auth: none / operations: {} と同じ（黙って検査を省かない）
+const isNone = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && "none" in v;
+const declared = (v) => (v === undefined || isNone(v) ? null : v);
+const lookup = (cfg, keyPath) => keyPath.split(".").reduce((n, k) => (n === undefined || n === null || isNone(n) ? undefined : n[k]), cfg);
+const DOC_PATHS = ["docs.goals_dir", "docs.rules_dir", "docs.nfr_dir", "docs.adr_dir"];
+
+//  宣言を検査して { errors, absent: [[キー, 理由]] } を返す。親が none なら子は問わない
+function checkDeclarations(cfg) {
+	const errors = [];
+	const absent = [];
+	const need = (keyPath, { allowNone = true } = {}) => {
+		const v = lookup(cfg, keyPath);
+		if (v === undefined) errors.push(`${keyPath} が宣言されていない（対象が無いなら { "none": "<理由>" } と書く）`);
+		else if (isNone(v)) {
+			if (!allowNone) errors.push(`${keyPath} は none にできない`);
+			else if (typeof v.none !== "string" || !v.none.trim() || Object.keys(v).length !== 1)
+				errors.push(`${keyPath}: none は理由の文字列だけを持つ（{ "none": "<理由>" }）`);
+			else absent.push([keyPath, v.none.trim()]);
+		}
+		return declared(v);
+	};
+	for (const k of DOC_PATHS) need(k, { allowNone: false });
+	for (const k of ["docs.actors", "docs.vision", "docs.glossary", "docs.shared", "contract"]) need(k);
+	if (need("source")) {
+		if (need("source.unit_dirs")) need("source.unit_pattern", { allowNone: false });
+		need("source.entry_pattern");
+	}
+	if (need("tests")) {
+		need("tests.test_pattern");
+		if (need("tests.system")) need("tests.system.test_pattern");
+	}
+	if (need("schema")) need("schema.constraint_pattern");
+	//  廃止した例外の経路（ADR-0055 / ADR-0056）。残っていれば移行を促して止める
+	for (const [keyPath, hint] of [
+		["tests.exempt_pattern", "仕様を持たないテストは tests.dirs の外に置く（ADR-0055）"],
+		["source.exempt_pattern", "仕様を持たない技術部品は source.unit_dirs の外に置く（ADR-0055）"],
+		["contract.exclude_codes", "契約に無いエラーコードは contract.error_code_pattern に一致させない（ADR-0056）"],
+	])
+		if (lookup(cfg, keyPath) !== undefined) errors.push(`${keyPath} は廃止した。${hint}。キーを削除する`);
+	return { errors, absent };
+}
 
 //  ---- 1 ID 1 ファイルの定義（横の ID 空間） ---------------------------------------
 
@@ -312,7 +357,7 @@ function nextIds(cfg, kind, count) {
 //  ---- コード側の注釈 ------------------------------------------------------------
 
 function iterFiles(cfg, section) {
-	const sec = cfg[section];
+	const sec = declared(cfg[section]);
 	if (!sec) return [];
 	return sec.dirs.flatMap((d) => walk(join(cfg._root, d), sec.extensions));
 }
@@ -336,7 +381,7 @@ function collectTestCoverage(cfg, coversRe) {
 
 //  system suite（tests.system）の @scenario UC-nnn を拾う: uc -> [検証箇所]。tests.system 未設定なら null（C15 は判定しない）
 function collectScenarioCoverage(cfg) {
-	const sec = cfg.tests?.system;
+	const sec = declared(lookup(cfg, "tests.system"));
 	if (!sec || !(sec.dirs || []).length) return null;
 	const re = new RegExp(cfg.scenario_pattern || "@scenario\\s+(UC-\\d{3})", "g");
 	const found = {};
@@ -353,7 +398,7 @@ function collectScenarioCoverage(cfg) {
 //  表が無い、または UC の actor が表に無い場合は「人間」とみなす（存在の要求を外す根拠が無いため）
 function actorKinds(cfg) {
 	const kinds = {};
-	const file = cfg.docs?.actors ? join(cfg._root, cfg.docs.actors) : null;
+	const file = declared(cfg.docs?.actors) ? join(cfg._root, cfg.docs.actors) : null;
 	if (!file || !existsSync(file)) return kinds;
 	for (const line of read(file).split(/\r?\n/)) {
 		const cells = line.split("|").map((c) => c.trim());
@@ -365,10 +410,11 @@ function actorKinds(cfg) {
 const isHumanActor = (kinds, actor) => !(actor in kinds) || kinds[actor].startsWith("人間");
 
 //  テストが検証する NFR: nfr -> [検証箇所]。tests と tests.system の両方を見る（負荷・性能の検査はどちらにも置かれうる）
+const DEFAULT_OPERATION_PATTERN = "@operation\\s+(UC-\\d{3})#(\\w+)";
 const DEFAULT_NFR_PATTERN = "@covers\\s+(NFR-\\d{3})";
 function collectNfrCoverage(cfg) {
 	const re = new RegExp(cfg.nfr_pattern || DEFAULT_NFR_PATTERN, "g");
-	const sys = cfg.tests?.system;
+	const sys = declared(lookup(cfg, "tests.system"));
 	const files = [...iterFiles(cfg, "tests"), ...(sys?.dirs || []).flatMap((d) => walk(join(cfg._root, d), sys.extensions || []))];
 	const found = {};
 	for (const path of files)
@@ -382,7 +428,7 @@ function collectNfrCoverage(cfg) {
 
 //  docs.vision の「成功の定義」表から KPI-nn を読む（先頭セルが KPI-nn で始まる行）。docs.vision 未宣言なら null（C18 は origin を判定しない）
 function visionKpis(cfg) {
-	if (!cfg.docs?.vision) return null;
+	if (!declared(cfg.docs?.vision)) return null;
 	const file = join(cfg._root, cfg.docs.vision);
 	const kpis = new Set();
 	if (existsSync(file)) for (const m of read(file).matchAll(/^\|\s*(KPI-\d+)\b/gm)) kpis.add(m[1]);
@@ -404,30 +450,25 @@ function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source"))
 	return found;
 }
 
-//  単位の印（テストなら tests.test_pattern、実現単位なら source.unit_pattern。捕捉 1 ＝ 名前）があるとき、注釈を持たない単位を数える。
-//  単位の同一性は「ファイル＋名前」で、行番号は表示にだけ使う（台帳の鍵が行ずれに依存しない）。
-//  注釈（@covers / @implements）の帰属は placement の宣言どおりの窓だけを見る:
-//    before ＝ 直前の単位の印の後からこの印の行まで（同じ行を含む）→ 次の単位のもの（doc コメントの流儀）
-//    after  ＝ 単位の印の行から次の印の前まで → 直前の単位のもの（本体 1 行目の流儀）
-//  窓の外にある注釈はどの単位にも属さないので、それ自体を違反として出す（置き場の宣言違反）
-//  例外の印（旧 exempt_pattern）は持たない。仕様を持たないものは宣言した場所の外に置く（ADR-0055）
+//  単位の印（テストなら tests.test_pattern、実現単位なら source.unit_pattern など。捕捉 ＝ 名前）があるとき、注釈を持たない単位を数える。
+//  単位の同一性は「ファイル＋名前」で、名前を捕捉しない行は行番号で識別する。
+//  注釈（@covers / @scenario / @implements / @operation）の帰属は placement の宣言どおりの窓だけを見る（ADR-0056）:
+//    before ＝ 単位の印の行と、その直上に連続する行（空行か別の単位の印で切れる）→ doc コメントの流儀
+//    after  ＝ 単位の印の行と次の行 → 本体 1 行目の流儀
+//  窓を広く取ると、別の単位の本体に書いた注釈がこの単位の紐づきに数えられ、紐づかない単位が紐づいて見える。
+//  窓の外にある注釈はどの単位にも属さない（orphans。テストでは違反にする）
 const COVERS_PLACEMENTS = ["before", "after"];
 
-function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotationPattern, files) {
-	const sec = cfg[section];
-	if (!sec || !sec[unitKey]) return null;
-	if ("exempt_pattern" in sec) {
-		console.error(`trace-check: ${section}.exempt_pattern は廃止（ADR-0055）。仕様を持たないものは ${section === "tests" ? "tests.dirs" : "source.unit_dirs"} の外に置き、キーを削除する`);
-		process.exit(2);
-	}
+function collectUnannotatedUnits(sec, label, unitKey, placementKey, annotationPattern, files) {
+	if (!sec || !declared(sec[unitKey])) return null;
 	const unitRe = new RegExp(sec[unitKey]);
 	if (new RegExp(`${unitRe.source}|`).exec("").length < 2) {
-		console.error(`trace-check: ${section}.${unitKey} には名前の捕捉グループ ( ) が要る（未注釈の単位の同一性は名前で持つ）`);
+		console.error(`trace-check: ${label}.${unitKey} には名前の捕捉グループ ( ) が要る（未注釈の単位の同一性は名前で持つ）`);
 		process.exit(2);
 	}
 	const placement = sec[placementKey] || "before";
 	if (!COVERS_PLACEMENTS.includes(placement)) {
-		console.error(`trace-check: ${section}.${placementKey} は ${COVERS_PLACEMENTS.join(" | ")}。実際: "${placement}"`);
+		console.error(`trace-check: ${label}.${placementKey} は ${COVERS_PLACEMENTS.join(" | ")}。実際: "${placement}"`);
 		process.exit(2);
 	}
 	const annotationRe = new RegExp(annotationPattern);
@@ -435,24 +476,24 @@ function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotation
 	for (const path of files) {
 		const lines = read(path).split(/\r?\n/);
 		const units = []; //  { line, name }
-		const marks = []; //  { line, kind, text }
 		lines.forEach((line, i) => {
 			const t = unitRe.exec(line);
-			if (t) units.push({ line: i, name: t[1] ?? `line ${i + 1}` });
-			const c = annotationRe.exec(line);
-			if (c) marks.push({ line: i, text: c[0] });
+			if (t) units.push({ line: i, name: t.slice(1).find((x) => x) ?? `line ${i + 1}` });
+		});
+		const unitLines = new Set(units.map((u) => u.line));
+		const owner = new Map(); //  行 -> 単位の添字
+		units.forEach((u, idx) => {
+			owner.set(u.line, idx);
+			if (placement === "before") for (let j = u.line - 1; j >= 0 && lines[j].trim() && !unitLines.has(j); j--) owner.set(j, idx);
+			else if (u.line + 1 < lines.length && !unitLines.has(u.line + 1)) owner.set(u.line + 1, idx);
 		});
 		const annotated = new Set();
-		let k = 0; //  units[k] ＝ 印の行以上で最初の単位
-		for (const m of marks) {
-			while (k < units.length && units[k].line < m.line) k++;
-			let owner = null;
-			if (placement === "before") owner = k < units.length ? k : null;
-			else if (k < units.length && units[k].line === m.line) owner = k;
-			else owner = k > 0 ? k - 1 : null;
-			if (owner !== null) annotated.add(owner);
-			else out.orphans.push(`${basename(path)}:${m.line + 1} "${m.text}"`);
-		}
+		lines.forEach((line, i) => {
+			const c = annotationRe.exec(line);
+			if (!c) return;
+			if (owner.has(i)) annotated.add(owner.get(i));
+			else out.orphans.push(`${basename(path)}:${i + 1} "${c[0]}"`);
+		});
 		units.forEach((t, idx) => {
 			out.total++;
 			if (!annotated.has(idx)) out.missing.push(`${basename(path)}:${t.line + 1} "${t.name}"`);
@@ -463,7 +504,7 @@ function collectUnannotatedUnits(cfg, section, unitKey, placementKey, annotation
 
 //  スキーマ源（migration / schema.prisma / モデル定義）。R-102 で DB 設計の SSOT は native 形式にあり、docs には無い
 function schemaFiles(cfg) {
-	const s = cfg.schema;
+	const s = declared(cfg.schema);
 	if (!s) return null;
 	const out = [];
 	for (const f of s.files || []) if (existsSync(join(cfg._root, f))) out.push(join(cfg._root, f));
@@ -488,7 +529,7 @@ function layerOf(parts, pattern) {
 
 function checkLayering(cfg) {
 	const lay = cfg.layering;
-	if (!lay) return [];
+	if (!lay || !declared(cfg.source)) return [];
 	const root = join(cfg._root, lay.root);
 	const violations = [];
 	for (const path of walk(root, cfg.source.extensions)) {
@@ -506,6 +547,7 @@ function checkLayering(cfg) {
 
 //  契約語彙（_shared の errorCodes キー）を行スキャンで読む。厳格な構文判定は spec-lint の仕事
 function sharedErrorCodes(cfg) {
+	if (!declared(cfg.docs.shared)) return null;
 	const file = p(cfg, "docs.shared");
 	if (!existsSync(file)) return null;
 	const codes = new Set();
@@ -527,14 +569,70 @@ function sharedErrorCodes(cfg) {
 	return codes;
 }
 
+//  UC ごとの契約（contract.yaml）を行スキャンで読む: 操作名と errors のコード。厳格な構文判定は spec-lint の仕事。
+//  操作は operations: 直下の最初のインデントに並ぶ「名前:」の行
+function readContracts(corpus) {
+	const out = []; //  { uc, ucStatus, status, file, operations: [name], codes: [code] }
+	for (const [uc, u] of Object.entries(corpus.ucs).sort()) {
+		const file = join(u.dir, "contract.yaml");
+		if (!existsSync(file)) continue;
+		const c = { uc, ucStatus: u.status, status: "draft", file, operations: [], codes: [] };
+		let opIndent = null;
+		let inOps = false;
+		for (const raw of read(file).split(/\r?\n/)) {
+			const line = raw.replace(/\s+#.*$/, "");
+			if (!line.trim() || /^\s*#/.test(raw)) continue;
+			const st = line.match(/^x-status:\s*(\S+)/);
+			if (st) c.status = st[1];
+			if (/^\S/.test(line)) {
+				inOps = /^operations:\s*$/.test(line);
+				continue;
+			}
+			const code = line.match(/^\s*-\s*code:\s*([A-Z][A-Z0-9_]*)/);
+			if (code) c.codes.push(code[1]);
+			if (!inOps) continue;
+			const indent = line.match(/^ */)[0].length;
+			opIndent ??= indent;
+			const op = line.match(/^\s*([A-Za-z_]\w*):\s*$/);
+			if (indent === opIndent && op) c.operations.push(op[1]);
+		}
+		out.push(c);
+	}
+	return out;
+}
+
+//  docs.glossary の「コード識別子」列から識別子を読む（living の用語集だけ）: [{ term, ident }]。
+//  セルは `,` `、` `/` で区切り、`A.B` は A と B に分ける。識別子の形でない語とプレースホルダー（<...>）は数えない
+function glossaryIdentifiers(cfg) {
+	if (!declared(cfg.docs.glossary)) return [];
+	const file = p(cfg, "docs.glossary");
+	if (!existsSync(file)) return null;
+	if (frontmatter(file).status !== "living") return [];
+	const out = [];
+	let col = -1;
+	for (const line of read(file).split(/\r?\n/)) {
+		if (!line.trim().startsWith("|")) {
+			col = -1;
+			continue;
+		}
+		const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+		if (col < 0) {
+			col = cells.findIndex((c) => c.includes("コード識別子"));
+			continue;
+		}
+		if (/^:?-+:?$/.test(cells[0] || "") || !cells[col] || cells[col].includes("<")) continue;
+		for (const part of cells[col].replace(/`/g, "").split(/\s*[,、\/]\s*/))
+			for (const ident of part.split(".")) if (/^[A-Za-z_]\w*$/.test(ident.trim())) out.push({ term: cells[0], ident: ident.trim() });
+	}
+	return out;
+}
+
 function checkContractConformance(cfg) {
-	const con = cfg.contract;
+	const con = declared(cfg.contract);
 	if (!con) return [];
 	const src = join(cfg._root, con.error_source);
 	if (!existsSync(src)) return [`contract.error_source が無い: ${con.error_source}`];
-	const exclude = new Set(con.exclude_codes || []);
 	const impl = new Set([...read(src).matchAll(new RegExp(con.error_code_pattern, "g"))].map((m) => m[1]));
-	for (const c of exclude) impl.delete(c);
 	const shared = sharedErrorCodes(cfg);
 	if (shared === null) return [`契約語彙 ${cfg.docs.shared} が無い（C7 は errorCodes と突き合わせる）`];
 	return [...impl].filter((c) => !shared.has(c)).sort().map((c) => `エラーコード ${c} が実装にあるが契約語彙（${cfg.docs.shared} の errorCodes）に無い`);
@@ -568,11 +666,18 @@ function runChecks(cfg) {
 
 	for (const req of activeReqs) if (!reqTests[req]) failures.push(`[C1] ${req} を被覆するテストが存在しない（未検証の要件）`);
 	for (const req of activeReqs) if (!corpus.reqs[req].hasPolicy) failures.push(`[C2] ${req} のファイルに「${POLICY_HEADING}」セクションがない`);
-	for (const req of Object.keys(reqTests).sort()) if (!(req in corpus.reqs)) failures.push(`[C3] テストが未定義の ${req} を @covers している`);
+	//  撤回済み（withdrawn）の仕様を指す注釈・参照も違反（紐づき先が生きていない。ADR-0056）
+	for (const req of Object.keys(reqTests).sort())
+		if (!(req in corpus.reqs)) failures.push(`[C3] テストが未定義の ${req} を @covers している`);
+		else if (corpus.reqs[req].status === "withdrawn") failures.push(`[C3] テストが撤回済みの ${req} を @covers している（${reqTests[req].join(", ")}）`);
 	for (const br of Object.keys(brs).sort()) if (!referencedBrs.has(br)) failures.push(`[C4] ${br} がどの UC / REQ からも参照されていない（死んだ規則）`);
-	const known = new Set([...Object.keys(corpus.reqs), ...Object.keys(brs), ...Object.keys(corpus.ucs)]);
-	for (const ident of Object.keys(implementsMap).sort())
-		if (!known.has(ident)) failures.push(`[C5] コードが未定義の ${ident} を参照（${[...implementsMap[ident]].sort().join(", ")}）`);
+	const statusOf = (ident) => corpus.reqs[ident]?.status ?? brs[ident] ?? corpus.ucs[ident]?.status;
+	for (const ident of Object.keys(implementsMap).sort()) {
+		const st = statusOf(ident);
+		const where = [...implementsMap[ident]].sort().join(", ");
+		if (st === undefined) failures.push(`[C5] コードが未定義の ${ident} を参照（${where}）`);
+		else if (st === "withdrawn") failures.push(`[C5] コードが撤回済みの ${ident} を参照（${where}）`);
+	}
 	for (const v of checkLayering(cfg)) failures.push(`[C6] ${v}`);
 	for (const v of checkContractConformance(cfg)) failures.push(`[C7] ${v}`);
 	for (const [goal, g] of Object.entries(corpus.goals).sort())
@@ -592,7 +697,7 @@ function runChecks(cfg) {
 	//  C11: 生成上限 — 全テストは宣言済みクラスを指す
 	const sortedCov = [...coverage.values()].sort((a, b) => (a.req + (a.klass ?? "")).localeCompare(b.req + (b.klass ?? "")));
 	for (const c of sortedCov) {
-		if (!(c.req in corpus.reqs)) continue; //  C3 で報告済み
+		if (!(c.req in corpus.reqs) || corpus.reqs[c.req].status === "withdrawn") continue; //  C3 で報告済み
 		const declared = corpus.reqs[c.req].classes;
 		const w = c.where.join(", ");
 		if (c.klass === null) failures.push(`[C11] ${w}: クラス指定がない（@covers ${c.req}#<class> 形式にすること）`);
@@ -601,24 +706,20 @@ function runChecks(cfg) {
 	}
 	//  C11 の派生: @covers を持たないテスト関数（tests.test_pattern があるときだけ。注釈忘れは上限にも下限にも映らない）
 	//  NFR を検証するテスト（@covers NFR-nnn）も注釈済みと数える（C20）
-	const unannotated = collectUnannotatedUnits(cfg, "tests", "test_pattern", "covers_placement", `(?:${cfg.covers_pattern})|(?:${cfg.nfr_pattern || DEFAULT_NFR_PATTERN})`, iterFiles(cfg, "tests"));
+	const unannotated = collectUnannotatedUnits(declared(cfg.tests), "tests", "test_pattern", "covers_placement", `(?:${cfg.covers_pattern})|(?:${cfg.nfr_pattern || DEFAULT_NFR_PATTERN})`, iterFiles(cfg, "tests"));
 	if (unannotated) {
 		for (const w of unannotated.missing)
 			failures.push(`[C11] ${w}: @covers の無いテスト（tests.test_pattern に一致）。技術部品の自己検査なら tests.dirs の外に置く`);
 		for (const w of unannotated.orphans)
-			failures.push(`[C11] ${w}: どのテストにも属さない @covers（tests.covers_placement: ${unannotated.placement} ＝ ${unannotated.placement === "before" ? "テスト印の直前のコメント" : "テスト印の行から本体の先頭"}に置く）`);
+			failures.push(`[C11] ${w}: どのテストにも属さない @covers（tests.covers_placement: ${unannotated.placement} ＝ ${unannotated.placement === "before" ? "テスト印の行か、その直上に連続する行（空行を挟まない）" : "テスト印の行か次の行"}に置く）`);
 	}
 
 	//  C19: 実現単位を置く場所（source.unit_dirs）の単位（source.unit_pattern に一致する行）はすべて @implements を持つ
 	//  （C14 の逆方向。仕様を指さない本番コードの検出）。検査を強制する分岐の中の @implements（comments の規約）は
 	//  単位の窓の外に出うるので、テストと違い帰属なし注釈は違反にしない。source.unit_dirs 未設定なら判定しない
-	const unitDirs = cfg.source?.unit_dirs;
-	if (unitDirs && !cfg.source.unit_pattern) {
-		console.error("trace-check: source.unit_dirs を宣言したら source.unit_pattern（実現単位の印。捕捉 1 ＝ 単位名）も要る");
-		process.exit(2);
-	}
+	const unitDirs = declared(lookup(cfg, "source.unit_dirs"));
 	const unannotatedUnits = unitDirs
-		? collectUnannotatedUnits(cfg, "source", "unit_pattern", "implements_placement", cfg.implements_pattern, unitDirs.flatMap((d) => walk(join(cfg._root, d), cfg.source.extensions)))
+		? collectUnannotatedUnits(cfg.source, "source", "unit_pattern", "implements_placement", cfg.implements_pattern, unitDirs.flatMap((d) => walk(join(cfg._root, d), cfg.source.extensions)))
 		: null;
 	if (unannotatedUnits) {
 		for (const w of unannotatedUnits.missing)
@@ -637,7 +738,7 @@ function runChecks(cfg) {
 
 	//  C14: active な REQ / BR は実装側から辿れる。source 未設定（docs-only）なら判定しない。
 	//  注釈の置き場はユニット（C14 は 1 件以上の存在だけを見る。粒度は comments.md / reviewer）
-	const hasSource = Boolean(cfg.source && (cfg.source.dirs || []).length);
+	const hasSource = Boolean(declared(cfg.source));
 	if (hasSource) {
 		for (const req of activeReqs)
 			if (!implementsMap[req])
@@ -661,12 +762,25 @@ function runChecks(cfg) {
 		}
 		for (const uid of Object.keys(scenarios).sort())
 			if (!(uid in corpus.ucs)) failures.push(`[C15] ${scenarios[uid].join(", ")}: 未定義の ${uid} を @scenario している`);
+			else if (corpus.ucs[uid].status === "withdrawn") failures.push(`[C15] ${scenarios[uid].join(", ")}: 撤回済みの ${uid} を @scenario している`);
+		//  C15 の派生: system suite の全テストは @scenario を持つ（tests.system.test_pattern。注釈の無いシナリオテストは UC に辿れない）
+		const sys = declared(lookup(cfg, "tests.system"));
+		const scenarioPattern = cfg.scenario_pattern || "@scenario\\s+(UC-\\d{3})";
+		const sysFiles = (sys.dirs || []).flatMap((d) => walk(join(cfg._root, d), sys.extensions || []));
+		const unscenario = collectUnannotatedUnits(sys, "tests.system", "test_pattern", "scenario_placement", scenarioPattern, sysFiles);
+		if (unscenario) {
+			for (const w of unscenario.missing) failures.push(`[C15] ${w}: @scenario の無いシナリオテスト（tests.system.test_pattern に一致）`);
+			for (const w of unscenario.orphans)
+				failures.push(`[C15] ${w}: どのシナリオテストにも属さない @scenario（tests.system.scenario_placement: ${unscenario.placement}）`);
+		}
 	}
 
-	//  C16: active な UC / REQ が参照する BR は定義されている（C4 の逆方向）。withdrawn の BR も定義済みと数える
+	//  C16: active な UC / REQ が参照する BR は定義されていて、撤回されていない（C4 の逆方向）
 	for (const [id, doc] of [...Object.entries(corpus.ucs), ...Object.entries(corpus.reqs)].sort(([a], [b]) => a.localeCompare(b))) {
 		if (doc.status !== "active") continue;
-		for (const br of referencedIds(doc.file, brRe)) if (!(br in brs)) failures.push(`[C16] ${id} が未定義の ${br} を参照している`);
+		for (const br of referencedIds(doc.file, brRe))
+			if (!(br in brs)) failures.push(`[C16] ${id} が未定義の ${br} を参照している`);
+			else if (brs[br] === "withdrawn") failures.push(`[C16] ${id} が撤回済みの ${br} を参照している`);
 	}
 
 	//  C17: active な UC の表とその UC の REQ が 1 対 1 に対応する（R-404）。UC 本文に REQ の一覧を置かない規律なので、
@@ -679,6 +793,7 @@ function runChecks(cfg) {
 			const rq = corpus.reqs[rid];
 			if (!rq) failures.push(`[C17] ${uid} の表が未定義の ${rid} を指している（予約した REQ を作るか、セルを直す）`);
 			else if (rq.uc !== uid) failures.push(`[C17] ${uid} の表が ${rq.uc} の ${rid} を指している`);
+			else if (rq.status === "withdrawn") failures.push(`[C17] ${uid} の表が撤回済みの ${rid} を指している（セルを別の REQ か「不可: 理由」にする）`);
 		}
 		for (const [rid, rq] of Object.entries(corpus.reqs).sort())
 			if (rq.uc === uid && rq.status !== "withdrawn" && !cells.includes(rid)) failures.push(`[C17] ${rid} が ${uid} の表のどのセルからも導出されていない`);
@@ -686,7 +801,7 @@ function runChecks(cfg) {
 
 	//  C18: active な GOAL の actor / origin と UC の actor は、アクター表と vision の KPI 表に定義されている。
 	//  docs.actors / docs.vision が未宣言ならその参照は判定しない（宣言済みで表が無ければ、すべて未定義になる）
-	const actors = cfg.docs?.actors ? new Set(Object.keys(actorKinds(cfg))) : null;
+	const actors = declared(cfg.docs.actors) ? new Set(Object.keys(actorKinds(cfg))) : null;
 	const kpis = visionKpis(cfg);
 	const values = (v) => (v || "").split(/\s*,\s*/).filter((x) => x && !isPlaceholder(x));
 	for (const goal of Object.keys(corpus.goals).sort()) {
@@ -717,6 +832,67 @@ function runChecks(cfg) {
 	}
 	for (const id of Object.keys(nfrCoverage).sort())
 		if (!(id in nfrs)) failures.push(`[C20] ${nfrCoverage[id].join(", ")}: 未定義の ${id} を @covers している`);
+		else if (nfrs[id].status === "withdrawn") failures.push(`[C20] ${nfrCoverage[id].join(", ")}: 撤回済みの ${id} を @covers している`);
+
+	const contracts = readContracts(corpus);
+
+	//  C21: 境界の入口と契約の操作の双方向（@operation UC-nnn#name）。入口（source.entry_pattern）はすべて @operation を持ち、
+	//  @operation は撤回されていない UC の契約に実在する操作を指し、fixed 契約の全操作はソースのどこかの @operation から指される
+	if (hasSource) {
+		const opPattern = cfg.operation_pattern || DEFAULT_OPERATION_PATTERN;
+		const opRe = new RegExp(opPattern, "g");
+		const annotated = {}; //  "UC-nnn#name" -> [検証箇所]
+		for (const path of iterFiles(cfg, "source"))
+			read(path)
+				.split(/\r?\n/)
+				.forEach((line, i) => {
+					for (const m of line.matchAll(opRe)) (annotated[`${m[1]}#${m[2]}`] ||= []).push(`${basename(path)}:${i + 1}`);
+				});
+		const ops = {}; //  "UC-nnn#name" -> 契約
+		for (const c of contracts) for (const op of c.operations) ops[`${c.uc}#${op}`] = c;
+		for (const key of Object.keys(annotated).sort()) {
+			const c = ops[key];
+			if (!c) failures.push(`[C21] ${annotated[key].join(", ")}: 契約に無い操作 ${key} を @operation している`);
+			else if (c.ucStatus === "withdrawn") failures.push(`[C21] ${annotated[key].join(", ")}: 撤回済みの UC の操作 ${key} を @operation している`);
+		}
+		for (const key of Object.keys(ops).sort()) {
+			const c = ops[key];
+			if (c.status === "fixed" && c.ucStatus !== "withdrawn" && !annotated[key])
+				failures.push(`[C21] ${key}（fixed）を @operation する実装が無い（入口か外部境界のクライアントに @operation ${key} を書く）`);
+		}
+		const entries = collectUnannotatedUnits(cfg.source, "source", "entry_pattern", "implements_placement", opPattern, iterFiles(cfg, "source"));
+		if (entries) for (const w of entries.missing) failures.push(`[C21] ${w}: @operation の無い境界の入口（source.entry_pattern に一致）。契約に操作を宣言して紐づける`);
+	}
+
+	//  C22: active な BR は active な REQ の br: から参照される（UC の本文だけでは、規則を検証するテストに辿れない）
+	const brFromReq = new Set();
+	for (const rq of Object.values(corpus.reqs))
+		if (rq.status === "active") for (const b of values(frontmatter(rq.file).br)) brFromReq.add(b);
+	for (const br of Object.keys(brs).sort())
+		if (brs[br] === "active" && !brFromReq.has(br)) failures.push(`[C22] ${br} (active) を br: に持つ active な REQ が無い（規則を検証するテストに辿れない）`);
+
+	//  C23: スキーマの制約（schema.constraint_pattern）はすべて @implements を持つ（C13 の逆方向）
+	const constraints = schema ? collectUnannotatedUnits(cfg.schema, "schema", "constraint_pattern", "implements_placement", cfg.implements_pattern, schema) : null;
+	if (constraints) for (const w of constraints.missing) failures.push(`[C23] ${w}: @implements の無い制約（schema.constraint_pattern に一致）`);
+
+	//  C24: 共有語彙のエラーコードは、撤回されていない UC のどれかの契約の errors で使われる（C7 は実装 ⊆ 共有語彙の向き）
+	const shared = sharedErrorCodes(cfg);
+	if (declared(cfg.docs.shared) && shared === null) failures.push(`[C24] 共有語彙 ${cfg.docs.shared} が無い（宣言した場所に置くか、docs.shared を none にする）`);
+	if (shared) {
+		const used = new Set(contracts.filter((c) => c.ucStatus !== "withdrawn").flatMap((c) => c.codes));
+		for (const code of [...shared].sort())
+			if (!used.has(code)) failures.push(`[C24] 共有語彙のエラーコード ${code} がどの契約の errors でも使われていない（${cfg.docs.shared}）`);
+	}
+
+	//  C25: living の用語集のコード識別子はソース（とスキーマ）に存在する
+	const idents = hasSource ? glossaryIdentifiers(cfg) : [];
+	if (idents === null) failures.push(`[C25] 用語集 ${cfg.docs.glossary} が無い（宣言した場所に置くか、docs.glossary を none にする）`);
+	if (idents && idents.length) {
+		const words = new Set();
+		for (const path of [...iterFiles(cfg, "source"), ...(schema || [])]) for (const w of read(path).match(/[A-Za-z_]\w*/g) || []) words.add(w);
+		for (const { term, ident } of idents)
+			if (!words.has(ident)) failures.push(`[C25] 用語集の「${term}」のコード識別子 ${ident} がソースに無い（${cfg.docs.glossary}）`);
+	}
 
 	//  C12: 重複 ID（採番衝突）
 	for (const [ident, files] of Object.entries(collectDefinitions(cfg)).sort())
@@ -807,18 +983,16 @@ function printIndex(cfg) {
 
 //  ---- 引数と main ---------------------------------------------------------------
 
-//  台帳の鍵: メッセージ中の「<ファイル>:<行>」から行番号を落とす（C11 の派生など位置を含む項目が、
-//  行をずらすだけの編集で「新規違反＋解消済み」に化けないため）。表示は行番号つきのまま
-const baselineKey = (f) => f.replace(/(\S):\d+(?=[,:）)]|\s|$)/g, "$1");
-
 function parseArgs(argv) {
-	const opts = { root: ".", config: null, updateBaseline: false, strict: false, index: false, next: null, reserve: 1, only: null };
+	const opts = { root: ".", config: null, index: false, next: null, reserve: 1, only: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--root") opts.root = argv[++i];
 		else if (a === "--config") opts.config = argv[++i];
-		else if (a === "--update-baseline") opts.updateBaseline = true;
-		else if (a === "--strict") opts.strict = true;
+		else if (a === "--update-baseline" || a === "--strict") {
+			console.error(`trace-check: ${a} は廃止した（baseline を持たず、常にすべての違反で失敗する。ADR-0056）`);
+			process.exit(2);
+		}
 		else if (a === "--index") opts.index = true;
 		else if (a === "--next") opts.next = argv[++i];
 		else if (a === "--reserve") opts.reserve = Number(argv[++i]);
@@ -835,7 +1009,10 @@ function main() {
 	const opts = parseArgs(process.argv.slice(2));
 	const root = resolve(opts.root);
 	const cfg = loadConfig(root, opts.config ? resolve(opts.config) : join(root, "traceconfig.json"));
-	const baselinePath = join(root, cfg.baseline_file || ".trace-baseline.json");
+	if ("baseline_file" in cfg) {
+		console.error("trace-check: baseline_file は廃止した（ADR-0056）。traceconfig.json からキーを削除し、台帳ファイルも削除する");
+		return 2;
+	}
 
 	if (opts.next) {
 		if (!["goal", "uc", "req", "br", "nfr", "adr"].includes(opts.next.toLowerCase())) {
@@ -854,44 +1031,28 @@ function main() {
 		return 0;
 	}
 
+	const decl = checkDeclarations(cfg);
+	if (decl.errors.length) {
+		console.error("trace-check: traceconfig.json の宣言が足りない（ADR-0056。紐づきの検査は黙って省かない）");
+		for (const e of decl.errors) console.error(`  - ${e}`);
+		return 2;
+	}
 	let { failures, report } = runChecks(cfg);
 	if (opts.only) failures = failures.filter((f) => opts.only.has((f.match(/^\[(C\d+)\]/) || [])[1]));
 	if (!opts.only) console.log(report);
-
-	if (opts.updateBaseline) {
-		writeFileSync(baselinePath, JSON.stringify(failures.map(baselineKey), null, 2) + "\n");
-		console.log(`\nbaseline を更新: ${failures.length} 件を記録（${basename(baselinePath)}）`);
-		return 0;
+	if (decl.absent.length) {
+		console.log("\n宣言された不在（この範囲の検査は行わない）:");
+		for (const [k, why] of decl.absent) console.log(`  - ${k}: ${why}`);
 	}
 
-	let baseline = [];
-	if (existsSync(baselinePath) && !opts.strict && !opts.only) baseline = JSON.parse(read(baselinePath)).map(baselineKey);
-	//  同じ鍵（同じファイルの未注釈テスト N 本など）は件数で比べる。台帳より増えた分だけが新規
-	const remaining = new Map();
-	for (const b of baseline) remaining.set(b, (remaining.get(b) || 0) + 1);
-	const fresh = [];
-	const knownOnes = [];
-	for (const f of failures) {
-		const key = baselineKey(f);
-		if (remaining.get(key) > 0) {
-			remaining.set(key, remaining.get(key) - 1);
-			knownOnes.push(f);
-		} else fresh.push(f);
-	}
-	const resolved = [...remaining.entries()].flatMap(([b, n]) => Array(n).fill(b));
-
-	if (knownOnes.length) {
-		console.log(`\nWARN（baseline 済み ${knownOnes.length} 件 / 返済対象）:`);
-		for (const f of knownOnes) console.log(`  ~ ${f}`);
-	}
-	if (resolved.length) console.log(`\n解消済み ${resolved.length} 件 -> --update-baseline で baseline を縮めること`);
-	if (fresh.length) {
-		console.log(`\nFAIL（新規違反 ${fresh.length} 件）:`);
-		for (const f of fresh) console.log(`  x ${f}`);
+	if (existsSync(join(root, ".trace-baseline.json"))) console.log("\nWARN .trace-baseline.json: baseline は廃止した（ADR-0056）。読まないので削除する");
+	if (failures.length) {
+		console.log(`\nFAIL（違反 ${failures.length} 件）:`);
+		for (const f of failures) console.log(`  x ${f}`);
 		console.log("\n-> 上流 SSOT を更新してから再導出すること（逆流ルール R-801）");
 		return 1;
 	}
-	console.log("\n新規違反なし。" + (knownOnes.length ? "" : "欠落・孤児・未宣言テスト・重複した正はありません。"));
+	console.log("\n違反なし。欠落・孤児・未宣言テスト・重複した正はありません。");
 	return 0;
 }
 

@@ -7,8 +7,8 @@
 //
 //  検査の順序（1–3 は全部走らせて失敗を集める。4 は最初の失敗で止める）:
 //    1. spec-lint validate            docs SSOT のフォーマット / ライフサイクル
-//    2. trace-check                   トレーサビリティ（<root>/traceconfig.json がある時だけ）
-//    3. contract-run                  契約例の実行検査（commands.contract_adapter 宣言時だけ）
+//    2. trace-check                   トレーサビリティ（traceconfig.json が無ければ失敗。省略できない / ADR-0056）
+//    3. contract-run                  契約例の実行検査（実行する実例があるのにアダプタが無ければ contract-run 自身が失敗にする）
 //    4. commands.typecheck → lint → test（traceconfig.json の commands ブロックから。無い鍵は skip）
 //    5. commands.system                シナリオテスト（system suite）全件。宣言時だけ、4 が全部通ったあとに 1 回（ADR-0035）
 //  コマンドは traceconfig.json に宣言されたものしか走らせない。推測・発明はしない。
@@ -162,13 +162,17 @@ function runSuite(root, opts, toolsDir, configPath) {
 	//  1–3: 全部走らせて失敗を集める
 	run("spec-lint", `node ${q(join(toolsDir, "spec-lint", "spec-lint.mjs"))} validate --docs ${q(opts.docs)}`);
 
+	//  traceconfig.json が無いことは「検査しない理由」ではなく失敗（紐づきの検査は黙って省かない / ADR-0056）
 	const hasConfig = existsSync(configPath);
-	if (hasConfig) run("trace-check", `node ${q(join(toolsDir, "trace-check", "trace-check.mjs"))} --root ${q(root)} --config ${q(configPath)}`);
-	else skip("trace-check", "traceconfig.json 無し");
+	if (hasConfig) {
+		run("trace-check", `node ${q(join(toolsDir, "trace-check", "trace-check.mjs"))} --root ${q(root)} --config ${q(configPath)}`);
+		run("contract-run", `node ${q(join(toolsDir, "contract-run", "contract-run.mjs"))} --root ${q(root)} --config ${q(configPath)}`);
+	} else {
+		ran++;
+		failures.push({ name: "trace-check", ok: false, code: null, signal: null, timedOut: false, output: "traceconfig.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/traceconfig.json から置き、対象が無い範囲は { \"none\": \"<理由>\" } と宣言する" });
+	}
 
 	const commands = hasConfig ? readCommands(configPath) : {};
-	if (commands.contract_adapter) run("contract-run", `node ${q(join(toolsDir, "contract-run", "contract-run.mjs"))}`);
-	else skip("contract-run", "commands.contract_adapter 未宣言 — 契約の実行検査は行われていない");
 
 	//  4–5: 宣言されたコマンドを順に。最初の失敗で止める（型が通らないのに test を回しても意味がない。
 	//  system はブラウザ / シミュレータを起動する最も重い検査なので最後に置き、default suite が赤なら走らせない）

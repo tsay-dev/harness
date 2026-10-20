@@ -13,13 +13,13 @@
 //      要求: {"id":1,"uc":"UC-012","operation":"createItem","transport":"http","direction":"outbound",
 //             "owned":true,"auth":"bearer","wire":{...}|null,"entry":"..."|null,"request":{...}|null,"case":"ok"}
 //      応答: {"id":1,"response":{...}} | {"id":1,"error":"CODE"} | {"id":1,"skip":"<理由>"}
-//    アダプタが未宣言なら「検査していない」と明示して 0 で終わる（skip であって pass ではない）。
+//    実行する実例があるのにアダプタが未宣言なら失敗（1）。実例が 1 件も無いときだけアダプタなしで 0 で終わる（ADR-0056）。
 //
 //  判定（1 例ごと）:
 //    正常例（response あり / error なし）: 応答が response で、例の response が実際の response の部分集合であること
 //      （プリミティブは厳密一致、配列は同じ長さで要素ごとに部分集合、オブジェクトは例のキーが全部あり、実際側の余分なキーは許す）
 //    異常例（error あり）: 応答が同じ code の error であること。response が返れば fail、別 code も fail
-//    skip 応答: 理由つきで skip に数える（pass にはしない。skip は見える負債）
+//    skip 応答: 理由つきで skip に数え、失敗として扱う（紐づきに例外を作らない。ADR-0056）
 //    response も error も無い例: 例の不備として fail
 //
 //  使い方:
@@ -31,7 +31,7 @@
 //      --json               {results:[{uc,operation,case,verdict,detail}], summary:{pass,fail,skip}} を出力
 //      --timeout            実行全体の秒数（既定 120）
 //
-//  終了コード: 0 = fail なし（skip は許す。一覧に出す） / 1 = fail あり / 2 = 設定・アダプタの異常
+//  終了コード: 0 = fail も skip もない / 1 = fail か skip がある、または実例があるのにアダプタが無い / 2 = 設定・アダプタの異常
 //  baseline は持たない（実行結果は負債ではなく、その場で直すもの）。
 //
 
@@ -574,7 +574,7 @@ function report(results, summary, opts) {
 	}
 	for (const r of results)
 		console.log(`${r.verdict.padEnd(4)}  ${r.uc} ${r.operation}.${r.case}${r.detail ? `  ${r.detail}` : ""}`);
-	console.log(`pass ${summary.pass} / fail ${summary.fail} / skip ${summary.skip} (skipped は検査されていない)`);
+	console.log(`pass ${summary.pass} / fail ${summary.fail} / skip ${summary.skip} (skip は検査されていないので失敗に数える)`);
 }
 
 function adapterFailure(msg, stderrLines) {
@@ -622,17 +622,6 @@ async function main() {
 	if (!cfg) return 2;
 	const docsDir = resolve(root, opts.docs);
 
-	//  アダプタ未宣言 ＝ 検査していない。pass ではないことを行に書いて 0 で終える
-	const cmd = cfg.commands && typeof cfg.commands.contract_adapter === "string" ? cfg.commands.contract_adapter.trim() : "";
-	if (!cmd) {
-		const note = `${TAG} commands.contract_adapter 未宣言: 契約の実行検査は行われていない`;
-		if (opts.json) {
-			console.error(note);
-			console.log(JSON.stringify({ results: [], summary: { pass: 0, fail: 0, skip: 0 }, note }, null, 2));
-		} else console.log(note);
-		return 0;
-	}
-
 	//  契約を集めて実行計画に落とす。読めない契約は fail（実装の不一致）ではなく設定異常
 	const items = [];
 	for (const file of findContracts(join(docsDir, "goals"))) {
@@ -643,6 +632,20 @@ async function main() {
 		}
 		const plan = planContract(file, node, opts);
 		if (plan) items.push(...plan.items);
+	}
+
+	//  アダプタ未宣言で実行する実例があれば失敗。実例が無いときだけ、検査するものが無いとして 0 で終える
+	const cmd = cfg.commands && typeof cfg.commands.contract_adapter === "string" ? cfg.commands.contract_adapter.trim() : "";
+	if (!cmd) {
+		const runnable = items.filter((it) => !it.malformed).length;
+		const note = runnable
+			? `${TAG} commands.contract_adapter 未宣言: 実行する実例が ${runnable} 件あるのに実行できない（アダプタを書いて宣言する）`
+			: `${TAG} 実行する実例が無い（commands.contract_adapter は未宣言）`;
+		if (opts.json) {
+			console.error(note);
+			console.log(JSON.stringify({ results: [], summary: { pass: 0, fail: 0, skip: 0 }, note }, null, 2));
+		} else console.log(note);
+		return runnable ? 1 : 0;
 	}
 
 	const requests = [];
@@ -674,7 +677,7 @@ async function main() {
 
 	const summary = summarize(results);
 	report(results, summary, opts);
-	return summary.fail > 0 ? 1 : 0;
+	return summary.fail > 0 || summary.skip > 0 ? 1 : 0;
 }
 
 process.exit(await main());

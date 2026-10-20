@@ -27,8 +27,7 @@
 //  使い方:
 //    node spec-lint.mjs validate [--docs docs]      全 docs を検証（フォーマット＋ライフサイクル不変条件）
 //        [--ignore-legacy-layout]                   旧レイアウト（docs/specs/）が残っていても新レイアウト側の検査を続ける（移行中）
-//        [--update-baseline] [--strict] [--baseline .spec-baseline.json]
-//                                                   trace-check と同じ baseline ラチェット。既知の違反を台帳化し、以降は新規違反だけ落とす
+//                                                   baseline は持たない。違反はすべて失敗（ADR-0056）
 //    node spec-lint.mjs gate --message <file>       commit メッセージの UC: トレーラの UC が実装可能か検証（baseline は見ない）
 //    node spec-lint.mjs gate --uc UC-012            指定 UC が実装可能（UC / REQ が active・契約 fixed）か検証
 //        [--unit <名前>]                            モノレポ（traceconfig.json の git.units）のルートで実行するときの unit。
@@ -1192,7 +1191,7 @@ function crossChecks(model) {
 }
 
 //  --- 利用プロジェクトの作業指針（docs と同じ階層の CLAUDE.md / AGENTS.md。R-1010）---
-//  地図だけを持つので行数で上限を掛ける。メッセージに実際の行数を入れないのは、baseline のキーを編集のたびに動かさないため
+//  地図だけを持つので行数で上限を掛ける
 const HOST_GUIDE_MAX_LINES = 150;
 function validateHostGuides(docsDir) {
 	for (const name of ["CLAUDE.md", "AGENTS.md"]) {
@@ -1224,42 +1223,19 @@ function cmdValidate(docsDir, opts) {
 	const model = loadModel(docsDir);
 	crossChecks(model);
 	validateHostGuides(docsDir);
-	return reportWithBaseline(opts);
+	return report();
 }
 
-//  --- baseline ラチェット（trace-check と同じ意味論。既存プロジェクトの漸進導入と移行中の既知の赤のため）---
-//  台帳のキーは「ファイル（行番号を除く）: メッセージ」。行番号を落とすのは、無関係な編集で行がずれても
-//  同じ違反を新規と数えないため。--update-baseline は現状を丸ごと記録する（縮めるのも同じコマンド / R-804）
-const baselineKey = (e) => `${e.file.replace(/:\d+$/, "")}: ${e.msg}`;
+//  --- 報告。baseline（既知の違反を通す台帳）は持たない。違反はすべて失敗にする（ADR-0056）---
+const LEGACY_BASELINE = ".spec-baseline.json";
 
-function reportWithBaseline(opts) {
+function report() {
 	for (const w of warns) console.warn(`  warn  ${w.file}: ${w.msg}`);
-	if (opts.updateBaseline) {
-		writeFileSync(opts.baseline, JSON.stringify(errors.map(baselineKey), null, 2) + "\n");
-		console.log(`spec-lint: baseline を更新: ${errors.length} 件を記録（${opts.baseline}）`);
-		return 0;
-	}
-	let baseline = [];
-	if (existsSync(opts.baseline) && !opts.strict) baseline = JSON.parse(readFileSync(opts.baseline, "utf8"));
-	//  同じ鍵は件数で比べる（台帳より増えた分だけが新規）
-	const remaining = new Map();
-	for (const b of baseline) remaining.set(b, (remaining.get(b) || 0) + 1);
-	const known = [];
-	const fresh = [];
-	for (const e of errors) {
-		const key = baselineKey(e);
-		if (remaining.get(key) > 0) {
-			remaining.set(key, remaining.get(key) - 1);
-			known.push(e);
-		} else fresh.push(e);
-	}
-	const resolved = [...remaining.values()].reduce((n, x) => n + x, 0);
-	for (const e of known) console.warn(`  known ${e.file}: ${e.msg}`);
-	for (const e of fresh) console.error(`  ERROR ${e.file}: ${e.msg}`);
-	if (resolved) console.log(`spec-lint: 解消済み ${resolved} 件 -> --update-baseline で baseline を縮めること`);
-	if (fresh.length === 0) console.log(`spec-lint: OK（warn ${warns.length}${known.length ? ` / baseline 済み ${known.length}` : ""}）`);
-	else console.error(`spec-lint: ${fresh.length} 件の新規違反${known.length ? `（baseline 済み ${known.length} 件は別）` : ""}`);
-	return fresh.length > 0 ? 1 : 0;
+	if (existsSync(LEGACY_BASELINE)) console.warn(`  warn  ${LEGACY_BASELINE}: baseline は廃止した（ADR-0056）。読まないので削除する`);
+	for (const e of errors) console.error(`  ERROR ${e.file}: ${e.msg}`);
+	if (errors.length === 0) console.log(`spec-lint: OK（warn ${warns.length}）`);
+	else console.error(`spec-lint: ${errors.length} 件の違反`);
+	return errors.length > 0 ? 1 : 0;
 }
 
 //  --- gate コマンド（draft なのに実装、を防ぐ） ---
@@ -1649,17 +1625,9 @@ function cmdConvert(opts) {
 	return 0;
 }
 
-//  --- 出力 ---
-function report() {
-	for (const w of warns) console.warn(`  warn  ${w.file}: ${w.msg}`);
-	for (const e of errors) console.error(`  ERROR ${e.file}: ${e.msg}`);
-	if (errors.length === 0) console.log(`spec-lint: OK（warn ${warns.length}）`);
-	else console.error(`spec-lint: ${errors.length} 件の違反`);
-}
-
 //  --- 引数 ---
 function parseArgs(argv) {
-	const opts = { docs: "docs", baseline: ".spec-baseline.json", direction: "outbound", _: [] };
+	const opts = { docs: "docs", direction: "outbound", _: [] };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--docs") opts.docs = argv[++i];
@@ -1667,9 +1635,10 @@ function parseArgs(argv) {
 		else if (a === "--uc") opts.uc = argv[++i];
 		else if (a === "--unit") opts.unit = argv[++i];
 		else if (a === "--ignore-legacy-layout") opts.ignoreLegacy = true;
-		else if (a === "--update-baseline") opts.updateBaseline = true;
-		else if (a === "--strict") opts.strict = true;
-		else if (a === "--baseline") opts.baseline = argv[++i];
+		else if (["--update-baseline", "--strict", "--baseline"].includes(a)) {
+			console.error(`spec-lint: ${a} は廃止した（baseline を持たず、常にすべての違反で失敗する。ADR-0056）`);
+			process.exit(2);
+		}
 		else if (a === "--out") opts.out = argv[++i];
 		else if (a === "--direction") opts.direction = argv[++i];
 		else if (a === "--date") opts.date = argv[++i];
@@ -1688,7 +1657,7 @@ function main() {
 	if (cmd === "gate") process.exit(cmdGate(opts.docs, opts));
 	if (cmd === "convert") process.exit(cmdConvert(opts));
 	console.error(
-		"usage: spec-lint.mjs validate [--docs docs] [--ignore-legacy-layout] [--update-baseline|--strict] [--baseline f]\n" +
+		"usage: spec-lint.mjs validate [--docs docs] [--ignore-legacy-layout]\n" +
 			"       spec-lint.mjs gate --message f | --uc UC-012 [--unit name]\n" +
 			"       spec-lint.mjs convert <openapi.yaml> [--uc UC-012] [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]",
 	);

@@ -18,9 +18,9 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   `transport`（`http|sdk|local-store|deeplink|push|device|internal` — `internal` は利用プロジェクトが
   ADR で明示的に契約化を決めたプロセス内境界。R-1204 の既定ではその境界は操作ではない）/ `direction`。
 - **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
-  作業指針は地図だけを持つ。メッセージに実際の行数を入れず、baseline のキーを編集で動かさない）。
+  作業指針は地図だけを持つ）。
 - **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
-  （C9）、採番衝突は `../trace-check/` の 20 検査の担当。
+  （C9）、採番衝突、参照先の実在は `../trace-check/` の 25 検査の担当。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
   意図的に狭い YAML 部分集合用の手書き parser（理由: `docs/adr/ADR-0002`）で構造を検査する:
   `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、`entry` は `deeplink` / `push` のみ、
@@ -36,14 +36,14 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
 ```bash
 node spec-lint.mjs validate [--docs docs]     # 書式 + ライフサイクル不変条件 + docs の健全性
 node spec-lint.mjs validate --ignore-legacy-layout   # docs/specs/ が残る移行中も新配置を検査
-node spec-lint.mjs validate --update-baseline # 現在のエラーを .spec-baseline.json に記録。以後は新規エラーのみ失敗
-node spec-lint.mjs validate --strict          # ベースラインを無視（全エラーで失敗）[--baseline <file> で配置変更]
-node spec-lint.mjs gate --message <file>       # コミットの UC: trailer を検証（UC / REQs が active、契約が fixed）。ベースラインは使わない
+node spec-lint.mjs gate --message <file>       # コミットの UC: trailer を検証（UC / REQs が active、契約が fixed）
 node spec-lint.mjs gate --uc UC-012            # 一 UC に同じ検査 [モノレポ直下では --unit <name>]
 node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
 ```
 
 終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー。Node のみ（外部依存なし）。
+baseline は無い（ADR-0056）。違反は 1 件でも失敗にする。廃止した `--update-baseline` / `--strict` / `--baseline` は
+使用法エラー、残った `.spec-baseline.json` は読まずに警告する。
 モノレポの利用プロジェクト（`traceconfig.json` が `git.units` を宣言し、repository 直下から実行）では docs と
 UC 番号は単位ごと。`gate` は一単位の `docs/` を検索する。`--message` はコミットヘッダーの `scope` から、
 `--uc` は `--unit` から単位を取る。宣言済み単位でない scope（`repo`、なし）で `UC:` を持つコミットは失敗する。
@@ -51,15 +51,6 @@ trailer のないコミットは、ほかと同様、そのまま通す（ADR-00
 回帰テスト: `node --test "tools/spec-lint/test/*.test.mjs"`（ケースごとに一時ディレクトリへ最小 docs ツリーを書く）。
 旧配置（`docs/specs/F-xxx-<slug>/`）検出時は `/docs-migrate` を案内して `1` を返す。
 `--ignore-legacy-layout` 指定時は旧ディレクトリを警告にし、新配置を完全に検査する。
-
-## ベースラインの歯止め
-
-trace-check と同じ意味を持つ。`--update-baseline` は現在の全エラーを記録する（キーは行番号を除くファイル +
-メッセージ。無関係な編集で行がずれても既知エラーは新規にならない。同じキーは件数で比較するため、
-記録済み種類でも一件増えれば新規）。以後の `validate` は既知を `known` と表示し、新規だけで失敗する。
-解消後に再度 `--update-baseline` で台帳を縮める。既存プロジェクトの初回導入と移行中の既知の赤
-（REQ がまだ `draft` の `fixed` 契約、未変換の旧書式ファイル）に使う。台帳は `/docs-migrate` が指定する
-箇所以外では縮むだけ（R-804）。`gate` はベースラインを無視し、実装開始を免除してはならない。
 
 ## convert（旧 OpenAPI 契約 → harness 契約）
 
@@ -104,9 +95,8 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
   `指摘` / `理由`、`spec-lint | trace-check | contract-run | test | typecheck | lint | hook | 未定` 外の `昇格先`。
   ヘッダー行だけの表は有効。
 
-導入前に書かれた契約へこれらの規則を適用する利用プロジェクトは、一度 `validate --update-baseline` を実行して
-既存資料を台帳に記録し、以後は新規違反のみで失敗させる（既存資料への初回検査適用に対する R-804 の例外）。
-`gate` は引き続きベースラインを無視する。
+導入前に書かれた契約へこれらの規則を適用する利用プロジェクトは、違反を直すまで契約を `draft` に戻す
+（baseline は無い。ADR-0056）。
 
 ## docs の健全性の検出（すべて警告）
 

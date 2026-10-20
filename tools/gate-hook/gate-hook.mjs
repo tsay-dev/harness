@@ -210,7 +210,7 @@ function main() {
 	const docsDir = opts.docs.replace(/\/+$/, "");
 	if (rel === docsDir || rel.startsWith(docsDir + "/")) process.exit(0);
 	if ([".claude/", ".agents/", ".codex/", ".cursor/", ".grok/", "apm_modules/", ".harness/", ".harness-gate/"].some(prefix => rel.startsWith(prefix))) process.exit(0);
-	if (rel === "traceconfig.json" || rel === ".trace-baseline.json") process.exit(0);
+	if (rel === "traceconfig.json") process.exit(0);
 
 	if (matchesAny(rel, opts.exclude)) process.exit(0);
 	if (!matchesAny(rel, opts.code)) process.exit(0);

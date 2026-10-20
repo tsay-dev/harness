@@ -6,7 +6,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
 
 > 対象はすべてのプラットフォームの `docs/` 配下の全ファイルです。指摘では ID で引用します（`R-101`）。
-> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C20）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
+> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C25）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
 
 ## 1. SSOT の原則
 
@@ -14,7 +14,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-102 (MUST)** 機械可読にできる事実（型、スキーマ、制約、定数、設定）の SSOT を文書にしません。文書は存在と意図だけを持ち、値と構造はコード、DB、契約に置きます。
 - **R-103 (MUST)** 参照は下流 → 上流の一方向です。上流文書は下流を列挙せず、逆引きは `trace-check` が導出します。
 - **R-104 (MUST)** 検証手段（テスト、検査、計測）のない文を要件やルールにしません。検証できなければ方針として vision か ADR の Context に置きます。
-- **R-105 (SHOULD)** 同じ文が 2 つの UC に現れたら BR へ抽出します。
+- **R-105 (SHOULD)** 同じ文が 2 つの UC に現れたら BR へ抽出します。active な BR は、少なくとも 1 つの active な REQ の `br:` から参照します（C22。規則を REQ のテストで検証する）。
 
 ## 2. ID の文法
 
@@ -32,7 +32,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 | 文書 | 書くもの (MUST) | 書かないもの (MUST NOT) |
 | --- | --- | --- |
 | `00-vision.md` | 課題、対象者、計測可能な成功指標（KPI）、対象外 | 機能一覧、画面、技術選定 |
-| `01-glossary.md` | 用語、1 文の定義、コード識別子、禁止同義語 | クラス設計、テーブル定義 |
+| `01-glossary.md` | 用語、1 文の定義、コード識別子（コードに存在すること。C25）、禁止同義語 | クラス設計、テーブル定義 |
 | `02-actors.md` | actor の閉じた集合（`ACT-nn`、システム actor を含む） | goal を実現する UC（R-103） |
 | `GOAL.md` / `goals-backlog.md` | R-301 の達成状態を actor の言葉で 1 文、`actor`、`origin`（KPI）、`domain`（R-1009。backlog の書式はテンプレート） | 達成手段、操作手順、配下 UC の一覧 |
 | `UC.md` | R-302 のシナリオ、状態 × イベント表、事前・事後条件、BR の**参照** | 実装設計、BR 本文、REQ 本文、導出 REQ の一覧、契約のエラー評価順序（R-1207） |
@@ -68,7 +68,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 
 - **R-701 (MUST)** 実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流 ID を参照します（ID のみ。配置は comments 末端ファイル。存在しない ID は C5）。
 - **R-702 (MUST)** 層の依存方向は lint / C6（`traceconfig.json` の `layering`）で強制します。
-- **R-703 (MUST)** `traceconfig.json` に `contract` を設定すると、実装のエラーコードと `_shared` の `errorCodes` の一致を C7 が検査します。
+- **R-703 (MUST)** 実装のエラーコードは `_shared` の `errorCodes` に含まれ（C7）、`errorCodes` のコードはどれかの契約の `errors` で使われます（C24）。
 - **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`traceconfig.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本で `@implements BR-nnn` 付きの制約として実現します（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
 - **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14。`source` のない docs のみの利用プロジェクトは対象外）。逆向き（実現単位を置く場所 `source.unit_dirs` の、どの仕様も指さない単位）は C19 が検出します。仕様を持たない技術部品はその場所の外に置きます。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
 
@@ -76,8 +76,8 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 
 - **R-801 (MUST) 上流優先。** 実装が仕様の誤りや穴を示したら、上流 SSOT を更新して再導出します（契約 → テスト → 実装）。
 - **R-802 (MUST)** 判断の変更は `supersedes:` を持つ新 ADR の追加で行い、既存 ADR を書き換えません。
-- **R-803 (MUST)** マージ条件はテスト成功かつ新規 `trace-check` 違反ゼロです。
-- **R-804 (SHOULD)** baseline（`.trace-baseline.json`、`.spec-baseline.json`）は縮小のみです。増加を認めるのは検査を既存資料に初めて適用するときだけで、移行手順がその時点と件数を明記します。
+- **R-803 (MUST)** マージ条件はテスト成功かつ `spec-lint` / `trace-check` の違反ゼロです。
+- **R-804 (MUST)** 紐づきに例外を作りません。既知の違反を通す baseline、コードに書く例外の印、検査の黙った省略は持たず、対象が無いことは `traceconfig.json` に理由付きで宣言します（`{ "none": "<理由>" }`）。既存資料への導入は宣言の範囲を広げて進めます（ADR-0056）。
 
 ## 9. 統制の種類
 
@@ -118,5 +118,5 @@ C10 / C11 / C15 が保証するのは宣言と存在の一致です。分割が�
 - **R-1203 (MUST)** OS 契約（Info.plist、entitlements、manifest）は機械可読なのでそれ自身が SSOT です。
 - **R-1204 (SHOULD)** モジュール間は言語の型システムが契約、コンパイラーと C6 が検査者です。テストが契約操作を呼ぶ入口は、フレームワークの testing 末端ファイルの「operation → entry」規約で操作名から導出し、ルールパッケージがなければ利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に命名規則として 1 回宣言します（操作ごとの表にせず、規則に従わないものだけを挙げます）。テストの足場（境界フェイク、fixture、テスト用 app）の使い方の正本はそのテストコードの型とコメントで、作業指針に写しません。実装を読んで導出しません。
 - **R-1205 (SHOULD)** 外部 API はクライアント側で防御的に扱います（DTO 層、記録した応答 fixture、未知フィールドを無視するデコード）。
-- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
+- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界の入口と契約の操作は `@operation` で双方向に対応させます（C21）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
 - **R-1207 (MUST)** 失敗条件の評価順序は `contract.yaml` の `errors:` 一覧順だけに置き、最初の一致を採用します。`when` はラベルで排他性の証明ではなく、順序を UC / BR / ADR / スキーマコメント / 操作配下の `x-*` に再記述しません（spec-lint が `x-*` を拒否）。隣接項目の優先順位は両条件を満たす例（`contract-run`）またはテストクラスで反証します。

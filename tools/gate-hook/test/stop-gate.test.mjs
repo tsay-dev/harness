@@ -12,12 +12,14 @@ const GATE = join(HERE, "..", "stop-gate.mjs");
 const GATE_LOG = join(HERE, "..", "gate-log.mjs");
 const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "traceconfig.json");
 
-//  テンプレートから、空の skeleton では通らない contract / schema を抜いた最小設定
+//  テンプレートから、空の skeleton では通らない contract / schema を理由付きの none にした最小設定（ADR-0056）
 function traceconfig(commands) {
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	delete cfg._comment;
-	delete cfg.contract;
-	delete cfg.schema;
+	cfg.contract = { none: "空の skeleton" };
+	cfg.schema = { none: "空の skeleton" };
+	cfg.docs.shared = { none: "空の skeleton" };
+	cfg.docs.glossary = { none: "空の skeleton" };
 	if (commands === undefined) delete cfg.commands;
 	else cfg.commands = commands;
 	return JSON.stringify(cfg, null, 2) + "\n";
@@ -114,9 +116,8 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	const e = runGate(root, stop(root));
 	assert.equal(e.status, 0, e.stderr);
 	assert.match(e.stdout, /commands\.test 未宣言/);
-	assert.match(e.stdout, /commands\.contract_adapter 未宣言/);
 	assert.match(e.stdout, /commands\.system 未宣言/);
-	assert.match(e.stdout, /終端ゲート通過（2 検査、skip: contract-run, typecheck, lint, test, system）/);
+	assert.match(e.stdout, /終端ゲート通過（3 検査、skip: typecheck, lint, test, system）/);
 
 	//  (f) Stop 以外のイベントは対象外
 	const f = runGate(root, stop(root, { hook_event_name: "SubagentStop" }));
@@ -142,18 +143,15 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	assert.match(s.stdout, /降格候補/);
 });
 
-test("stop-gate: traceconfig.json が無くても spec-lint だけで判定する", (t) => {
+test("stop-gate: traceconfig.json が無ければ trace-check の失敗としてブロックする（ADR-0056）", (t) => {
 	const root = mkdtempSync(join(tmpdir(), "harness stop-gate "));
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	mkdirSync(join(root, "docs"), { recursive: true });
 	//  git 無し → 指紋なし → 毎回検査する
 	const r1 = runGate(root, stop(root));
-	assert.equal(r1.status, 0, r1.stderr);
-	assert.match(r1.stdout, /skip: traceconfig\.json 無し/);
-	assert.match(r1.stdout, /終端ゲート通過（1 検査/);
-	const r2 = runGate(root, stop(root));
-	assert.equal(r2.status, 0, r2.stderr);
-	assert.equal(last(root).decision, "pass"); //  skip/no-changes にはならない
+	assert.equal(r1.status, 2, r1.stdout);
+	assert.match(r1.stderr, /traceconfig\.json が無い。紐づきの検査は省略できない/);
+	assert.deepEqual(last(root).failures, ["trace-check"]);
 });
 
 test("stop-gate: タイムアウトは timeout:<step> として失敗にする", (t) => {
@@ -189,5 +187,5 @@ test("stop-gate: commands.system は test の後に 1 回走り、test が赤な
 	writeFileSync(join(root, "traceconfig.json"), traceconfig({ test: "exit 0", system: "exit 0" }));
 	const c = runGate(root, stop(root, { session_id: "s3" }));
 	assert.equal(c.status, 0, c.stderr);
-	assert.match(c.stdout, /終端ゲート通過（4 検査、skip: contract-run, typecheck, lint）/);
+	assert.match(c.stdout, /終端ゲート通過（5 検査、skip: typecheck, lint）/);
 });

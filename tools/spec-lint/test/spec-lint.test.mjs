@@ -1,6 +1,6 @@
 //
 //  spec-lint の回帰テスト（node --test tools/spec-lint/test/）。
-//  fixture の最小 docs を一時ディレクトリに書き、validate --strict の終了コードと出力で判定する。
+//  fixture の最小 docs を一時ディレクトリに書き、validate の終了コードと出力で判定する。
 //
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,13 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeMinimalDocs, runNode, SPEC_LINT } from "./fixture.mjs";
 
-//  一時ルートで validate --strict を走らせる（cwd はホストのルート ＝ DEFERRED の対象パスの基準）
+//  一時ルートで validate を走らせる（cwd はホストのルート ＝ DEFERRED の対象パスの基準）
 function validate(opts = {}) {
 	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
 	try {
 		writeMinimalDocs(root, opts);
 		for (const [rel, text] of Object.entries(opts.hostFiles ?? {})) writeFileSync(join(root, rel), text);
-		const r = runNode(SPEC_LINT, ["validate", "--strict"], { cwd: root });
+		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
 		return { ...r, out: r.stdout + r.stderr };
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -27,9 +27,21 @@ const TARGET = "docs/goals/GOAL-01-a/UC-001-b/REQ-001.md";
 const row = (id, { date = daysAgo(1), target = TARGET, promote = "未定" } = {}) =>
 	`| ${id} | ${date} | reviewer | ${target} | 「速やかに」の観測基準が文にない | 閾値が NFR に無い | ${promote} |`;
 
-test("素の fixture は validate --strict を通る", () => {
+test("素の fixture は validate を通る", () => {
 	const r = validate();
 	assert.equal(r.status, 0, r.out);
+});
+
+test("baseline は持たない: 台帳ファイルがあっても違反は失敗し、廃止したフラグは使い方エラー（ADR-0056）", () => {
+	const key = "docs/goals/GOAL-01-a/UC-001-b/contract.yaml: 未知のキー";
+	const r = validate({ contractExtra: "x-evaluation-order: [a, b]", hostFiles: { ".spec-baseline.json": JSON.stringify([key]) } });
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /\.spec-baseline\.json: baseline は廃止した/);
+	for (const flag of ["--strict", "--update-baseline"]) {
+		const u = runNode(SPEC_LINT, ["validate", flag], { cwd: tmpdir() });
+		assert.equal(u.status, 2, u.stdout + u.stderr);
+		assert.match(u.stderr, new RegExp(`${flag} は廃止した`));
+	}
 });
 
 test("operation 直下の未知のキー（x-* 含む）は err", () => {
@@ -126,7 +138,7 @@ test("DEFERRED.md: status は living のみ", () => {
 		//  fixture の外で status だけ書き換える
 		const file = join(root, "docs/verification/DEFERRED.md");
 		writeFileSync(file, readFileSync(file, "utf8").replace("status: living", "status: draft"));
-		const r = runNode(SPEC_LINT, ["validate", "--strict"], { cwd: root });
+		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
 		assert.equal(r.status, 1, r.stdout + r.stderr);
 		assert.match(r.stdout + r.stderr, /status は living のいずれか。実際: "draft"/);
 	} finally {

@@ -1,5 +1,5 @@
 {
-  "_comment": "利用プロジェクト直下に traceconfig.json として置く。tools/trace-check が読む。orchestrator が一度ひな形を置き、利用プロジェクトが自身の配置に合わせて source/tests/layering を編集する。実装に単一エラーコード正本がない場合は contract ブロックを省略する（C7 はスキップ）。schema ブロックは DB 設計のネイティブな正本（migrations / schema.prisma / model ファイル）を指定し、アプリが永続データを所有しない場合は省略する（C13 はスキップ）。implements_pattern の捕捉 1 は一覧でもよい（`@implements UC-001, REQ-009 / BR-015`）。trace-check が , または / で分割する。tests.test_pattern はテスト関数を指定する（一行一正規表現）。グループ 1 にテスト名を必ず捕捉する。テストの識別はファイル + 名前であり、行番号ではない（Swift Testing: \"^\\s*@Test(?:\\([^)]*\\))?\\s+func\\s+(\\w+)\"）。設定時は C11 が @covers の全くないテストも報告する。例外の印は無いので、仕様を持たないテスト（REQ を持たない技術部品の自己検査）は tests.dirs の外に置く（ADR-0055）。tests.covers_placement は注釈の位置を宣言し、trace-check はそこだけを調べる: \"before\"（既定）= テスト印の直上の文書コメント、\"after\" = テスト印の行と本文の先頭行。どのテストの範囲にも属さない @covers 自体も違反。test_pattern を省略すればこの検査をスキップする。--next は .trace-reservations.json に予約を記録する（一時的。コミットしない）。layering.layer_pattern は layering.root 配下のどのパス階層を層名とするかを指定する: \"{layer}\"（既定）は第一階層、\"*/{layer}\" は第二階層（Features/<name>/Domain）。* は任意の一ディレクトリに一致する。commands ブロックは tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run（contract_adapter）だけが読み、trace-check は無視する。docs.verification_* は人間と利用プロジェクト向けの宣言。spec-lint は固定した --docs 相対パスのファイルを読む。nfr_pattern は NFR を検証するテストの注釈で、C20 が tests と tests.system の両方から拾う（省略時も同じ既定）。active な NFR は、このテストか、NFR の frontmatter の measured_by（テスト以外の計測の所在。実在するパス）のどちらかを持つ。C11 は nfr_pattern だけを持つテストも注釈済みと数える。source.unit_dirs は実現単位（ユースケースクラス、ルール関数など @implements を付ける単位）を置く場所で、source.unit_pattern はその単位の印（一行一正規表現。グループ 1 に単位名を必ず捕捉する。同一性はファイル + 名前）。設定時は C19 が unit_dirs 内で @implements の無い単位を報告する。例外の印は無いので、REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は unit_dirs の外（infra など）に置く（ADR-0055）。source.implements_placement は注釈の位置で、tests.covers_placement と同じ before（既定）/ after。unit_dirs を省略すれば C19 をスキップする。tests.system はシステム（シナリオ）スイート、すなわちブラウザ、シミュレーター、デバイスを起動するフォルダーを指定する。tests.dirs と必ず分離する（重複すると C11 が @covers のないテストとして報告）。設定時は C15 が人間アクターの全 active UC（02-actors.md の 種別 が 人間 で始まる）に少なくとも一つの @scenario UC-nnn（scenario_pattern）付きテストを要求し、未定義 UC を指定する @scenario を報告する。docs.actors は C15 と C18 が読むアクター表、docs.vision は C18 が読む KPI 表（成功の定義）を持つ vision。どちらも省略すれば C18 のその参照（actor / origin）をスキップする。tests.system を省略すれば C15 をスキップする。",
+  "_comment": "利用プロジェクト直下に traceconfig.json として置く。tools/trace-check が読む。orchestrator が一度ひな形を置き、利用プロジェクトが自身の配置に合わせて編集する。紐づきの検査に要るキー（docs.actors / vision / glossary / shared、source とその unit_dirs / unit_pattern / entry_pattern、tests とその test_pattern / system / system.test_pattern、schema とその constraint_pattern、contract）は省略できない（省略は設定エラー）。対象が無いなら { \"none\": \"<理由>\" } と宣言し、trace-check はその範囲を検査せず、レポートに理由を出す。baseline と、コードに書く例外の印は無い（ADR-0056）。implements_pattern の捕捉 1 は一覧でもよい（`@implements UC-001, REQ-009 / BR-015`）。trace-check が , または / で分割する。注釈の位置（*_placement）は before（既定）＝ 単位の印の直上に連続する行（空行で切れる）か、after ＝ 単位の印の行と次の行で、trace-check はその範囲だけを調べる。tests.dirs は仕様のテストを置く場所で、tests.test_pattern はテスト関数の印（一行一正規表現。グループ 1 にテスト名を必ず捕捉する。識別はファイル + 名前。Swift Testing: \"^\\s*@Test(?:\\([^)]*\\))?\\s+func\\s+(\\w+)\"）。C11 は tests.dirs の全テストに @covers を求め、どのテストにも属さない @covers も違反にする。REQ を持たない技術部品の自己検査は tests.dirs の外に置く。tests.system はシステム（シナリオ）スイート、すなわちブラウザ、シミュレーター、デバイスを起動するフォルダーで、tests.dirs と必ず分離する（重複すると C11 が @covers のないテストとして報告）。C15 は人間アクターの全 active UC（docs.actors の 種別 が 人間 で始まる）に @scenario UC-nnn（scenario_pattern）付きテストを求め、tests.system.test_pattern に一致する全テストに @scenario を求め、撤回済み・未定義の UC を指す @scenario を報告する。source.unit_dirs は実現単位（ユースケースクラス、ルール関数など @implements を付ける単位）を置く場所で、source.unit_pattern はその単位の印（グループ 1 に単位名）。C19 は unit_dirs の全単位に @implements を求める。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は unit_dirs の外（infra など）に置く。source.entry_pattern は境界の入口（ルート登録、ハンドラーなど）の印（グループ 1 に入口の名前。パスなど）。C21 は各入口に @operation UC-nnn#operationName（operation_pattern）を求め、@operation が撤回されていない UC の契約に実在する操作を指すこと、fixed 契約の全操作がソースのどこかの @operation から指されることを検査する。入口を持たないなら entry_pattern を none にする。schema はスキーマの正本（migrations / schema.prisma / model ファイル）で、schema.constraint_pattern は業務ルールを強制する制約の印（グループ 1 に名前。無ければ行で識別する）。C13 は DB で強制する BR に、C23 は constraint_pattern に一致する全制約に @implements BR-nnn を求める。主キーなどルールでない制約は constraint_pattern に一致させない。アプリが永続データを所有しないなら schema を none にする。contract は実装のエラーコード正本で、C7 は実装のコード ⊆ 共有語彙（docs.shared の errorCodes）を、C24 は共有語彙の全コードがどれかの契約の errors で使われることを検査する。単一の正本が無いなら contract を none にする。docs.actors は C15 と C18、docs.vision は C18（KPI 表）、docs.glossary は C25（living の用語集のコード識別子列の識別子が source に存在するか）が読む。nfr_pattern は NFR を検証するテストの注釈で、C20 が tests と tests.system の両方から拾う。active な NFR は、このテストか、NFR の frontmatter の measured_by（テスト以外の計測の所在。実在するパス）のどちらかを持つ。layering は紐づきではなく層の向きの検査（C6）で、省略できる。layering.layer_pattern は layering.root 配下のどのパス階層を層名とするかを指定する: \"{layer}\"（既定）は第一階層、\"*/{layer}\" は第二階層（Features/<name>/Domain）。* は任意の一ディレクトリに一致する。commands ブロックは tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run（contract_adapter）だけが読み、trace-check は無視する。docs.verification_* は人間と利用プロジェクト向けの宣言。spec-lint は固定した --docs 相対パスのファイルを読む。--next は .trace-reservations.json に予約を記録する（一時的。コミットしない）。",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",
@@ -11,6 +11,7 @@
   "covers_pattern": "@covers\\s+(REQ-\\d{3})(?:#([\\w-]+))?",
   "scenario_pattern": "@scenario\\s+(UC-\\d{3})",
   "nfr_pattern": "@covers\\s+(NFR-\\d{3})",
+  "operation_pattern": "@operation\\s+(UC-\\d{3})#(\\w+)",
   "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?:\\s*[,/]\\s*(?:REQ|BR|UC)-\\d{3})*)",
   "docs": {
     "goals_dir": "docs/goals",
@@ -22,10 +23,11 @@
     "verification_deferred": "docs/verification/DEFERRED.md",
     "shared": "docs/_shared/components.yaml",
     "actors": "docs/02-actors.md",
-    "vision": "docs/00-vision.md"
+    "vision": "docs/00-vision.md",
+    "glossary": "docs/01-glossary.md"
   },
   "commands": {
-    "_comment": "利用プロジェクト自身の検証をそれぞれシェル一行で指定する（cwd = 利用プロジェクト直下）。stop-gate は typecheck -> lint -> test の順に実行し、最初の失敗で停止する。欠落キーはスキップと報告し、推測してはならない。contract_adapter は tools/contract-run が JSONL（stdin: 一行一リクエスト、stdout: 一行一応答）で通信し、全契約例をプロセス内実行するプロセス。利用プロジェクトがそのアダプターを書くまで省略する（contract-run は未実行と報告）。system はシナリオ（システム）スイート全体を一度実行するコマンド。宣言時は stop-gate が test 後に実行し、未宣言はスキップと報告する。test の探索に含めず、毎回の終了時のブラウザ / シミュレーター実行がこの利用プロジェクトには遅すぎるなら未宣言にする（CI では引き続き実行）。",
+    "_comment": "利用プロジェクト自身の検証をそれぞれシェル一行で指定する（cwd = 利用プロジェクト直下）。stop-gate は typecheck -> lint -> test の順に実行し、最初の失敗で停止する。欠落キーはスキップと報告し、推測してはならない。contract_adapter は tools/contract-run が JSONL（stdin: 一行一リクエスト、stdout: 一行一応答）で通信し、全契約例をプロセス内実行するプロセス。実行する実例（fixed 契約の owned: true の操作）があるのにアダプターが無い場合と、skip を返した例は contract-run が失敗にする（ADR-0056）。system はシナリオ（システム）スイート全体を一度実行するコマンド。宣言時は stop-gate が test 後に実行し、未宣言はスキップと報告する。test の探索に含めず、毎回の終了時のブラウザ / シミュレーター実行がこの利用プロジェクトには遅すぎるなら未宣言にする（CI では引き続き実行）。",
     "typecheck": "npx tsc --noEmit",
     "lint": "npx eslint .",
     "test": "npm test --silent",
@@ -54,7 +56,8 @@
       "src/usecase"
     ],
     "unit_pattern": "^\\s*export\\s+(?:default\\s+)?(?:async\\s+)?(?:function\\*?|class|const)\\s+(\\w+)",
-    "implements_placement": "before"
+    "implements_placement": "before",
+    "entry_pattern": "^\\s*\\w+\\.(?:get|post|put|patch|delete)\\(\\s*[\"'`]([^\"'`]+)"
   },
   "tests": {
     "dirs": [
@@ -71,13 +74,15 @@
       ],
       "extensions": [
         ".ts"
-      ]
+      ],
+      "test_pattern": "^\\s*(?:it|test)\\(\\s*[\"'`](.+?)[\"'`]"
     }
   },
   "schema": {
     "files": [
       "prisma/schema.prisma"
-    ]
+    ],
+    "constraint_pattern": "^\\s*(\\w+)\\s+\\S+.*@unique|^\\s*@@unique\\(\\[([^\\]]+)\\]"
   },
   "layering": {
     "root": "src",
@@ -97,8 +102,6 @@
   },
   "contract": {
     "error_source": "src/domain/errors.ts",
-    "error_code_pattern": "code\\s*=\\s*['\"]([A-Z_]+)['\"]",
-    "exclude_codes": []
-  },
-  "baseline_file": ".trace-baseline.json"
+    "error_code_pattern": "code\\s*=\\s*['\"]([A-Z_]+)['\"]"
+  }
 }

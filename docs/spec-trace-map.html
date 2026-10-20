@@ -158,7 +158,8 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
 
         <!-- REQ → BR / UC → BR -->
         <line x1="805" y1="140" x2="805" y2="80" class="e ok" marker-end="url(#a-ok)"/>
-        <text class="el" x="813" y="114">br:</text>
+        <text class="el" x="813" y="106">br:</text>
+        <g class="pill ok"><rect x="811" y="114" width="34" height="16" rx="8"/><text x="828" y="126">C22</text></g>
         <polyline points="600,140 600,48 726,48" class="e ok" marker-end="url(#a-ok)"/>
         <text class="elj mid" x="664" y="40">→ BR-nnn</text>
         <g class="pill ok"><rect x="630" y="58" width="68" height="16" rx="8"/><text x="664" y="70">C4・C16</text></g>
@@ -175,7 +176,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="pill ok"><rect x="704" y="258" width="60" height="16" rx="8"/><text x="734" y="270">spec-lint</text></g>
       </svg>
     </div>
-    <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。BR は C4 が「どこからも参照されない BR」を、C16 が「参照先の BR が無い」を検出します。C17 は UC の表と REQ の 1 対 1（未定義の REQ、別の UC の REQ、表に無い REQ）を、C18 は GOAL・UC の actor と GOAL の origin が表に定義されているかを見ます（UC の actor は図では省略）。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
+    <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。BR は C4 が「どこからも参照されない BR」を、C16 が「参照先の BR が無い・撤回済み」を、C22 が「active な REQ の <code>br:</code> から参照されない BR」を検出します。C17 は UC の表と REQ の 1 対 1（未定義の REQ、別の UC の REQ、表に無い REQ）を、C18 は GOAL・UC の actor と GOAL の origin が表に定義されているかを見ます（UC の actor は図では省略）。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
   </figure>
 </section>
 
@@ -183,7 +184,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <h2>2. docs と code のつながり</h2>
   <figure>
     <div class="scroll">
-      <svg viewBox="0 0 920 724" role="img" aria-label="docs と code をつなぐ 11 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位を置く場所の単位はすべて仕様を指す。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
+      <svg viewBox="0 0 920 852" role="img" aria-label="docs と code をつなぐ 13 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位を置く場所の単位はすべて仕様を指す。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
         <defs>
           <marker id="b-anno" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-anno"/></marker>
           <marker id="b-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-open"/></marker>
@@ -203,7 +204,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="670" y="94" width="230" height="44" rx="6"/><text class="ntj" x="785" y="121">本番コード / スキーマ正本</text></g>
         <line x1="668" y1="116" x2="254" y2="116" class="e anno" marker-end="url(#b-anno)"/>
         <text class="el mid" x="460" y="108">@implements BR-nnn</text>
-        <g class="pill anno"><rect x="360" y="122" width="200" height="16" rx="8"/><text x="460" y="134">C5 · C14 · C13（DB で強制する BR）</text></g>
+        <g class="pill anno"><rect x="340" y="122" width="240" height="16" rx="8"/><text x="460" y="134">C5 · C14 · C13 / C23（DB の制約はすべて注釈）</text></g>
 
         <!-- 2 UC ← 本番コード -->
         <g class="node"><rect x="20" y="158" width="230" height="44" rx="6"/><text class="nt" x="135" y="185">UC-nnn</text></g>
@@ -230,8 +231,8 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="20" y="350" width="230" height="44" rx="6"/><text class="ntj" x="135" y="377">components.yaml errorCodes</text></g>
         <g class="node"><rect x="670" y="350" width="230" height="44" rx="6"/><text class="ntj" x="785" y="377">エラーコード定義</text></g>
         <line x1="668" y1="372" x2="254" y2="372" class="e anno" marker-end="url(#b-anno)"/>
-        <text class="elj mid" x="460" y="364">実装のコード ⊆ errorCodes</text>
-        <g class="pill anno"><rect x="445" y="378" width="30" height="16" rx="8"/><text x="460" y="390">C7</text></g>
+        <text class="elj mid" x="460" y="364">実装のコード ⊆ errorCodes ⊆ 契約の errors</text>
+        <g class="pill anno"><rect x="430" y="378" width="60" height="16" rx="8"/><text x="460" y="390">C7・C24</text></g>
 
         <!-- 6 contract examples → 実装 -->
         <g class="node"><rect x="20" y="414" width="230" height="44" rx="6"/><text class="ntj" x="135" y="441">contract.yaml の examples</text></g>
@@ -267,6 +268,20 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <line x1="668" y1="692" x2="254" y2="692" class="e anno" marker-end="url(#b-anno)"/>
         <text class="el mid" x="460" y="684">@covers NFR-nnn ／ measured_by:</text>
         <g class="pill anno"><rect x="445" y="698" width="30" height="16" rx="8"/><text x="460" y="710">C20</text></g>
+
+        <!-- 11 契約の操作 ↔ 入口・クライアント -->
+        <g class="node"><rect x="20" y="734" width="230" height="44" rx="6"/><text class="ntj" x="135" y="761">contract.yaml の操作</text></g>
+        <g class="node"><rect x="670" y="734" width="230" height="44" rx="6"/><text class="ntj" x="785" y="761">境界の入口・クライアント</text></g>
+        <line x1="668" y1="756" x2="254" y2="756" class="e anno" marker-start="url(#b-anno)" marker-end="url(#b-anno)"/>
+        <text class="el mid" x="460" y="748">@operation UC-nnn#name（双方向）</text>
+        <g class="pill anno"><rect x="445" y="762" width="30" height="16" rx="8"/><text x="460" y="774">C21</text></g>
+
+        <!-- 12 用語集の識別子 → コード -->
+        <g class="node"><rect x="20" y="798" width="230" height="44" rx="6"/><text class="ntj" x="135" y="825">用語集のコード識別子</text></g>
+        <g class="node"><rect x="670" y="798" width="230" height="44" rx="6"/><text class="ntj" x="785" y="825">ソース・スキーマの識別子</text></g>
+        <line x1="252" y1="820" x2="666" y2="820" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="elj mid" x="460" y="812">識別子がコードに存在する</text>
+        <g class="pill anno"><rect x="445" y="826" width="30" height="16" rx="8"/><text x="460" y="838">C25</text></g>
       </svg>
     </div>
     <figcaption>コードからの紐づけは注釈の「存在」と「参照先の実在」を検査します。C14 は仕様 → コードの向き（active な REQ・BR を指す注釈が 1 つ以上あるか）、C19 はコード → 仕様の向き（<code>source.unit_dirs</code> の単位がすべて仕様を指すか）を見ます。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト。<code>test_pattern</code> 設定時は <code>tests.dirs</code> の注釈のないテストも）で上下両方から締めます。どちらも例外の印は無く、REQ を持たない技術部品とその自己検査は宣言した場所の外に置きます。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
@@ -285,7 +300,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
       <p>満たさなければ書き込みを止める。</p></div>
     <div class="step"><span class="when">3 · ターン終了時</span><h3>stop-gate（Stop）</h3>
       <ul><li>spec-lint → trace-check → contract-run</li><li>typecheck → lint → test</li><li>system（シナリオテスト）</li></ul>
-      <p>コマンドは <code>traceconfig.json</code> の <code>commands</code> だけから取る。</p></div>
+      <p>コマンドは <code>traceconfig.json</code> の <code>commands</code> だけから取る。traceconfig.json が無ければ失敗。</p></div>
     <div class="step"><span class="when">4 · コミット時</span><h3>spec-lint gate</h3>
       <ul><li><code>UC:</code> trailer の UC と REQ が active</li><li>契約が fixed</li></ul>
       <p>commit-msg hook への接続は任意。</p></div>
@@ -306,8 +321,8 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
       <tbody>
         <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、閉じた語彙（status・phase・pattern・transport・direction）、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
         <tr><td>spec-lint gate</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
-        <tr><td>trace-check</td><td>下の C1–C20。docs 同士、docs と code、層の向き、ID の衝突</td><td>注釈した単位が文を本当に実現しているか</td></tr>
-        <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。アダプター未宣言なら「未実行」</td></tr>
+        <tr><td>trace-check</td><td>下の C1–C25。docs 同士、docs と code、層の向き、ID の衝突。紐づきの宣言が省略されていれば設定エラーで、対象が無い範囲は理由付きの none として報告に出す（baseline は無い）</td><td>注釈した単位が文を本当に実現しているか</td></tr>
+        <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。実行する実例があるのにアダプターが無い場合と skip は失敗</td></tr>
         <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
         <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか</td><td>docs・設定・harness 資産への書き込み（常に許可）</td></tr>
         <tr><td>stop-gate</td><td>ターン終了時に上の検査を順に実行</td><td>ツリーに変更がないとき（省略）</td></tr>
@@ -316,16 +331,16 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     </table>
   </div>
 
-  <h3>trace-check の 20 検査と、図のどの線か</h3>
+  <h3>trace-check の 25 検査と、図のどの線か</h3>
   <div class="table">
     <table>
       <thead><tr><th>#</th><th>失敗する条件</th><th>線</th></tr></thead>
       <tbody>
         <tr><td>C1</td><td>active な REQ を <code>@covers</code> するテストがない</td><td><span class="tag anno">テスト → REQ</span></td></tr>
         <tr><td>C2</td><td>active な REQ に「検証方針」節がない</td><td><span class="tag ok">REQ 内</span></td></tr>
-        <tr><td>C3</td><td>テストが存在しない REQ を <code>@covers</code> している</td><td><span class="tag anno">テスト → REQ</span></td></tr>
+        <tr><td>C3</td><td>テストが存在しない・撤回済みの REQ を <code>@covers</code> している</td><td><span class="tag anno">テスト → REQ</span></td></tr>
         <tr><td>C4</td><td>どの UC・REQ からも参照されない BR がある</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
-        <tr><td>C5</td><td>コードの <code>@implements</code> が存在しない ID を指している</td><td><span class="tag anno">本番コード → REQ・BR・UC</span></td></tr>
+        <tr><td>C5</td><td>コードの <code>@implements</code> が存在しない・撤回済みの ID を指している</td><td><span class="tag anno">本番コード → REQ・BR・UC</span></td></tr>
         <tr><td>C6</td><td>禁止された層を import している（<code>layering</code>）</td><td><span class="tag anno">layering → import</span></td></tr>
         <tr><td>C7</td><td>実装のエラーコードが共有語彙の errorCodes に含まれない</td><td><span class="tag anno">エラーコード → components</span></td></tr>
         <tr><td>C8</td><td>active な GOAL を実現する UC がない</td><td><span class="tag ok">UC → GOAL</span></td></tr>
@@ -341,6 +356,11 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C18</td><td>active な GOAL・UC の actor、GOAL の origin が、アクター表・vision の KPI 表に無い</td><td><span class="tag ok">GOAL・UC → ACT・KPI</span></td></tr>
         <tr><td>C19</td><td>実現単位を置く場所（<code>source.unit_dirs</code>）の単位が <code>@implements</code> を持たない</td><td><span class="tag anno">実現単位 → 仕様</span></td></tr>
         <tr><td>C20</td><td>active な NFR に、検証するテスト（<code>@covers NFR-nnn</code>）も実在する <code>measured_by</code> も無い、またはテストが未定義の NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
+        <tr><td>C21</td><td>境界の入口に <code>@operation</code> が無い、契約に無い操作を指す、fixed 契約の操作をどのコードも指さない</td><td><span class="tag anno">契約の操作 ↔ 入口</span></td></tr>
+        <tr><td>C22</td><td>active な BR を <code>br:</code> に持つ active な REQ が無い</td><td><span class="tag ok">REQ → BR</span></td></tr>
+        <tr><td>C23</td><td>スキーマの制約（<code>schema.constraint_pattern</code>）に <code>@implements</code> が無い</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
+        <tr><td>C24</td><td>共有語彙のエラーコードがどの契約の errors でも使われていない</td><td><span class="tag ok">components → 契約</span></td></tr>
+        <tr><td>C25</td><td>用語集のコード識別子がソースに無い</td><td><span class="tag anno">用語集 → コード</span></td></tr>
       </tbody>
     </table>
   </div>

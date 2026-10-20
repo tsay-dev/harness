@@ -27,7 +27,7 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 
 | 書き込み対象 | 判定 | ログ記録 |
 | --- | --- | --- |
-| `docs/` 配下（UC、REQ、契約）、`traceconfig.json`、`.trace-baseline.json`、`.harness-gate/` | 常に許可（SSOT の書き込みはゲートの前提条件） | なし |
+| `docs/` 配下（UC、REQ、契約）、`traceconfig.json`、`.harness-gate/` | 常に許可（SSOT の書き込みはゲートの前提条件） | なし |
 | `.claude/` / `.agents/` / `.codex/` / `.cursor/` / `.grok/` / `apm_modules/` / `.harness/` 配下、`--exclude` に一致、または `--code` に不一致 | 許可（ゲート外） | なし |
 | 実装コード + `docs/goals` なし | **阻止**（`no-goals` → Phase 1） | あり |
 | 実装コード + phase が実装\|検証の UC なし | **阻止**（`no-active-phase`。開始前に UC の `phase:` を進める） | あり |
@@ -62,8 +62,8 @@ hook 自身の内部エラー（不正な stdin など）は **fail-open**（許
 | # | ステップ | 実行条件 | 失敗時 |
 | --- | --- | --- | --- |
 | 1 | `spec-lint validate --docs <docs>` | 常に | 収集 |
-| 2 | `trace-check` | `traceconfig.json` が存在（なければ `skip: traceconfig.json 無し`） | 収集 |
-| 3 | `contract-run` | `commands.contract_adapter` が宣言済み（なければ `skip: commands.contract_adapter 未宣言 — 契約の実行検査は行われていない`） | 収集 |
+| 2 | `trace-check` | 常に。`traceconfig.json` が無ければ失敗（紐づきの検査は省略できない。ADR-0056） | 収集 |
+| 3 | `contract-run` | `traceconfig.json` があれば常に。実行する実例があるのにアダプターが無い場合と skip した例は contract-run 自身が失敗にする | 収集 |
 | 4 | `commands.typecheck` → `commands.lint` → `commands.test` | 宣言済みの各キー（なければ `skip: commands.<k> 未宣言`） | 最初の失敗で停止 |
 | 5 | `commands.system`（シナリオスイート — ブラウザ / シミュレーター / デバイス — 全体を一度） | 宣言済みでステップ 4 が成功（なければ `skip: commands.system 未宣言`） | 収集 |
 

@@ -48,15 +48,14 @@ jobs:
         with:
           node-version: 20
 
-      #   docs SSOT のフォーマット / ライフサイクル（契約カバレッジ warn 含む）。.spec-baseline.json があれば新規違反だけ落とす
+      #   docs SSOT のフォーマット / ライフサイクル（契約カバレッジ warn 含む）。baseline は無く、違反はすべて落とす（ADR-0056）
       - name: Validate docs SSOT
         run: node "$HARNESS_ROOT/tools/spec-lint/spec-lint.mjs" validate ${{ inputs.spec_lint_args }}
 
-      #   トレーサビリティ（被覆・@covers/@implements・配置・baseline ラチェット）。traceconfig.json を持つホストのみ
-      - name: Trace check (new violations fail)
-        shell: bash
-        run: |
-          if [ -f traceconfig.json ]; then node "$HARNESS_ROOT/tools/trace-check/trace-check.mjs"; else echo "traceconfig.json なし: trace-check をスキップ"; fi
+      #   トレーサビリティ（被覆・@covers/@implements/@operation・配置・参照先の実在）。traceconfig.json が無ければ
+      #   設定エラーで落ちる（紐づきの検査は省略できない。対象が無い範囲は traceconfig.json に none で宣言する / ADR-0056）
+      - name: Trace check
+        run: node "$HARNESS_ROOT/tools/trace-check/trace-check.mjs"
 
       #   PR の各コミットの UC: トレーラを検査（UC / REQ が active でない・契約が無い/未 fixed なら落とす）
       #   モノレポ（git.units）では、コミットの scope が指す unit の docs で UC を引く（ADR-0040）

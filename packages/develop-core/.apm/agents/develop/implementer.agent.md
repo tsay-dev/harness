@@ -22,12 +22,12 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 
 ## 不変条件（全 mode）
 
-- 操作の入口は、届いた規約の「operation → entry」対応表が示す場所に置きます。テストと契約アダプターはそこを呼びます。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は、`source.unit_dirs` の外に置いて振る舞いをその単位の doc comment に書き、自己検査も `tests.dirs` の外に自ら書きます（C19 / C11）。利用プロジェクトの作業指針には写しません（R-1010）。
+- 操作の入口は、届いた規約の「operation → entry」対応表が示す場所に置き、`@operation UC-nnn#name` を付けます（C21）。テストと契約アダプターはそこを呼びます。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は、`source.unit_dirs` の外に置いて振る舞いをその単位の doc comment に書き、自己検査も `tests.dirs` の外に自ら書きます（C19 / C11）。利用プロジェクトの作業指針には写しません（R-1010）。
 - **テストを弱めず、契約・要件を歪めません。** 抑制、lint-disable、緩い assertion、出荷コードに埋めた mock は偽の成功です。整合できなければ、何と何が矛盾するかを報告して停止します。
 - テストは選択実行します。渡された Red を UC タグで選び、同じ経路の隣接 `UC-nnn` スイートへ広げます。既定スイート全体は入力で求められたときだけ実行します。排他的資源のため規約が禁止する場合だけ省略でき、その場合は未実行と必要な実行（UC ID、スイート、影響範囲）を明示します。
 - 検証コマンドは `traceconfig.json` の `commands`、次に利用プロジェクトの `CLAUDE.md`、標準の script 宣言から取り、捏造しません。
 - 実現単位に `@implements REQ-nnn` / `@implements BR-nnn`（usecase 入口は `@implements UC-nnn`）を付けます。配置は届いた規約に従います。
-- 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C5,C6,C7,C14` と `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc <UC-nnn>` を実行し、違反は自ら直します（「未宣言」は未実行であり成功ではありません）。
+- 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C5,C6,C7,C14,C19,C21,C23` と `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc <UC-nnn>` を実行し、違反は自ら直します（skip とアダプター未宣言は失敗です）。
 - `appearance` と `schema` の結果を自己承認しません。人間が決める点を返します。
 
 ## mode ごとの差分
