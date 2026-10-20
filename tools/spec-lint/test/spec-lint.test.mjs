@@ -14,6 +14,7 @@ function validate(opts = {}) {
 	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
 	try {
 		writeMinimalDocs(root, opts);
+		for (const [rel, text] of Object.entries(opts.hostFiles ?? {})) writeFileSync(join(root, rel), text);
 		const r = runNode(SPEC_LINT, ["validate", "--strict"], { cwd: root });
 		return { ...r, out: r.stdout + r.stderr };
 	} finally {
@@ -222,4 +223,18 @@ test("gate: git.units から unit を読めない traceconfig.json は設定異�
 	const r = gate(["--message", "msg.txt"], { layout: { "apps/a": "fixed" }, units: {}, message: commit("feat(app-a): ログインを足す") });
 	assert.equal(r.status, 2, r.out);
 	assert.match(r.out, /git\.units から unit を読めない/);
+});
+
+const linesOf = (n) => Array.from({ length: n }, (_, i) => `行 ${i + 1}`).join("\n") + "\n";
+
+test("作業指針: 150 行の CLAUDE.md / AGENTS.md は通る", () => {
+	const r = validate({ hostFiles: { "CLAUDE.md": linesOf(150), "AGENTS.md": linesOf(150) } });
+	assert.equal(r.status, 0, r.out);
+});
+
+test("作業指針: 150 行を超える CLAUDE.md・AGENTS.md はそれぞれ err（R-1010）", () => {
+	const r = validate({ hostFiles: { "CLAUDE.md": linesOf(151), "AGENTS.md": linesOf(200) } });
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /CLAUDE\.md: 作業指針が 150 行を超える/);
+	assert.match(r.out, /AGENTS\.md: 作業指針が 150 行を超える/);
 });
