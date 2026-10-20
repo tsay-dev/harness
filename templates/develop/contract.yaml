@@ -28,7 +28,8 @@ x-updated: YYYY-MM-DD
 operations:
   # キー = 操作名（lowerCamelCase、このファイル内で一意）。呼び出し箇所の識別情報となる。
   # テストと利用プロジェクトの契約アダプターは、フレームワークのテストリーフの「操作 → 入口」規約で
-  # 実装へ到達するため、ここの名前はコードが公開する名前とする
+  # 実装へ到達するため、ここの名前はコードが公開する名前とする。実装の入口（または外部境界のクライアント）には
+  # @operation UC-000#<operationName> を付け、fixed の全操作がコードから指されることを trace-check C21 が検査する
   # 操作配下のキーは閉じた集合（transport / direction / owned / source / auth / summary / wire /
   # entry / requires / request / response / errors / examples）。spec-lint は x-* を含む他のキーを拒否する。
   # 規則と状態遷移は UC / REQ / BR に置き、評価順序は errors の順序に置く

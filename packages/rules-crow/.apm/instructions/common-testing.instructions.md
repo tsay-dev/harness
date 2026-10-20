@@ -46,7 +46,7 @@ crow には (A) `engine/kernel/` のフレームワーク本体と (B) `db_desig
 ## UC タグと `@covers`
 
 - すべてのテストに UC ID（`UC-nnn` — `docs/goals/` 配下の UC ディレクトリ名と同じキー）を機械で選択できる形式で付ける（構文は層別の規約）。タグのないテストは選択実行から脱落する。
-- 各テストは宣言済みの分割クラスを一つだけ、doc コメントの `@covers REQ-nnn#class` で示す（`trace-check` C10 / C11 が読む。クラスは先に REQ の `## 検証方針` で宣言する）。
+- 各テストは宣言済みの分割クラスを一つだけ、テストメソッドの直上の行コメント `//<TAB>@covers REQ-nnn#class` で示す（`trace-check` C10 / C11 が読む。クラスは先に REQ の `## 検証方針` で宣言する）。docblock には書かない（PHPUnit が `@covers` をカバレッジ対象の指定として解釈する）。
 
 ## 命名
 

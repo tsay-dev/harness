@@ -14,9 +14,9 @@ description: >-
 
 ## 2. 不変条件
 
-- **自ら実装もテストも書かない。** 自ら書くのは `status` / `phase:` 行、`docs/_shared/components.yaml`、`docs/verification/DEFERRED.md`、ADR（[references/adr.md](references/adr.md)）、git（[references/commit.md](references/commit.md)）だけです。それ以外は別コンテキストの専門担当が作ります。
+- **自ら実装もテストも書かない。** 自ら書くのは `status` / `phase:` 行、`docs/_shared/components.yaml`、`docs/verification/DEFERRED.md`、`traceconfig.json`（宣言の範囲、`commands`。test-author が書いた契約アダプターの `commands.contract_adapter` を含み、書き込みは人間の承認を経る）、ADR（[references/adr.md](references/adr.md)）、git（[references/commit.md](references/commit.md)）だけです。それ以外は別コンテキストの専門担当が作ります。
 - **作成者 ≠ 判定者。** 成果物を作った担当はそれを判定しません。`reviewer` は常に別コンテキストの読み取り専用、`test-author` は実装を読みません。
-- **人間ゲートは 3 つだけ。** `docs/` の SSOT（人間の承認で `active` / `frozen` / `living`）、UI の見た目（目視）、DB スキーマです。子 agent は自己承認せず、確認（AskUserQuestion / plan mode）とステータス・`phase:` の遷移はあなただけが行います。進捗は各 `UC.md` の `phase:`（`定義` → `構造` → `実装` → `検証` → `完了`）が持ちます。
+- **人間ゲートは 3 つだけ。** `docs/` の SSOT（人間の承認で `active` / `frozen` / `living`。`status` の降格と、`UC.md` の `active`・契約の `fixed` への昇格は、gate-hook が書き込みごとにも承認を求める。検査の範囲を決める `traceconfig.json` の変更もここに含み、同じく書き込みごとに承認を求める。ADR-0057）、UI の見た目（目視）、DB スキーマです。子 agent は自己承認せず、確認（AskUserQuestion / plan mode）とステータス・`phase:` の遷移はあなただけが行います。進捗は各 `UC.md` の `phase:`（`定義` → `構造` → `実装` → `検証` → `完了`）が持ちます。
 - **SSOT が先。** コードは正本になりません。実装や赤いテストが仕様の穴を示したら、実装 → テスト → SSOT の順に疑い、SSOT はゲート経由で直して再導出します。通すためにテストや契約を歪めません（R-801）。
 - **コマンドを捏造しない。** 検証コマンドは `traceconfig.json` の `commands`、次に利用プロジェクトの `CLAUDE.md` / `AGENTS.md` から取ります。実行できない検査は未実行と報告し、成功扱いしません。
 - **名前付き agent で起動する。** 専門担当はこのパッケージの agent 定義を名前で起動し、汎用 agent で代替しません。各定義の `x-model-tier` を起動時に適用し、プロバイダーが対応しなければ報告します（ADR-0028 / ADR-0034）。入力はパスで渡し、本文を貼りません。`HARNESS_ROOT` の絶対パスも各 Task 入力に渡します。ルールの末端ファイルは [references/bundles.md](references/bundles.md) に従って渡します（ADR-0047）。
@@ -27,14 +27,14 @@ description: >-
 次を**すべて**満たしたときだけスライスは完了です。
 
 1. `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" validate` が exit 0。
-2. `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` の新規違反がゼロ（C1–C15）。
-3. `commands.contract_adapter` 宣言時は `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` の `fail` がゼロ。未宣言なら「未実行」と報告します。
+2. `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs"` の違反がゼロ（C1–C27）。
+3. `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` が exit 0（`fail` も `skip` も無く、実行する実例があればアダプターで実行済み）。
 4. 利用プロジェクトの `commands.typecheck` / `lint` / `test` が exit 0。
-5. `commands.system` 宣言時はシナリオスイート全体が 1 回 exit 0。未宣言なら「未実行」と報告します。
+5. `commands.system` のシナリオスイート全体が 1 回 exit 0。`{ "none": "<理由>" }` のコマンドは理由とともに「未実行」と報告します。
 6. `reviewer`（`mode: slice`）が `阻止` ゼロで終了し、すべての `持ち越し` が `docs/verification/DEFERRED.md` の行になっている。
 7. 触った UC の `phase:` が `完了`、契約が `fixed`、保留中の人間ゲートがない。
 
-利用プロジェクトが `tools/gate-hook/stop-gate.mjs`（Stop hook）を有効にしていれば機械が 1–5 を強制し、`gate-hook.mjs`（PreToolUse）を有効にしていれば UC・REQ が `active` で契約が `fixed` になる前の実装コード書き込みを阻止します。無効なら同じ条件を自ら守ります。「テストがすべて成功」だけでは完了ではありません。
+利用プロジェクトが `tools/gate-hook/stop-gate.mjs`（Stop hook）を有効にしていれば機械が 1–5 を強制し、`gate-hook.mjs`（PreToolUse）を有効にしていれば UC・REQ が `active` で契約が `fixed` になる前の実装コード書き込みを阻止します。無効なら同じ条件を自ら守ります。stop-gate に止められたら、直せる失敗は担当に直させ、人間ゲート待ちや後続の担当の成果物でしか直せない失敗（スライス途中の赤）は未達として報告してターンを終えます。`traceconfig.json` を緩めて（none にする、範囲を狭める）通しません。「テストがすべて成功」だけでは完了ではありません。
 
 ## 4. 判定の閉じ方
 

@@ -9,7 +9,7 @@ UC ごとに主シナリオ 1 つのシナリオテストを XCUITest で書く�
 
 ## ターゲットと環境
 
-- 別の UI テストターゲット（`<App>UITests`）、ソースは `UITests/` 配下。`traceconfig.json` の `tests.system.dirs`（`extensions: [".swift"]`）に宣言し、`tests.dirs` と重複させない。
+- 別の UI テストターゲット（`<App>UITests`）、ソースは `UITests/` 配下。`traceconfig.json` の `tests.system.dirs` に宣言し、`tests.dirs` と重複させない。
 - 全スイートは destination を固定した `xcodebuild test -only-testing:<App>UITests …`。`traceconfig.json` の `commands.system` に宣言する（遅すぎるなら CI のみとする）。UC 選択は `-only-testing:<App>UITests/UC012RegisterProjectTests`。
 - 接続先はホストが `CLAUDE.md` に宣言するシナリオ環境（バックエンド、ベース URL を切り替える `launchArguments` / `launchEnvironment`、投入済みデータ、使い捨てアカウント）。producer が創作しない。宣言された stub サーバーは可、アプリ内モックは不可。
 

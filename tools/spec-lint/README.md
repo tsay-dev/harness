@@ -18,11 +18,13 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   `transport`（`http|sdk|local-store|deeplink|push|device|internal` — `internal` は利用プロジェクトが
   ADR で明示的に契約化を決めたプロセス内境界。R-1204 の既定ではその境界は操作ではない）/ `direction`。
 - **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
-  作業指針は地図だけを持つ。メッセージに実際の行数を入れず、baseline のキーを編集で動かさない）。
+  作業指針は地図だけを持つ）。
 - **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
-  （C9）、採番衝突は `../trace-check/` の 15 検査の担当。
+  （C9）、採番衝突、参照先の実在は `../trace-check/` の 27 検査の担当。
+- **共有パーサー**: frontmatter は `../_shared/frontmatter.mjs`、契約と共有語彙の YAML は `../_shared/strict-yaml.mjs` で読む。
+  trace-check・contract-run・gate-hook も同じものを使うので、同じ文書をツールごとに違う値（一方は active、他方は draft）に読まない（ADR-0056）。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
-  意図的に狭い YAML 部分集合用の手書き parser（理由: `docs/adr/ADR-0002`）で構造を検査する:
+  意図的に狭い YAML 部分集合用の手書き parser（`../_shared/strict-yaml.mjs`。理由: `docs/adr/ADR-0002`）で構造を検査する:
   `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、`entry` は `deeplink` / `push` のみ、
   `owned: false` なら `source` 必須、全操作に明示した `auth` が `_shared` に解決すること、
   `errors[].code` が `_shared` の `errorCodes` に閉じていること、対応する `PERMISSION_DENIED` のない `requires`、
@@ -36,14 +38,15 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
 ```bash
 node spec-lint.mjs validate [--docs docs]     # 書式 + ライフサイクル不変条件 + docs の健全性
 node spec-lint.mjs validate --ignore-legacy-layout   # docs/specs/ が残る移行中も新配置を検査
-node spec-lint.mjs validate --update-baseline # 現在のエラーを .spec-baseline.json に記録。以後は新規エラーのみ失敗
-node spec-lint.mjs validate --strict          # ベースラインを無視（全エラーで失敗）[--baseline <file> で配置変更]
-node spec-lint.mjs gate --message <file>       # コミットの UC: trailer を検証（UC / REQs が active、契約が fixed）。ベースラインは使わない
+node spec-lint.mjs gate --message <file>       # コミットの UC: trailer を検証（UC / REQs が active、契約が fixed）
 node spec-lint.mjs gate --uc UC-012            # 一 UC に同じ検査 [モノレポ直下では --unit <name>]
 node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
 ```
 
-終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー。Node のみ（外部依存なし）。
+終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー、または `validate` で `<docs>/goals` が無い（`--docs` の指定を確かめるか、
+`<docs>/goals/` を作る。空なら `.gitkeep` を置く）。docs の場所の書き損じで検証が黙って空回りしないため（ADR-0056）。Node のみ（外部依存なし）。
+baseline は無い（ADR-0056）。違反は 1 件でも失敗にする。廃止した `--update-baseline` / `--strict` / `--baseline` は
+使用法エラー、残った `.spec-baseline.json` は読まずに警告する。
 モノレポの利用プロジェクト（`traceconfig.json` が `git.units` を宣言し、repository 直下から実行）では docs と
 UC 番号は単位ごと。`gate` は一単位の `docs/` を検索する。`--message` はコミットヘッダーの `scope` から、
 `--uc` は `--unit` から単位を取る。宣言済み単位でない scope（`repo`、なし）で `UC:` を持つコミットは失敗する。
@@ -51,15 +54,6 @@ trailer のないコミットは、ほかと同様、そのまま通す（ADR-00
 回帰テスト: `node --test "tools/spec-lint/test/*.test.mjs"`（ケースごとに一時ディレクトリへ最小 docs ツリーを書く）。
 旧配置（`docs/specs/F-xxx-<slug>/`）検出時は `/docs-migrate` を案内して `1` を返す。
 `--ignore-legacy-layout` 指定時は旧ディレクトリを警告にし、新配置を完全に検査する。
-
-## ベースラインの歯止め
-
-trace-check と同じ意味を持つ。`--update-baseline` は現在の全エラーを記録する（キーは行番号を除くファイル +
-メッセージ。無関係な編集で行がずれても既知エラーは新規にならない。同じキーは件数で比較するため、
-記録済み種類でも一件増えれば新規）。以後の `validate` は既知を `known` と表示し、新規だけで失敗する。
-解消後に再度 `--update-baseline` で台帳を縮める。既存プロジェクトの初回導入と移行中の既知の赤
-（REQ がまだ `draft` の `fixed` 契約、未変換の旧書式ファイル）に使う。台帳は `/docs-migrate` が指定する
-箇所以外では縮むだけ（R-804）。`gate` はベースラインを無視し、実装開始を免除してはならない。
 
 ## convert（旧 OpenAPI 契約 → harness 契約）
 
@@ -78,6 +72,11 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
 ## エラーとして扱うもの（ライフサイクルと参照の不変条件）
 
 - 必須 frontmatter / 必須節 / 必須 `x-` キーの欠落、語彙外の status。
+- frontmatter の曖昧な書き方: 先頭が空白の行、キーの重複、区切りもどき（`--- ` や `---x`）、終わりの `---` の閉じ忘れ、
+  `キー: 値` でない行。ツールごとに読みが割れてすり抜けになるため（ADR-0056）。
+- UC ディレクトリにある `UC.md` / `REQ-nnn.md` 以外の md（trace-check の対象に入らず紐づきの検査をすり抜ける。資料は `docs/attic` へ）。
+- `contract.yaml` の無い `active` UC（ファイルを省略せず、境界ゼロは `operations: {}` + `x-no-boundary` で宣言する）。
+- `02-actors.md` の表で、`種別` が `人間` か `システム` で始まらないアクター（trace-check の C15 は `システム` で始まるものだけを人間でないと数える）。
 - ディレクトリ名の違反（`GOAL-nn-<slug>`、`UC-nnn-<slug>`、`ADR-nnnn-<slug>.md`）、ディレクトリや
   ファイル名に合わない `id`、重複 GOAL / UC id、`GOAL.md` / `UC.md` 欠落、ゴール直下の UC / REQ。
 - EARS 引用ブロックがゼロまたは複数の REQ（一要件一文 — R-401）、五つの EARS パターン外の `pattern`、
@@ -104,9 +103,8 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
   `指摘` / `理由`、`spec-lint | trace-check | contract-run | test | typecheck | lint | hook | 未定` 外の `昇格先`。
   ヘッダー行だけの表は有効。
 
-導入前に書かれた契約へこれらの規則を適用する利用プロジェクトは、一度 `validate --update-baseline` を実行して
-既存資料を台帳に記録し、以後は新規違反のみで失敗させる（既存資料への初回検査適用に対する R-804 の例外）。
-`gate` は引き続きベースラインを無視する。
+導入前に書かれた契約へこれらの規則を適用する利用プロジェクトは、違反を直すまで契約を `draft` に戻す
+（baseline は無い。ADR-0056）。
 
 ## docs の健全性の検出（すべて警告）
 
@@ -125,7 +123,6 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
 | 長い `description`（8 行または 200 字超） | 契約 | 目的、規則、UI 説明は UC / REQ。契約は一行 `summary` と短い注記を持つ（操作配下の `x-*` は警告ではなく、上記の閉じたキー集合が拒否） |
 | 30 日を超えた `DEFERRED.md` 行 | DEFERRED | ここまで待った指摘は機械検査へ昇格するか、解消するかを判断する |
 | 同じ `対象` の `DEFERRED.md` 行が三つ以上、または利用プロジェクト直下からの `対象` パスが存在しない | DEFERRED | 再発は機械検査を書く価値の兆候。対象の消失は行が古いことを示す（解消済みなら削除） |
-| `contract.yaml` のない `active` UC | UC | ファイルを省略せず、境界ゼロ（`operations: {}` + `x-no-boundary`）を宣言する |
 | 例外系走査でケースを導出する UC なのに契約に `errors` がない（理由の有無にかかわらず `なし` / `—` / `-` で始まる導出セルは導出なしと数える） | 契約 | 失敗経路が境界の形状を持たない |
 | `PRD.md` があり、単一文書が欠落 | docs 直下 | 旧配置の残骸。`/docs-migrate` |
 

@@ -174,15 +174,15 @@ test("異常例に正常応答が返れば exit 1", (t) => {
 	assert.match(r.stdout, /期待: error INVALID_INPUT \/ 実際: 正常/);
 });
 
-test("skip 応答は exit 0 のまま skip に数え、pass にはしない", (t) => {
+test("skip 応答は skip に数え、失敗として exit 1 にする（ADR-0056）", (t) => {
 	const root = makeHost({
 		table: { replies: { ...OK_TABLE.replies, "doThing:abc": { skip: "XCTest からしか到達できない" } } },
 	});
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root);
-	assert.equal(r.status, 0, r.stderr);
+	assert.equal(r.status, 1, r.stderr);
 	assert.match(r.stdout, /skip {2}UC-001 doThing\.ok {2}XCTest からしか到達できない/);
-	assert.match(r.stdout, /pass 1 \/ fail 0 \/ skip 1 \(skipped は検査されていない\)/);
+	assert.match(r.stdout, /pass 1 \/ fail 0 \/ skip 1 \(skip は検査されていないので失敗に数える\)/);
 });
 
 test("アダプタが異常終了すれば exit 2 で stderr の末尾を出す", (t) => {
@@ -218,13 +218,21 @@ test("応答を返さずに終了すれば未応答の id を挙げて exit 2", 
 	assert.match(r.stderr, /アダプタ異常: 応答が無い要求がある（id=1,2 \/ 2 件）/);
 });
 
-test("commands.contract_adapter が無ければ exit 0 で「未宣言」と出す", (t) => {
+test("commands.contract_adapter が無く、実行する実例があれば exit 1（ADR-0056）", (t) => {
 	const root = makeHost({ adapter: null });
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root);
-	assert.equal(r.status, 0, r.stderr);
-	assert.match(r.stdout, /commands\.contract_adapter 未宣言: 契約の実行検査は行われていない/);
+	assert.equal(r.status, 1, r.stderr);
+	assert.match(r.stdout, /commands\.contract_adapter 未宣言: 実行する実例が 2 件あるのに実行できない/);
 	assert.equal(seenOps(root).length, 0);
+});
+
+test("commands.contract_adapter が無くても、実行する実例が無ければ exit 0", (t) => {
+	const root = makeHost({ adapter: null });
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--uc", "UC-999");
+	assert.equal(r.status, 0, r.stderr);
+	assert.match(r.stdout, /実行する実例が無い/);
 });
 
 test("traceconfig.json が無ければ exit 2", (t) => {
@@ -310,4 +318,12 @@ test("配列は長さと要素ごとの部分集合で比べ、ネストした�
 	const r = run(root);
 	assert.equal(r.status, 1);
 	assert.match(r.stdout, /items\[1\]\.status: 期待 "ok" \/ 実際 "pending"/);
+});
+
+test("--docs の先に goals が無ければ、実例が無いとして通さず exit 2（ADR-0056）", (t) => {
+	const root = makeHost();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const r = run(root, "--docs", "documentation");
+	assert.equal(r.status, 2, r.stdout + r.stderr);
+	assert.match(r.stderr, /documentation\/goals が無い/);
 });

@@ -1,5 +1,5 @@
 {
-  "_comment": "利用プロジェクト直下に traceconfig.json として置く。tools/trace-check が読む。orchestrator が一度ひな形を置き、利用プロジェクトが自身の配置に合わせて source/tests/layering を編集する。実装に単一エラーコード正本がない場合は contract ブロックを省略する（C7 はスキップ）。schema ブロックは DB 設計のネイティブな正本（migrations / schema.prisma / model ファイル）を指定し、アプリが永続データを所有しない場合は省略する（C13 はスキップ）。implements_pattern の捕捉 1 は一覧でもよい（`@implements UC-001, REQ-009 / BR-015`）。trace-check が , または / で分割する。tests.test_pattern はテスト関数を指定する（一行一正規表現）。グループ 1 にテスト名を必ず捕捉する。テストの識別はファイル + 名前であり、行番号ではない（Swift Testing: \"^\\s*@Test(?:\\([^)]*\\))?\\s+func\\s+(\\w+)\"）。設定時は C11 が @covers の全くないテストも報告するが、tests.exempt_pattern（明示的な仕様外の印）のあるものは除外する。tests.covers_placement は注釈の位置を宣言し、trace-check はそこだけを調べる: \"before\"（既定）= テスト印の直上の文書コメント、\"after\" = テスト印の行と本文の先頭行。どのテストの範囲にも属さない @covers 自体も違反。test_pattern を省略すればこの検査をスキップする。--next は .trace-reservations.json に予約を記録する（一時的。コミットしない）。layering.layer_pattern は layering.root 配下のどのパス階層を層名とするかを指定する: \"{layer}\"（既定）は第一階層、\"*/{layer}\" は第二階層（Features/<name>/Domain）。* は任意の一ディレクトリに一致する。commands ブロックは tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run（contract_adapter）だけが読み、trace-check は無視する。docs.verification_* は人間と利用プロジェクト向けの宣言。spec-lint は固定した --docs 相対パスのファイルを読む。tests.system はシステム（シナリオ）スイート、すなわちブラウザ、シミュレーター、デバイスを起動するフォルダーを指定する。tests.dirs と必ず分離する（重複すると C11 が @covers のないテストとして報告）。設定時は C15 が人間アクターの全 active UC（02-actors.md の 種別 が 人間 で始まる）に少なくとも一つの @scenario UC-nnn（scenario_pattern）付きテストを要求し、未定義 UC を指定する @scenario を報告する。docs.actors は C15 が読むアクター表。tests.system を省略すれば C15 をスキップする。",
+  "_comment": "利用プロジェクト直下に traceconfig.json として置く（orchestrator が人間の承認を得て書く。値はスタックの rules-* の common-traceconfig が差分を示す）。tools/trace-check / spec-lint / contract-run / gate-hook が読む。キーの意味と検査項目は tools/trace-check/README.md。紐づきの宣言（docs.actors / vision / glossary / shared、source、tests、tests.system、schema、contract とその子）は省略できない。対象が無いなら { \"none\": \"<理由>\" } と書く。none と範囲の一致 0 件が通るのは、それを求める active な文書・fixed な契約が無い間だけ（C26）。baseline と、コードに書く例外の印は無い（ADR-0056）。dirs 系はパスか glob の配列で、\"!\" で始まるものは除外。注釈はコメントの中だけを数える（comment_pattern）。正規表現は u フラグでコンパイルする。",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",
@@ -8,9 +8,11 @@
     "nfr": "\\bNFR-\\d{3}\\b",
     "adr": "\\bADR-\\d{4}\\b"
   },
-  "covers_pattern": "@covers\\s+(REQ-\\d{3})(?:#([\\w-]+))?",
-  "scenario_pattern": "@scenario\\s+(UC-\\d{3})",
-  "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?:\\s*[,/]\\s*(?:REQ|BR|UC)-\\d{3})*)",
+  "covers_pattern": "@covers\\s+(REQ-\\d{3})(?!\\d)(?:#([\\w-]+))?",
+  "scenario_pattern": "@scenario\\s+(UC-\\d{3})(?!\\d)",
+  "nfr_pattern": "@covers\\s+(NFR-\\d{3})(?!\\d)",
+  "operation_pattern": "@operation\\s+(UC-\\d{3})#(\\w+)",
+  "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?!\\d)(?:\\s*[,、/]\\s*(?:REQ|BR|UC)-\\d{3}(?!\\d))*)",
   "docs": {
     "goals_dir": "docs/goals",
     "goals_backlog": "docs/goals-backlog.md",
@@ -20,14 +22,15 @@
     "verification_global": "docs/verification/GLOBAL.md",
     "verification_deferred": "docs/verification/DEFERRED.md",
     "shared": "docs/_shared/components.yaml",
-    "actors": "docs/02-actors.md"
+    "actors": "docs/02-actors.md",
+    "vision": "docs/00-vision.md",
+    "glossary": "docs/01-glossary.md"
   },
   "commands": {
-    "_comment": "利用プロジェクト自身の検証をそれぞれシェル一行で指定する（cwd = 利用プロジェクト直下）。stop-gate は typecheck -> lint -> test の順に実行し、最初の失敗で停止する。欠落キーはスキップと報告し、推測してはならない。contract_adapter は tools/contract-run が JSONL（stdin: 一行一リクエスト、stdout: 一行一応答）で通信し、全契約例をプロセス内実行するプロセス。利用プロジェクトがそのアダプターを書くまで省略する（contract-run は未実行と報告）。system はシナリオ（システム）スイート全体を一度実行するコマンド。宣言時は stop-gate が test 後に実行し、未宣言はスキップと報告する。test の探索に含めず、毎回の終了時のブラウザ / シミュレーター実行がこの利用プロジェクトには遅すぎるなら未宣言にする（CI では引き続き実行）。",
+    "_comment": "tools/gate-hook/stop-gate.mjs（最終ゲート）と tools/contract-run が読み、trace-check は読まない（cwd = 利用プロジェクト直下）。typecheck / lint / test / system はシェル 1 行か { \"none\": \"<理由>\" } で必ず宣言する（欠落は失敗。tests を宣言していれば test は none にできない）。stop-gate は typecheck -> lint -> test -> system の順に実行する。system はシナリオスイート全体を 1 回実行するコマンドで、終了ごとに走らせるには遅すぎるなら理由付きの none にする（CI では実行する）。contract_adapter は契約の実例を実行するプロセス（JSONL。stdin 1 行 1 リクエスト / stdout 1 行 1 応答）。test-author が書いてから宣言する。fixed 契約の owned の操作があるのに未宣言なら contract-run が失敗にする（ADR-0056）。",
     "typecheck": "npx tsc --noEmit",
     "lint": "npx eslint .",
     "test": "npm test --silent",
-    "contract_adapter": "npx tsx scripts/contract-adapter.ts",
     "system": "npx playwright test"
   },
   "policy": {
@@ -42,35 +45,56 @@
   },
   "source": {
     "dirs": [
-      "src"
+      "src",
+      "!**/*.test.*",
+      "!**/*.spec.*"
     ],
     "extensions": [
-      ".ts"
-    ]
+      ".ts",
+      ".tsx"
+    ],
+    "unit_dirs": [
+      "src/usecase/**"
+    ],
+    "support_dirs": [
+      "src/index.*",
+      "src/*.d.ts",
+      "src/domain/**",
+      "src/infra/**",
+      "src/shared/**"
+    ],
+    "unit_pattern": "^export\\s+(?:default\\s+)?(?:async\\s+)?function\\*?\\s*(\\w*)\\s*[<(]|^export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+(\\w+)|^export\\s+(?:const|let)\\s+(\\w+)\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:<[^>]*>\\s*)?(?:\\(|function\\b|\\w+\\s*=>|\\w+\\s*\\(\\s*(?:async\\s*)?(?:\\(|function\\b|\\w+\\s*=>))|^export\\s+default\\s+(?:(\\w+)\\s*;?\\s*$|(?:async\\s*)?(?:\\(|\\w+\\s*\\())|^export\\s*\\{(?!(?:\\s*type\\s+\\w+(?:\\s+as\\s+\\w+)?\\s*,?)*\\s*\\})\\s*([^}]*?)\\s*(?:\\}\\s*;?\\s*)?$",
+    "implements_placement": "before",
+    "entry_pattern": "\\.(?:get|post|put|patch|delete|all)\\(\\s*[\"'`](\\/[^\"'`]*)|\\.route\\(\\s*[\"'`](\\/[^\"'`]*)|\\.on\\(\\s*(?:[\"'`][A-Z]+[\"'`]|\\[[^\\]]*\\])\\s*,\\s*[\"'`](\\/[^\"'`]*)"
   },
   "tests": {
     "dirs": [
       "tests"
     ],
     "extensions": [
-      ".ts"
+      ".ts",
+      ".tsx"
     ],
-    "test_pattern": "^\\s*(?:it|test)\\(\\s*[\"'`](.+?)[\"'`]",
+    "test_pattern": "^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent|each\\(.*?\\)|for\\(.*?\\)))*\\(\\s*[\"'`](.+?)[\"'`]|^\\s*x?(?:it|test)(?:\\.\\w+)*\\.(?:each|for)[(`]\\s*\\[?\\s*$|^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent))*\\(\\s*$",
+    "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)(?:\\.\\w+)*\\(\\s*[\"'`].*?[\"'`]\\s*,\\s*\\{[^}]*\\b(?:skip|todo):\\s*true",
     "covers_placement": "before",
-    "exempt_pattern": "//\\s*仕様外:",
     "system": {
       "dirs": [
         "e2e"
       ],
       "extensions": [
         ".ts"
-      ]
+      ],
+      "test_pattern": "^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent|each\\(.*?\\)|for\\(.*?\\)))*\\(\\s*[\"'`](.+?)[\"'`]|^\\s*x?(?:it|test)(?:\\.\\w+)*\\.(?:each|for)[(`]\\s*\\[?\\s*$|^\\s*x?(?:it|test)(?:\\.(?:skip|only|fixme|todo|concurrent))*\\(\\s*$",
+      "pending_pattern": "^\\s*(?:it|test|describe)(?:\\.describe)?\\.(?:skip|fixme|todo|skipIf|runIf)\\b|^\\s*x(?:it|test|describe)\\(|^\\s*x?(?:it|test)(?:\\.\\w+)*\\(\\s*[\"'`].*?[\"'`]\\s*,\\s*\\{[^}]*\\b(?:skip|todo):\\s*true",
+      "scenario_placement": "before"
     }
   },
   "schema": {
     "files": [
       "prisma/schema.prisma"
-    ]
+    ],
+    "constraint_pattern": "^\\s*(\\w+)\\s+\\S+(?:(?!\\/\\/).)*@unique\\b|^\\s*@@unique\\(\\s*(?:fields:\\s*)?\\[([^\\]]+)\\]"
   },
   "layering": {
     "root": "src",
@@ -90,8 +114,6 @@
   },
   "contract": {
     "error_source": "src/domain/errors.ts",
-    "error_code_pattern": "code\\s*=\\s*['\"]([A-Z_]+)['\"]",
-    "exclude_codes": []
-  },
-  "baseline_file": ".trace-baseline.json"
+    "error_code_pattern": "\\bcode\\s*[:=]\\s*['\"]([A-Z][A-Z0-9_]*)['\"]"
+  }
 }

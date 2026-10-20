@@ -13,13 +13,13 @@
 //      要求: {"id":1,"uc":"UC-012","operation":"createItem","transport":"http","direction":"outbound",
 //             "owned":true,"auth":"bearer","wire":{...}|null,"entry":"..."|null,"request":{...}|null,"case":"ok"}
 //      応答: {"id":1,"response":{...}} | {"id":1,"error":"CODE"} | {"id":1,"skip":"<理由>"}
-//    アダプタが未宣言なら「検査していない」と明示して 0 で終わる（skip であって pass ではない）。
+//    実行する実例があるのにアダプタが未宣言なら失敗（1）。実例が 1 件も無いときだけアダプタなしで 0 で終わる（ADR-0056）。
 //
 //  判定（1 例ごと）:
 //    正常例（response あり / error なし）: 応答が response で、例の response が実際の response の部分集合であること
 //      （プリミティブは厳密一致、配列は同じ長さで要素ごとに部分集合、オブジェクトは例のキーが全部あり、実際側の余分なキーは許す）
 //    異常例（error あり）: 応答が同じ code の error であること。response が返れば fail、別 code も fail
-//    skip 応答: 理由つきで skip に数える（pass にはしない。skip は見える負債）
+//    skip 応答: 理由つきで skip に数え、失敗として扱う（紐づきに例外を作らない。ADR-0056）
 //    response も error も無い例: 例の不備として fail
 //
 //  使い方:
@@ -31,311 +31,17 @@
 //      --json               {results:[{uc,operation,case,verdict,detail}], summary:{pass,fail,skip}} を出力
 //      --timeout            実行全体の秒数（既定 120）
 //
-//  終了コード: 0 = fail なし（skip は許す。一覧に出す） / 1 = fail あり / 2 = 設定・アダプタの異常
+//  終了コード: 0 = fail も skip もない / 1 = fail か skip がある、または実例があるのにアダプタが無い / 2 = 設定・アダプタの異常
 //  baseline は持たない（実行結果は負債ではなく、その場で直すもの）。
 //
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
+import { lineOf, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 
 const TAG = "[contract-run]";
 const UC_DIR_RE = /^UC-\d+-[a-z0-9-]+$/;
-
-//  ---- 厳格サブセット YAML パーサ ------------------------------------------------
-//
-//  tools/spec-lint/spec-lint.mjs の同名関数群の写し（spec-lint は何も export せず、読み込むと
-//  main() が走るため import できない）。判断の理由は docs/adr/0002。spec-lint 側を直したら
-//  ここも同じ内容に揃える。
-
-//  受理するのはマップ / シーケンス / フロー記法 / スカラ / コメントのみ。
-//  アンカー・エイリアス（& / *）と複数行スカラ（| / >）は構文エラーにする。
-//  共有は _shared/components.yaml を通す・長い散文は UC.md / REQ に置く、という
-//  契約の分担を「未対応」ではなく「エラー」として入口で落とすためで、
-//  サブセットを狭くしていること自体が検査になっている。
-//
-//  lenient: true は旧 OpenAPI 契約の読み取り（convert）専用。複数行スカラを
-//  1 行に畳んで受理する。検証には使わない。
-
-const BLOCK_INDICATORS = new Set(["|", ">", "|-", ">-", "|+", ">+", "|2", ">2"]);
-const isBlockIndicator = (s) => BLOCK_INDICATORS.has(s) || /^[|>][-+]?\d*$/.test(s);
-const isQuoted = (s) =>
-	(s.startsWith('"') && s.endsWith('"') && s.length > 1) ||
-	(s.startsWith("'") && s.endsWith("'") && s.length > 1);
-//  キーに {orderId} のようなテンプレート片が入りうる（フロー記法は parseNode が先に見る）
-const MAP_ENTRY_RE = /^(?:"[^"]*"|'[^']*'|[^:#]+?)\s*:(\s|$)/;
-
-//  行末コメントを落とす（引用符の中の # は残す）
-function stripComment(line) {
-	let out = "";
-	let quote = null;
-	for (let i = 0; i < line.length; i++) {
-		const c = line[i];
-		if (quote) {
-			out += c;
-			if (c === "\\" && quote === '"') out += line[++i] ?? "";
-			else if (c === quote) quote = null;
-			continue;
-		}
-		if (c === '"' || c === "'") {
-			quote = c;
-			out += c;
-			continue;
-		}
-		if (c === "#" && (i === 0 || /\s/.test(line[i - 1]))) break;
-		out += c;
-	}
-	return out;
-}
-
-function parseFlow(text, ctx, lineNo) {
-	const st = { s: text, i: 0 };
-	const skip = () => {
-		while (st.i < st.s.length && /\s/.test(st.s[st.i])) st.i++;
-	};
-	const readQuoted = () => {
-		const q = st.s[st.i++];
-		let out = "";
-		while (st.i < st.s.length && st.s[st.i] !== q) {
-			if (st.s[st.i] === "\\" && q === '"') st.i++;
-			out += st.s[st.i++];
-		}
-		st.i++;
-		return out;
-	};
-	const readBare = (stops) => {
-		let out = "";
-		while (st.i < st.s.length && !stops.includes(st.s[st.i])) out += st.s[st.i++];
-		return out.trim();
-	};
-	const readValue = () => {
-		skip();
-		const c = st.s[st.i];
-		if (c === "{") {
-			st.i++;
-			const obj = {};
-			skip();
-			if (st.s[st.i] === "}") {
-				st.i++;
-				return obj;
-			}
-			for (;;) {
-				skip();
-				const key = st.s[st.i] === '"' || st.s[st.i] === "'" ? readQuoted() : readBare([":", ",", "}"]);
-				skip();
-				if (st.s[st.i] !== ":") {
-					ctx.reject(lineNo, `フロー記法のマップに ":" が無い: "${text}"`);
-					return obj;
-				}
-				st.i++;
-				obj[key] = readValue();
-				skip();
-				if (st.s[st.i] === ",") {
-					st.i++;
-					continue;
-				}
-				if (st.s[st.i] === "}") {
-					st.i++;
-					return obj;
-				}
-				ctx.reject(lineNo, `フロー記法のマップが閉じていない: "${text}"`);
-				return obj;
-			}
-		}
-		if (c === "[") {
-			st.i++;
-			const arr = [];
-			skip();
-			if (st.s[st.i] === "]") {
-				st.i++;
-				return arr;
-			}
-			for (;;) {
-				arr.push(readValue());
-				skip();
-				if (st.s[st.i] === ",") {
-					st.i++;
-					continue;
-				}
-				if (st.s[st.i] === "]") {
-					st.i++;
-					return arr;
-				}
-				ctx.reject(lineNo, `フロー記法のシーケンスが閉じていない: "${text}"`);
-				return arr;
-			}
-		}
-		if (c === '"' || c === "'") return readQuoted();
-		return coerce(readBare([",", "}", "]"]), ctx, lineNo);
-	};
-	const v = readValue();
-	skip();
-	if (st.i < st.s.length) ctx.reject(lineNo, `フロー記法の後に余分な文字がある: "${st.s.slice(st.i)}"`);
-	return v;
-}
-
-function coerce(s, ctx, lineNo) {
-	if (s === "") return null;
-	if (s.startsWith("&") || s.startsWith("*"))
-		return ctx.reject(
-			lineNo,
-			`アンカー / エイリアス "${s.split(/\s/)[0]}" は使えない（共有は _shared/components.yaml の $ref を通す）`,
-		);
-	if (isQuoted(s)) return s.slice(1, -1);
-	if (s === "true") return true;
-	if (s === "false") return false;
-	if (s === "null" || s === "~") return null;
-	if (/^-?\d+$/.test(s)) return Number(s);
-	if (/^-?\d*\.\d+$/.test(s)) return Number(s);
-	return s;
-}
-
-function parseScalar(raw, ctx, lineNo) {
-	const s = raw.trim();
-	if (s.startsWith("{") || s.startsWith("[")) return parseFlow(s, ctx, lineNo);
-	return coerce(s, ctx, lineNo);
-}
-
-//  値に行番号を持たせる（メッセージで位置を出すため。列挙には出さない）
-function stamp(node, line, keyLines) {
-	if (node && typeof node === "object") {
-		Object.defineProperty(node, "__line", { value: line, enumerable: false });
-		if (keyLines) Object.defineProperty(node, "__keyLines", { value: keyLines, enumerable: false });
-	}
-	return node;
-}
-const lineOf = (node, key) =>
-	(node && node.__keyLines && node.__keyLines[key]) || (node && node.__line) || 0;
-
-function parseStrictYaml(text, opts = {}) {
-	const lenient = !!opts.lenient;
-	const problems = [];
-	const ctx = {
-		lenient,
-		reject: (line, msg) => {
-			problems.push({ line, msg });
-			return null;
-		},
-	};
-
-	//  1) 行を正規化（コメント除去・空行除去）しつつ、タブを弾く
-	const src = text.split(/\r?\n/);
-	const rows = [];
-	for (let i = 0; i < src.length; i++) {
-		if (src[i].includes("\t")) ctx.reject(i + 1, "タブ文字は使えない（インデントは半角スペース）");
-		const line = stripComment(src[i]).replace(/\s+$/, "");
-		if (line.trim() === "") continue;
-		if (line.trim() === "---" || line.trim() === "...") continue;
-		rows.push({ no: i + 1, indent: line.match(/^ */)[0].length, text: line.trim() });
-	}
-
-	//  2) "- key: value" を "-" と "key: value" の 2 行に割って、以降を一様に扱う
-	const flat = [];
-	for (const r of rows) {
-		if (r.text !== "-" && r.text.startsWith("- ")) {
-			const innerOffset = r.text.length - r.text.slice(2).replace(/^ +/, "").length;
-			flat.push({ no: r.no, indent: r.indent, text: "-" });
-			flat.push({ no: r.no, indent: r.indent + innerOffset, text: r.text.slice(2).trim() });
-		} else {
-			flat.push(r);
-		}
-	}
-
-	let pos = 0;
-	const skipDeeper = (indent) => {
-		while (pos < flat.length && flat[pos].indent > indent) pos++;
-	};
-	const consumeBlock = (indent) => {
-		const parts = [];
-		while (pos < flat.length && flat[pos].indent > indent) parts.push(flat[pos++].text);
-		return parts.join(" ");
-	};
-
-	function parseNode(indent) {
-		if (pos >= flat.length || flat[pos].indent < indent) return null;
-		const row = flat[pos];
-		if (row.text.startsWith("{") || row.text.startsWith("[")) {
-			pos++;
-			return parseFlow(row.text, ctx, row.no);
-		}
-		if (row.text === "-") return parseSeq(indent);
-		if (!MAP_ENTRY_RE.test(row.text)) {
-			pos++;
-			return parseScalar(row.text, ctx, row.no);
-		}
-		return parseMap(indent);
-	}
-
-	function parseSeq(indent) {
-		const arr = [];
-		const startLine = flat[pos].no;
-		while (pos < flat.length && flat[pos].indent === indent && flat[pos].text === "-") {
-			pos++;
-			if (pos < flat.length && flat[pos].indent > indent) arr.push(parseNode(flat[pos].indent));
-			else arr.push(null);
-		}
-		return stamp(arr, startLine);
-	}
-
-	function parseMap(indent) {
-		const obj = {};
-		const keyLines = {};
-		const startLine = flat[pos].no;
-		while (pos < flat.length && flat[pos].indent >= indent) {
-			const row = flat[pos];
-			if (row.indent > indent) {
-				//  違反行の配下は読み飛ばし、同じ深さに戻って走査を続ける（連鎖エラーを出さない）
-				ctx.reject(row.no, `インデントが揃っていない（${row.indent} 桁）`);
-				skipDeeper(indent);
-				continue;
-			}
-			if (row.text === "-") break;
-			const m = row.text.match(/^("[^"]*"|'[^']*'|[^:]+?)\s*:\s*(.*)$/);
-			if (!m) {
-				ctx.reject(row.no, `マップの "キー: 値" として読めない: "${row.text}"`);
-				pos++;
-				continue;
-			}
-			const key = isQuoted(m[1].trim()) ? m[1].trim().slice(1, -1) : m[1].trim();
-			const rest = m[2].trim();
-			pos++;
-			let value;
-			if (rest === "" || rest.startsWith("&") || rest.startsWith("*")) {
-				if (rest !== "")
-					ctx.reject(
-						row.no,
-						`アンカー / エイリアス "${rest.split(/\s/)[0]}" は使えない（共有は _shared/components.yaml の $ref を通す）`,
-					);
-				if (pos < flat.length && flat[pos].indent > indent) value = parseNode(flat[pos].indent);
-				else if (pos < flat.length && flat[pos].indent === indent && flat[pos].text === "-")
-					value = parseSeq(indent);
-				else value = null;
-			} else if (isBlockIndicator(rest)) {
-				if (lenient) {
-					value = consumeBlock(indent);
-				} else {
-					ctx.reject(row.no, `複数行スカラ "${rest}" は使えない（長い散文は UC.md / REQ に置く）`);
-					skipDeeper(indent);
-					value = null;
-				}
-			} else {
-				value = parseScalar(rest, ctx, row.no);
-			}
-			if (key in obj) ctx.reject(row.no, `キー "${key}" が重複している`);
-			obj[key] = value;
-			keyLines[key] = row.no;
-		}
-		if (pos < flat.length && flat[pos].indent > indent) {
-			ctx.reject(flat[pos].no, `インデントが揃っていない（${flat[pos].indent} 桁）`);
-			skipDeeper(indent);
-		}
-		return stamp(obj, startLine, keyLines);
-	}
-
-	const root = flat.length === 0 ? {} : parseNode(flat[0].indent);
-	if (pos < flat.length) ctx.reject(flat[pos].no, `トップレベルのインデントが揃っていない`);
-	return { root: root || {}, problems };
-}
 
 //  ---- 設定 -------------------------------------------------------------------
 
@@ -574,7 +280,7 @@ function report(results, summary, opts) {
 	}
 	for (const r of results)
 		console.log(`${r.verdict.padEnd(4)}  ${r.uc} ${r.operation}.${r.case}${r.detail ? `  ${r.detail}` : ""}`);
-	console.log(`pass ${summary.pass} / fail ${summary.fail} / skip ${summary.skip} (skipped は検査されていない)`);
+	console.log(`pass ${summary.pass} / fail ${summary.fail} / skip ${summary.skip} (skip は検査されていないので失敗に数える)`);
 }
 
 function adapterFailure(msg, stderrLines) {
@@ -621,16 +327,10 @@ async function main() {
 	const cfg = loadConfig(opts.config ? resolve(opts.config) : join(root, "traceconfig.json"));
 	if (!cfg) return 2;
 	const docsDir = resolve(root, opts.docs);
-
-	//  アダプタ未宣言 ＝ 検査していない。pass ではないことを行に書いて 0 で終える
-	const cmd = cfg.commands && typeof cfg.commands.contract_adapter === "string" ? cfg.commands.contract_adapter.trim() : "";
-	if (!cmd) {
-		const note = `${TAG} commands.contract_adapter 未宣言: 契約の実行検査は行われていない`;
-		if (opts.json) {
-			console.error(note);
-			console.log(JSON.stringify({ results: [], summary: { pass: 0, fail: 0, skip: 0 }, note }, null, 2));
-		} else console.log(note);
-		return 0;
+	//  docs の場所の書き損じで「実行する実例が無い」と黙って通らないよう、goals が無ければ設定エラー（ADR-0056）
+	if (!existsSync(join(docsDir, "goals"))) {
+		console.error(`${TAG} ${join(opts.docs, "goals")} が無い。--docs の指定を確かめるか、goals/ を作る（空なら .gitkeep を置く）`);
+		return 2;
 	}
 
 	//  契約を集めて実行計画に落とす。読めない契約は fail（実装の不一致）ではなく設定異常
@@ -643,6 +343,20 @@ async function main() {
 		}
 		const plan = planContract(file, node, opts);
 		if (plan) items.push(...plan.items);
+	}
+
+	//  アダプタ未宣言で実行する実例があれば失敗。実例が無いときだけ、検査するものが無いとして 0 で終える
+	const cmd = cfg.commands && typeof cfg.commands.contract_adapter === "string" ? cfg.commands.contract_adapter.trim() : "";
+	if (!cmd) {
+		const runnable = items.filter((it) => !it.malformed).length;
+		const note = runnable
+			? `${TAG} commands.contract_adapter 未宣言: 実行する実例が ${runnable} 件あるのに実行できない（アダプタを書いて宣言する）`
+			: `${TAG} 実行する実例が無い（commands.contract_adapter は未宣言）`;
+		if (opts.json) {
+			console.error(note);
+			console.log(JSON.stringify({ results: [], summary: { pass: 0, fail: 0, skip: 0 }, note }, null, 2));
+		} else console.log(note);
+		return runnable ? 1 : 0;
 	}
 
 	const requests = [];
@@ -674,7 +388,7 @@ async function main() {
 
 	const summary = summarize(results);
 	report(results, summary, opts);
-	return summary.fail > 0 ? 1 : 0;
+	return summary.fail > 0 || summary.skip > 0 ? 1 : 0;
 }
 
 process.exit(await main());

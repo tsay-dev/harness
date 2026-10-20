@@ -1,6 +1,6 @@
 //
 //  spec-lint テスト用の最小 docs 一式を一時ディレクトリに書き出す。
-//  validate --strict が 0 で通る「素の状態」を基準にし、各テストは 1 箇所だけ崩して違反を確かめる。
+//  validate が 0 で通る「素の状態」を基準にし、各テストは 1 箇所だけ崩して違反を確かめる。
 //  書式はテンプレート templates/develop/ に合わせる（テンプレートの改定で基準が崩れたら fixture も直す）。
 //
 import { mkdirSync, writeFileSync } from "node:fs";

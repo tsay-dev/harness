@@ -25,11 +25,10 @@ SwiftUI iOS でテストを置く場所、入口、注釈だけを持つ。View 
 ## 注釈
 
 - 最外側のグループ名は `UC-012 <UC title>`（`docs/goals/` の UC ディレクトリ名と同じキー）。Swift Testing は `@Suite("UC-012 …")`、XCTest は最外側のクラス名または名前に `UC-012` を含める。タグなしの新規テストを作らない。
-- 各テスト本体の先頭行に `// @covers REQ-045#class` を正確に 1 つ置く（`trace-check` C10 / C11 が読む。クラスは先に REQ の `## 検証方針` で宣言する）。
+- 各テスト本体の先頭行に `// @covers REQ-045#class` を正確に 1 つ置く（`trace-check` C10 / C11 が読む。クラスは先に REQ の `## 検証方針` で宣言する）。Swift Testing は `@Test(…)` と `func` を 1 行に書き、XCTest はメソッド名を `test` で始める（`trace-check` がその行をテストの印として読む）。
 
 ```swift
-@Test("UC-012 ログイン — 成功するとセッションが立つ")
-func loginSucceeds() async throws {
+@Test("UC-012 ログイン — 成功するとセッションが立つ") func loginSucceeds() async throws {
   // @covers REQ-045#accept-standard
   let useCase = LoginUseCase(users: FakeUserRepository(result: .success(sampleUser)))
   try await useCase.execute(email: "a@b.c", password: "secret")

@@ -19,7 +19,7 @@
 //  契約の必須 x- キーはテンプレートから導出する（書式改定はテンプレートを直せば lint も追従する。
 //  テンプレートで「# optional」と注記されたキーだけ任意）。閉じた語彙（status / phase / pattern /
 //  transport / direction）は実行コードでしか強制できないため本ツールが持つ。
-//  トレーサビリティ（被覆・参照・配置の整合 C1–C15）は tools/trace-check の仕事で、ここでは見ない。
+//  トレーサビリティ（被覆・参照・配置の整合 C1–C27）は tools/trace-check の仕事で、ここでは見ない。
 //
 //  契約フォーマットの判断は docs/adr/ADR-0001（OpenAPI をやめた理由）と
 //  docs/adr/ADR-0002（パーサを自前実装し YAML を厳格サブセットに限る理由）。
@@ -27,8 +27,7 @@
 //  使い方:
 //    node spec-lint.mjs validate [--docs docs]      全 docs を検証（フォーマット＋ライフサイクル不変条件）
 //        [--ignore-legacy-layout]                   旧レイアウト（docs/specs/）が残っていても新レイアウト側の検査を続ける（移行中）
-//        [--update-baseline] [--strict] [--baseline .spec-baseline.json]
-//                                                   trace-check と同じ baseline ラチェット。既知の違反を台帳化し、以降は新規違反だけ落とす
+//                                                   baseline は持たない。違反はすべて失敗（ADR-0056）
 //    node spec-lint.mjs gate --message <file>       commit メッセージの UC: トレーラの UC が実装可能か検証（baseline は見ない）
 //    node spec-lint.mjs gate --uc UC-012            指定 UC が実装可能（UC / REQ が active・契約 fixed）か検証
 //        [--unit <名前>]                            モノレポ（traceconfig.json の git.units）のルートで実行するときの unit。
@@ -42,6 +41,8 @@
 import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mjs";
+import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -58,6 +59,8 @@ const DEFERRED_STATUS = ["living"]; //  DEFERRED（台帳は常に現在形。dr
 const ADR_STATUS = ["proposed", "accepted", "superseded"];
 const CONTRACT_STATUS = ["draft", "fixed"]; //  fixed ＝ 構造オラクル不整合ゼロで orchestrator が凍結した
 const PHASES = ["定義", "構造", "実装", "検証", "完了"]; //  UC.md の phase:（工程台帳。orchestrator だけが進める）
+//  アクター表の 種別 は「人間」か「システム」で始まる（trace-check C15 は「システム」で始まるものだけを人間でないと数える）
+const ACTOR_KINDS = ["人間", "システム"];
 const EARS_PATTERNS = ["Ubiquitous", "Event-driven", "State-driven", "Unwanted behaviour", "Optional"];
 const POLICY = "検証方針"; //  REQ の検証方針セクション（所有者は test-author。中身の判定は trace-check C2/C10）
 const isSettled = (s) => !!s && s !== "draft" && s !== "proposed";
@@ -85,22 +88,12 @@ const err = (file, msg) => errors.push({ file, msg });
 const warn = (file, msg) => warns.push({ file, msg });
 
 //  --- パーサ ---
-function parseFrontmatter(text) {
-	const lines = text.split(/\r?\n/);
-	if (lines[0] !== "---") return { data: {}, body: text, hasFm: false, raw: [] };
-	const data = {};
-	const raw = [];
-	let i = 1;
-	for (; i < lines.length; i++) {
-		if (lines[i] === "---") {
-			i++;
-			break;
-		}
-		raw.push(lines[i]);
-		const m = lines[i].match(/^([^:#]+):\s*(.*)$/);
-		if (m) data[m[1].trim()] = m[2].replace(/\s+#.*$/, "").trim(); //  行末の "# コメント" を除去
-	}
-	return { data, body: lines.slice(i).join("\n"), hasFm: true, raw };
+//  frontmatter は tools/_shared/frontmatter.mjs が唯一の読み方。曖昧な書き方（先頭が空白の行、キーの重複、区切りもどき）は
+//  ツールごとに読みが割れてすり抜けになるので違反にする（ADR-0056）
+function readFm(file) {
+	const r = parseFrontmatter(readFileSync(file, "utf8"));
+	for (const p of r.problems) err(`${file}:${p.line}`, p.msg);
+	return r;
 }
 
 function getSections(body) {
@@ -158,7 +151,7 @@ function blockquoteParagraphs(text) {
 function deriveDocFormat(name, fallback) {
 	const file = join(TEMPLATE_DIR, name);
 	if (!existsSync(file)) return fallback;
-	const { raw, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { raw, body } = readFm(file);
 	const required = [];
 	const optional = [];
 	for (const line of raw) {
@@ -353,19 +346,26 @@ function validateSingleton(file, kind, expectedId, required, vocab = SINGLETON_S
 		return null;
 	}
 	const fmt = FORMATS[kind];
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	checkRequiredFm(file, data, fmt.required);
 	if (data.id && data.id !== expectedId) err(file, `id は ${expectedId}。実際: "${data.id}"`);
 	const status = checkStatus(file, data.status, vocab);
 	checkSections(file, body, fmt.sections, status);
 	checkSentinels(file, body, status);
 	checkHygiene(file, body, "singleton");
+	if (kind === "actors")
+		for (const line of body.split(/\r?\n/)) {
+			const cells = line.split("|").map((c) => c.trim());
+			if (cells.length < 5 || !/^ACT-\d+$/.test(cells[1])) continue;
+			if (!ACTOR_KINDS.some((k) => cells[3].startsWith(k)))
+				err(file, `${cells[1]}: 種別は ${ACTOR_KINDS.join(" / ")} のどちらかで始める。実際: "${cells[3]}"`);
+		}
 	return { status };
 }
 
 function validateGoal(file, dirId) {
 	const fmt = FORMATS.goal;
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, NODE_STATUS);
 	if (data.id && dirId && data.id !== dirId) err(file, `id "${data.id}" がディレクトリ名の ID "${dirId}" と不一致`);
@@ -376,7 +376,7 @@ function validateGoal(file, dirId) {
 
 function validateUC(file, dirId) {
 	const fmt = FORMATS.uc;
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, NODE_STATUS);
 	if (data.phase && !PHASES.includes(data.phase)) err(file, `phase は ${PHASES.join("|")} のいずれか。実際: "${data.phase}"`);
@@ -409,7 +409,7 @@ function validateUC(file, dirId) {
 
 function validateReq(file, ucDirId) {
 	const fmt = FORMATS.req;
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	const stem = basename(file, ".md");
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, NODE_STATUS);
@@ -435,7 +435,7 @@ function validateReq(file, ucDirId) {
 
 function validateBR(file) {
 	const fmt = FORMATS.br;
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	const stem = basename(file, ".md");
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, NODE_STATUS);
@@ -449,7 +449,7 @@ function validateBR(file) {
 
 function validateNFR(file) {
 	const fmt = FORMATS.nfr;
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	const stem = basename(file, ".md");
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, NODE_STATUS);
@@ -463,7 +463,7 @@ function validateNFR(file) {
 
 function validateADR(file) {
 	const fmt = FORMATS.adr;
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	const name = basename(file);
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, ADR_STATUS);
@@ -475,297 +475,6 @@ function validateADR(file) {
 	checkSections(file, body, fmt.sections, status);
 	checkSentinels(file, body, status);
 	return { id: data.id || prefix, status, supersedes: data.supersedes || null };
-}
-
-//  --- 厳格サブセット YAML パーサ（判断の理由は docs/adr/0002）---
-//
-//  受理するのはマップ / シーケンス / フロー記法 / スカラ / コメントのみ。
-//  アンカー・エイリアス（& / *）と複数行スカラ（| / >）は構文エラーにする。
-//  共有は _shared/components.yaml を通す・長い散文は UC.md / REQ に置く、という
-//  契約の分担を「未対応」ではなく「エラー」として入口で落とすためで、
-//  サブセットを狭くしていること自体が検査になっている。
-//
-//  lenient: true は旧 OpenAPI 契約の読み取り（convert）専用。複数行スカラを
-//  1 行に畳んで受理する。検証には使わない。
-
-const BLOCK_INDICATORS = new Set(["|", ">", "|-", ">-", "|+", ">+", "|2", ">2"]);
-const isBlockIndicator = (s) => BLOCK_INDICATORS.has(s) || /^[|>][-+]?\d*$/.test(s);
-const isQuoted = (s) =>
-	(s.startsWith('"') && s.endsWith('"') && s.length > 1) ||
-	(s.startsWith("'") && s.endsWith("'") && s.length > 1);
-//  キーに {orderId} のようなテンプレート片が入りうる（フロー記法は parseNode が先に見る）
-const MAP_ENTRY_RE = /^(?:"[^"]*"|'[^']*'|[^:#]+?)\s*:(\s|$)/;
-
-//  行末コメントを落とす（引用符の中の # は残す）
-function stripComment(line) {
-	let out = "";
-	let quote = null;
-	for (let i = 0; i < line.length; i++) {
-		const c = line[i];
-		if (quote) {
-			out += c;
-			if (c === "\\" && quote === '"') out += line[++i] ?? "";
-			else if (c === quote) quote = null;
-			continue;
-		}
-		if (c === '"' || c === "'") {
-			quote = c;
-			out += c;
-			continue;
-		}
-		if (c === "#" && (i === 0 || /\s/.test(line[i - 1]))) break;
-		out += c;
-	}
-	return out;
-}
-
-function parseFlow(text, ctx, lineNo) {
-	const st = { s: text, i: 0 };
-	const skip = () => {
-		while (st.i < st.s.length && /\s/.test(st.s[st.i])) st.i++;
-	};
-	const readQuoted = () => {
-		const q = st.s[st.i++];
-		let out = "";
-		while (st.i < st.s.length && st.s[st.i] !== q) {
-			if (st.s[st.i] === "\\" && q === '"') st.i++;
-			out += st.s[st.i++];
-		}
-		st.i++;
-		return out;
-	};
-	const readBare = (stops) => {
-		let out = "";
-		while (st.i < st.s.length && !stops.includes(st.s[st.i])) out += st.s[st.i++];
-		return out.trim();
-	};
-	const readValue = () => {
-		skip();
-		const c = st.s[st.i];
-		if (c === "{") {
-			st.i++;
-			const obj = {};
-			skip();
-			if (st.s[st.i] === "}") {
-				st.i++;
-				return obj;
-			}
-			for (;;) {
-				skip();
-				const key = st.s[st.i] === '"' || st.s[st.i] === "'" ? readQuoted() : readBare([":", ",", "}"]);
-				skip();
-				if (st.s[st.i] !== ":") {
-					ctx.reject(lineNo, `フロー記法のマップに ":" が無い: "${text}"`);
-					return obj;
-				}
-				st.i++;
-				obj[key] = readValue();
-				skip();
-				if (st.s[st.i] === ",") {
-					st.i++;
-					continue;
-				}
-				if (st.s[st.i] === "}") {
-					st.i++;
-					return obj;
-				}
-				ctx.reject(lineNo, `フロー記法のマップが閉じていない: "${text}"`);
-				return obj;
-			}
-		}
-		if (c === "[") {
-			st.i++;
-			const arr = [];
-			skip();
-			if (st.s[st.i] === "]") {
-				st.i++;
-				return arr;
-			}
-			for (;;) {
-				arr.push(readValue());
-				skip();
-				if (st.s[st.i] === ",") {
-					st.i++;
-					continue;
-				}
-				if (st.s[st.i] === "]") {
-					st.i++;
-					return arr;
-				}
-				ctx.reject(lineNo, `フロー記法のシーケンスが閉じていない: "${text}"`);
-				return arr;
-			}
-		}
-		if (c === '"' || c === "'") return readQuoted();
-		return coerce(readBare([",", "}", "]"]), ctx, lineNo);
-	};
-	const v = readValue();
-	skip();
-	if (st.i < st.s.length) ctx.reject(lineNo, `フロー記法の後に余分な文字がある: "${st.s.slice(st.i)}"`);
-	return v;
-}
-
-function coerce(s, ctx, lineNo) {
-	if (s === "") return null;
-	if (s.startsWith("&") || s.startsWith("*"))
-		return ctx.reject(
-			lineNo,
-			`アンカー / エイリアス "${s.split(/\s/)[0]}" は使えない（共有は _shared/components.yaml の $ref を通す）`,
-		);
-	if (isQuoted(s)) return s.slice(1, -1);
-	if (s === "true") return true;
-	if (s === "false") return false;
-	if (s === "null" || s === "~") return null;
-	if (/^-?\d+$/.test(s)) return Number(s);
-	if (/^-?\d*\.\d+$/.test(s)) return Number(s);
-	return s;
-}
-
-function parseScalar(raw, ctx, lineNo) {
-	const s = raw.trim();
-	if (s.startsWith("{") || s.startsWith("[")) return parseFlow(s, ctx, lineNo);
-	return coerce(s, ctx, lineNo);
-}
-
-//  値に行番号を持たせる（メッセージで位置を出すため。列挙には出さない）
-function stamp(node, line, keyLines) {
-	if (node && typeof node === "object") {
-		Object.defineProperty(node, "__line", { value: line, enumerable: false });
-		if (keyLines) Object.defineProperty(node, "__keyLines", { value: keyLines, enumerable: false });
-	}
-	return node;
-}
-const lineOf = (node, key) =>
-	(node && node.__keyLines && node.__keyLines[key]) || (node && node.__line) || 0;
-
-function parseStrictYaml(text, opts = {}) {
-	const lenient = !!opts.lenient;
-	const problems = [];
-	const ctx = {
-		lenient,
-		reject: (line, msg) => {
-			problems.push({ line, msg });
-			return null;
-		},
-	};
-
-	//  1) 行を正規化（コメント除去・空行除去）しつつ、タブを弾く
-	const src = text.split(/\r?\n/);
-	const rows = [];
-	for (let i = 0; i < src.length; i++) {
-		if (src[i].includes("\t")) ctx.reject(i + 1, "タブ文字は使えない（インデントは半角スペース）");
-		const line = stripComment(src[i]).replace(/\s+$/, "");
-		if (line.trim() === "") continue;
-		if (line.trim() === "---" || line.trim() === "...") continue;
-		rows.push({ no: i + 1, indent: line.match(/^ */)[0].length, text: line.trim() });
-	}
-
-	//  2) "- key: value" を "-" と "key: value" の 2 行に割って、以降を一様に扱う
-	const flat = [];
-	for (const r of rows) {
-		if (r.text !== "-" && r.text.startsWith("- ")) {
-			const innerOffset = r.text.length - r.text.slice(2).replace(/^ +/, "").length;
-			flat.push({ no: r.no, indent: r.indent, text: "-" });
-			flat.push({ no: r.no, indent: r.indent + innerOffset, text: r.text.slice(2).trim() });
-		} else {
-			flat.push(r);
-		}
-	}
-
-	let pos = 0;
-	const skipDeeper = (indent) => {
-		while (pos < flat.length && flat[pos].indent > indent) pos++;
-	};
-	const consumeBlock = (indent) => {
-		const parts = [];
-		while (pos < flat.length && flat[pos].indent > indent) parts.push(flat[pos++].text);
-		return parts.join(" ");
-	};
-
-	function parseNode(indent) {
-		if (pos >= flat.length || flat[pos].indent < indent) return null;
-		const row = flat[pos];
-		if (row.text.startsWith("{") || row.text.startsWith("[")) {
-			pos++;
-			return parseFlow(row.text, ctx, row.no);
-		}
-		if (row.text === "-") return parseSeq(indent);
-		if (!MAP_ENTRY_RE.test(row.text)) {
-			pos++;
-			return parseScalar(row.text, ctx, row.no);
-		}
-		return parseMap(indent);
-	}
-
-	function parseSeq(indent) {
-		const arr = [];
-		const startLine = flat[pos].no;
-		while (pos < flat.length && flat[pos].indent === indent && flat[pos].text === "-") {
-			pos++;
-			if (pos < flat.length && flat[pos].indent > indent) arr.push(parseNode(flat[pos].indent));
-			else arr.push(null);
-		}
-		return stamp(arr, startLine);
-	}
-
-	function parseMap(indent) {
-		const obj = {};
-		const keyLines = {};
-		const startLine = flat[pos].no;
-		while (pos < flat.length && flat[pos].indent >= indent) {
-			const row = flat[pos];
-			if (row.indent > indent) {
-				//  違反行の配下は読み飛ばし、同じ深さに戻って走査を続ける（連鎖エラーを出さない）
-				ctx.reject(row.no, `インデントが揃っていない（${row.indent} 桁）`);
-				skipDeeper(indent);
-				continue;
-			}
-			if (row.text === "-") break;
-			const m = row.text.match(/^("[^"]*"|'[^']*'|[^:]+?)\s*:\s*(.*)$/);
-			if (!m) {
-				ctx.reject(row.no, `マップの "キー: 値" として読めない: "${row.text}"`);
-				pos++;
-				continue;
-			}
-			const key = isQuoted(m[1].trim()) ? m[1].trim().slice(1, -1) : m[1].trim();
-			const rest = m[2].trim();
-			pos++;
-			let value;
-			if (rest === "" || rest.startsWith("&") || rest.startsWith("*")) {
-				if (rest !== "")
-					ctx.reject(
-						row.no,
-						`アンカー / エイリアス "${rest.split(/\s/)[0]}" は使えない（共有は _shared/components.yaml の $ref を通す）`,
-					);
-				if (pos < flat.length && flat[pos].indent > indent) value = parseNode(flat[pos].indent);
-				else if (pos < flat.length && flat[pos].indent === indent && flat[pos].text === "-")
-					value = parseSeq(indent);
-				else value = null;
-			} else if (isBlockIndicator(rest)) {
-				if (lenient) {
-					value = consumeBlock(indent);
-				} else {
-					ctx.reject(row.no, `複数行スカラ "${rest}" は使えない（長い散文は UC.md / REQ に置く）`);
-					skipDeeper(indent);
-					value = null;
-				}
-			} else {
-				value = parseScalar(rest, ctx, row.no);
-			}
-			if (key in obj) ctx.reject(row.no, `キー "${key}" が重複している`);
-			obj[key] = value;
-			keyLines[key] = row.no;
-		}
-		if (pos < flat.length && flat[pos].indent > indent) {
-			ctx.reject(flat[pos].no, `インデントが揃っていない（${flat[pos].indent} 桁）`);
-			skipDeeper(indent);
-		}
-		return stamp(obj, startLine, keyLines);
-	}
-
-	const root = flat.length === 0 ? {} : parseNode(flat[0].indent);
-	if (pos < flat.length) ctx.reject(flat[pos].no, `トップレベルのインデントが揃っていない`);
-	return { root: root || {}, problems };
 }
 
 //  --- 契約 contract.yaml の検証（UC ディレクトリ直下。x-uc がディレクトリの ID と一致すること）---
@@ -1043,7 +752,7 @@ function loadShared(docsDir) {
 //  --- design.md（任意ファイル・warn 中心）---
 function validateDesign(file) {
 	if (!existsSync(file)) return;
-	const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { data, body } = readFm(file);
 	if (!data["ステータス"] || !data["更新日"]) warn(file, `フロントマター（ステータス/更新日）が無い`);
 	if (/Given|When|Then|受け入れ条件/.test(body)) warn(file, `GWT/受け入れ条件らしき記述がある — 振る舞いは docs/goals/**/REQ-nnn.md へ`);
 }
@@ -1053,7 +762,7 @@ function validateDesign(file) {
 //  滞留（古い / 同じ対象に積もる / 対象が消えた）は warn ＝ 昇格か解消かを決める合図であって判定ではない。
 //  フロントマターと見出しは validateSingleton が先に見ている（status は living のみ）
 function validateDeferred(file) {
-	const { body } = parseFrontmatter(readFileSync(file, "utf8"));
+	const { body } = readFm(file);
 	const sec = findSection(stripComments(body), (t) => t.startsWith("保留中"));
 	if (!sec) return; //  見出しの欠落は checkSections が既に出している
 	const rows = tableRows(sec.lines).slice(1); //  先頭はヘッダ行（区切り行は tableRows が除く）
@@ -1137,7 +846,11 @@ function loadModel(docsDir) {
 				else ucs.set(id, entry);
 			}
 			for (const f of listFiles(udir, /^REQ-\d+\.md$/)) entry.reqs.push(validateReq(f, id));
-			for (const f of listFiles(udir, /\.md$/)) if (!/^(UC|REQ-\d+)\.md$/.test(basename(f))) warn(f, `UC ディレクトリに UC.md / REQ-nnn.md 以外の md がある（1 ID 1 ファイル / R-1001）`);
+			//  UC.md / REQ-nnn.md 以外の md は trace-check の対象に入らず、紐づきの検査をすり抜ける（ADR-0056）
+			for (const f of listFiles(udir, /\.md$/)) if (!/^(UC|REQ-\d+)\.md$/.test(basename(f))) err(f, `UC ディレクトリに UC.md / REQ-nnn.md 以外の md がある（1 ID 1 ファイル / R-1001。資料は docs/attic へ）`);
+			//  UC ディレクトリの下位ディレクトリ（_drafts/ など）の md も、どの検査にも数えられない
+			const nested = (dir) => listDirs(dir).flatMap((d) => [...listFiles(join(dir, d), /\.md$/), ...nested(join(dir, d))]);
+			for (const f of nested(udir)) err(f, `UC ディレクトリの下位ディレクトリに md がある（検査の対象にならない。UC ディレクトリ直下に置くか docs/attic へ）`);
 
 			const contractFile = join(udir, "contract.yaml");
 			if (existsSync(contractFile)) {
@@ -1173,7 +886,7 @@ function crossChecks(model) {
 	const { ucs, contracts } = model;
 	//  契約カバレッジ: UC が active（＝実装に進んでよい）なのに契約が無い
 	for (const [id, uc] of ucs) {
-		if (uc.status === "active" && !contracts.has(id)) warn(uc.file, `${id}: UC が active だが contract.yaml が無い（境界ゼロなら operations: {} + x-no-boundary で宣言する）`);
+		if (uc.status === "active" && !contracts.has(id)) err(uc.file, `${id}: UC が active だが contract.yaml が無い（境界ゼロなら operations: {} + x-no-boundary で宣言する）`);
 		if (uc.status === "draft" && uc.phase && uc.phase !== "定義") err(uc.file, `${id}: UC が draft なのに phase が ${uc.phase}（承認前に工程を進めない）`);
 	}
 	//  契約 ↔ UC（親 draft に fixed 契約は不可・異常系の相互整合）
@@ -1185,14 +898,14 @@ function crossChecks(model) {
 		}
 		if (c.status === "fixed" && uc.status === "draft") err(c.file, `親 UC が draft なのに契約が fixed（先に UC を active にする）: ${id}`);
 		if (c.status === "fixed" && uc.reqs.some((r) => r.status === "draft"))
-			err(c.file, `契約が fixed だが draft の REQ がある（${uc.reqs.filter((r) => r.status === "draft").map((r) => r.id).join(", ")}）— 要件が settle する前に契約を凍結しない（移行中は baseline に載せる）`);
+			err(c.file, `契約が fixed だが draft の REQ がある（${uc.reqs.filter((r) => r.status === "draft").map((r) => r.id).join(", ")}）— 要件が settle する前に契約を凍結しない（移行中は契約を draft に戻す。ADR-0056）`);
 		if (uc.hasExceptionDerivation && c.errorCount === 0 && !c.legacy)
 			warn(c.file, `${id}: UC の例外系の走査に導出があるが契約に errors が 1 件も無い`);
 	}
 }
 
 //  --- 利用プロジェクトの作業指針（docs と同じ階層の CLAUDE.md / AGENTS.md。R-1010）---
-//  地図だけを持つので行数で上限を掛ける。メッセージに実際の行数を入れないのは、baseline のキーを編集のたびに動かさないため
+//  地図だけを持つので行数で上限を掛ける
 const HOST_GUIDE_MAX_LINES = 150;
 function validateHostGuides(docsDir) {
 	for (const name of ["CLAUDE.md", "AGENTS.md"]) {
@@ -1217,49 +930,27 @@ function cmdValidate(docsDir, opts) {
 		warn(join(docsDir, "specs"), `旧レイアウトが残っている（--ignore-legacy-layout で続行中）— 移行完了時に attic へ移す`);
 	}
 	if (existsSync(join(docsDir, "PRD.md"))) warn(join(docsDir, "PRD.md"), `旧レイアウトの PRD.md がある — 00-vision.md へ移す（/docs-migrate）`);
-	if (!existsSync(join(docsDir, "goals")) && !existsSync(join(docsDir, "adr"))) {
-		console.log(`spec-lint: ${docsDir}/goals が無いため検証をスキップ`);
-		return 0;
+	//  docs の場所の書き損じで検証が黙って空回りしないよう、goals が無ければ設定エラー（ADR-0056）
+	if (!existsSync(join(docsDir, "goals"))) {
+		console.error(`spec-lint: ${docsDir}/goals が無い。--docs の指定を確かめるか、${docsDir}/goals/ を作る（空なら .gitkeep を置く）`);
+		return 2;
 	}
 	const model = loadModel(docsDir);
 	crossChecks(model);
 	validateHostGuides(docsDir);
-	return reportWithBaseline(opts);
+	return report();
 }
 
-//  --- baseline ラチェット（trace-check と同じ意味論。既存プロジェクトの漸進導入と移行中の既知の赤のため）---
-//  台帳のキーは「ファイル（行番号を除く）: メッセージ」。行番号を落とすのは、無関係な編集で行がずれても
-//  同じ違反を新規と数えないため。--update-baseline は現状を丸ごと記録する（縮めるのも同じコマンド / R-804）
-const baselineKey = (e) => `${e.file.replace(/:\d+$/, "")}: ${e.msg}`;
+//  --- 報告。baseline（既知の違反を通す台帳）は持たない。違反はすべて失敗にする（ADR-0056）---
+const LEGACY_BASELINE = ".spec-baseline.json";
 
-function reportWithBaseline(opts) {
+function report() {
 	for (const w of warns) console.warn(`  warn  ${w.file}: ${w.msg}`);
-	if (opts.updateBaseline) {
-		writeFileSync(opts.baseline, JSON.stringify(errors.map(baselineKey), null, 2) + "\n");
-		console.log(`spec-lint: baseline を更新: ${errors.length} 件を記録（${opts.baseline}）`);
-		return 0;
-	}
-	let baseline = [];
-	if (existsSync(opts.baseline) && !opts.strict) baseline = JSON.parse(readFileSync(opts.baseline, "utf8"));
-	//  同じ鍵は件数で比べる（台帳より増えた分だけが新規）
-	const remaining = new Map();
-	for (const b of baseline) remaining.set(b, (remaining.get(b) || 0) + 1);
-	const known = [];
-	const fresh = [];
-	for (const e of errors) {
-		const key = baselineKey(e);
-		if (remaining.get(key) > 0) {
-			remaining.set(key, remaining.get(key) - 1);
-			known.push(e);
-		} else fresh.push(e);
-	}
-	const resolved = [...remaining.values()].reduce((n, x) => n + x, 0);
-	for (const e of known) console.warn(`  known ${e.file}: ${e.msg}`);
-	for (const e of fresh) console.error(`  ERROR ${e.file}: ${e.msg}`);
-	if (resolved) console.log(`spec-lint: 解消済み ${resolved} 件 -> --update-baseline で baseline を縮めること`);
-	if (fresh.length === 0) console.log(`spec-lint: OK（warn ${warns.length}${known.length ? ` / baseline 済み ${known.length}` : ""}）`);
-	else console.error(`spec-lint: ${fresh.length} 件の新規違反${known.length ? `（baseline 済み ${known.length} 件は別）` : ""}`);
-	return fresh.length > 0 ? 1 : 0;
+	if (existsSync(LEGACY_BASELINE)) console.warn(`  warn  ${LEGACY_BASELINE}: baseline は廃止した（ADR-0056）。読まないので削除する`);
+	for (const e of errors) console.error(`  ERROR ${e.file}: ${e.msg}`);
+	if (errors.length === 0) console.log(`spec-lint: OK（warn ${warns.length}）`);
+	else console.error(`spec-lint: ${errors.length} 件の違反`);
+	return errors.length > 0 ? 1 : 0;
 }
 
 //  --- gate コマンド（draft なのに実装、を防ぐ） ---
@@ -1314,12 +1005,12 @@ function gateUc(docsDir, id) {
 		err("gate", `${id}: 対応する UC が無い（${docsDir}/goals/<GOAL-nn-slug>/${id}-<slug>/UC.md を作る）`);
 		return;
 	}
-	const uc = parseFrontmatter(readFileSync(join(dir, "UC.md"), "utf8")).data;
+	const uc = readFm(join(dir, "UC.md")).data;
 	if (uc.status !== "active") err("gate", `${id}: UC が active でない（現在 ${uc.status ?? "不明"}。draft のまま実装しない）`);
 	const reqs = listFiles(dir, /^REQ-\d+\.md$/);
 	if (reqs.length === 0) err("gate", `${id}: REQ が 1 件も無い（状態 × イベント表から REQ を導出してから実装する）`);
 	for (const f of reqs) {
-		const s = parseFrontmatter(readFileSync(f, "utf8")).data.status;
+		const s = readFm(f).data.status;
 		if (s === "draft" || !s) err("gate", `${id}: ${basename(f, ".md")} が active でない（現在 ${s ?? "不明"}）`);
 	}
 	//  契約は「存在し、かつ fixed」を要求する（契約なしのまま実装が進む事故を断つ）
@@ -1649,17 +1340,9 @@ function cmdConvert(opts) {
 	return 0;
 }
 
-//  --- 出力 ---
-function report() {
-	for (const w of warns) console.warn(`  warn  ${w.file}: ${w.msg}`);
-	for (const e of errors) console.error(`  ERROR ${e.file}: ${e.msg}`);
-	if (errors.length === 0) console.log(`spec-lint: OK（warn ${warns.length}）`);
-	else console.error(`spec-lint: ${errors.length} 件の違反`);
-}
-
 //  --- 引数 ---
 function parseArgs(argv) {
-	const opts = { docs: "docs", baseline: ".spec-baseline.json", direction: "outbound", _: [] };
+	const opts = { docs: "docs", direction: "outbound", _: [] };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--docs") opts.docs = argv[++i];
@@ -1667,9 +1350,10 @@ function parseArgs(argv) {
 		else if (a === "--uc") opts.uc = argv[++i];
 		else if (a === "--unit") opts.unit = argv[++i];
 		else if (a === "--ignore-legacy-layout") opts.ignoreLegacy = true;
-		else if (a === "--update-baseline") opts.updateBaseline = true;
-		else if (a === "--strict") opts.strict = true;
-		else if (a === "--baseline") opts.baseline = argv[++i];
+		else if (["--update-baseline", "--strict", "--baseline"].includes(a)) {
+			console.error(`spec-lint: ${a} は廃止した（baseline を持たず、常にすべての違反で失敗する。ADR-0056）`);
+			process.exit(2);
+		}
 		else if (a === "--out") opts.out = argv[++i];
 		else if (a === "--direction") opts.direction = argv[++i];
 		else if (a === "--date") opts.date = argv[++i];
@@ -1688,7 +1372,7 @@ function main() {
 	if (cmd === "gate") process.exit(cmdGate(opts.docs, opts));
 	if (cmd === "convert") process.exit(cmdConvert(opts));
 	console.error(
-		"usage: spec-lint.mjs validate [--docs docs] [--ignore-legacy-layout] [--update-baseline|--strict] [--baseline f]\n" +
+		"usage: spec-lint.mjs validate [--docs docs] [--ignore-legacy-layout]\n" +
 			"       spec-lint.mjs gate --message f | --uc UC-012 [--unit name]\n" +
 			"       spec-lint.mjs convert <openapi.yaml> [--uc UC-012] [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]",
 	);

@@ -24,7 +24,8 @@ spec-lint はこのディレクトリのテンプレートから必須 frontmatt
 | `verification-GLOBAL.md` | `docs/verification/GLOBAL.md` | test-author |
 | `DEFERRED.md` | `docs/verification/DEFERRED.md`（任意） | orchestrator のみ。機械検査にできない reviewer 指摘の台帳 |
 | `design.md` | `docs/design.md`（任意） | 人間（orchestrator が代筆してもよい） |
-| `traceconfig.json` | 利用プロジェクト直下の `traceconfig.json` | orchestrator が一度ひな形を置き、利用プロジェクトが維持する（`commands` に自身の検査と契約アダプターを指定） |
+| `traceconfig.json` | 利用プロジェクト直下の `traceconfig.json` | orchestrator が一度ひな形を置き、利用プロジェクトが維持する（`commands` に自身の検査と契約アダプターを指定。スタックの値は選択した `rules-*` の traceconfig の末端文書が差分で示す）。検査の範囲（none の宣言を含む）を決めるので、変更は 🙋 人間の承認（gate-hook が確認を求める。ADR-0057） |
+| （空ファイル） | `docs/goals/.gitkeep`、`docs/rules/.gitkeep`、`docs/nfr/.gitkeep`、`docs/adr/.gitkeep`、`e2e/.gitkeep`（`tests.system.dirs` に合わせる） | orchestrator がひな形と一緒に置く。`docs/goals/` が無いと spec-lint / contract-run は設定エラーで止まり、active な UC が 1 件でもあると、宣言した固定パスが無いことを trace-check が C26 の違反にする |
 
 UC ディレクトリ（`UC.md` + `REQ-*.md` + `contract.yaml`）が一つの垂直スライスの SSOT であり、
 そこでの `ls` がスライスの範囲を定義する。列とキーの形はこのテンプレートが定め、

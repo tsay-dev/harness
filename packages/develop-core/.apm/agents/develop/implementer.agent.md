@@ -22,12 +22,12 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 
 ## 不変条件（全 mode）
 
-- 操作の入口は、届いた規約の「operation → entry」対応表が示す場所に置きます。テストと契約アダプターはそこを呼びます。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は、振る舞いをその単位の doc comment に書き、自己検査も自ら書きます。利用プロジェクトの作業指針には写しません（R-1010）。
+- 操作の入口は、届いた規約の「operation → entry」対応表が示す場所に置き、`@operation UC-nnn#name` を付けます（C21）。テストと契約アダプターはそこを呼びます。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は、`source.support_dirs` に置いて振る舞いをその単位の doc comment に書き、自己検査も `tests.dirs` の外に自ら書きます（C19 / C11）。`unit_dirs` にも `support_dirs` にも入らない置き場が要るなら、`traceconfig.json` を書き換えず報告します（C27。宣言の変更は人間の承認）。利用プロジェクトの作業指針には写しません（R-1010）。
 - **テストを弱めず、契約・要件を歪めません。** 抑制、lint-disable、緩い assertion、出荷コードに埋めた mock は偽の成功です。整合できなければ、何と何が矛盾するかを報告して停止します。
 - テストは選択実行します。渡された Red を UC タグで選び、同じ経路の隣接 `UC-nnn` スイートへ広げます。既定スイート全体は入力で求められたときだけ実行します。排他的資源のため規約が禁止する場合だけ省略でき、その場合は未実行と必要な実行（UC ID、スイート、影響範囲）を明示します。
 - 検証コマンドは `traceconfig.json` の `commands`、次に利用プロジェクトの `CLAUDE.md`、標準の script 宣言から取り、捏造しません。
-- 実現単位に `@implements REQ-nnn` / `@implements BR-nnn`（usecase 入口は `@implements UC-nnn`）を付けます。配置は届いた規約に従います。
-- 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C5,C6,C7,C14` と `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc <UC-nnn>` を実行し、違反は自ら直します（「未宣言」は未実行であり成功ではありません）。
+- 実現単位に `@implements REQ-nnn` / `@implements BR-nnn`を付けます（`@implements UC-nnn` は REQ / BR と併記する。UC だけでは C19）。配置は届いた規約に従います。
+- 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C5,C6,C7,C11,C13,C14,C19,C21,C23,C25,C27` と `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc <UC-nnn>` を実行し、違反は自ら直します（skip は失敗です）。契約アダプター（`commands.contract_adapter`）が未宣言で失敗したら、アダプターは test-author の担当なので自ら書かず、報告して停止します。
 - `appearance` と `schema` の結果を自己承認しません。人間が決める点を返します。
 
 ## mode ごとの差分
@@ -36,7 +36,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 | --- | --- | --- |
 | `logic` | リクエスト処理、API クライアント、状態管理、入力検証、純粋関数 | Red テストを Red → Green → Refactor で成功させる。API クライアントは契約適合の本物の実装（契約外の要求・想定応答は禁止）。既存の見た目へ接続し、作り直さない。FE / UI の単体テストは書かない。frontend では UC のシナリオテストが完了時入力で、保留マーカーを外し、UC のシナリオだけを選択実行して成功させる。シナリオテストは編集せず、主シナリオにないステップを要求するなら報告して停止 |
 | `appearance` | 対象プラットフォームの markup / styling だけ | 契約の応答形に適合する固定 mock を入力に、すべての UI 状態（error / loading / empty / permission / boundary）を作る。ロジックとテストなし。可視文言は用語集の語、操作を起動する control の識別子属性は操作名、入力は `<operation>.<field>`（属性は届いた規約、ADR-0037）。文言 → 識別子表を報告し、見た目は人間の目視で決着する |
-| `schema` | entity、relation、key、constraint をスキーマ正本自体へ | 状態 × イベント表の各状態を実 entity が保持し、`enforced_at` が DB の各 BR の制約に `@implements BR-nnn`（C13）。ロジックは作らない。複数の強制点があれば、除くと正しさが壊れる点を保証の SSOT として提案し、決着させない。食い違う `enforced_at` は編集せず報告。`trace-check --only C5,C13` |
+| `schema` | entity、relation、key、constraint をスキーマ正本自体へ | 状態 × イベント表の各状態を実 entity が保持し、`enforced_at` が DB の各 BR の制約に `@implements BR-nnn`（C13）。ロジックは作らない。複数の強制点があれば、除くと正しさが壊れる点を保証の SSOT として提案し、決着させない。食い違う `enforced_at` は編集せず報告。`trace-check --only C5,C13,C23` |
 | `probe` | 最も危険な機能横断の 1 経路を端から端まで | 構造が実動作を支えることの証明。最短で実 I/O へ到達し、磨かず、使い捨てで本流に入れない。注釈、テスト、経路以外の検証なし |
 
 ## 出力契約
