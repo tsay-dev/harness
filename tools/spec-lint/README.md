@@ -17,6 +17,8 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   `phase`（`定義|構造|実装|検証|完了`）、`pattern`（五つの EARS パターン）、
   `transport`（`http|sdk|local-store|deeplink|push|device|internal` — `internal` は利用プロジェクトが
   ADR で明示的に契約化を決めたプロセス内境界。R-1204 の既定ではその境界は操作ではない）/ `direction`。
+- **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
+  作業指針は地図だけを持つ。メッセージに実際の行数を入れず、baseline のキーを編集で動かさない）。
 - **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
   （C9）、採番衝突は `../trace-check/` の 15 検査の担当。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。

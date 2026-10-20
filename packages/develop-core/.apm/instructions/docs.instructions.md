@@ -1,6 +1,6 @@
 ---
 description: "📚 docs の SDD / SSOT 規約（ID 付きルール）"
-applyTo: "docs/**,traceconfig.json"
+applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 ---
 
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
@@ -94,6 +94,7 @@ applyTo: "docs/**,traceconfig.json"
 - **R-1007 (MUST)** 所属の SSOT は frontmatter で、ディレクトリは配置です。一致は C9 が検査し、再構成時は先に frontmatter を更新します。
 - **R-1008 (SHOULD)** 未着手 goal は `docs/goals-backlog.md` に置き、着手時にディレクトリへ昇格します。
 - **R-1009 (MUST)** vision に複数ドメインがあれば、各 goal は `domain:`（backlog は `- **ドメイン**:` 行）で所属を宣言し、許容値の閉じた集合は `00-vision.md` が持ちます。
+- **R-1010 (MUST)** 利用プロジェクトの作業指針（`docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md`）は地図です。構成、層の向き、命名規則、`traceconfig.json` に置けない逸脱、正本へのリンクだけを持ち、コード・設定・テストに正本がある事実（部品の振る舞い、環境変数、フェイクの使い方）と人の運用手順（README へ）を写しません。150 行以下（spec-lint）。REQ を持たない技術部品の振る舞いの正本は、その単位の doc comment です（ADR-0051）。
 
 ## 11. 分割クラス（テスト生成の下限と上限）
 
@@ -115,7 +116,7 @@ C10 / C11 / C15 が保証するのは宣言と存在の一致です。分割が�
 - **R-1201 (MUST)** 開始時に境界を列挙し、契約の SSOT と検査者を割り当てます。最低限: 時間（出荷済み版が書いた永続データ）、OS / プラットフォーム、モジュール間（公開型）、所有しない外部 API。
 - **R-1202 (MUST)** 時間の境界。出荷済み各版が書いたデータを `contracts/fixtures/` の golden fixture に追記専用で保持し、現行コードが全 fixture を読めることを分割クラス `#persist-vN-compat` のテストで証明します。
 - **R-1203 (MUST)** OS 契約（Info.plist、entitlements、manifest）は機械可読なのでそれ自身が SSOT です。
-- **R-1204 (SHOULD)** モジュール間は言語の型システムが契約、コンパイラーと C6 が検査者です。テストが契約操作を呼ぶ入口は、フレームワークの testing 末端ファイルの「operation → entry」規約で操作名から導出し、ルールパッケージがなければ利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に 1 回宣言します。実装を読んで導出しません。
+- **R-1204 (SHOULD)** モジュール間は言語の型システムが契約、コンパイラーと C6 が検査者です。テストが契約操作を呼ぶ入口は、フレームワークの testing 末端ファイルの「operation → entry」規約で操作名から導出し、ルールパッケージがなければ利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に命名規則として 1 回宣言します（操作ごとの表にせず、規則に従わないものだけを挙げます）。テストの足場（境界フェイク、fixture、テスト用 app）の使い方の正本はそのテストコードの型とコメントで、作業指針に写しません。実装を読んで導出しません。
 - **R-1205 (SHOULD)** 外部 API はクライアント側で防御的に扱います（DTO 層、記録した応答 fixture、未知フィールドを無視するデコード）。
 - **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
 - **R-1207 (MUST)** 失敗条件の評価順序は `contract.yaml` の `errors:` 一覧順だけに置き、最初の一致を採用します。`when` はラベルで排他性の証明ではなく、順序を UC / BR / ADR / スキーマコメント / 操作配下の `x-*` に再記述しません（spec-lint が `x-*` を拒否）。隣接項目の優先順位は両条件を満たす例（`contract-run`）またはテストクラスで反証します。

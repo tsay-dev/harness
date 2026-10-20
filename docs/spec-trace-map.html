@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>harness 仕様トレース図</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* レイアウト: 1 カラムの読み物。図は横スクロール可能な枠に入れ、表で全件を補う */
+:root {
+  --bg: #F5F6F2;
+  --surface: #FFFFFF;
+  --fg: #1B211E;
+  --muted: #5B655F;
+  --line: #C8CEC9;
+  --checked: #0D7565;
+  --open: #A85A12;
+  --anno: #BF3328;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121614; --surface: #1A201D; --fg: #E5EAE6; --muted: #9AA59F; --line: #34403A;
+    --checked: #3FC1A9; --open: #E39A55; --anno: #F2786C; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121614; --surface: #1A201D; --fg: #E5EAE6; --muted: #9AA59F; --line: #34403A;
+  --checked: #3FC1A9; --open: #E39A55; --anno: #F2786C; color-scheme: dark;
+}
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.75; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 56px; }
+header { display: grid; gap: 12px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 900; line-height: 1.25; margin: 0; text-wrap: balance; }
+h2 { font-size: 22px; font-weight: 900; margin: 0; text-wrap: balance; }
+h3 { font-size: 16px; font-weight: 700; margin: 0; }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 18px; }
+code, .mono { font-family: var(--font-mono); font-size: .92em; }
+ul.points { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 72ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 24px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend svg { width: 40px; height: 10px; }
+figure { margin: 0; display: grid; gap: 10px; }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.scroll svg { display: block; width: 100%; min-width: 760px; height: auto; color: var(--fg); }
+figcaption { font-size: 13px; color: var(--muted); max-width: 80ch; }
+
+/* SVG の部品 */
+.node rect { fill: var(--surface); stroke: var(--fg); stroke-width: 1.2; }
+.node.dim rect { stroke: var(--line); stroke-dasharray: 4 3; }
+.nt { font-family: var(--font-mono); font-size: 14px; font-weight: 500; fill: currentColor; text-anchor: middle; }
+.ntj { font-family: var(--font-body); font-size: 13px; font-weight: 700; fill: currentColor; text-anchor: middle; }
+.ns { font-family: var(--font-body); font-size: 11px; fill: var(--muted); text-anchor: middle; }
+.e { fill: none; stroke-width: 1.6; }
+.e.ok { stroke: var(--checked); }
+.e.anno { stroke: var(--anno); }
+.e.open { stroke: var(--open); stroke-dasharray: 5 4; }
+.mk-ok { fill: var(--checked); } .mk-anno { fill: var(--anno); } .mk-open { fill: var(--open); }
+.el { font-family: var(--font-mono); font-size: 11px; fill: currentColor; }
+.elj { font-family: var(--font-body); font-size: 11px; fill: currentColor; }
+.mid { text-anchor: middle; } .end { text-anchor: end; }
+.pill rect { stroke: none; }
+.pill.ok rect { fill: var(--checked); } .pill.anno rect { fill: var(--anno); } .pill.open rect { fill: var(--open); }
+.pill text { font-family: var(--font-body); font-size: 11px; font-weight: 700; fill: var(--surface); text-anchor: middle; }
+
+/* 検査のタイミング */
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.step .when { font-family: var(--font-mono); font-size: 12px; color: var(--checked); }
+.step p { font-size: 13px; color: var(--muted); }
+.step ul { margin: 0; padding-left: 1.1em; font-size: 13px; display: grid; gap: 2px; }
+
+/* 表 */
+.table { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; line-height: 1.6; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: .04em; background: var(--bg); }
+tr:last-child td { border-bottom: none; }
+td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: nowrap; }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 999px; color: var(--surface); white-space: nowrap; }
+.tag.ok { background: var(--checked); } .tag.open { background: var(--open); } .tag.anno { background: var(--anno); }
+.gaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.gap { border-left: 3px solid var(--open); background: var(--surface); padding: 12px 14px; border-radius: 0 8px 8px 0; display: grid; gap: 4px; min-width: 0; }
+.gap .who { font-size: 12px; color: var(--open); font-weight: 700; }
+.gap p { font-size: 13.5px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">tsay-dev/harness · develop-core</div>
+  <h1>仕様・コード・検査はどう紐づいているか</h1>
+  <p>手書きの図（docs → codes → checks）と同じ並びで、harness の現在の実装をそのまま描いています。根拠は <code>docs.instructions.md</code> の R- 規則、<code>templates/develop/</code>、<code>tools/</code> の各検査ツールのコードです。</p>
+  <ul class="points">
+    <li><strong>docs</strong> は GOAL → UC → REQ と BR に加えて、UC ごとの <code>contract.yaml</code> と共有語彙 <code>components.yaml</code> があり、これがコードとの 2 つ目の接点になっています。</li>
+    <li><strong>code</strong> には本番コードとテストの 2 種類があり、どちらも注釈（<code>@implements</code> / <code>@covers</code> / <code>@scenario</code>）で仕様の ID を指します。</li>
+    <li><strong>checks</strong> は 2 つではなく 3 層です。文書と注釈を読む静的検査（spec-lint、trace-check）、実際に動かす検査（contract-run、テスト）、書き込み・終了・コミットで止める関所（gate-hook、stop-gate、spec-lint gate、git-lint）です。</li>
+    <li>点線の紐づけは機械が検査していません。人間ゲートか reviewer が担うか、どこも担っていない線です。</li>
+  </ul>
+</header>
+
+<div class="legend" aria-label="凡例">
+  <span><svg viewBox="0 0 40 10" aria-hidden="true"><line x1="0" y1="5" x2="40" y2="5" class="e ok"/></svg>文書同士の参照（機械が検査）</span>
+  <span><svg viewBox="0 0 40 10" aria-hidden="true"><line x1="0" y1="5" x2="40" y2="5" class="e anno"/></svg>コードの注釈・実行（機械が検査）</span>
+  <span><svg viewBox="0 0 40 10" aria-hidden="true"><line x1="0" y1="5" x2="40" y2="5" class="e open"/></svg>機械が検査しない線</span>
+  <span>矢印の向き = 参照を書く側 → 参照される側</span>
+</div>
+
+<section>
+  <h2>1. docs の中のつながり</h2>
+  <figure>
+    <div class="scroll">
+      <svg viewBox="0 0 920 380" role="img" aria-label="docs の構造。GOAL は vision の KPI とアクターを参照し、UC は GOAL を、REQ は UC を参照する。UC と REQ は BR を参照する。contract.yaml は UC に属し、エラーコードと認証を components.yaml の共有語彙から選ぶ。">
+        <defs>
+          <marker id="a-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-ok"/></marker>
+          <marker id="a-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-open"/></marker>
+        </defs>
+
+        <!-- 左列: 単一文書 -->
+        <g class="node"><rect x="20" y="60" width="150" height="56" rx="6"/><text class="nt" x="95" y="86">00-vision.md</text><text class="ns" x="95" y="104">課題・KPI-nn</text></g>
+        <g class="node"><rect x="20" y="150" width="150" height="56" rx="6"/><text class="nt" x="95" y="176">02-actors.md</text><text class="ns" x="95" y="194">アクター ACT-nn</text></g>
+        <g class="node"><rect x="20" y="290" width="150" height="56" rx="6"/><text class="nt" x="95" y="316">01-glossary.md</text><text class="ns" x="95" y="334">用語・禁止同義語</text></g>
+
+        <!-- 木: GOAL → UC → REQ -->
+        <g class="node"><rect x="240" y="140" width="150" height="64" rx="6"/><text class="nt" x="315" y="168">GOAL-nn</text><text class="ns" x="315" y="188">What：達成後の状態</text></g>
+        <g class="node"><rect x="470" y="140" width="170" height="64" rx="6"/><text class="nt" x="555" y="168">UC-nnn</text><text class="ns" x="555" y="188">How：達成手段＋表</text></g>
+        <g class="node"><rect x="730" y="140" width="150" height="64" rx="6"/><text class="nt" x="805" y="168">REQ-nnn</text><text class="ns" x="805" y="188">EARS 1 文＋分割クラス</text></g>
+        <g class="node"><rect x="730" y="20" width="150" height="56" rx="6"/><text class="nt" x="805" y="46">BR-nnn</text><text class="ns" x="805" y="64">共有の業務ルール</text></g>
+        <g class="node"><rect x="470" y="290" width="170" height="64" rx="6"/><text class="nt" x="555" y="318">contract.yaml</text><text class="ns" x="555" y="338">境界の形・エラー順・実例</text></g>
+        <g class="node"><rect x="730" y="290" width="150" height="64" rx="6"/><text class="nt" x="805" y="318">components.yaml</text><text class="ns" x="805" y="338">共有語彙 errorCodes</text></g>
+
+        <!-- GOAL → vision / actors（未検査） -->
+        <line x1="240" y1="152" x2="174" y2="102" class="e open" marker-end="url(#a-open)"/>
+        <text class="el" x="212" y="114">origin:</text>
+        <line x1="240" y1="178" x2="174" y2="178" class="e open" marker-end="url(#a-open)"/>
+        <text class="el mid" x="207" y="170">actor:</text>
+
+        <!-- UC → GOAL -->
+        <line x1="470" y1="172" x2="394" y2="172" class="e ok" marker-end="url(#a-ok)"/>
+        <text class="el mid" x="431" y="164">goal:</text>
+        <g class="pill ok"><rect x="404" y="180" width="54" height="16" rx="8"/><text x="431" y="192">C8・C9</text></g>
+
+        <!-- REQ → UC / UC 表 → REQ -->
+        <line x1="730" y1="158" x2="644" y2="158" class="e ok" marker-end="url(#a-ok)"/>
+        <text class="el mid" x="686" y="150">uc:</text>
+        <g class="pill ok"><rect x="671" y="164" width="30" height="16" rx="8"/><text x="686" y="176">C9</text></g>
+        <line x1="642" y1="192" x2="726" y2="192" class="e open" marker-end="url(#a-open)"/>
+        <text class="elj mid" x="686" y="210">表のセル</text>
+
+        <!-- REQ → BR / UC → BR -->
+        <line x1="805" y1="140" x2="805" y2="80" class="e ok" marker-end="url(#a-ok)"/>
+        <text class="el" x="813" y="114">br:</text>
+        <polyline points="600,140 600,48 726,48" class="e ok" marker-end="url(#a-ok)"/>
+        <text class="elj mid" x="664" y="40">→ BR-nnn</text>
+        <g class="pill ok"><rect x="630" y="58" width="68" height="16" rx="8"/><text x="664" y="70">C4（逆向き）</text></g>
+
+        <!-- contract → UC / components / REQ の状態 -->
+        <line x1="555" y1="290" x2="555" y2="208" class="e ok" marker-end="url(#a-ok)"/>
+        <text class="el end" x="548" y="246">x-uc · x-spec</text>
+        <g class="pill ok"><rect x="462" y="254" width="86" height="16" rx="8"/><text x="505" y="266">spec-lint・C9</text></g>
+        <line x1="642" y1="322" x2="726" y2="322" class="e ok" marker-end="url(#a-ok)"/>
+        <text class="el mid" x="684" y="314">code・auth</text>
+        <g class="pill ok"><rect x="654" y="330" width="60" height="16" rx="8"/><text x="684" y="342">spec-lint</text></g>
+        <line x1="632" y1="288" x2="742" y2="208" class="e ok" marker-end="url(#a-ok)"/>
+        <text class="elj" x="696" y="250">fixed ⇐ REQ active</text>
+        <g class="pill ok"><rect x="704" y="258" width="60" height="16" rx="8"/><text x="734" y="270">spec-lint</text></g>
+      </svg>
+    </div>
+    <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。C4 は「どこからも参照されない BR」を検出しますが、「参照先の BR が存在するか」は見ません。UC の状態 × イベント表のセルから REQ への対応も、機械は存在を確かめません。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>2. docs と code のつながり</h2>
+  <figure>
+    <div class="scroll">
+      <svg viewBox="0 0 920 660" role="img" aria-label="docs と code をつなぐ 10 本の線。本番コードは @implements で REQ、BR、UC を、テストは @covers で REQ の分割クラスを、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。用語集からロケーターを導く線と、どの仕様にも紐づかない本番コードは機械が検査しない。">
+        <defs>
+          <marker id="b-anno" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-anno"/></marker>
+          <marker id="b-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-open"/></marker>
+        </defs>
+        <text class="ntj" x="135" y="18">docs</text>
+        <text class="ntj" x="785" y="18">code</text>
+
+        <!-- 0 REQ ← 本番コード -->
+        <g class="node"><rect x="20" y="30" width="230" height="44" rx="6"/><text class="nt" x="135" y="57">REQ-nnn</text></g>
+        <g class="node"><rect x="670" y="30" width="230" height="44" rx="6"/><text class="ntj" x="785" y="57">本番コード（実現単位）</text></g>
+        <line x1="668" y1="52" x2="254" y2="52" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="el mid" x="460" y="44">@implements REQ-nnn</text>
+        <g class="pill anno"><rect x="378" y="58" width="164" height="16" rx="8"/><text x="460" y="70">C5 存在 · C14 active は必須</text></g>
+
+        <!-- 1 BR ← 本番コード / スキーマ -->
+        <g class="node"><rect x="20" y="94" width="230" height="44" rx="6"/><text class="nt" x="135" y="121">BR-nnn</text></g>
+        <g class="node"><rect x="670" y="94" width="230" height="44" rx="6"/><text class="ntj" x="785" y="121">本番コード / スキーマ正本</text></g>
+        <line x1="668" y1="116" x2="254" y2="116" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="el mid" x="460" y="108">@implements BR-nnn</text>
+        <g class="pill anno"><rect x="360" y="122" width="200" height="16" rx="8"/><text x="460" y="134">C5 · C14 · C13（DB で強制する BR）</text></g>
+
+        <!-- 2 UC ← 本番コード -->
+        <g class="node"><rect x="20" y="158" width="230" height="44" rx="6"/><text class="nt" x="135" y="185">UC-nnn</text></g>
+        <g class="node"><rect x="670" y="158" width="230" height="44" rx="6"/><text class="ntj" x="785" y="185">本番コード（ユースケース）</text></g>
+        <line x1="668" y1="180" x2="254" y2="180" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="el mid" x="460" y="172">@implements UC-nnn</text>
+        <g class="pill anno"><rect x="376" y="186" width="168" height="16" rx="8"/><text x="460" y="198">C5 存在のみ（必須ではない）</text></g>
+
+        <!-- 3 REQ#class ← テスト -->
+        <g class="node"><rect x="20" y="222" width="230" height="44" rx="6"/><text class="ntj" x="135" y="249">REQ の検証方針 #class</text></g>
+        <g class="node"><rect x="670" y="222" width="230" height="44" rx="6"/><text class="ntj" x="785" y="249">単体・結合テスト</text></g>
+        <line x1="668" y1="244" x2="254" y2="244" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="el mid" x="460" y="236">@covers REQ-nnn#class</text>
+        <g class="pill anno"><rect x="372" y="250" width="176" height="16" rx="8"/><text x="460" y="262">C1 · C2 · C3 · C10 · C11</text></g>
+
+        <!-- 4 UC シナリオ ← シナリオテスト -->
+        <g class="node"><rect x="20" y="286" width="230" height="44" rx="6"/><text class="ntj" x="135" y="313">UC の主シナリオ・事後条件</text></g>
+        <g class="node"><rect x="670" y="286" width="230" height="44" rx="6"/><text class="ntj" x="785" y="313">シナリオテスト</text></g>
+        <line x1="668" y1="308" x2="254" y2="308" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="el mid" x="460" y="300">@scenario UC-nnn</text>
+        <g class="pill anno"><rect x="356" y="314" width="208" height="16" rx="8"/><text x="460" y="326">C15（人間アクターの active UC）</text></g>
+
+        <!-- 5 errorCodes ← エラーコード定義 -->
+        <g class="node"><rect x="20" y="350" width="230" height="44" rx="6"/><text class="ntj" x="135" y="377">components.yaml errorCodes</text></g>
+        <g class="node"><rect x="670" y="350" width="230" height="44" rx="6"/><text class="ntj" x="785" y="377">エラーコード定義</text></g>
+        <line x1="668" y1="372" x2="254" y2="372" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="elj mid" x="460" y="364">実装のコード ⊆ errorCodes</text>
+        <g class="pill anno"><rect x="445" y="378" width="30" height="16" rx="8"/><text x="460" y="390">C7</text></g>
+
+        <!-- 6 contract examples → 実装 -->
+        <g class="node"><rect x="20" y="414" width="230" height="44" rx="6"/><text class="ntj" x="135" y="441">contract.yaml の examples</text></g>
+        <g class="node"><rect x="670" y="414" width="230" height="44" rx="6"/><text class="ntj" x="785" y="441">実装（契約アダプター経由）</text></g>
+        <line x1="252" y1="436" x2="666" y2="436" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="elj mid" x="460" y="428">実例を実行して応答を照合</text>
+        <g class="pill anno"><rect x="410" y="442" width="100" height="16" rx="8"/><text x="460" y="454">contract-run</text></g>
+
+        <!-- 7 layering → import -->
+        <g class="node"><rect x="20" y="478" width="230" height="44" rx="6"/><text class="ntj" x="135" y="505">traceconfig.json の layering</text></g>
+        <g class="node"><rect x="670" y="478" width="230" height="44" rx="6"/><text class="ntj" x="785" y="505">本番コードの import</text></g>
+        <line x1="252" y1="500" x2="666" y2="500" class="e anno" marker-end="url(#b-anno)"/>
+        <text class="elj mid" x="460" y="492">禁止された層への import を検出</text>
+        <g class="pill anno"><rect x="445" y="506" width="30" height="16" rx="8"/><text x="460" y="518">C6</text></g>
+
+        <!-- 8 glossary → ロケーター（未検査） -->
+        <g class="node"><rect x="20" y="542" width="230" height="44" rx="6"/><text class="ntj" x="135" y="569">用語集・契約の操作名</text></g>
+        <g class="node"><rect x="670" y="542" width="230" height="44" rx="6"/><text class="ntj" x="785" y="569">シナリオテストのロケーター</text></g>
+        <line x1="252" y1="564" x2="666" y2="564" class="e open" marker-end="url(#b-open)"/>
+        <text class="elj mid" x="460" y="556">語と識別子から導く（R-1108）</text>
+        <g class="pill open"><rect x="390" y="570" width="140" height="16" rx="8"/><text x="460" y="582">reviewer（機械なし）</text></g>
+
+        <!-- 9 紐づかないコード（未検査） -->
+        <g class="node dim"><rect x="20" y="606" width="230" height="44" rx="6"/><text class="ns" x="135" y="633">（指す仕様なし）</text></g>
+        <g class="node"><rect x="670" y="606" width="230" height="44" rx="6"/><text class="ntj" x="785" y="633">注釈のない本番コード</text></g>
+        <line x1="668" y1="628" x2="254" y2="628" class="e open"/>
+        <text class="elj mid" x="460" y="620">仕様に紐づかないコード</text>
+        <g class="pill open"><rect x="430" y="634" width="60" height="16" rx="8"/><text x="460" y="646">未検査</text></g>
+      </svg>
+    </div>
+    <figcaption>コードからの紐づけは注釈の「存在」と「参照先の実在」を検査します。C14 は「active な REQ・BR を指す注釈が 1 つ以上あるか」という仕様 → コードの片方向だけで、注釈のない本番コードは見つかりません。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト。<code>test_pattern</code> 設定時は注釈のないテストも）で上下両方から締めます。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>3. 検査がかかるタイミング</h2>
+  <p>同じ検査でも、誰がいつ実行するかで役割が違います。gate-hook と stop-gate は利用プロジェクトが明示的に有効にしたときだけ動き、無効ならオーケストレーターが同じ条件を自分で守ります。</p>
+  <div class="flow">
+    <div class="step"><span class="when">1 · 仕様を書いた直後</span><h3>作成者の自己検査</h3>
+      <ul><li>ID 採番は <code>trace-check --next</code></li><li><code>spec-lint validate</code></li><li><code>trace-check --only C4,C9,C12</code></li></ul>
+      <p>その後、人間が承認して <code>active</code> にする。</p></div>
+    <div class="step"><span class="when">2 · 実装を書く直前</span><h3>gate-hook（PreToolUse）</h3>
+      <ul><li>UC が active</li><li>REQ に draft がない</li><li>契約が fixed</li><li>UC の phase が 実装 / 検証</li></ul>
+      <p>満たさなければ書き込みを止める。</p></div>
+    <div class="step"><span class="when">3 · ターン終了時</span><h3>stop-gate（Stop）</h3>
+      <ul><li>spec-lint → trace-check → contract-run</li><li>typecheck → lint → test</li><li>system（シナリオテスト）</li></ul>
+      <p>コマンドは <code>traceconfig.json</code> の <code>commands</code> だけから取る。</p></div>
+    <div class="step"><span class="when">4 · コミット時</span><h3>spec-lint gate</h3>
+      <ul><li><code>UC:</code> trailer の UC と REQ が active</li><li>契約が fixed</li></ul>
+      <p>commit-msg hook への接続は任意。</p></div>
+    <div class="step"><span class="when">5 · PR / CI</span><h3>git-lint ほか</h3>
+      <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>trace-check、テスト</li></ul>
+      <p><code>git</code> 未宣言なら「未検査」。</p></div>
+    <div class="step"><span class="when">6 · スライス完了</span><h3>判定と人間ゲート</h3>
+      <ul><li>reviewer の「阻止」がゼロ</li><li>持ち越しは DEFERRED.md へ</li><li>UC の phase が 完了</li></ul>
+      <p>テストが全部通っただけでは完了ではない。</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>4. 検査ツールの全一覧</h2>
+  <div class="table">
+    <table>
+      <thead><tr><th>ツール</th><th>見るもの</th><th>見ないもの</th></tr></thead>
+      <tbody>
+        <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、閉じた語彙（status・phase・pattern・transport・direction）、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
+        <tr><td>spec-lint gate</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
+        <tr><td>trace-check</td><td>下の C1–C15。docs 同士、docs と code、層の向き、ID の衝突</td><td>注釈した単位が文を本当に実現しているか</td></tr>
+        <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。アダプター未宣言なら「未実行」</td></tr>
+        <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
+        <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか</td><td>docs・設定・harness 資産への書き込み（常に許可）</td></tr>
+        <tr><td>stop-gate</td><td>ターン終了時に上の検査を順に実行</td><td>ツリーに変更がないとき（省略）</td></tr>
+        <tr><td>git-lint</td><td>ブランチ名の形（B1–B3）、コミットヘッダーの type・末尾ピリオド・monorepo の scope（M1–M3）</td><td>差分と名前が合っているか（reviewer）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>trace-check の 15 検査と、図のどの線か</h3>
+  <div class="table">
+    <table>
+      <thead><tr><th>#</th><th>失敗する条件</th><th>線</th></tr></thead>
+      <tbody>
+        <tr><td>C1</td><td>active な REQ を <code>@covers</code> するテストがない</td><td><span class="tag anno">テスト → REQ</span></td></tr>
+        <tr><td>C2</td><td>active な REQ に「検証方針」節がない</td><td><span class="tag ok">REQ 内</span></td></tr>
+        <tr><td>C3</td><td>テストが存在しない REQ を <code>@covers</code> している</td><td><span class="tag anno">テスト → REQ</span></td></tr>
+        <tr><td>C4</td><td>どの UC・REQ からも参照されない BR がある</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
+        <tr><td>C5</td><td>コードの <code>@implements</code> が存在しない ID を指している</td><td><span class="tag anno">本番コード → REQ・BR・UC</span></td></tr>
+        <tr><td>C6</td><td>禁止された層を import している（<code>layering</code>）</td><td><span class="tag anno">layering → import</span></td></tr>
+        <tr><td>C7</td><td>実装のエラーコードが共有語彙の errorCodes に含まれない</td><td><span class="tag anno">エラーコード → components</span></td></tr>
+        <tr><td>C8</td><td>active な GOAL を実現する UC がない</td><td><span class="tag ok">UC → GOAL</span></td></tr>
+        <tr><td>C9</td><td>配置と frontmatter が食い違う（ディレクトリと id、REQ が自分の uc の下にない、UC の goal とディレクトリ）</td><td><span class="tag ok">UC → GOAL・REQ → UC・契約 → UC</span></td></tr>
+        <tr><td>C10</td><td>宣言した分割クラスにテストがない、または active な REQ がクラスを 1 つも宣言しない（下限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
+        <tr><td>C11</td><td>テストがクラスを指定しない・未宣言のクラスを指す・注釈がない（上限）</td><td><span class="tag anno">テスト → REQ#class</span></td></tr>
+        <tr><td>C12</td><td>同じ ID が複数のファイルで定義されている</td><td><span class="tag ok">すべての ID</span></td></tr>
+        <tr><td>C13</td><td>DB で強制する BR に、スキーマ正本の <code>@implements</code> がない</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
+        <tr><td>C14</td><td>active な REQ・BR を <code>@implements</code> する実装がない</td><td><span class="tag anno">本番コード → REQ・BR</span></td></tr>
+        <tr><td>C15</td><td>人間アクターの active な UC にシナリオテストがない、または存在しない UC を <code>@scenario</code> している</td><td><span class="tag anno">シナリオテスト → UC</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>5. 機械が見ていないもの</h2>
+  <p>点線の線と、注釈の「意味」は機械では検査していません。担い手ごとに分けると次の通りです。</p>
+  <div class="gaps">
+    <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>注釈した単位が本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
+    <div class="gap"><span class="who">どこも検査しない</span><p>GOAL の <code>origin:</code>・<code>actor:</code> が実在する KPI・ACT か、UC・REQ が参照する BR が実在するか（C4 は逆向きだけ）、UC の表のセルが指す REQ が実在するか。</p></div>
+    <div class="gap"><span class="who">どこも検査しない</span><p>どの仕様も指していない本番コード。C14 は仕様 → コードの片方向で、コード → 仕様の網羅は見ない。</p></div>
+    <div class="gap"><span class="who">どこも検査しない</span><p>NFR の閾値が守られているか。NFR は書式と ID の衝突だけが検査対象で、計測は <code>verification/GLOBAL.md</code> に列挙するだけ。</p></div>
+    <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
+  </div>
+
+  <h3>コードと紐づかない横断文書</h3>
+  <div class="table">
+    <table>
+      <thead><tr><th>文書</th><th>役割</th><th>かかる検査</th></tr></thead>
+      <tbody>
+        <tr><td>NFR-nnn</td><td>非機能要件（閾値と計測方法）</td><td>spec-lint（書式）・C12</td></tr>
+        <tr><td>ADR-nnnn</td><td>判断の記録。変更は supersedes を持つ新 ADR</td><td>spec-lint（書式・supersedes の解決）・C12</td></tr>
+        <tr><td>verification/GLOBAL.md</td><td>プロジェクト全体で検証しない範囲と理由</td><td>spec-lint（書式）</td></tr>
+        <tr><td>verification/DEFERRED.md</td><td>機械検査にできない reviewer 指摘の台帳</td><td>spec-lint（行文法）</td></tr>
+        <tr><td>goals-backlog.md</td><td>未着手のゴール。着手時にディレクトリへ昇格</td><td>spec-lint（書式）</td></tr>
+        <tr><td>CLAUDE.md / AGENTS.md</td><td>利用プロジェクトの作業指針（地図）</td><td>spec-lint（150 行以下）</td></tr>
+        <tr><td>traceconfig.json</td><td>検査の設定（配置、注釈の正規表現、commands、layering、policy、git）</td><td>各ツールが読む</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

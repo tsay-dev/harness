@@ -11,7 +11,7 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsc
 
 - Workers + Static Assets で Vite React SPA と Hono API を同一オリジンから配信する。ブラウザルートは TanStack Router、サーバー状態は TanStack Query、型付き HTTP 呼び出しは Hono RPC、HTTP 入力境界は Zod + `@hono/zod-validator`、リレーショナル永続化は D1 + `drizzle-orm/d1`。Durable Objects と R2 は使う機能だけの任意。
 - RSC、Server Actions、常駐 Node.js サーバーを前提にしない。
-- 選択した単位、実際のパス、バインディング、コマンド、逸脱は利用プロジェクトの `AGENTS.md` / `CLAUDE.md` に宣言する。バージョンはマニフェストとロックファイルが持つ。
+- 選択した単位、実際のパス、バインディング、逸脱は利用プロジェクトの `AGENTS.md` / `CLAUDE.md` に地図として宣言する（R-1010）。コマンドは `traceconfig.json` の `commands`、バージョンはマニフェストとロックファイルが持つ。
 
 ## 配置（機能単位）
 
@@ -36,4 +36,4 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsc
 - React 機能の `index.ts` は意図的な公開 API。外部はそこから import し、機能内部は直接相互に import する。ほかの場所に再 export の連鎖を作らない。
 - `packages/shared/src/<feature>/schemas.ts` にはブラウザで安全な HTTP / WebSocket の Zod スキーマと推論型だけを置く。DB スキーマ、行、サービス実装、バインディングは置かない。
 - ブラウザコードはサーバーのランタイムモジュール、バインディング、DB スキーマ、秘密情報を import しない。Hono の `AppType` の `import type` だけが例外で、バンドルから消えること。
-- 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーとバインディング宣言は手編集せず再生成する。コメントとユーザー向け文言は日本語。
+- 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーとバインディング宣言は手編集せず再生成する。コメントとユーザー向け文言は `traceconfig.json` の `policy.language`（未宣言なら日本語）。
