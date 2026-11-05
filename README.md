@@ -20,6 +20,7 @@ harness が目指すのは、**人間が承認した仕様から、実装とそ�
 | `develop-core` | develop / attack / docs-migrate の skills、develop の agent 5 体、docs・comments の共通規約 | システム開発 |
 | `rules-next` | Next.js の規約葉 | Next.js 開発。develop-core と組み合わせる |
 | `rules-cloudflare-hono-react` | Workers + Hono + React SPA、D1 + Drizzle の規約葉 | Cloudflare 開発。develop-core と組み合わせる |
+| `rules-xserver-vps-hono-react` | Xserver VPS 内の Node.js + Hono + React SPA、DB + Drizzle の規約葉 | VPS 内で完結する開発。develop-core と組み合わせる |
 | `rules-crow` | crow の規約葉 | crow 開発 |
 | `rules-expo` | Expo の規約葉 | Expo 開発 |
 | `rules-swiftui` | SwiftUI の規約葉 | SwiftUI 開発 |
@@ -72,6 +73,7 @@ harness/
         instructions/<scene>-<concern>.instructions.md
     rules-next/                     # apm.yml + .apm/instructions/
     rules-cloudflare-hono-react/
+    rules-xserver-vps-hono-react/
     rules-crow/
     rules-expo/
     rules-swiftui/

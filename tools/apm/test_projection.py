@@ -63,6 +63,33 @@ class Projection(unittest.TestCase):
             for name in expected:
                 self.assertNotIn(name, text)
 
+    def test_xserver_rules_are_isolated_scoped_and_idempotent(self):
+        package = 'rules-xserver-vps-hono-react'
+        sources = list((ROOT / 'packages' / package / '.apm/instructions').glob('*.instructions.md'))
+        self.assertTrue(sources)
+        for target in ('claude', 'cursor', 'grok', 'codex'):
+            self.run_projection(target, (package,))
+        first = self.snapshot()
+        state = json.loads((self.host / '.harness-legacy.json').read_text())
+        expected = {'.harness-legacy.json'}
+        for target in ('claude', 'cursor'):
+            suffix = '.md' if target == 'claude' else '.mdc'
+            for source in sources:
+                dest = f'.{target}/rules/{package}/{source.name.removesuffix(".instructions.md")}{suffix}'
+                expected.add(dest)
+                text = (self.host / dest).read_text()
+                apply_to = json.loads(re.search(r'(?m)^applyTo: (.+)$', source.read_text())[1])
+                if target == 'claude':
+                    self.assertEqual(json.loads(re.search(r'(?m)^paths: (.+)$', text)[1]), apply_to.split(','))
+                else:
+                    self.assertEqual(json.loads(re.search(r'(?m)^globs: (.+)$', text)[1]), apply_to)
+                    self.assertRegex(text, r'(?m)^alwaysApply: false$')
+        self.assertEqual(set(first), expected)
+        for target in ('claude', 'cursor', 'grok', 'codex'):
+            self.assertEqual(state['targets'][target]['packages'], [package])
+            self.run_projection(target, (package,))
+        self.assertEqual(first, self.snapshot())
+
     def test_all_agent_tier_assignments(self):
         # light は現在空（該当する develop エージェントが無い）。tier 自体は対応表に残る。
         expected_develop = {
@@ -178,6 +205,7 @@ class Projection(unittest.TestCase):
             'packages/develop-core/.apm/agents/develop/*.agent.md': 47,
             'packages/develop-core/.apm/instructions/*.instructions.md': 125,
             'packages/rules-cloudflare-hono-react/.apm/instructions/*.instructions.md': 40,
+            'packages/rules-xserver-vps-hono-react/.apm/instructions/*.instructions.md': 40,
             'packages/rules-next/.apm/instructions/*.instructions.md': 50,
             'packages/rules-expo/.apm/instructions/*.instructions.md': 60,
             'packages/rules-swiftui/.apm/instructions/*.instructions.md': 60,

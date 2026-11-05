@@ -37,7 +37,7 @@ apm install --target codex tsay-dev/harness/packages/develop-core
 apm install --target codex tsay-dev/harness/packages/rules-next
 ```
 
-スタックは `rules-next` を `rules-cloudflare-hono-react`、`rules-expo`、`rules-swiftui`、`rules-crow` に替える。各スタックの配置と規約はそのパッケージの葉が正本で、ここには再掲しない。
+スタックは `rules-next` を `rules-cloudflare-hono-react`、`rules-xserver-vps-hono-react`、`rules-expo`、`rules-swiftui`、`rules-crow` に替える。各スタックの配置と規約はそのパッケージの葉が正本で、ここには再掲しない。
 
 GitHub の例はこの構成が公開された版に対して有効。ref を固定するなら `tsay-dev/harness/packages/rules-next#<release-tag>` と書き、実在する公開タグに置き換える。依存を変えたら `apm.lock.yaml` と manifest の変更を保存し、CI では `apm install --frozen` を使う。更新は `apm update` で計画を確認して行う。
 
@@ -52,6 +52,8 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 中立 agent ソースは provider 固有の `model:` を持たず、`x-model-tier: top | mid | light` を各 agent の frontmatter に 1 つ宣言する。Claude family の対応は `tools/apm/claude-models.json`、Codex catalog ID と reasoning effort は `tools/codex-sync/models.json` に置き、どちらにも agent 名を列挙しない（ADR-0028 / ADR-0029）。
 
 互換 adapter は tier を読み、Claude では opus / sonnet / haiku、Codex では JSON の 3 段へ変換する。Cursor は `inherit` に正規化し、オーケストレーターが起動時に同段の family を選ぶ。Grok Build は per-launch の model 指定がないため親を継承し、要求段を保証できなければその制約を報告する。APM の native integrator が中立拡張を provider の model field に変換するとは仮定せず、native install 後はオーケストレーターが `apm_modules/` の元 source から tier を読んで起動時に適用する。
+
+Xserver VPS 内で完結する Node.js + Hono + React SPA は `rules-xserver-vps-hono-react` を選ぶ。ブラウザ側の構成と機能境界は Cloudflare 版に合わせ、API、DB、ファイル保存は VPS 内に置く。DB エンジン、プロキシ、プロセス管理方式は消費プロジェクトで宣言し、同じ単位に Cloudflare 版を重ねない。
 
 ## tools / templates を別途用意する
 
