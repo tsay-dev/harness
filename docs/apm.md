@@ -53,7 +53,7 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 
 互換 adapter は tier を読み、Claude では opus / sonnet / haiku、Codex では JSON の 3 段へ変換する。Cursor は `inherit` に正規化し、オーケストレーターが起動時に同段の family を選ぶ。Grok Build は per-launch の model 指定がないため親を継承し、要求段を保証できなければその制約を報告する。APM の native integrator が中立拡張を provider の model field に変換するとは仮定せず、native install 後はオーケストレーターが `apm_modules/` の元 source から tier を読んで起動時に適用する。
 
-Xserver VPS 内で完結する Node.js + Hono + React SPA は `rules-xserver-vps-hono-react` を選ぶ。ブラウザ側の構成と機能境界は Cloudflare 版に合わせ、API、DB、ファイル保存は VPS 内に置く。DB エンジン、プロキシ、プロセス管理方式は消費プロジェクトで宣言し、同じ単位に Cloudflare 版を重ねない。
+Xserver VPS 内で完結する Node.js + Hono + React SPA + PostgreSQL は `rules-xserver-vps-hono-react` を選ぶ。ブラウザ側の構成と機能境界は Cloudflare 版に合わせ、API、PostgreSQL、ファイル保存は VPS 内に置く。PostgreSQL の版、プロキシ、プロセス管理方式は消費プロジェクトで宣言し、同じ単位に Cloudflare 版を重ねない。
 
 ## tools / templates を別途用意する
 

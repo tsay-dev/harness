@@ -10,7 +10,7 @@ UC ごとに主シナリオ 1 つのシナリオテストを Playwright で書�
 ## 環境
 
 - `e2e/` に `@playwright/test` と `playwright.config.ts`。配置を変えるなら `traceconfig.json` の `tests.system.dirs` も合わせ、`tests.dirs` と重複させず Vitest の探索から除外する。
-- 使い捨ての DB / 保存領域で実 SPA と Hono の Node.js サーバー を同一オリジンで実行する。`webServer`、投入済み fixture、起動コマンドは利用プロジェクトが宣言する。モックした API で代替しない。
+- 使い捨ての PostgreSQL DB / 保存領域で実 SPA と Hono の Node.js サーバー を同一オリジンで実行する。`webServer`、投入済み fixture、起動コマンドは利用プロジェクトが宣言する。モックした API で代替しない。
 - 全スイートコマンドは最終ゲートに含めるなら `commands.system` に宣言する。UC 選択は `playwright test --grep "UC-nnn"`。
 
 ## シナリオの形

@@ -5,11 +5,11 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsc
 
 # Xserver VPS / Hono / React — 共通コーディング
 
-利用プロジェクトが宣言した Xserver VPS 内で動く Node.js + Hono + React SPA スタックにだけ適用する。`rules-next` は継承しない。モノレポの無関係な単位には適用しない。
+利用プロジェクトが宣言した Xserver VPS 内で動く Node.js + Hono + React SPA + PostgreSQL スタックにだけ適用する。`rules-next` は継承しない。モノレポの無関係な単位には適用しない。
 
 ## スタックの既定
 
-- VPS 内のリバースプロキシと Node.js で Vite React SPA と Hono API を同一オリジンから配信する。ブラウザルートは TanStack Router、サーバー状態は TanStack Query、型付き HTTP 呼び出しは Hono RPC、HTTP 入力境界は Zod + `@hono/zod-validator`、リレーショナル永続化は VPS 内の DB + 対応する Drizzle ドライバー。DB エンジンは利用プロジェクトが宣言する。WebSocket とファイル保存は必要な機能だけに導入する。
+- VPS 内のリバースプロキシと Node.js で Vite React SPA と Hono API を同一オリジンから配信する。ブラウザルートは TanStack Router、サーバー状態は TanStack Query、型付き HTTP 呼び出しは Hono RPC、HTTP 入力境界は Zod + `@hono/zod-validator`、リレーショナル永続化は VPS 内の PostgreSQL + Drizzle。接続とスキーマの規約は[永続化](backend-database.instructions.md)に従う。WebSocket とファイル保存は必要な機能だけに導入する。
 - API、DB、非公開ファイルの実行・保存先は Xserver VPS 内に置く。RSC と Server Actions は導入しない。
 - 選択した単位、実際のパス、接続設定、逸脱は利用プロジェクトの `AGENTS.md` / `CLAUDE.md` に地図として宣言する（R-1010）。コマンドは `traceconfig.json` の `commands`、バージョンはマニフェストとロックファイルが持つ。
 
@@ -21,7 +21,7 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsc
 | --- | --- |
 | `deploy/**`、`vite.config.*`、`apps/api/src/{index,server}.ts` | [ランタイム](platform-runtime.instructions.md)、[アセットルーティング](platform-routing.instructions.md) |
 | `apps/api/src/features/<feature>/<feature>.{routes,service,repository}.ts`、`middleware/**`、`types/env.ts` | [バックエンドの境界](backend-coding.instructions.md)、認証境界では[セキュリティ](backend-security.instructions.md) |
-| `apps/api/src/db/{schema/*.ts,client.ts}`、`drizzle.config.*`、`apps/api/migrations/*.sql` | [DB / Drizzle](backend-database.instructions.md) |
+| `apps/api/src/db/{schema/*.ts,client.ts}`、`drizzle.config.*`、`apps/api/migrations/*.sql` | [PostgreSQL / Drizzle](backend-database.instructions.md) |
 | `apps/api/src/features/<feature>/*.socket.ts`、`*.schema.ts` | [リアルタイム](backend-realtime.instructions.md) |
 | ファイル保存を使う repository とアップロードルート | [ファイル保存](backend-storage.instructions.md) |
 | `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | [ブラウザルーティング](frontend-routing.instructions.md)、[データフロー](frontend-dataflow.instructions.md) |

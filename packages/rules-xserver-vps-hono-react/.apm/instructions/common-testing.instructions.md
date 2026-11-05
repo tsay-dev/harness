@@ -12,7 +12,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 | スイート | ランタイムと境界 | 既定の配置 |
 | --- | --- | --- |
 | 既定 | Vitest。純粋な業務関数、services、境界フェイクを注入した Hono HTTP。実 DB 接続とブラウザなし | `tests/backend/` または同じ場所の `*.test.ts` |
-| 統合 | Node.js と選択した実 DB / ファイル保存 / WebSocket。本番リソースなし | `tests/integration/` |
+| 統合 | Node.js と実 PostgreSQL / ファイル保存 / WebSocket。本番リソースなし | `tests/integration/` |
 | システム | 実 SPA + Node.js API のシナリオ環境に対する Playwright | `e2e/` |
 
 - 探索はフォルダーとランナー設定で分離し、既定テストが 実通信、DB、ブラウザなしで成功するようにする。`traceconfig.json` に `commands.test`、最終ゲートで使うなら `commands.system` を宣言し、統合コマンドは別に記録する。
