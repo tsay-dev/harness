@@ -3,7 +3,7 @@ description: "VPS 内ファイル保存 — 非公開領域、認可、整合性
 applyTo: "**/apps/api/src/features/**/*.repository.ts,**/apps/api/src/features/**/*.routes.ts,**/apps/api/src/features/**/*.service.ts,**/apps/api/src/lib/**,**/apps/web/src/features/**/api/**,**/deploy/**,**/tests/integration/**"
 ---
 
-# Xserver VPS — ファイル保存
+# Righthub — ファイル保存
 
 ファイル保存を使う機能だけに適用する。認可は[セキュリティ](backend-security.instructions.md)に従う。
 

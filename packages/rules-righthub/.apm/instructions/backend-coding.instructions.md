@@ -14,7 +14,7 @@ applyTo: "**/apps/api/src/**,**/packages/shared/src/**,**/tests/backend/**,**/te
 | ファイル | 含めるもの | 含めないもの |
 | --- | --- | --- |
 | `*.routes.ts` | HTTP 検証、主体識別、service 呼び出し、レスポンス変換 | インライン SQL、業務判断 |
-| `*.service.ts` | ユースケースの調整と純粋な業務関数（ユースケースの役割） | Hono context、環境変数、Drizzle ビルダー、通信レスポンス |
+| `*.service.ts` | ユースケースの調整と純粋な業務関数（ユースケースの役割） | Hono context、環境変数、Prisma Client と生成モデル型、通信レスポンス |
 | `*.repository.ts` | 注入された依存先を通じた永続化と外部 I/O | 業務方針、routes への逆呼び出し |
 | `middleware/auth.ts`、`middleware/error-handler.ts` | 再利用する主体識別とエラー境界 | 機能の業務フロー |
 | `types/env.ts` | 起動時に検証する環境設定と型付き Hono variables | 秘密情報のリテラル |

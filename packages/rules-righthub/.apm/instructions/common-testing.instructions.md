@@ -1,9 +1,9 @@
 ---
-description: "Xserver VPS / Hono / React — テストスイート、契約入口の対応付け、注釈"
+description: "Righthub / Hono / React — テストスイート、契約入口の対応付け、注釈"
 applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,**/tests/**,**/e2e/**,**/vitest.config.*,**/playwright.config.*,**/apps/api/src/index.ts,**/apps/api/src/features/**/*.routes.ts"
 ---
 
-# Xserver VPS / Hono / React — テストの接続
+# Righthub / Hono / React — テストの接続
 
 このスタックでテストを置く場所、入口、注釈を定める。フロントエンド単体テストのリーフはなく、フロントエンド単体テストは作らない。
 

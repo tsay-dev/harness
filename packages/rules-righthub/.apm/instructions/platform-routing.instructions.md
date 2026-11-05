@@ -1,9 +1,9 @@
 ---
-description: "Xserver VPS — リバースプロキシ、API と SPA の振り分け"
+description: "Righthub — リバースプロキシ、API と SPA の振り分け"
 applyTo: "**/deploy/**,**/vite.config.*,**/apps/api/src/index.ts,**/apps/api/src/server.ts,**/apps/api/src/features/**/*.routes.ts,**/tests/integration/**,**/e2e/**"
 ---
 
-# Xserver VPS — アセットと API のルーティング
+# Righthub — アセットと API のルーティング
 
 - SPA と API を同じ公開オリジンから配信する。`/api/*` と宣言済み WebSocket 名前空間（例: `/ws/*`）を予約し、異なる接頭辞は利用プロジェクトで宣言する。
 - Nginx / Caddy 等の採用したリバースプロキシが TLS を終端し、API と WebSocket を静的アセットより先に Node.js へ渡す。プロキシと Hono の間で接頭辞を重複・欠落させない。

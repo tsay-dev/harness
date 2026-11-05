@@ -1,7 +1,7 @@
 ---
 id: ADR-0059
 title: Xserver VPS 向けスタックの DB を PostgreSQL に固定する
-status: accepted
+status: superseded
 date: 2026-11-05
 ---
 

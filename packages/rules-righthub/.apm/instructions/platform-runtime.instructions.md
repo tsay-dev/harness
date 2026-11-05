@@ -1,14 +1,14 @@
 ---
-description: "Xserver VPS / Node.js — 起動、環境設定、プロセスと永続データ"
+description: "Righthub / Node.js — 起動、環境設定、プロセスと永続データ"
 applyTo: "**/deploy/**,**/Dockerfile*,**/compose*.yml,**/compose*.yaml,**/apps/api/src/**,**/vite.config.*,**/tests/integration/**"
 ---
 
-# Xserver VPS / Node.js — ランタイム
+# Righthub / Node.js — ランタイム
 
 このパッケージを選択した VPS 内のアプリケーションにだけ適用する。OS、PostgreSQL の版、リバースプロキシ、プロセス管理方式と実際の配置は利用プロジェクトが宣言する。
 
 - Node.js のサポート中の版と依存を固定し、`@hono/node-server` で Hono を実行する。Vite の dev server を本番サーバーにしない。
-- API、PostgreSQL、保存領域は VPS 内に置く。Workers、D1、R2、Durable Objects の実行時サービスを前提にしない。外部サービスが必要なら適用範囲の変更として宣言する。
+- API、PostgreSQL、保存領域は VPS 内に置く。外部サービスが必要なら適用範囲の変更として宣言する。
 - systemd または採用したコンテナ管理で再起動とログを管理する。非 root の専用ユーザーで動かし、公開はリバースプロキシの HTTP / HTTPS に限定する。API の待ち受けと DB は loopback または隔離した内部ネットワークに置く。
 - 環境設定は起動時に検証し、型付きの依存として渡す。DB プールはプロセス単位で管理できるが、ユーザー状態とリクエストの秘密情報を singleton に置かない。
 - 秘密情報はソース管理外の権限制限した環境ファイル等で注入する。`VITE_*` はすべて公開ビルド入力。秘密情報をレスポンス、ログ、ビルド成果物へ混ぜない。
