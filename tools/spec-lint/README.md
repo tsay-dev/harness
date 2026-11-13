@@ -15,7 +15,7 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   `status`（ノードは `draft|active|withdrawn`、単一文書は `draft|frozen|living`、
   `DEFERRED.md` は `living` のみ、ADR は `proposed|accepted|superseded`、契約は `draft|fixed`）、
   `phase`（`定義|構造|実装|検証|完了`）、`pattern`（五つの EARS パターン）、
-  `transport`（`http|sdk|local-store|deeplink|push|device|internal` — `internal` は利用プロジェクトが
+  `transport`（`http|sdk|local-store|deeplink|push|device|internal|stream` — `internal` は利用プロジェクトが
   ADR で明示的に契約化を決めたプロセス内境界。R-1204 の既定ではその境界は操作ではない）/ `direction`。
 - **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
   作業指針は地図だけを持つ）。
@@ -25,7 +25,7 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   trace-check・contract-run・gate-hook も同じものを使うので、同じ文書をツールごとに違う値（一方は active、他方は draft）に読まない（ADR-0056）。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
   意図的に狭い YAML 部分集合用の手書き parser（`../_shared/strict-yaml.mjs`。理由: `docs/adr/ADR-0002`）で構造を検査する:
-  `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、`entry` は `deeplink` / `push` のみ、
+  `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、`entry` は `deeplink` / `push` / `stream` のみ（`deeplink` / `push` は inbound 限定）、`stream` の `observers` と例の `events`、
   `owned: false` なら `source` 必須、全操作に明示した `auth` が `_shared` に解決すること、
   `errors[].code` が `_shared` の `errorCodes` に閉じていること、対応する `PERMISSION_DENIED` のない `requires`、
   `errors: []` を「失敗経路なし」の宣言として受理すること（失敗例は要求しない。`errors` の省略はその宣言ではない）、
@@ -96,6 +96,11 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
   `requires` / `request` / `response` / `errors` / `examples` — `templates/develop/contract.yaml` の 13 キー —
   以外を持つ操作。操作レベルの `x-*` も拒否する。規則は UC / REQ / BR に属し、評価順序は `errors` の順序
   （R-1207）。各 `errors[]` 項目も `code` / `when` / `wire` に閉じる。
+- `stream`（持続する接続のメッセージ。ADR-0061）: `entry` の欠落、届くイベント（inbound）の `response` / `errors` /
+  重複した `entry`、`observers` に無い観測者名や予約語 `self` の宣言、`stream` 以外の例の `events`、
+  `entry` / `payload` 以外のキーを持つ `events` 項目、届くイベントを指さない `entry`、その `request` と噛み合わない
+  `payload`、自身を含まない届くイベントの例。`fixed` ではさらに、`events` を省略した `stream` の例
+  （届かないなら観測者ごとに `[]` と書く）と、どの例の `events` にも現れない届くイベント。
 - `fixed` 契約に、どの `examples.<case>.error` も返さない宣言エラーコードがある（`errors` ⊆ `examples`。
   既存の「全失敗例は宣言済みコードを指定する」の逆。`errors: []` は除外）。例のない失敗経路はテストで実行できない。
 - `docs/verification/DEFERRED.md`（任意）: `living` 以外の `status`、セルがちょうど七つでない行、
