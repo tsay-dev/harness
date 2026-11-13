@@ -1,7 +1,7 @@
 ---
 id: ADR-0061
 title: 持続する接続のメッセージを stream として契約に書き、届くイベントを観測者ごとに例で照合する
-status: proposed
+status: accepted
 date: 2026-11-13
 ---
 
