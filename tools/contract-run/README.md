@@ -50,7 +50,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 `2` = 設定またはアダプターエラー（`traceconfig.json` 欠落、`<docs>/goals` が無い、解析不能な契約、アダプターの異常終了 /
 タイムアウト / プロトコル違反）。`<docs>/goals` の不在を失敗にするのは、`--docs` の書き損じで「実行する実例が無い」と
 黙って通らないため（ADR-0056）。docs をまだ持たない利用プロジェクトは `docs/goals/` を作る（空なら `.gitkeep` を置く）。`operations: {}` の操作は表示せずスキップする。
-`response` も `error` もない例は、それ自体を `fail` として報告する（不正な例。アダプターへは送らない）。
+`response` も `error` も `events` もない例は、それ自体を `fail` として報告する（不正な例。アダプターへは送らない）。
 
 `commands.contract_adapter` が**未宣言**で、実行する実例があれば失敗（`1`）にする（ADR-0056）:
 
@@ -75,10 +75,11 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 ```json
 {"id":1,"uc":"UC-012","operation":"createItem","transport":"http","direction":"outbound","owned":true,
  "auth":"bearer","wire":{"method":"POST","path":"/items","success":201},"entry":null,
- "request":{"title":"abc"},"case":"ok"}
+ "request":{"title":"abc"},"case":"ok","observe":null}
 ```
 
-契約に `wire`、`entry`、`request` がない場合は `null`。`auth` は契約の scheme 名
+契約に `wire`、`entry`、`request` がない場合は `null`。`observe` は例が `events` を持つとき（`transport: stream`）、
+その観測者名の配列（`self` と契約の `observers` に宣言した名前）。それ以外は `null`。`auth` は契約の scheme 名
 （`none` または `_shared` の `authSchemes` キー）。
 
 応答行 — リクエストの `id` を付け、次の三つのうち正確に一つ:
@@ -89,10 +90,21 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 {"id":1,"skip":"XCTest 経由でのみ到達可能"}
 ```
 
+`observe` が配列の要求には、応答に `events` を添える。観測者ごとに、その例の実行で届いたイベントを届いた順に並べる:
+
+```json
+{"id":2,"response":{"id":"m1"},"events":{"self":[],"roommate":[{"entry":"messagePosted","payload":{"id":"m1","text":"こんにちは"}}]}}
+{"id":3,"events":{"roommate":[{"entry":"memberLeft","payload":{"userId":"u1"}}]}}
+```
+
+2 行目は届くイベント自身の例（`events` だけの例）への応答で、`response` も `error` も要らない。アダプターは
+`case` 名からその状況（時間経過、失効など）を作り、観測者を用意して届いたイベントを集める。
+
 規則:
 
 - 応答順序は任意だが、各リクエストには正確に一つの応答が必要。欠落 / 未知 / 重複の `id`、
-  stdout の非 JSON 行、`response` / `error` / `skip` が一つもない応答、非ゼロ終了は**アダプターエラー**。
+  stdout の非 JSON 行、`response` / `error` / `skip` が一つもない応答（`events` だけの例を除く）、`observe` が配列なのに `events` がない応答、
+  非ゼロ終了は**アダプターエラー**。
   exit `2` とし、診断用にアダプター stderr の末尾 20 行を表示する。
 - アダプター自身の出力は **stderr** へ。stdout はプロトコルの経路。
 - `skip` には一行の理由を入れる。skip した例は失敗に数える（紐づきに例外を作らない。ADR-0056）。
@@ -135,6 +147,15 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 
 **失敗例**の応答は**同じコード**の `error` でなければならない。`response` は失敗
 （`期待: error CODE / 実際: 正常`）。異なるコードも失敗（`期待: error A / 実際: error B`）。
+
+**`events` を持つ例**（`transport: stream`。ADR-0061）は、上の判定に加えて観測者ごとに届いたイベントを照合する。
+失敗例でも照合する（拒否された操作が何も配信しないことを `[]` で検査できる）:
+
+- 例に書いた観測者ごとに、応答の `events.<観測者>` が**同じ件数・同じ順序**で、各項目の `entry` が厳密に等しく、
+  `payload` は上と同じ部分集合の一致。余分なイベントも、届くはずのない相手への配信も失敗になる。
+- 例に書いた観測者の `[]` は「届かない」の宣言。例に書いていない観測者は照合しない。
+- 不一致は `events.roommate[0].entry: 期待 "messagePosted" / 実際 "memberLeft"`、
+  `events.self: 期待 長さ 0 / 実際 長さ 1` のようにパスで報告する。
 
 ## ほかの検査との関係
 

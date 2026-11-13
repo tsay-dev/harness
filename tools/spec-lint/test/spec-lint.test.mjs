@@ -286,3 +286,155 @@ test("docs/goals が無ければ設定エラー（exit 2）、アクターの種
 		rmSync(root, { recursive: true, force: true });
 	}
 });
+
+//  ---- stream（持続する接続のメッセージ）と events（ADR-0061）----
+
+//  move（送るメッセージ）と avatarMoved / avatarLeft（届くイベント）を持つ契約。各テストは 1 箇所だけ置き換える
+const STREAM_CONTRACT = `x-uc: UC-001
+x-status: fixed
+x-spec: ./UC.md
+x-updated: 2026-09-01
+
+observers:
+  neighbor: 同じ場所を見ている別の利用者
+
+operations:
+  move:
+    transport: stream
+    direction: outbound
+    owned: true
+    auth: none
+    summary: 位置を動かす
+    entry: move
+    request:
+      type: object
+      required: [x]
+      properties:
+        x: { type: integer }
+    response:
+      type: object
+      required: [x]
+      properties:
+        x: { type: integer }
+    errors:
+      - code: INVALID_INPUT
+        when: 動けない位置
+    examples:
+      ok:
+        request: { x: 3 }
+        response: { x: 3 }
+        events:
+          self: []
+          neighbor:
+            - { entry: avatarMoved, payload: { userId: u1, x: 3 } }
+      invalid:
+        request: { x: -1 }
+        error: INVALID_INPUT
+        events: { self: [], neighbor: [] }
+  avatarMoved:
+    transport: stream
+    direction: inbound
+    owned: true
+    auth: none
+    summary: ほかの利用者が動いた
+    entry: avatarMoved
+    request:
+      type: object
+      required: [userId, x]
+      properties:
+        userId: { type: string }
+        x: { type: integer }
+  avatarLeft:
+    transport: stream
+    direction: inbound
+    owned: true
+    auth: none
+    summary: ほかの利用者が去った
+    entry: avatarLeft
+    request:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: string }
+    examples:
+      graceExpired:
+        events:
+          neighbor:
+            - { entry: avatarLeft, payload: { userId: u1 } }
+`;
+
+const streamWith = (from, to) => {
+	assert.ok(STREAM_CONTRACT.includes(from), `置換元が fixture に無い: ${from}`);
+	return validate({ contract: STREAM_CONTRACT.replace(from, to) });
+};
+
+test("stream: 送るメッセージ・届くイベント・観測者ごとの events を持つ契約は通る", () => {
+	const r = validate({ contract: STREAM_CONTRACT });
+	assert.equal(r.status, 0, r.out);
+});
+
+test("stream: entry が無ければ err", () => {
+	const r = streamWith("    entry: move\n", "");
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /operations\.move: transport が stream なら entry/);
+});
+
+test("stream: fixed の例が events を省略すれば err（届かないなら [] と書く）", () => {
+	const r = streamWith("        events: { self: [], neighbor: [] }\n", "");
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /examples\.invalid に events が無い/);
+});
+
+test("stream: events の観測者が observers に無ければ err、self は宣言できない", () => {
+	const a = streamWith("events: { self: [], neighbor: [] }", "events: { self: [], stranger: [] }");
+	assert.equal(a.status, 1, a.out);
+	assert.match(a.out, /観測者 "stranger" が observers に無い/);
+	const b = streamWith("  neighbor: 同じ場所を見ている別の利用者", "  neighbor: 同じ場所を見ている別の利用者\n  self: 本人");
+	assert.equal(b.status, 1, b.out);
+	assert.match(b.out, /"self" は予約語/);
+});
+
+test("stream: events の entry が届くイベントを指さない / payload が形に合わなければ err", () => {
+	const a = streamWith("{ entry: avatarMoved, payload: { userId: u1, x: 3 } }", "{ entry: avatarJumped, payload: { userId: u1, x: 3 } }");
+	assert.equal(a.status, 1, a.out);
+	assert.match(a.out, /entry "avatarJumped" を持つ届くイベント/);
+	const b = streamWith("{ entry: avatarMoved, payload: { userId: u1, x: 3 } }", "{ entry: avatarMoved, payload: { userId: u1, y: 3 } }");
+	assert.equal(b.status, 1, b.out);
+	assert.match(b.out, /payload の "y" が operations\.avatarMoved の request\.properties に無い/);
+	assert.match(b.out, /payload に必須の "x" が無い/);
+});
+
+test("stream: どの例の events にも現れない届くイベントは err", () => {
+	const r = streamWith("            - { entry: avatarMoved, payload: { userId: u1, x: 3 } }\n", "            - { entry: avatarLeft, payload: { userId: u1 } }\n");
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /operations\.avatarMoved: 届くイベント "avatarMoved" がどの例の events にも現れない/);
+});
+
+test("stream: 届くイベントは response / errors を持てず、自身の例は自身を含む events だけ", () => {
+	const a = streamWith("    entry: avatarLeft\n", "    entry: avatarLeft\n    response: { type: object }\n");
+	assert.equal(a.status, 1, a.out);
+	assert.match(a.out, /operations\.avatarLeft: 届くイベント（stream \/ inbound）に response は書かない/);
+	const b = streamWith("            - { entry: avatarLeft, payload: { userId: u1 } }\n", "            - { entry: avatarMoved, payload: { userId: u1, x: 1 } }\n");
+	assert.equal(b.status, 1, b.out);
+	assert.match(b.out, /examples\.graceExpired\.events にこのイベント自身/);
+});
+
+test("events は stream 専用: http の例に書けば err", () => {
+	const r = validate({
+		examples: `ok:
+  request: { name: "abc" }
+  response: { id: 1 }
+  events: { self: [] }
+invalid:
+  request: { name: "" }
+  error: INVALID_INPUT`,
+	});
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /examples\.ok に events があるが transport が stream でない/);
+});
+
+test("deeplink / push は従来どおり inbound のみ", () => {
+	const r = streamWith("    transport: stream\n    direction: outbound", "    transport: push\n    direction: outbound");
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /transport が push なら direction は inbound/);
+});

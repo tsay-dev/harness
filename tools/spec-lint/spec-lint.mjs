@@ -480,9 +480,13 @@ function validateADR(file) {
 //  --- 契約 contract.yaml の検証（UC ディレクトリ直下。x-uc がディレクトリの ID と一致すること）---
 
 //  internal ＝ 同じプロセス内の境界を、ホストが ADR で「契約に書く」と決めたときの語（既定は R-1204 で operation にしない）
-const TRANSPORTS = ["http", "sdk", "local-store", "deeplink", "push", "device", "internal"];
+//  stream ＝ 持続する接続（WebSocket / SSE など）の上を流れるメッセージ。接続の確立そのものは http の操作として書く（ADR-0061）
+const TRANSPORTS = ["http", "sdk", "local-store", "deeplink", "push", "device", "internal", "stream"];
 const DIRECTIONS = ["outbound", "inbound"];
-const ENTRY_TRANSPORTS = ["deeplink", "push"];
+const ENTRY_TRANSPORTS = ["deeplink", "push", "stream"]; //  entry が要る transport
+const INBOUND_ONLY_TRANSPORTS = ["deeplink", "push"]; //  stream は双方向（outbound = 送るメッセージ / inbound = 届くイベント）
+const SELF_OBSERVER = "self"; //  例の主体の接続。予約語なので observers に宣言しない
+const EVENT_ITEM_KEYS = ["entry", "payload"]; //  examples.<case>.events.<観測者>[] の各項目も閉集合
 const PERMISSION_CODE = "PERMISSION_DENIED";
 const OP_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
 //  operation 直下のキーは閉集合（x-* も不可）。規則は UC / REQ / BR、判定順序は errors の並び（R-1207）。
@@ -543,6 +547,32 @@ function validateContract(file, text, dirId, xKeys, shared) {
 				file,
 				`operations が空なのに x-no-boundary が無い（境界を持たない理由を 1 行で書く。書けないなら境界がある）`,
 			);
+	}
+
+	//  観測者: stream の例で「誰に届くか」を名指すための宣言（名前 → 1 行の説明）。self は予約語
+	const observers = root["observers"];
+	const observerNames = [SELF_OBSERVER];
+	if (observers !== undefined) {
+		if (!isMap(observers)) err(at(lineOf(root, "observers")), `"observers" はマップ（名前: 1 行の説明）で書く`);
+		else
+			for (const [o, desc] of Object.entries(observers)) {
+				const oAt = at(lineOf(observers, o) || lineOf(root, "observers"));
+				if (o === SELF_OBSERVER) err(oAt, `observers.${o}: "${SELF_OBSERVER}" は予約語（例の主体の接続）。宣言しない`);
+				else if (!OP_NAME_RE.test(o)) err(oAt, `observers.${o}: 観測者名は lowerCamelCase で書く`);
+				else observerNames.push(o);
+				if (typeof desc !== "string" || desc.trim().length === 0) err(oAt, `observers.${o}: 説明（誰なのかを 1 行）が無い`);
+			}
+	}
+	//  届くイベント（inbound の stream 操作）を entry で引けるようにする。例の events が指す先
+	const eventOps = new Map();
+	for (const name of names) {
+		const op = ops[name];
+		if (!isMap(op) || op["transport"] !== "stream" || op["direction"] !== "inbound") continue;
+		const entry = op["entry"];
+		if (typeof entry !== "string" || entry.trim().length === 0) continue;
+		if (eventOps.has(entry))
+			err(at(lineOf(op, "entry") || lineOf(ops, name)), `operations.${name}: entry "${entry}" が operations.${eventOps.get(entry).name} と重複（届くイベントの entry は契約内で一意）`);
+		else eventOps.set(entry, { name, op, seen: false });
 	}
 
 	let errorCount = 0;
@@ -610,17 +640,27 @@ function validateContract(file, text, dirId, xKeys, shared) {
 		//  呼ばれる側は入口の識別子が要る
 		if (ENTRY_TRANSPORTS.includes(transport)) {
 			if (!op["entry"] || String(op["entry"]).trim().length === 0)
-				err(fieldAt("entry"), `${label}: transport が ${transport} なら entry（URL パターン / ペイロード識別子）が要る`);
-			if (direction !== "inbound")
+				err(fieldAt("entry"), `${label}: transport が ${transport} なら entry（URL パターン / ペイロード識別子 / メッセージ種別）が要る`);
+			if (INBOUND_ONLY_TRANSPORTS.includes(transport) && direction !== "inbound")
 				err(fieldAt("direction"), `${label}: transport が ${transport} なら direction は inbound`);
 		} else if (op["entry"] !== undefined) {
 			err(fieldAt("entry"), `${label}: entry は ${ENTRY_TRANSPORTS.join(" / ")} 専用`);
 		}
 
+		//  届くイベントは応答も失敗経路も持たない（形は request に書く。push と同じ流儀）
+		const isStream = transport === "stream";
+		const isEvent = isStream && direction === "inbound";
+		if (isEvent) {
+			if (op["response"] !== undefined)
+				err(fieldAt("response"), `${label}: 届くイベント（stream / inbound）に response は書かない（ペイロードの形は request に書く）`);
+			if (Array.isArray(op["errors"]) && op["errors"].length > 0)
+				err(fieldAt("errors"), `${label}: 届くイベント（stream / inbound）に errors は書かない`);
+		}
+
 		//  エラー。errors: [] は「失敗経路を持たない」の宣言（省略とは区別する。auth の none と同じ流儀）
 		const errs = op["errors"];
 		const codes = [];
-		const noFailures = Array.isArray(errs) && errs.length === 0;
+		const noFailures = isEvent || (Array.isArray(errs) && errs.length === 0);
 		if (errs !== undefined) {
 			if (!Array.isArray(errs)) err(fieldAt("errors"), `${label}: errors はシーケンスで書く`);
 			else
@@ -662,9 +702,68 @@ function validateContract(file, text, dirId, xKeys, shared) {
 				);
 		}
 
-		//  具体例（fixed のみ）。実装とテストがコピペできる粒度を要求する
+		//  例の events（誰に・どのイベントが・どの順で届くか）。書式は status によらず検査する
 		const ex = op["examples"];
-		if (status === "fixed") {
+		if (isMap(ex))
+			for (const [caseName, c] of Object.entries(ex)) {
+				if (!isMap(c)) continue;
+				const exLabel = `${label}: examples.${caseName}`;
+				const exAt = at(lineOf(ex, caseName) || lineOf(op, "examples"));
+				const events = c["events"];
+				if (events === undefined) {
+					//  省略は「届かない」の宣言ではない。届かないなら観測者ごとに [] と書く
+					if (isStream && status === "fixed")
+						err(exAt, `${exLabel} に events が無い（stream の例は観測者ごとに届くイベントを列挙する。届かないなら <観測者>: []）`);
+					continue;
+				}
+				if (!isStream) {
+					err(exAt, `${exLabel} に events があるが transport が stream でない`);
+					continue;
+				}
+				if (!isMap(events) || Object.keys(events).length === 0) {
+					err(exAt, `${exLabel}.events は「観測者: [イベント...]」のマップで、観測者を 1 つ以上書く`);
+					continue;
+				}
+				if (isEvent && (c["request"] !== undefined || c["response"] !== undefined || c["error"] !== undefined))
+					err(exAt, `${exLabel}: 届くイベントの例は events だけを書く（request / response / error は持たない）`);
+				let selfSeen = false;
+				for (const [who, list] of Object.entries(events)) {
+					if (!observerNames.includes(who))
+						err(exAt, `${exLabel}.events の観測者 "${who}" が observers に無い（${SELF_OBSERVER} か、契約の最上位 observers に宣言した名前）`);
+					if (!Array.isArray(list)) {
+						err(exAt, `${exLabel}.events.${who} はシーケンスで書く（届かないなら []）`);
+						continue;
+					}
+					list.forEach((item, i) => {
+						const itLabel = `${exLabel}.events.${who}[${i}]`;
+						if (!isMap(item)) return err(exAt, `${itLabel} はマップ（entry / payload）で書く`);
+						for (const k of Object.keys(item))
+							if (!EVENT_ITEM_KEYS.includes(k)) err(exAt, `${itLabel} に未知のキー "${k}"（${EVENT_ITEM_KEYS.join(" / ")} のみ）`);
+						const target = eventOps.get(item["entry"]);
+						if (!target)
+							return err(exAt, `${itLabel} の entry ${JSON.stringify(item["entry"])} を持つ届くイベント（stream / inbound の操作）がこの契約に無い`);
+						target.seen = true;
+						if (target.op === op) selfSeen = true;
+						const schema = target.op["request"];
+						const props = isMap(schema) && isMap(schema["properties"]) ? schema["properties"] : null;
+						const required = isMap(schema) && Array.isArray(schema["required"]) ? schema["required"] : [];
+						const payload = item["payload"];
+						if (payload !== undefined && !isMap(payload)) return err(exAt, `${itLabel}.payload はマップで書く`);
+						if (props) {
+							for (const k of Object.keys(payload ?? {}))
+								if (!(k in props)) err(exAt, `${itLabel}.payload の "${k}" が operations.${target.name} の request.properties に無い`);
+							for (const k of required)
+								if (!(k in (payload ?? {}))) err(exAt, `${itLabel}.payload に必須の "${k}" が無い`);
+						}
+					});
+				}
+				if (isEvent && !selfSeen)
+					err(exAt, `${exLabel}.events にこのイベント自身（entry "${op["entry"]}"）が無い（届くイベントの例は、その状況で自身が届くことを示す）`);
+			}
+
+		//  具体例（fixed のみ）。実装とテストがコピペできる粒度を要求する。
+		//  届くイベントは自身の例を必須にしない（操作の例に現れれば足りる。どの例にも現れないものは下でまとめて落とす）
+		if (status === "fixed" && !(isEvent && ex === undefined)) {
 			if (!isMap(ex) || Object.keys(ex).length === 0) {
 				err(fieldAt("examples"), `${label}: fixed なのに examples が無い（正常 1 件${noFailures ? "" : "＋異常 1 件以上"}の実値）`);
 			} else {
@@ -701,6 +800,15 @@ function validateContract(file, text, dirId, xKeys, shared) {
 			}
 		}
 	}
+
+	//  例の無い形は実行できない。fixed では、届くイベントがどれかの例の events に現れること
+	if (status === "fixed")
+		for (const [entry, t] of eventOps)
+			if (!t.seen)
+				err(
+					at(lineOf(ops, t.name)),
+					`operations.${t.name}: 届くイベント "${entry}" がどの例の events にも現れない（きっかけの操作の例か、このイベント自身の例に書く）`,
+				);
 
 	checkRefs(file, text, at);
 	checkSentinels(file, text, status);

@@ -14,6 +14,8 @@
 #   local-store  デバイス / ホスト上の永続化（UserDefaults、Keychain、ファイル、SQLite、IndexedDB など）
 #   device       権限やハードウェアを介する OS 機能（カメラ、HealthKit、カレンダー、位置情報など）。requires: を宣言する
 #   deeplink     URL でアプリを開く（常に inbound）     push  通知ペイロードを受信する（常に inbound）
+#   stream       持続する接続（WebSocket、SSE など）の上を流れるメッセージ。outbound = 送るメッセージ /
+#                inbound = 届くイベント。entry: がメッセージ種別。接続の確立（認証を含む）は http の操作として書く
 #   internal     このアプリのプロセス内境界（UI → use case、デバイス上のアプリの action 境界）で、
 #                プロジェクトが ADR で明示的に契約化を決めたもの。原則 owned: true、auth: none。wire と entry はなし
 #   同じアプリのモジュール間境界（UI ↔ logic、feature ↔ feature、repository protocol）の既定は操作ではない。
@@ -34,7 +36,7 @@ operations:
   # entry / requires / request / response / errors / examples）。spec-lint は x-* を含む他のキーを拒否する。
   # 規則と状態遷移は UC / REQ / BR に置き、評価順序は errors の順序に置く
   <operationName>:
-    transport: http          # http | sdk | local-store | deeplink | push | device | internal（権威である spec-lint が保証）
+    transport: http          # http | sdk | local-store | deeplink | push | device | internal | stream（権威である spec-lint が保証）
     direction: outbound      # outbound = このアプリが外部を呼ぶ / inbound = このアプリが呼ばれる
     owned: true              # true = 自身が形状を決める / false = 他者の形状を書き写す（source: を追加）
     auth: <scheme>           # _shared authSchemes の定義名、または none。省略禁止。「忘れた」と「不要」を区別する
@@ -147,6 +149,48 @@ operations:
 #       properties:
 #         orderId: { type: string }
 #         status: { type: string, enum: [shipped, delivered] }
+#
+#  持続する接続のメッセージ — 送るメッセージ（outbound）と届くイベント（inbound）を別の操作として書く。
+#  誰に届くかは、契約の最上位 observers:（名前: 1 行の説明）に宣言した観測者と、予約語 self（例の主体の接続）で名指す。
+#  例の events: は観測者ごとに届くイベントを順に列挙する。contract-run は種別・件数・順序の一致と payload の部分集合で照合する。
+#  書いた観測者の [] は「届かない」の宣言で、書いていない観測者は照合しない。fixed の stream の例は events: を省略できない。
+#  届くイベントの形は request: に書く（push と同じ）。response: と errors: は持たない。
+#  操作によらず届くイベント（時間経過、失効など）は、そのイベント自身の例（events: だけ）に書き、アダプターが状況を作る。
+#  fixed では、どの例の events: にも現れない届くイベントはエラー
+#   observers:
+#     roommate: <同じ部屋にいる別の利用者>
+#
+#   sendMessage:
+#     transport: stream
+#     direction: outbound
+#     owned: true
+#     auth: none
+#     summary: <部屋にメッセージを送る>
+#     entry: sendMessage
+#     request: { type: object, required: [text], properties: { text: { type: string, minLength: 1 } } }
+#     response: { type: object, required: [id], properties: { id: { type: string } } }
+#     errors:
+#       - { code: INVALID_INPUT, when: <text が空> }
+#     examples:
+#       ok:
+#         request: { text: "こんにちは" }
+#         response: { id: "m1" }
+#         events:
+#           self: []
+#           roommate:
+#             - { entry: messagePosted, payload: { id: "m1", text: "こんにちは" } }
+#       invalid:
+#         request: { text: "" }
+#         error: INVALID_INPUT
+#         events: { self: [], roommate: [] }
+#   messagePosted:
+#     transport: stream
+#     direction: inbound
+#     owned: true
+#     auth: none
+#     summary: <部屋にメッセージが投稿された>
+#     entry: messagePosted
+#     request: { type: object, required: [id, text], properties: { id: { type: string }, text: { type: string } } }
 #
 #  デバイス機能 — requires: は操作が依存する権限を宣言する。
 #  対応する権限エラーのない requires: はエラー（拒否経路を契約に含める必要がある）

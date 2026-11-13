@@ -11,8 +11,11 @@
 //    traceconfig.json の commands.contract_adapter に書かれた 1 行を cwd = host root で 1 回だけ起動し、
 //    stdin に 1 例 1 行の JSON（要求）を順に流し、stdout の 1 行 1 JSON（応答）を id で突き合わせる。
 //      要求: {"id":1,"uc":"UC-012","operation":"createItem","transport":"http","direction":"outbound",
-//             "owned":true,"auth":"bearer","wire":{...}|null,"entry":"..."|null,"request":{...}|null,"case":"ok"}
+//             "owned":true,"auth":"bearer","wire":{...}|null,"entry":"..."|null,"request":{...}|null,"case":"ok",
+//             "observe":["self","<観測者>"]|null}
 //      応答: {"id":1,"response":{...}} | {"id":1,"error":"CODE"} | {"id":1,"skip":"<理由>"}
+//            stream の例（observe が配列）には events: {"<観測者>":[{"entry":"...","payload":{...}}]} を添える。
+//            events だけの例（届くイベント自身の例）は {"id":1,"events":{...}} だけでよい
 //    実行する実例があるのにアダプタが未宣言なら失敗（1）。実例が 1 件も無いときだけアダプタなしで 0 で終わる（ADR-0056）。
 //
 //  判定（1 例ごと）:
@@ -98,9 +101,9 @@ function planContract(file, root, opts) {
 		if (!isMap(ex)) continue;
 		for (const [caseName, c] of Object.entries(ex)) {
 			const item = { uc, operation: name, case: caseName, file, line: lineOf(ex, caseName) };
-			if (!isMap(c) || (c["response"] === undefined && c["error"] === undefined)) {
+			if (!isMap(c) || (c["response"] === undefined && c["error"] === undefined && !isMap(c["events"]))) {
 				//  例の不備。アダプタには送らず、その場で fail にする
-				item.malformed = "例が不正: response も error も無い";
+				item.malformed = "例が不正: response も error も events も無い";
 			} else {
 				item.expected = c;
 				item.request = {
@@ -114,6 +117,8 @@ function planContract(file, root, opts) {
 					entry: op["entry"] ?? null,
 					request: c["request"] ?? null,
 					case: caseName,
+					//  stream の例が照合する観測者の名前（self と契約の observers）。アダプタはこの全員分の届いたイベントを返す
+					observe: isMap(c["events"]) ? Object.keys(c["events"]) : null,
 				};
 			}
 			items.push(item);
@@ -159,19 +164,36 @@ function judge(item, reply) {
 	if (typeof reply.skip === "string") return { verdict: "skip", detail: reply.skip };
 	const hasResponse = reply.response !== undefined;
 	const hasError = reply.error !== undefined;
-	if (!hasResponse && !hasError) return { protocol: `応答に response / error / skip のいずれも無い（id=${reply.id}）` };
 	const ex = item.expected;
+	const wantsEvents = isMap(ex["events"]);
+	//  events だけの例（届くイベント自身の例）は、応答も events だけでよい
+	const eventsOnly = wantsEvents && ex["response"] === undefined && ex["error"] === undefined;
+	if (wantsEvents && !isMap(reply.events)) return { protocol: `例が events を持つのに応答に events が無い（id=${reply.id}）` };
+	if (!eventsOnly && !hasResponse && !hasError) return { protocol: `応答に response / error / skip のいずれも無い（id=${reply.id}）` };
 	if (ex["error"] !== undefined) {
 		//  異常例: 同じ code の error だけが pass
 		if (hasResponse) return { verdict: "fail", detail: `期待: error ${ex["error"]} / 実際: 正常` };
 		if (reply.error !== ex["error"]) return { verdict: "fail", detail: `期待: error ${ex["error"]} / 実際: error ${reply.error}` };
-		return { verdict: "pass", detail: `error ${reply.error}` };
+		return judgeEvents(ex, reply) ?? { verdict: "pass", detail: `error ${reply.error}` };
 	}
-	//  正常例: response で、例が実際の部分集合
-	if (hasError) return { verdict: "fail", detail: `期待: 正常 / 実際: error ${reply.error}` };
-	const m = subsetMismatch(ex["response"], reply.response);
-	if (m) return { verdict: "fail", detail: mismatchText(m) };
-	return { verdict: "pass", detail: "" };
+	if (!eventsOnly) {
+		//  正常例: response で、例が実際の部分集合
+		if (hasError) return { verdict: "fail", detail: `期待: 正常 / 実際: error ${reply.error}` };
+		const m = subsetMismatch(ex["response"], reply.response);
+		if (m) return { verdict: "fail", detail: mismatchText(m) };
+	}
+	return judgeEvents(ex, reply) ?? { verdict: "pass", detail: "" };
+}
+
+//  届いたイベントの照合。観測者ごとに種別・件数・順序が一致し、payload は例が実際の部分集合（ADR-0061）。
+//  例に書いていない観測者は見ない（書いた観測者の [] は「届かない」の宣言）。不一致が無ければ null
+function judgeEvents(ex, reply) {
+	if (!isMap(ex["events"])) return null;
+	for (const [who, list] of Object.entries(ex["events"])) {
+		const m = subsetMismatch(list, reply.events[who], `events.${who}`);
+		if (m) return { verdict: "fail", detail: mismatchText(m) };
+	}
+	return null;
 }
 
 //  ---- アダプタの実行 ------------------------------------------------------------

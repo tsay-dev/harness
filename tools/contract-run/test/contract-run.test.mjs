@@ -293,14 +293,14 @@ test("draft の契約は既定で飛ばし、--all で実行する", (t) => {
 	assert.match(r.stdout, /pass 2 \/ fail 0 \/ skip 0/);
 });
 
-test("response も error も無い例は fail（例の不備）として報告する", (t) => {
+test("response も error も events も無い例は fail（例の不備）として報告する", (t) => {
 	const root = makeHost({
 		contract: CONTRACT.replace("        error: INVALID_INPUT\n", "        note: forgot\n"),
 	});
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root);
 	assert.equal(r.status, 1);
-	assert.match(r.stdout, /fail {2}UC-001 doThing\.invalid {2}例が不正: response も error も無い/);
+	assert.match(r.stdout, /fail {2}UC-001 doThing\.invalid {2}例が不正: response も error も events も無い/);
 	//  不備の例はアダプタに送らない
 	assert.deepEqual(seenOps(root), ["doThing"]);
 });
@@ -326,4 +326,126 @@ test("--docs の先に goals が無ければ、実例が無いとして通さず
 	const r = run(root, "--docs", "documentation");
 	assert.equal(r.status, 2, r.stdout + r.stderr);
 	assert.match(r.stderr, /documentation\/goals が無い/);
+});
+
+//  ---- stream の例: 観測者ごとに届いたイベントを照合する（ADR-0061）----
+
+const STREAM_CONTRACT = `
+x-uc: UC-001
+x-status: fixed
+x-spec: ./UC.md
+x-updated: 2026-09-14
+observers:
+  neighbor: 同じ場所を見ている別の利用者
+operations:
+  move:
+    transport: stream
+    direction: outbound
+    owned: true
+    auth: none
+    summary: 位置を動かす
+    entry: move
+    request:
+      type: object
+      required: [i_xxx]
+      properties:
+        i_xxx: { type: string }
+    response: { type: object, properties: { at: { type: string } } }
+    errors:
+      - code: INVALID_INPUT
+        when: 動けない位置
+    examples:
+      ok:
+        request: { i_xxx: "abc" }
+        response: { at: "abc" }
+        events:
+          self: []
+          neighbor:
+            - { entry: avatarMoved, payload: { userId: u1, at: "abc" } }
+      invalid:
+        request: { i_xxx: "" }
+        error: INVALID_INPUT
+        events: { neighbor: [] }
+  avatarMoved:
+    transport: stream
+    direction: inbound
+    owned: true
+    auth: none
+    summary: ほかの利用者が動いた
+    entry: avatarMoved
+    request: { type: object, properties: { userId: { type: string }, at: { type: string } } }
+  avatarLeft:
+    transport: stream
+    direction: inbound
+    owned: true
+    auth: none
+    summary: ほかの利用者が去った
+    entry: avatarLeft
+    request: { type: object, properties: { userId: { type: string } } }
+    examples:
+      graceExpired:
+        events:
+          neighbor:
+            - { entry: avatarLeft, payload: { userId: u1 } }
+`;
+
+const STREAM_OK = {
+	replies: {
+		"move:abc": {
+			response: { at: "abc" },
+			//  payload の追加キーと、例に書いていない観測者（stranger）は見ない
+			events: { self: [], neighbor: [{ entry: "avatarMoved", payload: { userId: "u1", at: "abc", seq: 9 } }], stranger: [{ entry: "x" }] },
+		},
+		"move:": { error: "INVALID_INPUT", events: { neighbor: [] } },
+		"avatarLeft:": { events: { neighbor: [{ entry: "avatarLeft", payload: { userId: "u1" } }] } },
+	},
+};
+
+const streamHost = (t, replies = {}) => {
+	const root = makeHost({ contract: STREAM_CONTRACT, table: { replies: { ...STREAM_OK.replies, ...replies } } });
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	return root;
+};
+
+test("stream: 応答と観測者ごとの events が例どおりなら pass。events だけの例も実行し、observe を渡す", (t) => {
+	const root = streamHost(t);
+	const r = run(root);
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.match(r.stdout, /pass {2}UC-001 avatarLeft\.graceExpired/);
+	assert.match(r.stdout, /pass 3 \/ fail 0 \/ skip 0/);
+	const seen = readFileSync(join(root, "adapter-seen.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+	assert.deepEqual(seen.map((q) => [q.operation, q.case, q.entry, q.observe]), [
+		["move", "ok", "move", ["self", "neighbor"]],
+		["move", "invalid", "move", ["neighbor"]],
+		["avatarLeft", "graceExpired", "avatarLeft", ["neighbor"]],
+	]);
+});
+
+test("stream: 余分なイベント・届くはずのない相手への配信は fail", (t) => {
+	const root = streamHost(t, {
+		"move:abc": { response: { at: "abc" }, events: { self: [{ entry: "avatarMoved", payload: {} }], neighbor: [{ entry: "avatarMoved", payload: { userId: "u1", at: "abc" } }] } },
+		"move:": { error: "INVALID_INPUT", events: { neighbor: [{ entry: "avatarMoved", payload: {} }] } },
+	});
+	const r = run(root);
+	assert.equal(r.status, 1);
+	assert.match(r.stdout, /fail {2}UC-001 move\.ok {2}events\.self: 期待 長さ 0 \/ 実際 長さ 1/);
+	assert.match(r.stdout, /fail {2}UC-001 move\.invalid {2}events\.neighbor: 期待 長さ 0 \/ 実際 長さ 1/);
+});
+
+test("stream: イベントの種別・payload・順序の不一致、観測者の欠落は fail", (t) => {
+	const root = streamHost(t, {
+		"move:abc": { response: { at: "abc" }, events: { self: [], neighbor: [{ entry: "avatarLeft", payload: { userId: "u1", at: "abc" } }] } },
+		"avatarLeft:": { events: {} },
+	});
+	const r = run(root);
+	assert.equal(r.status, 1);
+	assert.match(r.stdout, /move\.ok {2}events\.neighbor\[0\]\.entry: 期待 "avatarMoved" \/ 実際 "avatarLeft"/);
+	assert.match(r.stdout, /avatarLeft\.graceExpired {2}events\.neighbor: 期待 .* \/ 実際 \(無し\)/);
+});
+
+test("stream: 例が events を持つのに応答に events が無ければアダプタ異常（exit 2）", (t) => {
+	const root = streamHost(t, { "move:abc": { response: { at: "abc" } } });
+	const r = run(root);
+	assert.equal(r.status, 2, r.stdout + r.stderr);
+	assert.match(r.stdout + r.stderr, /例が events を持つのに応答に events が無い/);
 });

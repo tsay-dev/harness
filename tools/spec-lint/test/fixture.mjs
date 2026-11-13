@@ -40,7 +40,8 @@ invalid:
 //  examples        examples: の中身（null なら ok + invalid）
 //  status          契約の x-status
 //  deferredRows    docs/verification/DEFERRED.md の表の行（文字列配列。null ならファイルを作らない）
-export function writeMinimalDocs(root, { contractExtra = "", contractErrors = null, examples = null, status = "fixed", deferredRows = null } = {}) {
+//  contract        contract.yaml の全文（null なら下の http 1 操作の契約。stream など別の形を試すときに渡す）
+export function writeMinimalDocs(root, { contractExtra = "", contractErrors = null, examples = null, status = "fixed", deferredRows = null, contract = null } = {}) {
 	write(
 		root,
 		"docs/_shared/components.yaml",
@@ -174,7 +175,7 @@ ${contractExtra}`;
 	write(
 		root,
 		"docs/goals/GOAL-01-a/UC-001-b/contract.yaml",
-		`x-uc: UC-001
+		contract ?? `x-uc: UC-001
 x-status: ${status}
 x-spec: ./UC.md
 x-updated: 2026-09-01
