@@ -25,7 +25,7 @@ const cmds = (over = {}) => ({ typecheck: NONE, lint: NONE, test: "exit 0", syst
 //  呼ばれたら名前を記録して終わるだけの偽の検査（STUB_FAIL に名前があれば失敗）
 function makeTools() {
 	const dir = temp("harness verify tools ");
-	for (const n of ["config-lint", "spec-lint", "trace-check", "contract-run"]) {
+	for (const n of ["config-lint", "spec-lint", "trace-check", "exec-check", "contract-run"]) {
 		mkdirSync(join(dir, n), { recursive: true });
 		writeFileSync(
 			join(dir, n, `${n}.mjs`),
@@ -55,8 +55,8 @@ test("verify: すべて通れば 0。標準入力を読まず、状態もログ�
 	const root = makeRoot({ commands: cmds({ test: "pwd > ran.txt" }) });
 	const r = run(root, [], { tools });
 	assert.equal(r.status, 0, r.stdout + r.stderr);
-	assert.match(r.stdout, /\[verify\] すべて通過（level full。5 検査、skip: typecheck, lint, system）/);
-	assert.deepEqual(calls(tools), ["config-lint", "spec-lint", "trace-check", "contract-run"]);
+	assert.match(r.stdout, /\[verify\] すべて通過（level full。7 検査、skip: typecheck, lint, system）/);
+	assert.deepEqual(calls(tools), ["config-lint", "spec-lint", "trace-check", "exec-check", "contract-run", "exec-check"]);
 	assert.ok(existsSync(join(root, "ran.txt")));
 	assert.ok(!existsSync(join(root, ".harness-gate")), "フックの状態を作っている");
 });
@@ -66,7 +66,7 @@ test("verify: 失敗があれば 1。失敗した検査の名前と出力の末�
 	const root = makeRoot({ commands: cmds({ test: "echo boom; exit 3" }) });
 	const r = run(root, [], { tools, fail: "trace-check" });
 	assert.equal(r.status, 1, r.stdout);
-	assert.match(r.stderr, /\[verify\] 失敗 2 件（level full。5 検査）: trace-check, test/);
+	assert.match(r.stderr, /\[verify\] 失敗 2 件（level full。6 検査）: trace-check, test/);
 	assert.match(r.stderr, /  trace-check: exit 1\n    trace-check red/);
 	assert.match(r.stderr, /  test: exit 3\n    boom/);
 });

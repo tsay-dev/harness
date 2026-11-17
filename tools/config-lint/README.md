@@ -6,7 +6,7 @@
 
 | 種類 | キー | 書くもの |
 | --- | --- | --- |
-| harness が直接使う事実 | `docs` / `source` / `tests` / `schema` / `contract` / `commands` / `git` など | 値そのもの。意味と検査は、読むツールの README が正本（`tools/trace-check/README.md` など） |
+| harness が直接使う事実 | `docs` / `source` / `tests` / `schema` / `contract` / `commands` / `git` / `entry` / `coverage` など | 値そのもの。意味と検査は、読むツールの README が正本（`tools/trace-check/README.md` など） |
 | ほかに正本がある決めごと | `rules` | 正本のファイルと、確かめる `commands` のキーだけ。決めごとの中身は書き写さない |
 | ほかに置き場が無い決めごと | `conventions` | 決めごとを 1 文と、機械で確かめていない理由 |
 | 人間が認めた例外 | `exceptions` | 何を認めたかを 1 文と、認めた日 |

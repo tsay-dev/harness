@@ -65,6 +65,8 @@ node .harness/bin/harness.mjs                    # 使えるコマンドの一�
 node .harness/bin/harness.mjs lint config        # 設定（harness.config.json）の形。機械で確かめていない決めごとを一覧する
 node .harness/bin/harness.mjs lint spec          # 仕様の文書の書式と状態の決まり
 node .harness/bin/harness.mjs lint refs          # 仕様・コード・テストの ID の紐づき
+node .harness/bin/harness.mjs lint entry         # テストの入口が、本番と同じ組み立てを呼んでいるか
+node .harness/bin/harness.mjs lint coverage      # テストの実行の記録から、どのテストからも実行されなかったソースを洗い出す
 node .harness/bin/harness.mjs lint git branch    # harness.config.json に git を宣言したホストのみ実行される
 node .harness/bin/harness.mjs run cases          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
 node .harness/bin/harness.mjs verify --level fast  # 完了の判定（Stop フックと CI と同じ検査の並び。lint / fast / full）
@@ -103,8 +105,8 @@ node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-ga
 
 ```bash
 python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
-node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / config-lint / 入口
-node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint git branch
+node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / config-lint / exec-check / 入口
+node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint entry → lint git branch
 node bin/harness.mjs verify --level fast # 上の検査とテストを、完了の判定と同じ並びでまとめて実行する（harness 自身の設定に宣言したコマンド）
 ```
 

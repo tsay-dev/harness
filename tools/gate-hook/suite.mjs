@@ -8,10 +8,12 @@
 //      1. config-lint                  設定の形（ルートで 1 回。unit の設定も config-lint が読む）
 //      2. spec-lint validate           仕様の文書の書式と状態の決まり
 //      3. trace-check                  仕様・コード・テストの ID の紐づき
+//         exec-check entry             テストの入口が、本番と同じ組み立てを呼んでいるか
 //      commands の宣言の検査（typecheck / lint / test / system は、コマンドか理由付きの none が必須）
 //    level fast 以上
 //      4. contract-run                 契約の実例を実装に当てて実行する
-//      5. commands.typecheck → lint → test → commands.extra の各コマンド（書いた順）
+//      5. commands.typecheck → lint → test → exec-check coverage（test が書いた実行の記録で、どのテストからも
+//         実行されなかったソースが無いか）→ commands.extra の各コマンド（書いた順）
 //    level full
 //      6. commands.system              シナリオテスト全件
 //  1〜4 は全部実行して失敗を集める。5〜6 は、最初の失敗で止める（型が通らないのにテストを回しても意味がない）。
@@ -34,7 +36,7 @@ import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 export const LEVELS = ["lint", "fast", "full"];
 export const COMMAND_KEYS = ["typecheck", "lint", "test", "system"];
 //  検査の指紋に入れる、使う harness ツール（tools/ からの相対パス）
-export const TOOL_SCRIPTS = ["config-lint/config-lint.mjs", "spec-lint/spec-lint.mjs", "trace-check/trace-check.mjs", "contract-run/contract-run.mjs", "gate-hook/suite.mjs"];
+export const TOOL_SCRIPTS = ["config-lint/config-lint.mjs", "spec-lint/spec-lint.mjs", "trace-check/trace-check.mjs", "exec-check/exec-check.mjs", "contract-run/contract-run.mjs", "gate-hook/suite.mjs"];
 
 const MAX_OUTPUT = 8 * 1024 * 1024; //  1 つの検査の出力のうち、覚えておく末尾の量
 const posix = process.platform !== "win32";
@@ -62,6 +64,9 @@ export function unitsOf(cfg) {
 }
 
 const isNone = (v) => isMap(v) && "none" in v;
+
+//  coverage が none でなく宣言されているか
+const declaresCoverage = (cfg) => cfg && isMap(cfg.coverage) && !isNone(cfg.coverage);
 
 //  tests が none でなく宣言されているか
 const declaresTests = (cfg) => cfg && cfg.tests !== undefined && !isNone(cfg.tests);
@@ -252,12 +257,13 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	const checkDocs = async (label, unitRoot, docsDir, cfgPath) => {
 		await specLint(label, docsDir);
 		await run(`trace-check${label}`, `node ${tool("trace-check")} --root ${q(unitRoot)} --config ${q(cfgPath)}`);
+		await run(`entry${label}`, `node ${tool("exec-check")} entry --root ${q(unitRoot)} --config ${q(cfgPath)}`);
 		if (level >= 1) await run(`contract-run${label}`, `node ${tool("contract-run")} --root ${q(unitRoot)} --config ${q(cfgPath)} --docs ${q(docsDir)}`);
 		else skip(`contract-run${label}`, `contract-run${label}（--level lint では実行しない）`);
 	};
 
 	//  5〜6: commands の宣言（欠落・型の誤りは失敗）と実行
-	const runCommands = async (label, cwd, unitCfg) => {
+	const runCommands = async (label, cwd, unitCfg, cfgPath) => {
 		const { keys, extra, extraError } = readCommands(unitCfg, declaresTests(unitCfg));
 		for (const k of COMMAND_KEYS)
 			if (keys[k].error) fail(`commands.${k}${label}`, keys[k].error);
@@ -270,15 +276,25 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		steps.push({ key: "system", name: `system${label}`, decl: keys.system, need: 2 });
 		for (const s of steps) {
 			if (s.decl.error) break; //  順序に意味がある（前提が欠けたまま後続を実行しない）
+			//  実行の記録の検査は test の直後にだけ実行する。宣言しているのに test を実行しないときは、その旨を表示する
+			const noCoverage = (why) => {
+				if (s.key === "test" && declaresCoverage(unitCfg)) skip(`coverage${label}`, `coverage${label}（${why}）`);
+			};
 			if (s.decl.none !== undefined) {
 				skip(s.name, `commands.${s.key}${label} = none（${s.decl.none}）`);
+				noCoverage("commands.test が none なので、実行の記録が無い");
 				continue;
 			}
 			if (level < s.need) {
 				skip(s.name, `commands.${s.key}${label}（--level ${LEVELS[level]} では実行しない）`);
+				noCoverage(`--level ${LEVELS[level]} では実行しない`);
 				continue;
 			}
+			//  実行の記録は test が書く。前回の記録で通さないよう、test を始めた時刻より新しいことを確かめる
+			//  （ファイルの時刻の粒度の分だけ、2 秒さかのぼる）
+			const since = Date.now() - 2000;
 			if (!(await run(s.name, s.decl.cmd, cwd))) break;
+			if (s.key === "test" && !(await run(`coverage${label}`, `node ${tool("exec-check")} coverage --root ${q(cwd)} --config ${q(cfgPath)} --since ${since}`))) break;
 		}
 	};
 
@@ -287,7 +303,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	if (!units) {
 		if (only.length) fail("config", `--unit は、設定に git.units を宣言したプロジェクトでだけ使える（指定: ${only.join(", ")}）`);
 		await checkDocs("", root, resolve(root, opts.docs), configPath);
-		await runCommands("", root, cfg);
+		await runCommands("", root, cfg, configPath);
 		return { failures, skipped, notes, ran, outputs };
 	}
 
@@ -318,12 +334,12 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 			continue;
 		}
 		await checkDocs(`:${name}`, unitRoot, unitDocs, unitCfgPath);
-		await runCommands(`:${name}`, unitRoot, u.cfg);
+		await runCommands(`:${name}`, unitRoot, u.cfg, unitCfgPath);
 	}
 	//  ルートの commands は、宣言があるときだけ実行する（リポジトリ全体に掛ける検査）
 	if (cfg.commands !== undefined) {
 		if (only.length) notes.push("[verify] --unit を指定したので、ルートの commands は実行しない");
-		else await runCommands("", root, cfg);
+		else await runCommands("", root, cfg, configPath);
 	}
 	return { failures, skipped, notes, ran, outputs };
 }

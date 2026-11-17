@@ -118,5 +118,7 @@
   },
   "rules": {},
   "conventions": [],
-  "exceptions": []
+  "exceptions": [],
+  "entry": { "none": "まだ宣言していない。本番の組み立てとテストの入口が決まったら { \"compose\": \"<ファイル>#<名前>\", \"test_entry\": \"<ファイル>#<名前>\" } に書き換える（tools/exec-check/README.md）" },
+  "coverage": { "none": "まだ宣言していない。テストのコマンドが実行の記録（lcov）を書き出すようにしたら { \"report\": \"<記録のファイル>\", \"not_run\": [] } に書き換える（tools/exec-check/README.md）" }
 }
