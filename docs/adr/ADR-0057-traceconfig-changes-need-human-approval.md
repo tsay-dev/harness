@@ -1,7 +1,7 @@
 ---
 id: ADR-0057
 title: 検査の範囲・検査器・承認状態を変える書き込みは人間が承認し、gate-hook が書き込みごとに承認を求め、CI は固定した版の検査器を使う
-status: proposed
+status: accepted
 date: 2026-10-20
 ---
 

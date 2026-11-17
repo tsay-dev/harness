@@ -1,7 +1,7 @@
 ---
 id: ADR-0009
 title: sonagi は制作定義とプロンプトまでを出力し、画像・音声・動画の実体を生成しない
-status: accepted
+status: superseded
 date: 2026-08-30
 ---
 

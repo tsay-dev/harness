@@ -1,7 +1,7 @@
 ---
 id: ADR-0051
 title: 利用プロジェクトの作業指針は地図だけを持ち、入口は命名規則で 1 回宣言し、行数を spec-lint が検査する
-status: proposed
+status: accepted
 date: 2026-10-20
 ---
 

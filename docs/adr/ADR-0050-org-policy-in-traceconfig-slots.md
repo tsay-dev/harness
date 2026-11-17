@@ -1,7 +1,7 @@
 ---
 id: ADR-0050
 title: develop-core を方法論に限り、組織とプロジェクトで変わる値は traceconfig.json の名前付きの差し込み口で受ける
-status: proposed
+status: accepted
 date: 2026-10-20
 ---
 

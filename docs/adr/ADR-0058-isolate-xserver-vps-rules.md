@@ -1,7 +1,7 @@
 ---
 id: ADR-0058
 title: Xserver VPS 向け規約を独立した選択パッケージにする
-status: proposed
+status: accepted
 date: 2026-11-05
 ---
 
@@ -13,7 +13,7 @@ Xserver VPS 内で動かすプロジェクトに、Hono と React SPA の開発�
 
 ## Decision
 
-`rules-xserver-vps-hono-react` を独立して選択できる APM パッケージとする。Hono と React SPA の開発方針と VPS の実行基盤に関する規約をこのパッケージで定義する。個別ホストの接続先、資格情報、リソース識別子は消費プロジェクトが持つ。
+`rules-righthub` を独立して選択できる APM パッケージとする。Hono と React SPA の開発方針と VPS の実行基盤に関する規約をこのパッケージで定義する。個別ホストの接続先、資格情報、リソース識別子は消費プロジェクトが持つ。
 
 パッケージ選択、出力の隔離と再生成の安定性は `tools/apm/test_projection.py` で検査する。運用時の規約適用は文書とレビューによる説得的統制（R-901）であり、パッケージの生成成功だけで VPS の設定や稼働を保証しない。
 

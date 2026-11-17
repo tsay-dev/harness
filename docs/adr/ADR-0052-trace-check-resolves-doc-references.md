@@ -1,7 +1,7 @@
 ---
 id: ADR-0052
 title: 文書が参照する BR・REQ・アクター・KPI の実在と状態、UC の表と REQ の 1 対 1 を trace-check が検査する
-status: proposed
+status: accepted
 date: 2026-10-20
 ---
 

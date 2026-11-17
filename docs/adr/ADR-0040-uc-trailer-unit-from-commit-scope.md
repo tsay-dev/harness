@@ -1,7 +1,7 @@
 ---
 id: ADR-0040
 title: モノレポでは UC: トレーラの UC を、コミットの scope が指す unit の docs で引く
-status: proposed
+status: accepted
 date: 2026-10-02
 ---
 
