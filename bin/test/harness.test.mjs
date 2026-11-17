@@ -186,7 +186,7 @@ test("渡した先が終わった直後、次の検査を起動する前に届�
 		writeFileSync(
 			join(dir, "spec-lint/spec-lint.mjs"),
 			`import { spawn } from "node:child_process";\n` +
-				`spawn("sh", ["-c", "while kill -0 " + process.pid + " 2>/dev/null; do :; done; kill -TERM " + process.ppid], { detached: true, stdio: "ignore" }).unref();\n` +
+				`spawn("sh", ["-c", "i=0; while kill -0 " + process.pid + " 2>/dev/null && [ $i -lt 200000 ]; do i=$((i+1)); done; kill -TERM " + process.ppid], { detached: true, stdio: "ignore" }).unref();\n` +
 				`setTimeout(() => process.exit(0), 30);\n`,
 		);
 		for (const s of ["trace-check/trace-check.mjs", "git-lint/git-lint.mjs"]) {

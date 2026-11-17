@@ -14,11 +14,12 @@
 //  終了コード: 渡した先のツールの終了コード。コマンド名の誤り、行き先のファイルが無い、起動できない、は 2。
 //  渡した先がシグナルで止まったときは、同じシグナルで終わる。入口が SIGINT / SIGTERM / SIGHUP / SIGQUIT を
 //  受けたときは、渡した先へ同じシグナルを送り、渡した先が終わるのを待ってから同じシグナルで終わる。
-//  `harness lint`（まとめて実行）は、実行したもののうち最も大きい終了コード。
+//  `harness lint`（まとめて実行）は、実行したもののうち最も大きい終了コード。途中で出力先が閉じるなどして
+//  見出しを書けなくなったら、残りを実行せず、実行済みの最も大きい終了コード（0 なら 1）で終わる。
 //  環境変数 HARNESS_TOOLS_DIR は同梱ツールの探索先（<このファイルの場所>/../tools）を差し替える（テスト用）。
 
 import { spawn } from "node:child_process";
-import { existsSync, writeSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -93,6 +94,7 @@ function stopSelf() {
 }
 
 function run(cmd, rest) {
+	//  いまの呼び出し方では、検査と検査の間にシグナルの受け口は動かないので届かない。呼び出し方を変えたときの備え
 	if (stopBy) return stopSelf();
 	const script = join(TOOLS, cmd.script);
 	if (!existsSync(script)) {
@@ -119,6 +121,10 @@ function run(cmd, rest) {
 	});
 }
 
+//  標準出力へ書き、書けたかどうかを返す。失敗は戻り値で扱うので、ストリームの error では落とさない
+process.stdout.on("error", () => {});
+const say = (text) => new Promise((res) => process.stdout.write(text, (e) => res(!e)));
+
 async function main() {
 	const argv = process.argv.slice(2);
 	if (argv.length === 0 || (argv.length === 1 && ["-h", "--help", "help"].includes(argv[0]))) {
@@ -128,14 +134,9 @@ async function main() {
 	if (sameWords(argv, ["lint"])) {
 		let worst = 0;
 		for (const words of LINT_ALL) {
-			//  出力先が先に閉じていたら（harness lint | head など）、残りを実行せずに失敗で終わる。
+			//  見出しを書けなければ（harness lint | head などで出力先が先に閉じた、など）、残りを実行せずに失敗で終わる。
 			//  実行していない検査を、通ったことにしない
-			try {
-				writeSync(1, `\n== harness ${words.join(" ")}\n`);
-			} catch (e) {
-				if (e.code === "EPIPE") return Math.max(worst, 1);
-				throw e;
-			}
+			if (!(await say(`\n== harness ${words.join(" ")}\n`))) return Math.max(worst, 1);
 			worst = Math.max(worst, await run(find(words), []));
 		}
 		return worst;
