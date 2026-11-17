@@ -207,12 +207,33 @@ function runAdapter(cmd, root, requests, timeoutSec) {
 		let error = null;
 		let done = false;
 		const known = new Set(requests.map((r) => r.id));
-		const child = spawn(cmd, { cwd: root, shell: true, stdio: ["pipe", "pipe", "pipe"] });
+		//  shell 経由なので、child はシェルで、アダプタはその子になることがある（dash は fork する）。
+		//  シェルだけを止めるとアダプタが残り、パイプが閉じずに close が来ない。プロセスグループごと止める
+		const posix = process.platform !== "win32";
+		const child = spawn(cmd, { cwd: root, shell: true, stdio: ["pipe", "pipe", "pipe"], detached: posix });
+		const killTree = () => {
+			try {
+				if (posix && child.pid) process.kill(-child.pid, "SIGKILL");
+				else child.kill("SIGKILL");
+			} catch {
+				child.kill("SIGKILL");
+			}
+		};
+		//  グループを分けたので、端末の Ctrl-C や呼び出し側の停止（グループ宛てのシグナル）はアダプタに届かない。
+		//  こちらがシグナルで止められるときに、アダプタを止めてから同じシグナルで終わる（SIGKILL は受け取れないので防げない）
+		const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
+		const onSignal = (sig) => {
+			killTree();
+			for (const s of SIGNALS) process.removeListener(s, onSignal);
+			process.kill(process.pid, sig);
+		};
+		for (const s of SIGNALS) process.on(s, onSignal);
 
 		const finish = (code, signal) => {
 			if (done) return;
 			done = true;
 			clearTimeout(timer);
+			for (const s of SIGNALS) process.removeListener(s, onSignal);
 			if (!error && code !== 0) error = `アダプタが異常終了した（exit ${code ?? signal}）`;
 			if (!error) {
 				const missing = requests.filter((r) => !replies.has(r.id));
@@ -227,7 +248,7 @@ function runAdapter(cmd, root, requests, timeoutSec) {
 		const abort = (msg) => {
 			if (error) return;
 			error = msg;
-			child.kill("SIGKILL");
+			killTree();
 		};
 		const timer = setTimeout(() => abort(`タイムアウト（${timeoutSec} 秒）`), timeoutSec * 1000);
 
