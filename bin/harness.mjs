@@ -12,7 +12,8 @@
 //    node <harness のルート>/bin/harness.mjs <コマンド> [渡した先のツールの引数...]
 //
 //  終了コード: 渡した先のツールの終了コード。コマンド名の誤り、行き先のファイルが無い、起動できない、は 2。
-//  渡した先がシグナルで止まったとき、入口が SIGINT / SIGTERM / SIGHUP / SIGQUIT を受けたときは、同じシグナルで終わる。
+//  渡した先がシグナルで止まったときは、同じシグナルで終わる。入口が SIGINT / SIGTERM / SIGHUP / SIGQUIT を
+//  受けたときは、渡した先へ同じシグナルを送り、渡した先が終わるのを待ってから同じシグナルで終わる。
 //  `harness lint`（まとめて実行）は、実行したもののうち最も大きい終了コード。
 //  環境変数 HARNESS_TOOLS_DIR は同梱ツールの探索先（<このファイルの場所>/../tools）を差し替える（テスト用）。
 
@@ -72,37 +73,49 @@ function match(argv) {
 
 //  入口が止められたら、渡した先のツールにも同じシグナルを送る（入口だけが消えてツールが裏で動き続けないように）。
 //  ツールがさらに起動したコマンドまでは止めない（そこはツールの側の責任）。
-//  受けたシグナルは覚えておき、ツールが終わったら、その終了コードにかかわらず同じシグナルで自分も終わる。
-//  ツールが終了済みでシグナルが届かなかった場合や、ツールが後始末して 0 で終わった場合に、止める指示を取りこぼさない。
+//  受けたシグナルは覚えておき、ツールが終わるのを待ってから、その終了コードにかかわらず同じシグナルで自分も終わる。
+//  受け口は最初に 1 回だけ付け、動いている間は外さない。検査ごとに付け外しすると、外した瞬間に届いたシグナルが
+//  消えたり、付ける前に届いたシグナルで入口だけが止まったりする。
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"];
 let stopBy = null;
+let current = null;
+const onSignal = (sig) => {
+	stopBy ??= sig;
+	current?.kill(sig);
+};
+for (const s of SIGNALS) process.on(s, onSignal);
+
+//  覚えたシグナルで自分を止める。止まるまでの間に先へ進まないよう、解決しない Promise を返す
+function stopSelf() {
+	for (const s of SIGNALS) process.removeListener(s, onSignal);
+	process.kill(process.pid, stopBy);
+	return new Promise(() => setTimeout(() => process.exit(1), 5000));
+}
 
 function run(cmd, rest) {
+	if (stopBy) return stopSelf();
 	const script = join(TOOLS, cmd.script);
 	if (!existsSync(script)) {
 		console.error(`harness: ${cmd.words.join(" ")} の行き先 ${script} が無い（bin/ と tools/ は同じ checkout のまま置く）。`);
 		return Promise.resolve(2);
 	}
 	return new Promise((done) => {
-		const child = spawn(process.execPath, [script, ...cmd.prefix, ...rest], { stdio: "inherit" });
-		const forward = (sig) => {
-			stopBy ??= sig;
-			child.kill(sig);
-		};
-		for (const s of SIGNALS) process.on(s, forward);
 		const finish = (code) => {
-			for (const s of SIGNALS) process.removeListener(s, forward);
-			if (stopBy) process.kill(process.pid, stopBy);
+			current = null;
+			if (stopBy) stopSelf();
 			else done(code);
 		};
-		child.on("error", (e) => {
+		current = spawn(process.execPath, [script, ...cmd.prefix, ...rest], { stdio: "inherit" });
+		if (stopBy) current.kill(stopBy);
+		current.on("error", (e) => {
 			console.error(`harness: ${cmd.words.join(" ")} を起動できない: ${e.message}`);
 			finish(2);
 		});
-		child.on("exit", (status, signal) => {
+		current.on("exit", (status, signal) => {
 			//  渡した先がシグナルで止まったら、同じシグナルで自分も止まる（呼び出し側に止まり方を伝える）
 			stopBy ??= signal;
-			finish(status ?? 1);
+			//  届いているのにまだ配られていないシグナルを先に受け取ってから、続きを決める
+			setImmediate(() => finish(status ?? 1));
 		});
 	});
 }
@@ -116,7 +129,7 @@ async function main() {
 	if (sameWords(argv, ["lint"])) {
 		let worst = 0;
 		for (const words of LINT_ALL) {
-			process.stdout.write(`\n== harness ${words.join(" ")}\n`);
+			console.log(`\n== harness ${words.join(" ")}`);
 			worst = Math.max(worst, await run(find(words), []));
 		}
 		return worst;
@@ -136,5 +149,11 @@ async function main() {
 	}
 	return run(hit.cmd, hit.rest);
 }
+
+//  出力先が先に閉じたら（harness lint | head など）、黙って終わる
+process.stdout.on("error", (e) => {
+	if (e.code === "EPIPE") process.exit(0);
+	throw e;
+});
 
 process.exitCode = await main();

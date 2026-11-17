@@ -143,7 +143,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"]) {
 		const marker = join(dir, "marker");
 		writeFileSync(
 			join(dir, "gate-hook/stop-gate.mjs"),
-			`import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(started)}, "");\nsetTimeout(() => writeFileSync(${JSON.stringify(marker)}, ""), 1200);\n`,
+			`import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(started)}, "");\nsetTimeout(() => writeFileSync(${JSON.stringify(marker)}, ""), 400);\n`,
 		);
 		const child = spawn(process.execPath, [ENTRY, "verify"], { stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
 		const ended = new Promise((res) => child.on("exit", (status, signal) => res(signal)));
@@ -151,7 +151,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"]) {
 		assert.ok(existsSync(started), "渡した先が起動していない");
 		child.kill(sig);
 		assert.equal(await ended, sig);
-		await new Promise((res) => setTimeout(res, 1500));
+		await new Promise((res) => setTimeout(res, 700));
 		assert.ok(!existsSync(marker), "入口が止まった後も、渡した先が動いて目印を書いた");
 	});
 }
@@ -175,4 +175,34 @@ test("harness lint の途中で止められたら、渡した先が 0 で終わ�
 	assert.deepEqual(await ended, { status: null, signal: "SIGTERM" });
 	await new Promise((res) => setTimeout(res, 300));
 	assert.ok(!existsSync(ran), "止められた後に、残りの検査が実行された");
+});
+
+test("渡した先が終わる瞬間に届いた止める指示も取りこぼさない", { skip: process.platform === "win32" }, () => {
+	//  最初の検査が、自分の終了の直前（0〜3ms 前）に入口へ SIGTERM を送る。指示は必ず残りの検査より前に出ている
+	for (let i = 0; i < 24; i++) {
+		const dir = fakeTools();
+		const ran = join(dir, "ran");
+		writeFileSync(
+			join(dir, "spec-lint/spec-lint.mjs"),
+			`process.kill(process.ppid, "SIGTERM");\nconst end = Date.now() + ${i % 4};\nwhile (Date.now() < end);\n`,
+		);
+		for (const s of ["trace-check/trace-check.mjs", "git-lint/git-lint.mjs"]) {
+			writeFileSync(join(dir, s), `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "x");\n`);
+		}
+		const r = harness(["lint"], { HARNESS_TOOLS_DIR: dir });
+		assert.equal(r.signal, "SIGTERM", `${i} 回目: status=${r.status}`);
+		assert.ok(!existsSync(ran), `${i} 回目: 止められた後に残りの検査が実行された`);
+	}
+});
+
+test("出力先が先に閉じても、例外を出さずに終わる", { skip: process.platform === "win32" }, () => {
+	const r = spawnSync("sh", ["-c", `"${process.execPath}" "${ENTRY}" lint | true`], { encoding: "utf8", env: { ...process.env, HARNESS_TOOLS_DIR: fakeTools() } });
+	assert.doesNotMatch(r.stderr, /EPIPE|Unhandled/);
+});
+
+test("標準入力は渡した先に届く（フックは標準入力の JSON を読む）", () => {
+	const dir = fakeTools();
+	writeFileSync(join(dir, "gate-hook/gate-hook.mjs"), `process.stdin.pipe(process.stdout);\n`);
+	const r = spawnSync(process.execPath, [ENTRY, "guard"], { encoding: "utf8", input: '{"tool_name":"Write"}', env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
+	assert.equal(r.stdout, '{"tool_name":"Write"}');
 });
