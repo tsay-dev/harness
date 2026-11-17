@@ -19,7 +19,7 @@
 | `test-author`（`scenario`） | 作成するシナリオテストのパス（`harness.config.json` の `tests.system`） |
 | `implementer`（`logic` / `appearance` / `probe`） | 作成・編集する本番コードのパス |
 | `implementer`（`schema`） | スキーマ正本のパス |
-| 自ら書くオーケストレーター（ADR / `DEFERRED.md` / `harness.config.json`） | 自ら書く docs パスと `harness.config.json`（利用プロジェクト直下からの相対パス）。一致する末端ファイルを書く前に読む |
+| 自ら書くオーケストレーター（ADR / `harness.config.json` / 凍結済みの `DEFERRED.md` の行の削除） | 自ら書く docs パスと `harness.config.json`（利用プロジェクト直下からの相対パス）。一致する末端ファイルを書く前に読む |
 
 - 何も一致しなければ絞り込みが誤っている可能性が高いので、共通の末端ファイルに加え、選択したスタックパッケージの末端ファイルをすべて渡します。不足より過剰を選びます。
 - 同じパスを書く担当には同じ束を渡します（束を分割しない）。implementer が予定外のパスを書くときは、書く前に `applyTo:` が一致する末端ファイルを自ら開きます。

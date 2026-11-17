@@ -14,7 +14,7 @@ description: >-
 
 ## 2. 不変条件
 
-- **自ら実装もテストも書かない。** 自ら書くのは `status` / `phase:` 行、`docs/_shared/components.yaml`、`docs/verification/DEFERRED.md`、`harness.config.json`（宣言の範囲、`commands`。test-author が書いた契約アダプターの `commands.contract_adapter` を含み、書き込みは人間の承認を経る）、ADR（[references/adr.md](references/adr.md)）、git（[references/commit.md](references/commit.md)）だけです。それ以外は別コンテキストの専門担当が作ります。
+- **自ら実装もテストも書かない。** 自ら書くのは `status` / `phase:` 行、`docs/_shared/components.yaml`、`harness.config.json`（宣言の範囲、`commands`。test-author が書いた契約アダプターの `commands.contract_adapter` を含み、書き込みは人間の承認を経る）、ADR（[references/adr.md](references/adr.md)）、凍結済みの `DEFERRED.md` から解消した行を消すこと、git（[references/commit.md](references/commit.md)）だけです。それ以外は別コンテキストの専門担当が作ります。
 - **作成者 ≠ 判定者。** 成果物を作った担当はそれを判定しません。`reviewer` は常に別コンテキストの読み取り専用、`test-author` は実装を読みません。
 - **人間ゲートは 3 つだけ。** `docs/` の SSOT（人間の承認で `active` / `frozen` / `living`。`status` の降格と、`UC.md` の `active`・契約の `fixed` への昇格は、gate-hook が書き込みごとにも承認を求める。検査の範囲を決める `harness.config.json` の変更もここに含み、同じく書き込みごとに承認を求める。ADR-0057）、UI の見た目（目視）、DB スキーマです。子 agent は自己承認せず、確認（AskUserQuestion / plan mode）とステータス・`phase:` の遷移はあなただけが行います。進捗は各 `UC.md` の `phase:`（`定義` → `構造` → `実装` → `検証` → `完了`）が持ちます。
 - **SSOT が先。** コードは正本になりません。実装や赤いテストが仕様の穴を示したら、実装 → テスト → SSOT の順に疑い、SSOT はゲート経由で直して再導出します。通すためにテストや契約を歪めません（R-801）。
@@ -31,16 +31,16 @@ description: >-
 3. `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` が exit 0（`fail` も `skip` も無く、実行する実例があればアダプターで実行済み）。
 4. 利用プロジェクトの `commands.typecheck` / `lint` / `test` が exit 0。
 5. `commands.system` のシナリオスイート全体が 1 回 exit 0。`{ "none": "<理由>" }` のコマンドは理由とともに「未実行」と報告します。
-6. `reviewer`（`mode: slice`）が `阻止` ゼロで終了し、すべての `持ち越し` が `docs/verification/DEFERRED.md` の行になっている。
+6. `reviewer`（`mode: slice`）が `阻止` ゼロで終了し、すべての `問い` に人間が答えている（未決を持ち越さない。ADR-0068）。
 7. 触った UC の `phase:` が `完了`、契約が `fixed`、保留中の人間ゲートがない。
 
 利用プロジェクトが `tools/gate-hook/stop-gate.mjs`（Stop hook）を有効にしていれば機械が 1–5 を強制し、`gate-hook.mjs`（PreToolUse）を有効にしていれば UC・REQ が `active` で契約が `fixed` になる前の実装コード書き込みを阻止します。無効なら同じ条件を自ら守ります。stop-gate に止められたら、直せる失敗は担当に直させ、人間ゲート待ちや後続の担当の成果物でしか直せない失敗（スライス途中の赤）は未達として報告してターンを終えます。`harness.config.json` を緩めて（none にする、範囲を狭める）通しません。「テストがすべて成功」だけでは完了ではありません。
 
 ## 4. 判定の閉じ方
 
-- `reviewer` の指摘は 2 段です。**`阻止`** は機械検査にできる具体的な反例（test-author がクラスを宣言できる失敗テスト、spec-lint / trace-check / contract-run の規則、または REQ 文と違反入力）を伴うもの、それ以外はすべて **`持ち越し`** です。収束は `阻止` ゼロです。
-- `阻止` は散文で作成者に戻さず、テストクラスか lint 規則にして機械ループへ戻します。手戻りの単位は指摘ではなく名指した成果物（操作 / 文書 / 単位）で、作成者は SSOT から再導出します。`持ち越し` は `DEFERRED.md`（テンプレート `${HARNESS_ROOT}/templates/develop/DEFERRED.md`）に 1 行ずつ記録し、同じスライスでは再送しません。
-- reviewer はスライスごとに最大 2 回。`阻止` の数が減らなければ停止し、台帳、反例、診断を人間に提示します。非収束は診断対象であり、周回を重ねる理由ではありません。
+- `reviewer` の指摘は 2 種類だけです。**`阻止`** は機械検査にできる具体的な反例（test-author がクラスを宣言できる失敗テスト、spec-lint / trace-check / contract-run の規則、または REQ 文と違反入力）を伴うもの。**`問い`** は、仕様が答えを決めていない点を、具体的な入力・2 つ以上の候補・候補ごとの帰結で示したものです。どちらでもない指摘（文言、スタイル、テストや例で決まる境界）は受け取りません。収束は、`阻止` ゼロかつ `問い` がすべて答え済みです。
+- `阻止` は散文で作成者に戻さず、テストクラスか lint 規則にして機械ループへ戻します。手戻りの単位は指摘ではなく名指した成果物（操作 / 文書 / 単位）で、作成者は SSOT から再導出します。`問い` は、そのスライスの中で人間に聞いて決めます。答えは仕様（UC・REQ・BR・契約。持続する判断なら ADR）に書き、機械ループへ戻します。答えで仕様を変えたら、変えた成果物を reviewer に見せ直します。`問い` が残る間は人間待ちで、未達として報告してターンを終えます。保留の一覧（`DEFERRED.md`）には書きません（既存の一覧は凍結済み。ADR-0068）。reviewer が検査台帳に書いた「`/attack` 向けの疑念」は、完了の報告で人間に伝えます。
+- reviewer はスライスごとに最大 2 回。`問い` への答えで変えた成果物を見せ直す回は、この 2 回に数えません（その回に出た `阻止` と `問い` は、同じ扱いで閉じます）。`阻止` の数が減らなければ停止し、台帳、反例、診断を人間に提示します。非収束は診断対象であり、周回を重ねる理由ではありません。
 
 ## 5. agent
 

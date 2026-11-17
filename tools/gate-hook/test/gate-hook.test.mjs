@@ -311,6 +311,42 @@ test("gate-hook: 人間のアクターの削除・システムへの変更と、
 	assert.deepEqual(readLog(root).map((l) => l.reason), ["actor-kind", "hook-settings", "hook-settings", "hook-settings"]);
 });
 
+test("gate-hook: 保留の一覧（DEFERRED.md）を新しく作る・frozen_at を変える・行を足す書き込みは ask（deferred）。行を消すだけなら止めない", (t) => {
+	const root = makeRoot(t);
+	const file = "docs/verification/DEFERRED.md";
+	const row = (id) => `| ${id} | 2026-01-01 | reviewer | docs/x.md | 指摘 | 理由 | 未定 |`;
+	const body = (frozen, ids) => `---\nid: VERIFICATION_DEFERRED\nstatus: living\nfrozen_at: ${frozen}\n---\n\n## 保留中の指摘\n\n| ID | 起票日 | 出所 | 対象 | 指摘 | 理由 | 昇格先 |\n| --- | --- | --- | --- | --- | --- | --- |\n${ids.map(row).join("\n")}\n`;
+	const run = (tool_input) => runHook(root, { tool_input, cwd: root }, ["--code", "src/**"]);
+	//  新しく作る
+	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", []) })), /新しく作る。保留の一覧は凍結済み/);
+	put(root, file, body("2026-01-01", ["DEF-001", "DEF-002"]));
+	//  frozen_at を変える・消す
+	assert.match(askOf(run({ file_path: file, old_string: "frozen_at: 2026-01-01", new_string: "frozen_at: 2026-06-01" })), /frozen_at を 2026-01-01 → 2026-06-01 に変える/);
+	assert.match(askOf(run({ file_path: file, old_string: "frozen_at: 2026-01-01\n", new_string: "" })), /frozen_at を 2026-01-01 → （なし） に変える/);
+	//  行を足す（起票日を凍結した日より前に偽っても、足すこと自体を承認に回す）。同じ ID の行を増やしても同じ
+	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-002", "DEF-003"]) })), /行を足す（DEF-003）/);
+	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-002", "DEF-002"]) })), /行を足す/);
+	//  1 行消して別の ID を 1 行足す（行の数は同じ）
+	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-009"]) })), /行を足す（DEF-009）/);
+	//  コメントの中の例の行を消して、実際の行を足す
+	put(root, file, body("2026-01-01", ["DEF-001"]) + `\n<!--\n${row("DEF-002")}\n-->\n`);
+	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-002"]) })), /行を足す（DEF-002）/);
+	put(root, file, body("2026-01-01", ["DEF-001", "DEF-002"]));
+	//  monorepo の unit 配下の一覧（--docs の外）でも同じ。パスの大文字小文字も区別しない
+	const unitFile = "apps/a/docs/verification/DEFERRED.md";
+	assert.match(askOf(run({ file_path: unitFile, content: body("2026-01-01", []) })), /新しく作る/);
+	put(root, unitFile, body("2026-01-01", ["DEF-001"]));
+	assert.match(askOf(run({ file_path: "apps/a/docs/Verification/deferred.md", edits: [{ old_string: "frozen_at: 2026-01-01", new_string: "frozen_at: 2026-06-01" }] })), /保留の一覧は凍結済み/);
+	assert.match(askOf(run({ file_path: unitFile, edits: [{ old_string: "frozen_at: 2026-01-01", new_string: "frozen_at: 2026-06-01" }] })), /frozen_at を/);
+	assert.equal(run({ file_path: unitFile, content: body("2026-01-01", []) }).stdout, "");
+	//  書き込み後の内容が分からない
+	assert.match(askOf(run({ file_path: file, old_string: "この文は無い", new_string: "x" })), /判定できない/);
+	//  行を消す・文言を直すだけなら止めない
+	assert.equal(run({ file_path: file, content: body("2026-01-01", ["DEF-002"]) }).stdout, "");
+	assert.equal(run({ file_path: file, old_string: "| 指摘 | 理由 | 未定 |\n| DEF-002", new_string: "| 指摘を直した | 理由 | 未定 |\n| DEF-002" }).stdout, "");
+	assert.deepEqual(readLog(root).map((l) => l.reason), Array(11).fill("deferred"));
+});
+
 test("gate-hook: active な UC の actor を変える書き込みは ask（actor-kind）。draft の UC は ask しない", (t) => {
 	const root = makeRoot(t);
 	const dir = "docs/goals/GOAL-01-x/UC-001-y";

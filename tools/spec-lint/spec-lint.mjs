@@ -12,7 +12,7 @@
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/contract.yaml       UC の境界契約（harness 独自 YAML）
 //    docs/rules/BR-nnn.md  docs/nfr/NFR-nnn.md  docs/adr/ADR-nnnn-<slug>.md   横断（中央）
 //    docs/verification/GLOBAL.md                                 【任意】全体の検証除外
-//    docs/verification/DEFERRED.md                               【任意】機械判定できない指摘の保留台帳
+//    docs/verification/DEFERRED.md                               【既存のものだけ】凍結済みの、過去の保留の一覧（ADR-0068）
 //    docs/_shared/components.yaml                                契約の共有語彙（$ref 先）
 //
 //  書式の SSOT は templates/develop/ のテンプレート。必須フロントマター・必須セクション・
@@ -80,8 +80,6 @@ const MAX_CONTRACT_LINES = 400; //  契約 YAML は 1 行 1 キーの ASCII な�
 //  --- 保留台帳 docs/verification/DEFERRED.md の語彙と閾値（本ツールが唯一の SSOT。テンプレートの注記に数値を書き写さない）---
 const DEFERRED_ID_RE = /^DEF-\d{3}$/;
 const DEFERRED_TARGETS = ["spec-lint", "trace-check", "contract-run", "test", "typecheck", "lint", "hook", "未定"]; //  昇格先
-const DEFERRED_MAX_AGE_DAYS = 30; //  起票からこの日数を超えた保留は「昇格か解消か」を決める合図
-const DEFERRED_RECUR = 3; //  同じ対象にこの件数以上の保留が積もったら機械検査への昇格候補
 
 //  --- 収集した違反 ---
 const errors = [];
@@ -199,7 +197,7 @@ const FORMATS = {
 	actors: deriveDocFormat("02-actors.md", { required: ["id", "status"], optional: [], sections: ["アクター一覧"] }),
 	backlog: deriveDocFormat("goals-backlog.md", { required: ["id", "status"], optional: [], sections: [] }),
 	global: deriveDocFormat("verification-GLOBAL.md", { required: ["id", "status"], optional: [], sections: ["検証しない範囲"] }),
-	deferred: deriveDocFormat("DEFERRED.md", { required: ["id", "status"], optional: [], sections: ["保留中の指摘"] }),
+	deferred: deriveDocFormat("DEFERRED.md", { required: ["id", "status", "frozen_at"], optional: [], sections: ["保留中の指摘"] }),
 	goal: deriveDocFormat("GOAL.md", { required: ["id", "actor", "origin", "status"], optional: [], sections: [] }),
 	uc: deriveDocFormat("UC.md", { required: ["id", "title", "actor", "goal", "status", "phase"], optional: [], sections: ["概要", "事前条件", "主シナリオ", "状態", "例外系の走査", "事後条件"] }),
 	req: deriveDocFormat("REQ", { required: ["id", "pattern", "uc", "status"], optional: ["br"], sections: [POLICY] }),
@@ -881,17 +879,26 @@ function validateDesign(file) {
 }
 
 //  --- 保留台帳 docs/verification/DEFERRED.md（任意ファイル）---
-//  1 行 1 件の表だけを持つ。書式（7 列・ID・日付・語彙）は err、
-//  滞留（古い / 同じ対象に積もる / 対象が消えた）は warn ＝ 昇格か解消かを決める合図であって判定ではない。
+//  凍結済みの一覧（ADR-0068）。新しい行は足さない: frontmatter の frozen_at より後の起票日の行は err。
+//  1 行 1 件の表だけを持つ。書式（7 列・ID・日付・語彙）は err。残っている件数と、対象が消えた行は warn。
 //  フロントマターと見出しは validateSingleton が先に見ている（status は living のみ）
 function validateDeferred(file) {
-	const { body } = readFm(file);
+	const { data, body } = readFm(file);
+	//  一覧は凍結済み（ADR-0068）。frozen_at より後の起票日の行は書けない（保留を新しく足さない）
+	const frozenAt = data.frozen_at ?? "";
+	//  実在する日付だけを通す（Date.parse は 2026-02-31 を通すので、往復させて確かめる）
+	const realDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+	const frozenOk = realDate(frozenAt);
+	//  欠落は、ひな形から導いた必須キーの検査とは別に、ここでも失敗にする（ひな形を置かない配置でも見逃さない）
+	if (!frozenAt) err(file, `frozen_at が無い — 保留の一覧は凍結済み。frontmatter に、凍結した日を frozen_at: YYYY-MM-DD で書く（ADR-0068）`);
+	else if (!frozenOk) err(file, `frozen_at は YYYY-MM-DD（一覧を凍結した日）。実際: "${frozenAt}"`);
+	//  1 日の余裕は、UTC より進んだ時刻帯で凍結した当日に書いた日付を通すため
+	else if (frozenAt > new Date(Date.now() + 86400000).toISOString().slice(0, 10)) err(file, `frozen_at ${frozenAt} が未来（一覧を凍結した日を書く）`);
 	const sec = findSection(stripComments(body), (t) => t.startsWith("保留中"));
 	if (!sec) return; //  見出しの欠落は checkSections が既に出している
 	const rows = tableRows(sec.lines).slice(1); //  先頭はヘッダ行（区切り行は tableRows が除く）
 	const today = new Date().toISOString().slice(0, 10);
 	const seen = new Set();
-	const byTarget = new Map();
 	for (const cells of rows) {
 		const idLabel = cells[0] || "(ID なし)";
 		if (cells.length !== 7) {
@@ -902,17 +909,14 @@ function validateDeferred(file) {
 		if (!DEFERRED_ID_RE.test(id)) err(file, `ID は DEF-nnn。実際: "${id}"`);
 		else if (seen.has(id)) err(file, `${id}: ID が重複している`);
 		seen.add(id);
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) err(file, `${id}: 起票日は YYYY-MM-DD。実際: "${date}"`);
+		if (!realDate(date)) err(file, `${id}: 起票日は YYYY-MM-DD。実際: "${date}"`);
 		else if (date > today) err(file, `${id}: 起票日 ${date} が未来`);
-		else {
-			const age = Math.floor((Date.parse(today) - Date.parse(date)) / 86400000);
-			if (age > DEFERRED_MAX_AGE_DAYS) warn(file, `${id}: 起票から ${age} 日（${DEFERRED_MAX_AGE_DAYS} 日超）— 昇格か解消かを決める`);
-		}
+		else if (frozenOk && date > frozenAt)
+			err(file, `${id}: 起票日 ${date} が frozen_at（${frozenAt}）より後 — 保留は新しく足さない。機械検査にするか、人間に聞いて仕様に書く（ADR-0068）`);
 		for (const [label, v] of [["出所", origin], ["対象", target], ["指摘", finding], ["理由", reason]])
 			if (v.length === 0) err(file, `${id}: ${label} が空`);
 		if (!DEFERRED_TARGETS.includes(promote)) err(file, `${id}: 昇格先は ${DEFERRED_TARGETS.join(" | ")} のいずれか。実際: "${promote}"`);
 		if (target.length > 0) {
-			byTarget.set(target, (byTarget.get(target) || []).concat(id));
 			//  対象はホスト直下からの相対パス（validate は ホストのルートで走らせる前提）
 			//  REQ を指す対象は「<UC.md のパス>#REQ-nnn」と書く（REQ は UC.md の「要件」の節の小節。ADR-0067）
 			const [targetFile, anchor] = target.split("#");
@@ -923,8 +927,9 @@ function validateDeferred(file) {
 			if (missing) warn(file, `${id}: 対象 "${target}" が存在しない — 解消済みなら行を消す`);
 		}
 	}
-	for (const [target, ids] of byTarget)
-		if (ids.length >= DEFERRED_RECUR) warn(file, `対象 "${target}" の保留が ${ids.length} 件（${DEFERRED_RECUR} 件以上）— 機械検査への昇格候補`);
+	//  残っている行の数を毎回 1 行で示す（減っているかが毎回分かるように）。行ごとの古さ・積もり方の警告は出さない
+	//  （凍結した一覧は、すべての行が古くなる）
+	if (rows.length > 0) warn(file, `凍結済みの保留が ${rows.length} 件残っている（解消したら行を消す。新しい行は足さない / ADR-0068）`);
 }
 
 //  --- validate コマンド ---

@@ -148,7 +148,8 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	assert.match(c.stderr, /直せる失敗は直し/);
 	assert.match(c.stderr, /人間ゲート待ちや後続の担当の成果物でしか直せない失敗は、未達として報告して終える/);
 	assert.match(c.stderr, /設定（harness\.config\.json）を緩めて（none にする、範囲を狭める）通さない/);
-	assert.match(c.stderr, /DEFERRED\.md/);
+	assert.match(c.stderr, /保留にせず、人間に聞いて決める/);
+	assert.doesNotMatch(c.stderr, /DEFERRED\.md/);
 	assert.doesNotMatch(c.stderr, /失敗した検査だけを直し/);
 	assert.equal(last(root).decision, "block");
 	assert.equal(last(root).reason, "test");
@@ -191,7 +192,7 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	const s = spawnSync("node", [GATE_LOG, "--summary", "--log", join(root, ".harness-gate", "log.jsonl"), "--since", "1"], { encoding: "utf8" });
 	assert.equal(s.status, 0, s.stderr);
 	assert.match(s.stdout, /stop-gate: runs \d+ \/ block 2 \/ release 1 \/ skip/);
-	assert.match(s.stdout, /gate-hook: gated 0 \/ block 0 \/ last block: なし \/ ask 0（config 0, harness 0, hook-settings 0, workflow 0, status-down 0, status-up-gate 0, actor-kind 0）\/ status-up 0/);
+	assert.match(s.stdout, /gate-hook: gated 0 \/ block 0 \/ last block: なし \/ ask 0（config 0, harness 0, hook-settings 0, workflow 0, status-down 0, status-up-gate 0, actor-kind 0, deferred 0）\/ status-up 0/);
 	assert.match(s.stdout, /降格候補/);
 });
 
