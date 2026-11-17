@@ -139,10 +139,15 @@ test("各ツールが設定の最上位から読むキーは、すべて K1 を�
 	const tools = join(HERE, "..", "..");
 	const read = new Set();
 	for (const f of ["trace-check/trace-check.mjs", "contract-run/contract-run.mjs", "gate-hook/stop-gate.mjs", "gate-hook/gate-hook.mjs"]) {
-		for (const m of readFileSync(join(tools, f), "utf8").matchAll(/\bcfg\??\.([a-z][a-z_]*)/g)) read.add(m[1]);
+		const src = readFileSync(join(tools, f), "utf8");
+		for (const m of src.matchAll(/\bcfg\??\.([a-z][a-z_]*)/g)) read.add(m[1]);
+		//  trace-check の宣言の検査は need("キー" または "キー.子") の形でも読む
+		for (const m of src.matchAll(/\bneed\("([a-z][a-z_]*)/g)) read.add(m[1]);
 	}
+	assert.ok(read.has("comment_pattern"), "need(...) の形で読むキーを拾えていない");
 	assert.ok(read.has("docs") && read.has("commands") && read.size >= 10, [...read].join(" "));
 	const r = run(project(Object.fromEntries([...read].map((k) => [k, {}]))));
+	assert.notEqual(r.status, 2, r.stderr);
 	assert.doesNotMatch(r.stdout, /K1/, r.stdout);
 });
 
@@ -156,6 +161,32 @@ test("unit に古い名前のファイルだけが残っていれば、飛ばさ
 	const r = run(project({ git: { units: { api: "apps/api" } } }, { "apps/api/traceconfig.json": "{}" }));
 	assert.equal(r.status, 2, r.stdout);
 	assert.match(r.stderr, /unit api（apps\/api）に harness\.config\.json が無い.*改名した/);
+});
+
+test("K5: 外やルート自身を指す unit は、黙って飛ばさずに違反にする", () => {
+	for (const dir of ["../outside", "/abs/path", ".", ""]) {
+		const r = run(project({ git: { units: { api: dir } } }));
+		assert.equal(r.status, 1, `${JSON.stringify(dir)}: ${r.stdout}`);
+		assert.match(r.stdout, /err  K5  git\.units\.api/);
+	}
+});
+
+test("「..」で始まるだけの名前は、中のファイル・中の unit として扱う", () => {
+	const d = project(change((c) => ((c.rules.layers.source = "..conf/eslint.mjs"), (c.git = { units: { api: "..apps" } }))), { "..conf/eslint.mjs": "", "..apps/harness.config.json": "{}" });
+	const r = run(d);
+	assert.equal(r.status, 0, r.stdout);
+	assert.match(r.stdout, /unit api（\.\.apps\/harness\.config\.json）/);
+});
+
+test("形の検査を通らなかった文は、一覧にそのまま出さない", () => {
+	const r = run(project(change((c) => (c.conventions[0].rule = "a\u001b[31mRED"))));
+	assert.equal(r.status, 1);
+	assert.ok(!r.stdout.includes("\u001b"), "制御文字が出力に出ている");
+});
+
+test("--root と --config を同時に指定すると 2 で終わる", () => {
+	const d = project(base());
+	assert.equal(run(d, ["--config", join(d, "harness.config.json")]).status, 2);
 });
 
 test("知らない引数は 2 で終わる", () => {

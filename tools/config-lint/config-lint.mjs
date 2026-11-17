@@ -15,22 +15,25 @@
 //    K2  rules は { <名前>: { "source": <ファイル>, "check": <commands のキー> } }。source は設定ファイルがあるディレクトリの中の実在するファイル、
 //        check は commands にコマンドとして宣言されたキー（none の宣言や未宣言は不可。確かめる手段が無いなら conventions に書く）
 //    K3  conventions は [{ "rule": <1 文>, "unchecked_because": <機械で確かめていない理由> }]。同じ rule を 2 回書かない
-//    K4  exceptions は [{ "what": <何を認めたか>, "approved": "YYYY-MM-DD" }]。approved は今日までの実在する日付
+//    K4  exceptions は [{ "what": <何を認めたか>, "approved": "YYYY-MM-DD" }]。approved は実在する日付で、先の日付は不可
+//        （時差があるので、明日の日付までは通す）
 //        exceptions はどの検査も読まない。書いても、検査の違反は違反のまま（紐づきの義務は免除されない / ADR-0056）
+//    K5  git.units の値は、設定ファイルがあるディレクトリの中の、別のディレクトリ（外やルート自身を指す unit は読まない）
 //  conventions は、違反が無くても毎回、件数と一覧を表示する（機械が見ていない範囲を見えるままにする）。
 //  rules / conventions / exceptions は省略できる。省略したものは「未宣言」と表示する（0 件とは区別する）。
 //
 //  monorepo（git.units = { 単位名: ディレクトリ }）では、ルートに続けて、設定ファイルを持つ unit を検査する。
 //
 //  使い方:
-//    node config-lint.mjs [--root <プロジェクトのルート>] [--config <設定ファイル>]
+//    node config-lint.mjs [--root <プロジェクトのルート>]
+//    node config-lint.mjs --config <設定ファイル>
 //  rules の source と unit は、設定ファイルがあるディレクトリから探す。
 //
 //  終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 使い方・設定ファイルが無い・JSON として読めない
 //  環境変数 CONFIG_LINT_TEMPLATE は、ひな形の場所を差し替える（テスト用）。
 
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_FILE, OPTIONAL_TOP_KEYS, renamedConfigHint } from "../_shared/config.mjs";
 
@@ -44,16 +47,21 @@ const isText = (v) => typeof v === "string" && v.trim() !== "";
 const oneLine = (v) => isText(v) && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(v);
 //  commands のキーのうち、決めごとを確かめるコマンドではないもの（説明の欄と、契約の実例を実行するプロセス）
 const NOT_A_CHECK = (k) => k.startsWith("_") || k === "contract_adapter";
+//  p が root の外にあるか（"..foo" のように .. で始まるだけの名前は中）
+const outside = (root, p) => {
+	const rel = relative(root, p);
+	return rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+};
 const isNone = (v) => isMap(v) && typeof v.none === "string";
 
 function usage(msg) {
 	if (msg) console.error(`${TAG} ${msg}`);
-	console.error(`usage: config-lint.mjs [--root .] [--config ${CONFIG_FILE}]`);
+	console.error("usage: config-lint.mjs [--root .] | [--config <設定ファイル>]");
 	process.exit(2);
 }
 
 function parseArgs(argv) {
-	const opts = { root: ".", config: null };
+	const opts = { root: null, config: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--root" || a === "--config") {
@@ -61,6 +69,8 @@ function parseArgs(argv) {
 			opts[a.slice(2)] = argv[++i];
 		} else usage(`知らない引数: ${a}`);
 	}
+	//  基準は設定ファイルがあるディレクトリの 1 つだけ。2 つ渡されると、どちらを基準にしたのかが分からなくなる
+	if (opts.root !== null && opts.config !== null) usage("--root と --config は同時に指定できない（--config だけで、設定ファイルがあるディレクトリが基準になる）");
 	return opts;
 }
 
@@ -94,8 +104,7 @@ function lint(cfg, root, allowed) {
 				if (!isText(r.source)) err("K2", `rules.${name}.source が無い（決めごとの正本のファイルを書く）`);
 				else {
 					const p = resolve(root, r.source);
-					const inside = !isAbsolute(r.source) && !relative(root, p).startsWith("..");
-					if (!inside) err("K2", `rules.${name}.source は、設定ファイルがあるディレクトリの中のファイルを相対パスで書く: ${r.source}`);
+					if (isAbsolute(r.source) || outside(root, p)) err("K2", `rules.${name}.source は、設定ファイルがあるディレクトリの中のファイルを相対パスで書く: ${r.source}`);
 					else if (!existsSync(p) || !statSync(p).isFile()) err("K2", `rules.${name}.source のファイルが無い: ${r.source}`);
 				}
 				if (!isText(r.check)) err("K2", `rules.${name}.check が無い（確かめる commands のキーを書く）`);
@@ -149,13 +158,14 @@ function report(label, cfg, errs) {
 	console.log(`  人間が認めた例外（exceptions）: ${count("exceptions", Array.isArray)}`);
 	console.log(`  機械で確かめていない決めごと（conventions）: ${count("conventions", Array.isArray)}`);
 	if (Array.isArray(cfg.conventions))
-		for (const c of cfg.conventions) if (isMap(c) && isText(c.rule)) console.log(`    - ${c.rule.trim()}${isText(c.unchecked_because) ? `（確かめていない理由: ${c.unchecked_because.trim()}）` : ""}`);
+		//  形の検査を通らなかった文（制御文字を含むものなど）は、そのまま端末に出さない。違反の行が場所を示す
+		for (const c of cfg.conventions) if (isMap(c) && oneLine(c.rule)) console.log(`    - ${c.rule.trim()}${oneLine(c.unchecked_because) ? `（確かめていない理由: ${c.unchecked_because.trim()}）` : ""}`);
 	for (const e of errs) console.log(`  err  ${e}`);
 }
 
 function main() {
 	const opts = parseArgs(process.argv.slice(2));
-	const configPath = opts.config ? resolve(opts.config) : join(resolve(opts.root), CONFIG_FILE);
+	const configPath = opts.config ? resolve(opts.config) : join(resolve(opts.root ?? "."), CONFIG_FILE);
 	//  rules の source と unit は、設定ファイルがあるディレクトリから探す（--config で別の場所を指しても同じ）
 	const root = dirname(configPath);
 	if (!existsSync(configPath)) {
@@ -175,11 +185,16 @@ function main() {
 		console.error(`${TAG} ${configPath}: ${top.error}`);
 		return 2;
 	}
+	const unitErrs = [];
 	const units = isMap(top.value.git) && isMap(top.value.git.units) ? top.value.git.units : {};
 	for (const [name, dir] of Object.entries(units)) {
 		if (typeof dir !== "string") continue; //  git.units の形は git-lint が検査する
 		const p = join(root, dir, CONFIG_FILE);
-		if (relative(root, resolve(root, dir)).startsWith("..") || isAbsolute(dir)) continue; //  外を指す unit は読まない
+		//  外やルート自身を指す unit は読まず、違反として数える（黙って飛ばさない）
+		if (!dir.trim() || isAbsolute(dir) || outside(root, resolve(root, dir)) || resolve(root, dir) === root) {
+			unitErrs.push(`K5  git.units.${name} は、設定ファイルがあるディレクトリの中の、別のディレクトリを相対パスで書く: ${JSON.stringify(dir)}`);
+			continue;
+		}
 		if (!existsSync(p) && renamedConfigHint(p)) {
 			console.error(`${TAG} unit ${name}（${dir}）に ${CONFIG_FILE} が無い${renamedConfigHint(p)}`);
 			return 2;
@@ -187,7 +202,7 @@ function main() {
 		if (existsSync(p)) targets.push({ label: `unit ${name}（${dir}/${CONFIG_FILE}）`, path: p, root: join(root, dir) });
 	}
 
-	let total = 0;
+	let total = unitErrs.length;
 	for (const t of targets) {
 		const loaded = t.path === configPath ? top : readJson(t.path);
 		if (loaded.error) {
@@ -198,6 +213,7 @@ function main() {
 		report(t.label, loaded.value, errs);
 		total += errs.length;
 	}
+	for (const e of unitErrs) console.log(`  err  ${e}`);
 	console.log(total ? `${TAG} 違反 ${total} 件` : `${TAG} OK`);
 	return total ? 1 : 0;
 }
