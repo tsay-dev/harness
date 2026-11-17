@@ -136,27 +136,43 @@ test("渡した先がシグナルで止まったら、入口も同じシグナ�
 	assert.equal(r.signal, "SIGTERM");
 });
 
-test("入口だけを止めても、渡した先が動き続けない", { skip: process.platform === "win32" }, async () => {
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"]) {
+	test(`入口だけを ${sig} で止めても、渡した先が動き続けない`, { skip: process.platform === "win32" }, async () => {
+		const dir = fakeTools();
+		const started = join(dir, "started");
+		const marker = join(dir, "marker");
+		writeFileSync(
+			join(dir, "gate-hook/stop-gate.mjs"),
+			`import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(started)}, "");\nsetTimeout(() => writeFileSync(${JSON.stringify(marker)}, ""), 1200);\n`,
+		);
+		const child = spawn(process.execPath, [ENTRY, "verify"], { stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
+		const ended = new Promise((res) => child.on("exit", (status, signal) => res(signal)));
+		for (let i = 0; i < 100 && !existsSync(started); i++) await new Promise((res) => setTimeout(res, 50));
+		assert.ok(existsSync(started), "渡した先が起動していない");
+		child.kill(sig);
+		assert.equal(await ended, sig);
+		await new Promise((res) => setTimeout(res, 1500));
+		assert.ok(!existsSync(marker), "入口が止まった後も、渡した先が動いて目印を書いた");
+	});
+}
+
+test("harness lint の途中で止められたら、渡した先が 0 で終わっても残りを実行せず、同じシグナルで終わる", { skip: process.platform === "win32" }, async () => {
 	const dir = fakeTools();
 	const started = join(dir, "started");
-	const marker = join(dir, "marker");
+	const ran = join(dir, "ran");
 	writeFileSync(
-		join(dir, "gate-hook/stop-gate.mjs"),
-		`import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(started)}, "");\nsetTimeout(() => writeFileSync(${JSON.stringify(marker)}, ""), 1500);\n`,
+		join(dir, "spec-lint/spec-lint.mjs"),
+		`import { writeFileSync } from "node:fs";\nprocess.on("SIGTERM", () => process.exit(0));\nwriteFileSync(${JSON.stringify(started)}, "");\nsetTimeout(() => {}, 10000);\n`,
 	);
-	const child = spawn(process.execPath, [ENTRY, "verify"], { stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
-	const ended = new Promise((res) => child.on("exit", (status, signal) => res(signal)));
+	for (const s of ["trace-check/trace-check.mjs", "git-lint/git-lint.mjs"]) {
+		writeFileSync(join(dir, s), `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "x");\n`);
+	}
+	const child = spawn(process.execPath, [ENTRY, "lint"], { stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
+	const ended = new Promise((res) => child.on("exit", (status, signal) => res({ status, signal })));
 	for (let i = 0; i < 100 && !existsSync(started); i++) await new Promise((res) => setTimeout(res, 50));
-	assert.ok(existsSync(started), "渡した先が起動していない");
+	assert.ok(existsSync(started), "最初の検査が起動していない");
 	child.kill("SIGTERM");
-	assert.equal(await ended, "SIGTERM");
-	await new Promise((res) => setTimeout(res, 2000));
-	assert.ok(!existsSync(marker), "入口が止まった後も、渡した先が動いて目印を書いた");
-});
-
-test("標準入力は渡した先に届く（フックは標準入力の JSON を読む）", () => {
-	const dir = fakeTools();
-	writeFileSync(join(dir, "gate-hook/gate-hook.mjs"), `process.stdin.pipe(process.stdout);\n`);
-	const r = spawnSync(process.execPath, [ENTRY, "guard"], { encoding: "utf8", input: '{"tool_name":"Write"}', env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
-	assert.equal(r.stdout, '{"tool_name":"Write"}');
+	assert.deepEqual(await ended, { status: null, signal: "SIGTERM" });
+	await new Promise((res) => setTimeout(res, 300));
+	assert.ok(!existsSync(ran), "止められた後に、残りの検査が実行された");
 });

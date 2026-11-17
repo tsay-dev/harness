@@ -11,7 +11,8 @@
 //  使い方:
 //    node <harness のルート>/bin/harness.mjs <コマンド> [渡した先のツールの引数...]
 //
-//  終了コード: 渡した先のツールの終了コード。コマンド名の誤りは 2。
+//  終了コード: 渡した先のツールの終了コード。コマンド名の誤り、行き先のファイルが無い、起動できない、は 2。
+//  渡した先がシグナルで止まったとき、入口が SIGINT / SIGTERM / SIGHUP / SIGQUIT を受けたときは、同じシグナルで終わる。
 //  `harness lint`（まとめて実行）は、実行したもののうち最も大きい終了コード。
 //  環境変数 HARNESS_TOOLS_DIR は同梱ツールの探索先（<このファイルの場所>/../tools）を差し替える（テスト用）。
 
@@ -69,8 +70,12 @@ function match(argv) {
 	return null;
 }
 
-//  入口が止められたら子も止める。入口だけが消えて検査やテストが裏で動き続けないようにする
-const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
+//  入口が止められたら、渡した先のツールにも同じシグナルを送る（入口だけが消えてツールが裏で動き続けないように）。
+//  ツールがさらに起動したコマンドまでは止めない（そこはツールの側の責任）。
+//  受けたシグナルは覚えておき、ツールが終わったら、その終了コードにかかわらず同じシグナルで自分も終わる。
+//  ツールが終了済みでシグナルが届かなかった場合や、ツールが後始末して 0 で終わった場合に、止める指示を取りこぼさない。
+const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"];
+let stopBy = null;
 
 function run(cmd, rest) {
 	const script = join(TOOLS, cmd.script);
@@ -80,21 +85,24 @@ function run(cmd, rest) {
 	}
 	return new Promise((done) => {
 		const child = spawn(process.execPath, [script, ...cmd.prefix, ...rest], { stdio: "inherit" });
-		const forward = (sig) => child.kill(sig);
+		const forward = (sig) => {
+			stopBy ??= sig;
+			child.kill(sig);
+		};
 		for (const s of SIGNALS) process.on(s, forward);
 		const finish = (code) => {
 			for (const s of SIGNALS) process.removeListener(s, forward);
-			done(code);
+			if (stopBy) process.kill(process.pid, stopBy);
+			else done(code);
 		};
 		child.on("error", (e) => {
 			console.error(`harness: ${cmd.words.join(" ")} を起動できない: ${e.message}`);
 			finish(2);
 		});
 		child.on("exit", (status, signal) => {
-			for (const s of SIGNALS) process.removeListener(s, forward);
-			//  子がシグナルで止まったら、同じシグナルで自分も止まる（呼び出し側に止まり方を伝える）
-			if (signal) process.kill(process.pid, signal);
-			else done(status ?? 1);
+			//  渡した先がシグナルで止まったら、同じシグナルで自分も止まる（呼び出し側に止まり方を伝える）
+			stopBy ??= signal;
+			finish(status ?? 1);
 		});
 	});
 }
