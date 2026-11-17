@@ -12,7 +12,7 @@
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/contract.yaml       UC の境界契約（harness 独自 YAML）
 //    docs/rules/BR-nnn.md  docs/nfr/NFR-nnn.md  docs/adr/ADR-nnnn-<slug>.md   横断（中央）
 //    docs/verification/GLOBAL.md                                 【任意】全体の検証除外
-//    docs/verification/DEFERRED.md                               【任意】機械判定できない指摘の保留台帳
+//    docs/verification/DEFERRED.md                               【既存のものだけ】凍結済みの、過去の保留の一覧（ADR-0068）
 //    docs/_shared/components.yaml                                契約の共有語彙（$ref 先）
 //
 //  書式の SSOT は templates/develop/ のテンプレート。必須フロントマター・必須セクション・
@@ -80,8 +80,6 @@ const MAX_CONTRACT_LINES = 400; //  契約 YAML は 1 行 1 キーの ASCII な�
 //  --- 保留台帳 docs/verification/DEFERRED.md の語彙と閾値（本ツールが唯一の SSOT。テンプレートの注記に数値を書き写さない）---
 const DEFERRED_ID_RE = /^DEF-\d{3}$/;
 const DEFERRED_TARGETS = ["spec-lint", "trace-check", "contract-run", "test", "typecheck", "lint", "hook", "未定"]; //  昇格先
-const DEFERRED_MAX_AGE_DAYS = 30; //  起票からこの日数を超えた保留は「昇格か解消か」を決める合図
-const DEFERRED_RECUR = 3; //  同じ対象にこの件数以上の保留が積もったら機械検査への昇格候補
 
 //  --- 収集した違反 ---
 const errors = [];
@@ -881,17 +879,21 @@ function validateDesign(file) {
 }
 
 //  --- 保留台帳 docs/verification/DEFERRED.md（任意ファイル）---
-//  1 行 1 件の表だけを持つ。書式（7 列・ID・日付・語彙）は err、
-//  滞留（古い / 同じ対象に積もる / 対象が消えた）は warn ＝ 昇格か解消かを決める合図であって判定ではない。
+//  凍結済みの一覧（ADR-0068）。新しい行は足さない: frontmatter の frozen_at より後の起票日の行は err。
+//  1 行 1 件の表だけを持つ。書式（7 列・ID・日付・語彙）は err。残っている件数と、対象が消えた行は warn。
 //  フロントマターと見出しは validateSingleton が先に見ている（status は living のみ）
 function validateDeferred(file) {
-	const { body } = readFm(file);
+	const { data, body } = readFm(file);
+	//  一覧は凍結済み（ADR-0068）。frozen_at より後の起票日の行は書けない（保留を新しく足さない）
+	const frozenAt = data.frozen_at ?? "";
+	const frozenOk = /^\d{4}-\d{2}-\d{2}$/.test(frozenAt) && !Number.isNaN(Date.parse(frozenAt));
+	if (frozenAt && !frozenOk) err(file, `frozen_at は YYYY-MM-DD（一覧を凍結した日）。実際: "${frozenAt}"`);
+	else if (frozenOk && frozenAt > new Date(Date.now() + 86400000).toISOString().slice(0, 10)) err(file, `frozen_at ${frozenAt} が先の日付になっている（一覧を凍結した日を書く）`);
 	const sec = findSection(stripComments(body), (t) => t.startsWith("保留中"));
 	if (!sec) return; //  見出しの欠落は checkSections が既に出している
 	const rows = tableRows(sec.lines).slice(1); //  先頭はヘッダ行（区切り行は tableRows が除く）
 	const today = new Date().toISOString().slice(0, 10);
 	const seen = new Set();
-	const byTarget = new Map();
 	for (const cells of rows) {
 		const idLabel = cells[0] || "(ID なし)";
 		if (cells.length !== 7) {
@@ -904,15 +906,12 @@ function validateDeferred(file) {
 		seen.add(id);
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) err(file, `${id}: 起票日は YYYY-MM-DD。実際: "${date}"`);
 		else if (date > today) err(file, `${id}: 起票日 ${date} が未来`);
-		else {
-			const age = Math.floor((Date.parse(today) - Date.parse(date)) / 86400000);
-			if (age > DEFERRED_MAX_AGE_DAYS) warn(file, `${id}: 起票から ${age} 日（${DEFERRED_MAX_AGE_DAYS} 日超）— 昇格か解消かを決める`);
-		}
+		else if (frozenOk && date > frozenAt)
+			err(file, `${id}: 起票日 ${date} が frozen_at（${frozenAt}）より後 — 保留は新しく足さない。機械検査にするか、人間に聞いて仕様に書く（ADR-0068）`);
 		for (const [label, v] of [["出所", origin], ["対象", target], ["指摘", finding], ["理由", reason]])
 			if (v.length === 0) err(file, `${id}: ${label} が空`);
 		if (!DEFERRED_TARGETS.includes(promote)) err(file, `${id}: 昇格先は ${DEFERRED_TARGETS.join(" | ")} のいずれか。実際: "${promote}"`);
 		if (target.length > 0) {
-			byTarget.set(target, (byTarget.get(target) || []).concat(id));
 			//  対象はホスト直下からの相対パス（validate は ホストのルートで走らせる前提）
 			//  REQ を指す対象は「<UC.md のパス>#REQ-nnn」と書く（REQ は UC.md の「要件」の節の小節。ADR-0067）
 			const [targetFile, anchor] = target.split("#");
@@ -923,8 +922,9 @@ function validateDeferred(file) {
 			if (missing) warn(file, `${id}: 対象 "${target}" が存在しない — 解消済みなら行を消す`);
 		}
 	}
-	for (const [target, ids] of byTarget)
-		if (ids.length >= DEFERRED_RECUR) warn(file, `対象 "${target}" の保留が ${ids.length} 件（${DEFERRED_RECUR} 件以上）— 機械検査への昇格候補`);
+	//  残っている件数を毎回 1 行で示す（減っているかを見えるままにする）。行ごとの古さ・積もり方の警告は出さない
+	//  （凍結した一覧は、すべての行が古くなる）
+	if (seen.size > 0) warn(file, `凍結済みの保留が ${seen.size} 件残っている（解消したら行を消す。新しい行は足さない / ADR-0068）`);
 }
 
 //  --- validate コマンド ---

@@ -41,8 +41,9 @@ invalid:
 //  examples        examples: の中身（null なら ok + invalid）
 //  status          契約の x-status
 //  deferredRows    docs/verification/DEFERRED.md の表の行（文字列配列。null ならファイルを作らない）
+//  frozenAt        DEFERRED.md の frozen_at（既定は今日。null なら書かない）
 //  contract        contract.yaml の全文（null なら下の http 1 操作の契約。stream など別の形を試すときに渡す）
-export function writeMinimalDocs(root, { contractExtra = "", contractErrors = null, examples = null, status = "fixed", deferredRows = null, contract = null } = {}) {
+export function writeMinimalDocs(root, { contractExtra = "", contractErrors = null, examples = null, status = "fixed", deferredRows = null, frozenAt = new Date().toISOString().slice(0, 10), contract = null } = {}) {
 	write(
 		root,
 		"docs/_shared/components.yaml",
@@ -193,7 +194,7 @@ ${indent(opBody, 4)}
 			"docs/verification/DEFERRED.md",
 			`---
 id: VERIFICATION_DEFERRED
-status: living
+status: living${frozenAt === null ? "" : `\nfrozen_at: ${frozenAt}`}
 ---
 
 # 保留台帳（機械判定できない指摘）

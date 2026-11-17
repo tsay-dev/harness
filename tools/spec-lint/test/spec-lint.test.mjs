@@ -142,16 +142,28 @@ test("DEFERRED.md: 昇格先が語彙外なら err", () => {
 	assert.match(r.out, /DEF-001: 昇格先は .* のいずれか。実際: "後で"/);
 });
 
-test("DEFERRED.md: 同じ対象に 3 件以上積もれば warn", () => {
-	const r = validate({ deferredRows: [row("DEF-001"), row("DEF-002"), row("DEF-003")] });
+test("DEFERRED.md: 残っている件数を 1 行で示す。行ごとの古さ・積もり方の警告は出さない（ADR-0068）", () => {
+	const r = validate({ deferredRows: [row("DEF-001", { date: daysAgo(40) }), row("DEF-002"), row("DEF-003")] });
 	assert.equal(r.status, 0, r.out);
-	assert.match(r.out, /3 件（3 件以上）— 機械検査への昇格候補/);
+	assert.match(r.out, /凍結済みの保留が 3 件残っている/);
+	assert.doesNotMatch(r.out, /昇格候補|30 日超/);
+	assert.doesNotMatch(validate({ deferredRows: [] }).out, /凍結済みの保留が/);
 });
 
-test("DEFERRED.md: 起票から 30 日を超えた行は warn", () => {
-	const r = validate({ deferredRows: [row("DEF-001", { date: daysAgo(40) })] });
-	assert.equal(r.status, 0, r.out);
-	assert.match(r.out, /DEF-001: 起票から 40 日（30 日超）/);
+test("DEFERRED.md: frozen_at より後の起票日の行は err（保留を新しく足さない / ADR-0068）", () => {
+	const late = validate({ deferredRows: [row("DEF-001", { date: daysAgo(1) })], frozenAt: daysAgo(5) });
+	assert.equal(late.status, 1, late.out);
+	assert.match(late.out, /DEF-001: 起票日 .* が frozen_at（.*）より後 — 保留は新しく足さない/);
+	//  凍結した日と同じ日・それより前の行は通る
+	assert.equal(validate({ deferredRows: [row("DEF-001", { date: daysAgo(5) }), row("DEF-002", { date: daysAgo(9) })], frozenAt: daysAgo(5) }).status, 0);
+});
+
+test("DEFERRED.md: frozen_at が無い・日付でない・先の日付なら err", () => {
+	const none = validate({ deferredRows: [row("DEF-001")], frozenAt: null });
+	assert.equal(none.status, 1, none.out);
+	assert.match(none.out, /frozen_at/);
+	assert.match(validate({ deferredRows: [], frozenAt: "2026/11/18" }).out, /frozen_at は YYYY-MM-DD/);
+	assert.match(validate({ deferredRows: [], frozenAt: "2999-01-01" }).out, /frozen_at 2999-01-01 が先の日付になっている/);
 });
 
 test("DEFERRED.md: 列数が 7 でなければ err", () => {

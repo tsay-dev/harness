@@ -22,7 +22,7 @@ spec-lint はこのディレクトリのテンプレートから必須 frontmatt
 | `components.yaml` | `docs/_shared/components.yaml` | orchestrator のみ（作成者は追加要求を報告） |
 | `ADR.md` | `docs/adr/ADR-nnnn-<slug>.md` | orchestrator（develop skill の `references/adr.md`） |
 | `verification-GLOBAL.md` | `docs/verification/GLOBAL.md` | test-author |
-| `DEFERRED.md` | `docs/verification/DEFERRED.md`（任意） | orchestrator のみ。機械検査にできない reviewer 指摘の台帳 |
+| `DEFERRED.md` | `docs/verification/DEFERRED.md`（既存のものだけ） | 凍結済みの、過去の保留の一覧の書式。新しく作らず、行も足さない（ADR-0068）。解消した行を消すだけ |
 | `design.md` | `docs/design.md`（任意） | 人間（orchestrator が代筆してもよい） |
 | `harness.config.json` | 利用プロジェクト直下の `harness.config.json` | orchestrator が一度ひな形を置き、利用プロジェクトが維持する（`commands` に自身の検査と契約アダプターを指定。スタックの値は選択した `rules-*` の harness.config.json の末端文書が差分で示す）。検査の範囲（none の宣言を含む）を決めるので、変更は 🙋 人間の承認（gate-hook が確認を求める。ADR-0057） |
 | （空ファイル） | `docs/goals/.gitkeep`、`docs/rules/.gitkeep`、`docs/nfr/.gitkeep`、`docs/adr/.gitkeep`、`e2e/.gitkeep`（`tests.system.dirs` に合わせる） | orchestrator がひな形と一緒に置く。`docs/goals/` が無いと spec-lint / contract-run は設定エラーで止まり、active な UC が 1 件でもあると、宣言した固定パスが無いことを trace-check が C26 の違反にする |

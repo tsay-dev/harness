@@ -148,7 +148,8 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	assert.match(c.stderr, /直せる失敗は直し/);
 	assert.match(c.stderr, /人間ゲート待ちや後続の担当の成果物でしか直せない失敗は、未達として報告して終える/);
 	assert.match(c.stderr, /設定（harness\.config\.json）を緩めて（none にする、範囲を狭める）通さない/);
-	assert.match(c.stderr, /DEFERRED\.md/);
+	assert.match(c.stderr, /保留にせず、人間に聞いて決める/);
+	assert.doesNotMatch(c.stderr, /DEFERRED\.md/);
 	assert.doesNotMatch(c.stderr, /失敗した検査だけを直し/);
 	assert.equal(last(root).decision, "block");
 	assert.equal(last(root).reason, "test");

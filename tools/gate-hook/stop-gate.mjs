@@ -267,7 +267,7 @@ async function main() {
 		}
 		out.push(
 			"直せる失敗は直し、修正範囲を再検証してから終了すること。人間ゲート待ちや後続の担当の成果物でしか直せない失敗は、未達として報告して終える。" +
-				"設定（harness.config.json）を緩めて（none にする、範囲を狭める）通さない。機械判定できない指摘は docs/verification/DEFERRED.md に記録し、機械判定できるものは保留にしない。",
+				"設定（harness.config.json）を緩めて（none にする、範囲を狭める）通さない。機械で判定できない点は、保留にせず、人間に聞いて決める。",
 		);
 		process.stderr.write(out.join("\n") + "\n");
 		log("block", names[0], { round: s.rounds, failures: names });
