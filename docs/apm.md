@@ -105,7 +105,7 @@ apm install --target codex /absolute/path/to/harness/packages/rules-next
 1. 各パッケージを単独で install でき、develop-core + rules-next の consumer にほかのスタックの葉が出ない。
 2. installed package に tools / templates が同梱されない。
 3. Claude 出力の `paths` と Cursor 出力の `globs` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
-4. Codex / Grok の install が root `AGENTS.md`、ルートの `settings.json`、全文の rules router を生成しない。Grok Build の `.grok/rules/` が常に読まれる設定になっていない。
+4. どの target の install も `.claude/settings.json` を作らない。Codex / Grok の install が root `AGENTS.md` や全文の rules router を生成しない。Grok Build の `.grok/rules/` が常に読まれる設定になっていない。
 5. skill 本文のリンクが `apm_modules/` 内で解決し、`.claude/` がなくても到達できる。
 6. agent の名前が重複せず、複数の `rules-*` を選んだときに同じ名前の規約が互いを上書きしていない。
 
