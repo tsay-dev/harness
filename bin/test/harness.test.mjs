@@ -59,7 +59,7 @@ const ROUTES = [
 	[["lint", "git", "message"], "git-lint/git-lint.mjs", ["message"]],
 	[["lint", "git", "uc"], "spec-lint/spec-lint.mjs", ["gate"]],
 	[["run", "cases"], "contract-run/contract-run.mjs", []],
-	[["verify"], "gate-hook/stop-gate.mjs", []],
+	[["verify"], "gate-hook/verify.mjs", []],
 	[["guard"], "gate-hook/gate-hook.mjs", []],
 	[["next-id"], "trace-check/trace-check.mjs", ["--next"]],
 	[["index"], "trace-check/trace-check.mjs", ["--index"]],
@@ -125,7 +125,7 @@ test("行き先のファイルが無ければ 2 で終わる", () => {
 
 test("標準エラー出力は渡した先のものがそのまま出る（フックは理由を標準エラー出力で返す）", () => {
 	const dir = fakeTools();
-	writeFileSync(join(dir, "gate-hook/stop-gate.mjs"), `console.error("差し戻しの理由"); process.exit(2);\n`);
+	writeFileSync(join(dir, "gate-hook/verify.mjs"), `console.error("差し戻しの理由"); process.exit(2);\n`);
 	const r = harness(["verify"], { HARNESS_TOOLS_DIR: dir });
 	assert.equal(r.status, 2);
 	assert.equal(r.stderr, "差し戻しの理由\n");
@@ -133,7 +133,7 @@ test("標準エラー出力は渡した先のものがそのまま出る（フ�
 
 test("渡した先がシグナルで止まったら、入口も同じシグナルで止まる", () => {
 	const dir = fakeTools();
-	writeFileSync(join(dir, "gate-hook/stop-gate.mjs"), `process.kill(process.pid, "SIGTERM"); setTimeout(() => {}, 5000);\n`);
+	writeFileSync(join(dir, "gate-hook/verify.mjs"), `process.kill(process.pid, "SIGTERM"); setTimeout(() => {}, 5000);\n`);
 	const r = harness(["verify"], { HARNESS_TOOLS_DIR: dir });
 	assert.equal(r.signal, "SIGTERM");
 });
@@ -144,7 +144,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"]) {
 		const started = join(dir, "started");
 		const marker = join(dir, "marker");
 		writeFileSync(
-			join(dir, "gate-hook/stop-gate.mjs"),
+			join(dir, "gate-hook/verify.mjs"),
 			`import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(started)}, "");\nsetTimeout(() => writeFileSync(${JSON.stringify(marker)}, ""), 400);\n`,
 		);
 		const child = spawn(process.execPath, [ENTRY, "verify"], { stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: dir } });

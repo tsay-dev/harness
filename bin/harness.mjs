@@ -37,7 +37,7 @@ const COMMANDS = [
 	{ group: "読むだけ", words: ["lint", "git", "message"], script: "git-lint/git-lint.mjs", prefix: ["message"], desc: "コミットメッセージの書式を検査する" },
 	{ group: "読むだけ", words: ["lint", "git", "uc"], script: "spec-lint/spec-lint.mjs", prefix: ["gate"], desc: "コミットが指す UC が実装に入れる状態かを検査する" },
 	{ group: "実行する", words: ["run", "cases"], script: "contract-run/contract-run.mjs", prefix: [], desc: "契約の実例を実装に当てて実行する" },
-	{ group: "実行する", words: ["verify"], script: "gate-hook/stop-gate.mjs", prefix: [], desc: "完了の判定を行う（Stop フック）" },
+	{ group: "実行する", words: ["verify"], script: "gate-hook/verify.mjs", prefix: [], desc: "完了の判定を行う（--level lint|fast|full。--hook で Stop フックとして動く）" },
 	{ group: "実行する", words: ["guard"], script: "gate-hook/gate-hook.mjs", prefix: [], desc: "書き込み前の関門（PreToolUse フック）" },
 	{ group: "補助", words: ["next-id"], script: "trace-check/trace-check.mjs", prefix: ["--next"], desc: "次の空き ID を予約して出力する（goal|uc|req|br|nfr|adr）" },
 	{ group: "補助", words: ["index"], script: "trace-check/trace-check.mjs", prefix: ["--index"], desc: "1 行 1 ID の索引を出力する" },

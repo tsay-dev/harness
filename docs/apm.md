@@ -67,11 +67,13 @@ node .harness/bin/harness.mjs lint spec          # 仕様の文書の書式と�
 node .harness/bin/harness.mjs lint refs          # 仕様・コード・テストの ID の紐づき
 node .harness/bin/harness.mjs lint git branch    # harness.config.json に git を宣言したホストのみ実行される
 node .harness/bin/harness.mjs run cases          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
+node .harness/bin/harness.mjs verify --level fast  # 完了の判定（Stop フックと CI と同じ検査の並び。lint / fast / full）
 node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計
 ```
 
-- Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
+- Stop hook の終端ゲート（`harness verify --hook`。`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
 - ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `harness.config.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
+- 同じ再利用ワークフローが、完了の判定（`harness verify`）も実行する。既定の level は `lint`（設定の形・仕様の書式・紐づき。読むだけ）。テストまで CI で実行するなら、`with:` に `level: fast`（シナリオテストまでなら `full`）と、依存を入れる `setup_command` を渡す（`tools/gate-hook/README.md`）。
 
 ## 旧方式からの移行
 
@@ -103,6 +105,7 @@ node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-ga
 python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
 node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / config-lint / 入口
 node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint git branch
+node bin/harness.mjs verify --level fast # 上の検査とテストを、完了の判定と同じ並びでまとめて実行する（harness 自身の設定に宣言したコマンド）
 ```
 
 native APM install は別の fresh consumer で確認する。公開前はローカルパッケージを絶対パスで指定する。

@@ -5,20 +5,8 @@
 //  AI がターンを終えようとした瞬間に host の検証一式を走らせ、通らなければ exit 2 で
 //  終了をブロックし、失敗した検査の末尾ログを stderr で AI に差し戻す。
 //
-//  検査の順序（1–3 は全部走らせて失敗を集める。4 は最初の失敗で止める）:
-//    1. spec-lint validate            docs SSOT のフォーマット / ライフサイクル
-//    2. trace-check                   トレーサビリティ（harness.config.json が無ければ失敗。省略できない / ADR-0056）
-//    3. contract-run                  契約例の実行検査（実行する実例があるのにアダプタが無ければ contract-run 自身が失敗にする）
-//    4. commands.typecheck → lint → test（harness.config.json の commands ブロックから）
-//    5. commands.system                シナリオテスト（system suite）全件。4 が全部通ったあとに 1 回（ADR-0035）
-//  commands の typecheck / lint / test / system は、文字列のコマンドか { "none": "<理由>" } の宣言が必須で、
-//  欠落は失敗の 1 項目（黙った skip を作らない）。none は理由を表示して skip。tests を宣言しているなら test は none にできない。
-//  コマンドは harness.config.json に宣言されたものしか走らせない。推測・発明はしない。
-//
-//  monorepo（harness.config.json の git.units = { 単位名: ディレクトリ }）:
-//    ルートでは 1–3 を実行せず、unit ごとに <dir>/harness.config.json と <dir>/docs で実行する。
-//    docs も harness.config.json も持たない unit は「docs なし」と表示するだけ。docs を持つのに harness.config.json が無い unit は失敗。
-//    commands はルートの harness.config.json のものを使う。
+//  検査の並び、level（lint / fast / full）、monorepo の unit ごとの実行は suite.mjs が正本（CI・手元から呼ぶ verify.mjs と同じ）。
+//  コマンドは設定（harness.config.json）に宣言されたものしか実行しない。推測・発明はしない。
 //
 //  Stop フックの入出力（Claude Code の契約）:
 //    stdin  JSON: session_id / cwd / hook_event_name:"Stop" / stop_hook_active / stop_reason
@@ -30,7 +18,8 @@
 //    - 変更検出: git の HEAD + status + diff、未追跡ファイルの中身、harness.config.json、使う harness ツールの
 //      ハッシュが最終合格時と同じなら再検査しない（skip）。
 //    - ラウンド上限: stop_hook_active（既にフックで継続中）かつ rounds >= --max-rounds なら
-//      ブロックせず人間へ手渡す（release。systemMessage で利用者に表示）。失敗集合が 2 回連続で縮まらない場合も同様。
+//      ブロックせず人間へ手渡す（release。systemMessage で利用者に表示）。直前のラウンドより失敗が減っていない場合も同様
+//      （--max-rounds を 3 以上にしたとき、上限を待たずに渡す）。
 //    状態は <ログと同じディレクトリ>/state.json に持つ（既定 .harness-gate/state.json。gate-hook が agent の書き込みを止める）。
 //
 //  fail-open / fail-closed の境界:
@@ -40,7 +29,7 @@
 //      ただし stop_hook_active でラウンド上限に達していれば、ラウンド上限と同じく解放する（無限ループを避ける）。
 //
 //  使い方（settings.local.json の Stop フックとして。README.md を参照）:
-//    node tools/gate-hook/stop-gate.mjs [--docs docs] [--config harness.config.json]
+//    node tools/gate-hook/stop-gate.mjs [--level lint|fast|full] [--unit <名前>]... [--docs docs] [--config harness.config.json]
 //         [--log .harness-gate/log.jsonl] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]
 //  環境変数 STOP_GATE_TOOLS_DIR は同梱ツールの探索先（<self dir>/..）を差し替える（テスト用）。
 
@@ -50,17 +39,17 @@ import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
-import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
+import { CONFIG_FILE } from "../_shared/config.mjs";
+import { LEVELS, TOOL_SCRIPTS, readConfig, runSuite, tailLines, unitsOf } from "./suite.mjs";
 
 const USAGE =
-	"usage: stop-gate.mjs [--docs docs] [--config harness.config.json] [--log <path>] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]";
+	"usage: stop-gate.mjs [--level lint|fast|full] [--unit <名前>]... [--docs docs] [--config harness.config.json] [--log <path>] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]";
 
-const COMMAND_KEYS = ["typecheck", "lint", "test", "system"];
 
 //  ---- 引数 ----------------------------------------------------------------
 
 function parseArgs(argv) {
-	const opts = { docs: "docs", config: CONFIG_FILE, log: null, maxRounds: 2, timeout: 300, tail: 15, force: false };
+	const opts = { docs: "docs", config: CONFIG_FILE, log: null, maxRounds: 2, timeout: 300, tail: 15, force: false, level: "full", only: [] };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--docs") opts.docs = argv[++i];
@@ -70,10 +59,17 @@ function parseArgs(argv) {
 		else if (a === "--timeout") opts.timeout = Number(argv[++i]);
 		else if (a === "--tail") opts.tail = Number(argv[++i]);
 		else if (a === "--force") opts.force = true;
+		else if (a === "--level") opts.level = argv[++i];
+		else if (a === "--ignore-legacy-layout") opts.ignoreLegacyLayout = true;
+		else if (a === "--unit") opts.only.push(argv[++i]);
 		else {
 			console.error(`stop-gate: 不明な引数 ${a}\n${USAGE}`);
 			process.exit(2);
 		}
+	}
+	if (!LEVELS.includes(opts.level) || opts.only.some((u) => typeof u !== "string" || !u)) {
+		console.error(`stop-gate: --level は ${LEVELS.join(" / ")}、--unit は unit の名前\n${USAGE}`);
+		process.exit(2);
 	}
 	for (const k of ["maxRounds", "timeout", "tail"])
 		if (!Number.isInteger(opts[k]) || opts[k] < 0) {
@@ -126,26 +122,6 @@ function release(why, s, log, opts) {
 	log("release", why, { round: s.rounds, failures: s.last_failures });
 }
 
-//  ---- harness.config.json --------------------------------------------------------
-
-//  読めなければ { error }。無ければ { missing: true }
-function readConfig(path) {
-	if (!existsSync(path)) return { missing: true };
-	try {
-		const cfg = JSON.parse(readFileSync(path, "utf8"));
-		if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) return { error: `${path}: 最上位が JSON のオブジェクトでない` };
-		return { cfg };
-	} catch (e) {
-		return { error: `${path}: JSON として読めない（${e.message}）` };
-	}
-}
-
-//  git.units（{ 単位名: ディレクトリ }）。無ければ null
-function unitsOf(cfg) {
-	const u = cfg?.git?.units;
-	return u && typeof u === "object" && !Array.isArray(u) && Object.keys(u).length > 0 ? u : null;
-}
-
 //  ---- 変更検出（git） -------------------------------------------------------
 
 
@@ -160,7 +136,7 @@ function hashFile(h, label, path) {
 
 //  使う harness ツール（検査器が変われば同じツリーでも結果が変わる）
 function toolFiles(toolsDir) {
-	const files = ["spec-lint/spec-lint.mjs", "trace-check/trace-check.mjs", "contract-run/contract-run.mjs"].map((p) => join(toolsDir, p));
+	const files = TOOL_SCRIPTS.map((p) => join(toolsDir, p));
 	const shared = join(toolsDir, "_shared");
 	if (existsSync(shared))
 		for (const n of readdirSync(shared).sort()) if (n.endsWith(".mjs")) files.push(join(shared, n));
@@ -170,7 +146,7 @@ function toolFiles(toolsDir) {
 //  HEAD + 作業ツリーの状態 + 差分 + 未追跡ファイルの中身 + 設定 + harness ツールをハッシュ。
 //  git が使えない / 失敗 → null（常に検査する）。
 //  ゲート自身の状態ディレクトリ（untracked で現れる）は除外しないと、初回合格で指紋が変わってしまう。
-function fingerprint(root, stateDir, configFiles, toolsDir) {
+function fingerprint(root, stateDir, configFiles, toolsDir, scope) {
 	const git = (args, encoding = "utf8") => spawnSync("git", ["-C", root, ...args], { encoding, maxBuffer: 256 * 1024 * 1024 });
 	const rel = relative(root, stateDir).split(sep).join("/");
 	const excludeSelf = rel && !rel.startsWith("..") ? [`:(exclude)${rel}`] : [];
@@ -181,7 +157,8 @@ function fingerprint(root, stateDir, configFiles, toolsDir) {
 	const untracked = git(["ls-files", "-o", "--exclude-standard", "-z", "--", ".", ...excludeSelf]);
 	for (const r of [head, status, diff, untracked]) if (r.error || r.status !== 0) return null;
 
-	const h = createHash("sha256").update(head.stdout).update("\0").update(status.stdout).update("\0").update(diff.stdout);
+	//  どこまで検査したか（level と unit の絞り込み）が違えば、同じツリーでも別の合格として扱う
+	const h = createHash("sha256").update(scope).update("\0").update(head.stdout).update("\0").update(status.stdout).update("\0").update(diff.stdout);
 	//  未追跡ファイルは名前しか status に出ない。中身が変わっても指紋が変わるように中身を入れる
 	for (const p of untracked.stdout.split("\0").filter(Boolean).sort()) hashFile(h, `untracked:${p}`, join(root, p));
 	//  harness.config.json は ignore されていても、リポジトリの外（--config）でも検査の範囲を決める
@@ -190,141 +167,9 @@ function fingerprint(root, stateDir, configFiles, toolsDir) {
 	return h.digest("hex");
 }
 
-//  ---- 検査の実行 ------------------------------------------------------------
-
-//  1 ステップ実行。戻り: { name, ok, code, signal, timedOut, output }
-function runStep(name, cmd, root, timeoutSec) {
-	const r = spawnSync(cmd, { cwd: root, shell: true, timeout: timeoutSec * 1000, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-	const timedOut = r.error?.code === "ETIMEDOUT" || !!r.signal;
-	const output = (r.stdout ?? "") + (r.stderr ?? "") + (r.error && !timedOut ? `\n${r.error.message}` : "");
-	return { name: timedOut ? `timeout:${name}` : name, ok: !timedOut && r.status === 0, code: r.status, signal: r.signal, timedOut, output };
-}
-
-//  実行せずに失敗にする項目（設定の誤り・欠落）
-const configFailure = (name, output) => ({ name, ok: false, code: null, signal: null, timedOut: false, config: true, output });
-
-const tailLines = (text, n) => {
-	const lines = text.replace(/\s+$/, "").split(/\r?\n/);
-	return lines.slice(Math.max(0, lines.length - n));
-};
-
-const isNone = (v) => v && typeof v === "object" && !Array.isArray(v) && "none" in v;
-
-//  tests が none でなく宣言されているか
-const declaresTests = (cfg) => cfg && cfg.tests !== undefined && !isNone(cfg.tests);
-
-//  commands の宣言を検査する。戻り: { k: { cmd } | { none: 理由 } | { error } }
-function readCommands(cfg, testsDeclared) {
-	const commands = cfg.commands;
-	const out = {};
-	for (const k of COMMAND_KEYS) {
-		const v = commands && typeof commands === "object" && !Array.isArray(commands) ? commands[k] : undefined;
-		if (v === undefined) out[k] = { error: `commands.${k} が宣言されていない（無いなら none に理由を書く: "${k}": { "none": "<理由>" }）` };
-		else if (typeof v === "string" && v.trim()) out[k] = { cmd: v };
-		else if (isNone(v)) {
-			if (typeof v.none !== "string" || !v.none.trim()) out[k] = { error: `commands.${k} の none に理由が無い（{ "none": "<理由>" }）` };
-			else if (k === "test" && testsDeclared)
-				out[k] = { error: `commands.test は none にできない（harness.config.json が tests を宣言している。テストがあるなら実行するコマンドを書く）` };
-			else out[k] = { none: v.none };
-		} else out[k] = { error: `commands.${k} は文字列のコマンドか { "none": "<理由>" }（実際: ${JSON.stringify(v)}）` };
-	}
-	return out;
-}
-
-function runSuite(root, opts, toolsDir, configPath, loaded) {
-	const q = (p) => `"${p.replace(/"/g, '\\"')}"`;
-	const failures = [];
-	const skipped = [];
-	//  stdout への表示は判定が終わってから出す（解放時の stdout は systemMessage の JSON だけにするため）
-	const notes = [];
-	let ran = 0;
-	const run = (name, cmd) => {
-		ran++;
-		const r = runStep(name, cmd, root, opts.timeout);
-		if (!r.ok) failures.push(r);
-		return r.ok;
-	};
-	const fail = (name, output) => {
-		ran++;
-		failures.push(configFailure(name, output));
-	};
-	const skip = (name, why) => {
-		skipped.push(name);
-		notes.push(`[stop-gate] skip: ${why}`);
-	};
-	const tool = (name) => q(join(toolsDir, name, `${name}.mjs`));
-
-	//  1–3 を 1 組の docs / harness.config.json に対して走らせる（失敗を集める）
-	const checkDocs = (label, unitRoot, docsDir, cfgPath) => {
-		run(`spec-lint${label}`, `node ${tool("spec-lint")} validate --docs ${q(docsDir)}`);
-		run(`trace-check${label}`, `node ${tool("trace-check")} --root ${q(unitRoot)} --config ${q(cfgPath)}`);
-		run(`contract-run${label}`, `node ${tool("contract-run")} --root ${q(unitRoot)} --config ${q(cfgPath)} --docs ${q(docsDir)}`);
-	};
-
-	const { cfg } = loaded;
-	const units = unitsOf(cfg);
-	if (loaded.missing) {
-		//  harness.config.json が無いことは「検査しない理由」ではなく失敗（紐づきの検査は黙って省かない / ADR-0056）
-		run("spec-lint", `node ${tool("spec-lint")} validate --docs ${q(opts.docs)}`);
-		fail(
-			"trace-check",
-			`harness.config.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/harness.config.json から置き、対象が無い範囲は { "none": "<理由>" } と宣言する${renamedConfigHint(configPath)}`,
-		);
-		return { failures, skipped, notes, ran };
-	}
-	if (loaded.error) {
-		run("spec-lint", `node ${tool("spec-lint")} validate --docs ${q(opts.docs)}`);
-		fail("config", `${loaded.error}。harness.config.json を直す（検査の範囲とコマンドを読めないので、紐づきの検査と commands を実行できない）`);
-		return { failures, skipped, notes, ran };
-	}
-
-	let testsDeclared = declaresTests(cfg);
-	if (units) {
-		//  monorepo: 紐づきの宣言は unit 側が持つ。ルートでは 1–3 を実行しない
-		for (const [name, dir] of Object.entries(units)) {
-			if (typeof dir !== "string" || !dir.trim()) {
-				fail(`config:${name}`, `git.units.${name} の値がディレクトリの文字列でない（実際: ${JSON.stringify(dir)}）`);
-				continue;
-			}
-			const unitRoot = resolve(root, dir);
-			const unitDocs = join(unitRoot, "docs");
-			const unitCfg = join(unitRoot, CONFIG_FILE);
-			const hasDocs = existsSync(unitDocs);
-			if (!existsSync(unitCfg)) {
-				if (hasDocs)
-					fail(
-						`trace-check:${name}`,
-						`unit ${name}（${dir}）は docs を持つのに ${dir}/harness.config.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/harness.config.json から置く${renamedConfigHint(unitCfg)}`,
-					);
-				else if (renamedConfigHint(unitCfg)) fail(`config:${name}`, `unit ${name}（${dir}）に ${dir}/${CONFIG_FILE} が無い${renamedConfigHint(unitCfg)}`);
-				else notes.push(`[stop-gate] unit ${name}（${dir}）: docs なし`);
-				continue;
-			}
-			const u = readConfig(unitCfg);
-			if (u.cfg && declaresTests(u.cfg)) testsDeclared = true;
-			checkDocs(`:${name}`, unitRoot, unitDocs, unitCfg);
-		}
-	} else checkDocs("", root, resolve(root, opts.docs), configPath);
-
-	//  4–5: commands の宣言（欠落・型の誤りは失敗）と実行。実行は最初の失敗で止める（型が通らないのに test を回しても意味がない。
-	//  system はブラウザ / シミュレータを起動する最も重い検査なので最後に置き、default suite が赤なら走らせない）
-	const commands = readCommands(cfg, testsDeclared);
-	for (const k of COMMAND_KEYS) if (commands[k].error) fail(`commands.${k}`, commands[k].error);
-	for (const k of COMMAND_KEYS) {
-		const c = commands[k];
-		if (c.error) break; //  順序に意味がある（test の前提が欠けたまま後続を走らせない）
-		if (c.none !== undefined) {
-			skip(k, `commands.${k} = none（${c.none}）`);
-			continue;
-		}
-		if (!run(k, c.cmd)) break;
-	}
-	return { failures, skipped, notes, ran };
-}
-
 //  ---- 本体 ----------------------------------------------------------------
 
-function main() {
+async function main() {
 	const startedAt = Date.now();
 	const opts = parseArgs(process.argv.slice(2));
 
@@ -363,7 +208,7 @@ function main() {
 		const configFiles = [configPath, ...(units ? Object.values(units).filter((d) => typeof d === "string").map((d) => resolve(root, d, CONFIG_FILE)) : [])];
 
 		//  4. 変更検出: 最終合格と同じツリー・設定・検査器なら再検査しない
-		const fp = fingerprint(root, stateDir, configFiles, toolsDir);
+		const fp = fingerprint(root, stateDir, configFiles, toolsDir, JSON.stringify([opts.level, [...opts.only].sort()]));
 		if (!opts.force && fp && state.last_pass?.fingerprint === fp) {
 			console.log(`[stop-gate] 変更なし（最終合格 ${state.last_pass.ts}）`);
 			log("skip", "no-changes");
@@ -375,7 +220,8 @@ function main() {
 		const s = state.session;
 		if (payload.stop_hook_active === true) {
 			const h = s.history;
-			const nonDecreasing = h.length >= 3 && h.at(-1).length >= h.at(-2).length && h.at(-2).length >= h.at(-3).length;
+			//  直前のラウンドより失敗が減っていなければ、同じことを繰り返しても通らない。上限を待たずに人間へ渡す
+			const nonDecreasing = h.length >= 2 && h.at(-1).length >= h.at(-2).length;
 			const cap = s.rounds >= opts.maxRounds;
 			if (cap || nonDecreasing) {
 				release(cap ? "round-cap" : "non-decreasing", s, log, opts);
@@ -386,7 +232,7 @@ function main() {
 		}
 
 		//  6. 検査
-		const { failures, skipped, notes, ran } = runSuite(root, opts, toolsDir, configPath, loaded);
+		const { failures, skipped, notes, ran } = await runSuite(root, opts, toolsDir, configPath, loaded);
 
 		//  7. 全部通過
 		if (failures.length === 0) {
@@ -463,4 +309,4 @@ function internalError(e, payload, opts, statePath, session, log) {
 	}
 }
 
-process.exit(main());
+process.exit(await main());
