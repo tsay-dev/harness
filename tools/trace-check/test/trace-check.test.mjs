@@ -420,3 +420,14 @@ test("C12: REQ の ID が 2 つの UC の「要件」の節に重複していれ
 	assert.equal(r.status, 1, r.stdout + r.stderr);
 	assert.match(r.stdout, /\[C12\].*REQ-001/);
 });
+
+test("--next req: REQ の本文に書かれた番号（ほかのプロジェクトの REQ への言及）は、使用済みに数えない", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const f = join(root, "docs/goals/GOAL-01-register/UC-001-register/REQ-001.md");
+	writeFileSync(f, `${readFileSync(f, "utf8")}\n## 検証方針\n\n- **検証しない**: 別のプロジェクトの REQ-901 が受け持つ範囲\n`);
+	const r = run(root, "--next", "req");
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.doesNotMatch(r.stdout, /REQ-902/);
+	assert.match(r.stdout, /^REQ-0\d\d$/m);
+});

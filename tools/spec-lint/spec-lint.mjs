@@ -914,7 +914,13 @@ function validateDeferred(file) {
 		if (target.length > 0) {
 			byTarget.set(target, (byTarget.get(target) || []).concat(id));
 			//  対象はホスト直下からの相対パス（validate は ホストのルートで走らせる前提）
-			if (!existsSync(join(process.cwd(), target))) warn(file, `${id}: 対象 "${target}" が存在しない — 解消済みなら行を消す`);
+			//  REQ を指す対象は「<UC.md のパス>#REQ-nnn」と書く（REQ は UC.md の「要件」の節の小節。ADR-0067）
+			const [targetFile, anchor] = target.split("#");
+			const abs = join(process.cwd(), targetFile);
+			const missing =
+				!existsSync(abs) ||
+				(anchor !== undefined && !(/^REQ-\d+$/.test(anchor) && reqDocsOf(abs, readFileSync(abs, "utf8"), null).docs.some((d) => d.id === anchor)));
+			if (missing) warn(file, `${id}: 対象 "${target}" が存在しない — 解消済みなら行を消す`);
 		}
 	}
 	for (const [target, ids] of byTarget)

@@ -513,7 +513,13 @@ function usedNumbers(cfg, kind, prefix) {
 	//  UC.md の状態 × イベント表が予約した REQ ID は、ファイルがまだ無くても使用済み
 	if (kind === "req")
 		for (const f of walk(p(cfg, "docs.goals_dir"), [".md"]))
-			if (basename(f) === "UC.md") for (const x of read(f).matchAll(/\bREQ-(\d+)\b/g)) nums.add(Number(x[1]));
+			if (basename(f) === "UC.md") {
+				//  数えるのは、UC 自身の部分（表の予約）と、「要件」の節の小節の見出しだけ。REQ の本文に書かれた番号
+				//  （ほかのプロジェクトの REQ への言及など）は、このプロジェクトの番号ではない
+				const parts = splitUc(read(f));
+				for (const x of parts.ucText.matchAll(/\bREQ-(\d+)\b/g)) nums.add(Number(x[1]));
+				for (const r of parts.reqs) nums.add(Number(r.id.split("-")[1]));
+			}
 	return nums;
 }
 

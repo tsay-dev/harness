@@ -102,9 +102,12 @@ function collectUcs(goalsRoot) {
 //  REQ は UC.md の「要件」の節の小節（ADR-0067。読み方は tools/_shared/reqs.mjs）
 function draftReqs(dir) {
 	const ufile = join(dir, "UC.md");
-	return reqDocsOf(ufile, readFileSync(ufile, "utf8"), null)
-		.docs.filter((d) => !d.status || d.status === "draft")
-		.map((d) => d.id);
+	const parts = reqDocsOf(ufile, readFileSync(ufile, "utf8"), null);
+	//  承認済み（active）と撤回済み（withdrawn）以外は、すべて未充足にする（空・draft・語彙の外の値）
+	const drafts = parts.docs.filter((d) => d.status !== "active" && d.status !== "withdrawn").map((d) => d.id);
+	//  「要件」の節の書き方が誤っている（節の外の REQ、節が 2 つ、など）と、読めていない REQ があるかもしれないので未充足にする
+	if (parts.problems.length) drafts.push(`「要件」の節の書き方の誤り ${parts.problems.length} 件`);
+	return drafts;
 }
 
 //  契約（境界契約 yaml）の x-status。読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。

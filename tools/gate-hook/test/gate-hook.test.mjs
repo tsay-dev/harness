@@ -374,6 +374,19 @@ test("gate-hook: REQ は UC.md の「要件」の節から読む。draft の REQ
 	const logged = readFileSync(join(root, ".harness-gate", "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).at(-1);
 	assert.deepEqual([logged.decision, logged.reason], ["pass", "status-up"]);
 	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
+	//  語彙の外の status と、節の外に書いた REQ があるときも、実装を止める
+	for (const bad of ["Draft", '"draft"', "draft#x"]) {
+		write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", bad]]));
+		assert.equal(hook({ file_path: "src/a.ts", content: "x" }).status, 2, bad);
+	}
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"]]).replace("## 要件", "## 概要\n\n### REQ-002\n\n- status: draft\n\n> y\n\n## 要件"));
+	const outside = hook({ file_path: "src/a.ts", content: "x" });
+	assert.equal(outside.status, 2, outside.stdout);
+	assert.match(outside.stderr, /「要件」の節の書き方の誤り 1 件/);
+	//  撤回済みの REQ は、実装を止めない
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "withdrawn"]]));
+	assert.equal(hook({ file_path: "src/a.ts", content: "x" }).status, 0);
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
 	//  status が変わらない書き込みは、そのまま通す
 	const same = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]).replace("> 1 文", "> 1 文（直し）") });
 	assert.equal(same.status, 0);
