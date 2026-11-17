@@ -1,5 +1,5 @@
 # 境界契約 — 一 UC（一垂直スライス）一ファイル
-# 隣接する UC.md と REQ-*.md とともにスライスの MIS を構成する（境界の形状のみを持ち、動作と規則は UC.md / REQ / BR に置く）
+# 隣接する UC.md（REQ は「要件」の節）とともにスライスの MIS を構成する（境界の形状のみを持ち、動作と規則は UC.md / REQ / BR に置く）
 # OpenAPI ではない。一つの書式で HTTP・非 HTTP の境界を扱う（理由: docs/adr/0001）
 # 準拠は `node tools/spec-lint/spec-lint.mjs validate` が判定する。自身の読解を成功の根拠にしてはならない
 # 受理する YAML は厳格な部分集合（理由: docs/adr/0002）:
@@ -24,7 +24,7 @@
 #   プロセス内呼び出しを http や sdk にしてはならない
 x-uc: UC-000                 # ディレクトリ名 UC-000-<slug> の ID 部分と一致させる（trace-check C9）
 x-status: draft              # draft | fixed（呼び出し元が fixed にする。自身で行ってはならない）
-x-spec: ./UC.md              # 動作の SSOT（このディレクトリの UC.md + REQ-*.md）
+x-spec: ./UC.md              # 動作の SSOT（このディレクトリの UC.md。REQ は「要件」の節）
 x-updated: YYYY-MM-DD
 
 operations:

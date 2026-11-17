@@ -58,6 +58,7 @@ import { matchesAny } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
 import { CONFIG_FILE } from "../_shared/config.mjs";
+import { reqDocsOf } from "../_shared/reqs.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
 
@@ -98,14 +99,15 @@ function collectUcs(goalsRoot) {
 	return ucs;
 }
 
+//  REQ は UC.md の「要件」の節の小節（ADR-0067。読み方は tools/_shared/reqs.mjs）
 function draftReqs(dir) {
-	return readdirSync(dir)
-		.filter((n) => /^REQ-\d+\.md$/.test(n))
-		.filter((n) => {
-			const s = fm(readFileSync(join(dir, n), "utf8")).status;
-			return !s || s === "draft";
-		})
-		.map((n) => n.replace(/\.md$/, ""));
+	const ufile = join(dir, "UC.md");
+	const parts = reqDocsOf(ufile, readFileSync(ufile, "utf8"), null);
+	//  承認済み（active）と撤回済み（withdrawn）以外は、すべて未充足にする（空・draft・語彙の外の値）
+	const drafts = parts.docs.filter((d) => d.status !== "active" && d.status !== "withdrawn").map((d) => d.id);
+	//  「要件」の節の書き方が誤っている（節の外の REQ、節が 2 つ、など）と、読めていない REQ があるかもしれないので未充足にする
+	if (parts.problems.length) drafts.push(`「要件」の節の書き方の誤り ${parts.problems.length} 件`);
+	return drafts;
 }
 
 //  契約（境界契約 yaml）の x-status。読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。
@@ -206,6 +208,21 @@ function classifyStatusChange(abs, rel, input) {
 	const to = statusOf(rel, after);
 	const isContract = /\.ya?ml$/i.test(rel);
 	const field = isContract ? "x-status" : "status";
+	//  UC.md の中の REQ の status（「要件」の節の小節。ADR-0067）。義務を生む値からの変更・小節の削除は降格
+	if (basename(rel).toLowerCase() === "uc.md" && exists) {
+		const statuses = (text) => new Map(reqDocsOf(rel, text, null).docs.map((d) => [d.id, d.status]));
+		const was = statuses(before);
+		const now = statuses(after);
+		for (const [id, st] of was) {
+			if (HIGH.has(st) && !HIGH.has(now.get(id) ?? null)) return { kind: "down", from: st, to: now.get(id) ?? null, field: `${id} の status`, isNew: false };
+		}
+		//  UC 自身の status が変わらない書き込みで、REQ が義務を生む値になった（昇格・active での追加）ら、記録して通す
+		if (from === to) {
+			for (const [id, st] of now) {
+				if (HIGH.has(st) && !HIGH.has(was.get(id) ?? null)) return { kind: "up", from: was.get(id) ?? null, to: st, field: `${id} の status`, isNew: false };
+			}
+		}
+	}
 	if (exists && from === to) return null;
 	if (!exists && to === null) return null; //  status を持たない新規ファイル（メモ等）
 

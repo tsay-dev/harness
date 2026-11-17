@@ -7,6 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
 
 export const SPEC_LINT = join(dirname(fileURLToPath(import.meta.url)), "..", "spec-lint.mjs");
 
@@ -209,6 +210,7 @@ ${deferredRows.join("\n")}
 
 //  node <script> <args...> を同期実行し、終了コードと出力を返す
 export function runNode(script, args = [], { cwd = process.cwd(), stdin = "" } = {}) {
+	foldReqFiles(cwd); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
 	const r = spawnSync(process.execPath, [script, ...args], { cwd, input: stdin, encoding: "utf8" });
 	return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

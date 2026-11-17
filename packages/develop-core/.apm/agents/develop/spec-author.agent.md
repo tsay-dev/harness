@@ -10,7 +10,7 @@ tools: Read, Write, Edit, Bash
 ## 入力契約
 
 - **`target`**: `domain | usecase | requirements | contract`（複数ならこの順に、自分の出力を次へ渡して進める）。
-- **範囲**: `domain` は製品・変更の説明と既存資料のパス。`usecase` は `active` な `GOAL.md` と UC の指定（通常 1 起動 1 UC）。`requirements` は `active` な `UC.md` と表が予約した REQ ID。`contract` は `UC.md` と全 `REQ-nnn.md` が `active` な UC ディレクトリ（`ls` が範囲）。
+- **範囲**: `domain` は製品・変更の説明と既存資料のパス。`usecase` は `active` な `GOAL.md` と UC の指定（通常 1 起動 1 UC）。`requirements` は `active` な `UC.md` と表が予約した REQ ID。`contract` は `UC.md` と、その「要件」の節の全 REQ が `active` な UC ディレクトリ（`ls` が範囲）。
 - **共有パス**: `docs/00-vision.md`、`docs/01-glossary.md`、`docs/02-actors.md`、`docs/rules/` の既存 BR、`docs/_shared/components.yaml`、同 goal の隣接 UC ディレクトリ 1 つ（粒度と語彙の参考）、別 UC の `contract.yaml`（使用済み名の確認）。`owned: true` の境界には確定 DB 設計。
 - **規約**: 書くパスに対応する規約が届きます（Claude では `paths` で自動、ほかはオーケストレーターがパスで渡す）。開始前に読み、報告では規則 ID を引用します。
 - **更新・手戻り時**: 書き直す既存ファイルのパスと、具体的な反例付きの `阻止` 指摘。

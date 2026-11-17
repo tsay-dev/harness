@@ -99,6 +99,15 @@ node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-ga
 
 古い名前のファイルだけが残っていると、完了の判定と CI が、改名したことを添えて失敗する。
 
+## REQ を UC の文書へ移す（REQ-nnn.md → UC.md の「要件」の節）
+
+REQ は、`UC.md` の「要件」の節に小節として書く形に変わった（ADR-0067）。`REQ-nnn.md` が残っていると、spec-lint と trace-check が失敗する。意味を変えずに移すスクリプトがある。自動では移らない。
+
+1. 文書を持つディレクトリ（monorepo では unit ごと）で、`node .harness/bin/harness.mjs migrate reqs` を実行し、移せることを確かめる。移せないものがあれば、表示された理由を直す。
+2. `node .harness/bin/harness.mjs migrate reqs --write` で書き換える。
+3. 文書の中の `…/REQ-nnn.md` への参照（保留の一覧の対象など）を、`…/UC.md#REQ-nnn` に直す。
+4. `node .harness/bin/harness.mjs lint` を実行し、検査が通ることを確かめる。
+
 ## 検証手順
 
 リポジトリ直下で実行する。

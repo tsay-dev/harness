@@ -43,6 +43,7 @@ const COMMANDS = [
 	{ group: "実行する", words: ["guard"], script: "gate-hook/gate-hook.mjs", prefix: [], desc: "書き込み前の関門（PreToolUse フック）" },
 	{ group: "補助", words: ["next-id"], script: "trace-check/trace-check.mjs", prefix: ["--next"], desc: "次の空き ID を予約して出力する（goal|uc|req|br|nfr|adr）" },
 	{ group: "補助", words: ["index"], script: "trace-check/trace-check.mjs", prefix: ["--index"], desc: "1 行 1 ID の索引を出力する" },
+	{ group: "補助", words: ["migrate", "reqs"], script: "docs-migrate/merge-reqs.mjs", prefix: [], desc: "REQ-nnn.md を UC.md の「要件」の節へ移す（--write で書き換える）" },
 	{ group: "補助", words: ["convert"], script: "spec-lint/spec-lint.mjs", prefix: ["convert"], desc: "OpenAPI を契約の書式へ変換する" },
 ];
 

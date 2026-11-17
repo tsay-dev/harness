@@ -79,7 +79,7 @@ harness/
     rules-swiftui/
     grilling/
   bin/harness.mjs                   # 同梱ツールの入口（harness <コマンド>）。APM 外
-  tools/                            # spec-lint、trace-check、exec-check、contract-run、gate-hook、git-lint、config-lint、apm。APM 外
+  tools/                            # spec-lint、trace-check、exec-check、contract-run、gate-hook、git-lint、config-lint、docs-migrate、apm。APM 外
   templates/                        # 文書書式。APM 外
   docs/apm.md
   docs/adr/
@@ -89,7 +89,7 @@ develop の agent は `spec-author`、`test-author`（`track: backend-logic / sc
 
 ## docs の SDD / SSOT
 
-成果物は 1 ID 1 ファイルです。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は `docs/` 直下に置きます。DB 設計はホストのネイティブスキーマが正本です。人間ゲートの文書は `draft → active → withdrawn`、契約は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません。テストは `@covers REQ-nnn#class`、シナリオテストは `@scenario UC-nnn`、実装は `@implements` で上流を指し、trace-check が紐づきを検査します。書式の正本は [templates/develop](templates/develop/README.md) です。
+成果物は 1 ID 1 ファイルです（REQ だけは、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節として書きます。ADR-0067）。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は `docs/` 直下に置きます。DB 設計はホストのネイティブスキーマが正本です。人間ゲートの文書は `draft → active → withdrawn`、契約は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません。テストは `@covers REQ-nnn#class`、シナリオテストは `@scenario UC-nnn`、実装は `@implements` で上流を指し、trace-check が紐づきを検査します。書式の正本は [templates/develop](templates/develop/README.md) です。
 
 ## このリポジトリを編集するとき
 

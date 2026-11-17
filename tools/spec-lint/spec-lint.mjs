@@ -8,7 +8,7 @@
 //    docs/design.md                                              【任意】How の現在形
 //    docs/goals/GOAL-nn-<slug>/GOAL.md                           ゴール（1 ID 1 ファイル）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md               ユースケース（＝縦スライスの単位）
-//    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/REQ-nnn.md          要件（EARS 1 文 + 検証方針）
+//    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md の「要件」の節  要件（### REQ-nnn の小節。EARS 1 文 + 検証方針。ADR-0067）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/contract.yaml       UC の境界契約（harness 独自 YAML）
 //    docs/rules/BR-nnn.md  docs/nfr/NFR-nnn.md  docs/adr/ADR-nnnn-<slug>.md   横断（中央）
 //    docs/verification/GLOBAL.md                                 【任意】全体の検証除外
@@ -44,6 +44,7 @@ import { fileURLToPath } from "node:url";
 import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
+import { reqDocsOf } from "../_shared/reqs.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -91,8 +92,12 @@ const warn = (file, msg) => warns.push({ file, msg });
 //  --- パーサ ---
 //  frontmatter は tools/_shared/frontmatter.mjs が唯一の読み方。曖昧な書き方（先頭が空白の行、キーの重複、区切りもどき）は
 //  ツールごとに読みが割れてすり抜けになるので違反にする（ADR-0056）
+//  ファイルの代わりに読ませる文面。UC.md は「要件」の節を除いた UC 自身の部分、REQ は「<UC.md>#REQ-nnn」の名前で
+//  小節から組み立てた文書（tools/_shared/reqs.mjs）を置く
+const VIRTUAL = new Map();
+
 function readFm(file) {
-	const r = parseFrontmatter(readFileSync(file, "utf8"));
+	const r = parseFrontmatter(VIRTUAL.has(file) ? VIRTUAL.get(file) : readFileSync(file, "utf8"));
 	for (const p of r.problems) err(`${file}:${p.line}`, p.msg);
 	return r;
 }
@@ -149,10 +154,21 @@ function blockquoteParagraphs(text) {
 //  --- テンプレートからの書式導出（fallback はテンプレート欠落時のみ）---
 //  必須キー ＝ フロントマターのキー。行末コメントに optional とあれば任意。
 //  必須セクション ＝ ## 見出しの先頭語（空白・括弧の前まで）。
+//  UC のひな形（UC.md）から、UC 自身の部分と、「要件」の節の最初の REQ の文書を取り出す
+function ucTemplateParts() {
+	const file = join(TEMPLATE_DIR, "UC.md");
+	if (!existsSync(file)) return null;
+	const parts = reqDocsOf(file, readFileSync(file, "utf8"), "UC-000");
+	return { uc: parts.ucText, req: parts.docs[0]?.text ?? null };
+}
+
 function deriveDocFormat(name, fallback) {
 	const file = join(TEMPLATE_DIR, name);
-	if (!existsSync(file)) return fallback;
-	const { raw, body } = readFm(file);
+	//  UC と REQ の書式は、どちらも UC のひな形から導く（REQ は UC.md の「要件」の節の小節。ADR-0067）
+	const parts = name === "UC.md" || name === "REQ" ? ucTemplateParts() : null;
+	const text = name === "UC.md" ? parts?.uc : name === "REQ" ? parts?.req : existsSync(file) ? readFileSync(file, "utf8") : null;
+	if (text === null || text === undefined) return fallback;
+	const { raw, body } = parseFrontmatter(text);
 	const required = [];
 	const optional = [];
 	for (const line of raw) {
@@ -186,7 +202,7 @@ const FORMATS = {
 	deferred: deriveDocFormat("DEFERRED.md", { required: ["id", "status"], optional: [], sections: ["保留中の指摘"] }),
 	goal: deriveDocFormat("GOAL.md", { required: ["id", "actor", "origin", "status"], optional: [], sections: [] }),
 	uc: deriveDocFormat("UC.md", { required: ["id", "title", "actor", "goal", "status", "phase"], optional: [], sections: ["概要", "事前条件", "主シナリオ", "状態", "例外系の走査", "事後条件"] }),
-	req: deriveDocFormat("REQ.md", { required: ["id", "pattern", "uc", "status"], optional: ["br"], sections: [POLICY] }),
+	req: deriveDocFormat("REQ", { required: ["id", "pattern", "uc", "status"], optional: ["br"], sections: [POLICY] }),
 	br: deriveDocFormat("BR.md", { required: ["id", "title", "enforced_at", "status"], optional: [], sections: [] }),
 	nfr: deriveDocFormat("NFR.md", { required: ["id", "category", "status"], optional: [], sections: [] }),
 	adr: deriveDocFormat("ADR.md", { required: ["id", "title", "status", "date"], optional: ["supersedes"], sections: ["Context", "Decision", "Consequences", "却下した選択肢"] }),
@@ -411,12 +427,10 @@ function validateUC(file, dirId) {
 function validateReq(file, ucDirId) {
 	const fmt = FORMATS.req;
 	const { data, body } = readFm(file);
-	const stem = basename(file, ".md");
+	const stem = file.slice(file.lastIndexOf("#") + 1);
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, NODE_STATUS);
-	if (data.id && data.id !== stem) err(file, `id "${data.id}" がファイル名 "${stem}" と不一致（R-1001）`);
 	if (data.pattern && !EARS_PATTERNS.includes(data.pattern)) err(file, `pattern は ${EARS_PATTERNS.join(" | ")} のいずれか。実際: "${data.pattern}"（R-402）`);
-	if (data.uc && ucDirId && data.uc !== ucDirId) err(file, `uc "${data.uc}" が配置ディレクトリの UC "${ucDirId}" と不一致（R-1007）`);
 	if (data.br && !/^BR-\d+(\s*,\s*BR-\d+)*$/.test(data.br)) err(file, `br は BR-nnn（複数はカンマ区切り）。実際: "${data.br}"`);
 
 	//  EARS 文: 検証方針の前に blockquote 段落がちょうど 1 つ（R-401: 1 要件 1 文）
@@ -863,7 +877,7 @@ function validateDesign(file) {
 	if (!existsSync(file)) return;
 	const { data, body } = readFm(file);
 	if (!data["ステータス"] || !data["更新日"]) warn(file, `フロントマター（ステータス/更新日）が無い`);
-	if (/Given|When|Then|受け入れ条件/.test(body)) warn(file, `GWT/受け入れ条件らしき記述がある — 振る舞いは docs/goals/**/REQ-nnn.md へ`);
+	if (/Given|When|Then|受け入れ条件/.test(body)) warn(file, `GWT/受け入れ条件らしき記述がある — 振る舞いは UC.md の「要件」の節の REQ へ`);
 }
 
 //  --- 保留台帳 docs/verification/DEFERRED.md（任意ファイル）---
@@ -900,7 +914,13 @@ function validateDeferred(file) {
 		if (target.length > 0) {
 			byTarget.set(target, (byTarget.get(target) || []).concat(id));
 			//  対象はホスト直下からの相対パス（validate は ホストのルートで走らせる前提）
-			if (!existsSync(join(process.cwd(), target))) warn(file, `${id}: 対象 "${target}" が存在しない — 解消済みなら行を消す`);
+			//  REQ を指す対象は「<UC.md のパス>#REQ-nnn」と書く（REQ は UC.md の「要件」の節の小節。ADR-0067）
+			const [targetFile, anchor] = target.split("#");
+			const abs = join(process.cwd(), targetFile);
+			const missing =
+				!existsSync(abs) ||
+				(anchor !== undefined && !(/^REQ-\d+$/.test(anchor) && reqDocsOf(abs, readFileSync(abs, "utf8"), null).docs.some((d) => d.id === anchor)));
+			if (missing) warn(file, `${id}: 対象 "${target}" が存在しない — 解消済みなら行を消す`);
 		}
 	}
 	for (const [target, ids] of byTarget)
@@ -946,6 +966,10 @@ function loadModel(docsDir) {
 				err(udir, `UC.md が無い（UC ディレクトリには必須 / R-1006）`);
 				continue;
 			}
+			//  REQ は UC.md の「要件」の節にある。UC 自身の検査は、その節を除いた部分に対して行う
+			const reqParts = reqDocsOf(ufile, readFileSync(ufile, "utf8"), uid);
+			for (const p of reqParts.problems) err(`${ufile}:${p.line}`, p.msg);
+			VIRTUAL.set(ufile, reqParts.ucText);
 			const u = validateUC(ufile, uid);
 			if (u.goal && gid && u.goal !== gid) err(ufile, `goal "${u.goal}" が配置ディレクトリの GOAL "${gid}" と不一致（R-1007）`);
 			const id = u.id || uid;
@@ -954,9 +978,14 @@ function loadModel(docsDir) {
 				if (ucs.has(id)) err(ufile, `UC "${id}" が重複（${ucs.get(id).file} と）`);
 				else ucs.set(id, entry);
 			}
-			for (const f of listFiles(udir, /^REQ-\d+\.md$/)) entry.reqs.push(validateReq(f, id));
-			//  UC.md / REQ-nnn.md 以外の md は trace-check の対象に入らず、紐づきの検査をすり抜ける（ADR-0056）
-			for (const f of listFiles(udir, /\.md$/)) if (!/^(UC|REQ-\d+)\.md$/.test(basename(f))) err(f, `UC ディレクトリに UC.md / REQ-nnn.md 以外の md がある（1 ID 1 ファイル / R-1001。資料は docs/attic へ）`);
+			for (const d of reqParts.docs) {
+				VIRTUAL.set(d.label, d.text);
+				entry.reqs.push(validateReq(d.label, id));
+			}
+			for (const f of listFiles(udir, /^REQ-\d+\.md$/))
+				err(f, `REQ は UC.md の「要件」の節に小節として書く（ADR-0067）。REQ-nnn.md は harness migrate reqs --write で移す`);
+			//  UC.md 以外の md は trace-check の対象に入らず、紐づきの検査をすり抜ける（ADR-0056）
+			for (const f of listFiles(udir, /\.md$/)) if (!/^(UC|REQ-\d+)\.md$/.test(basename(f))) err(f, `UC ディレクトリに UC.md 以外の md がある（1 ID 1 ファイル / R-1001。資料は docs/attic へ）`);
 			//  UC ディレクトリの下位ディレクトリ（_drafts/ など）の md も、どの検査にも数えられない
 			const nested = (dir) => listDirs(dir).flatMap((d) => [...listFiles(join(dir, d), /\.md$/), ...nested(join(dir, d))]);
 			for (const f of nested(udir)) err(f, `UC ディレクトリの下位ディレクトリに md がある（検査の対象にならない。UC ディレクトリ直下に置くか docs/attic へ）`);
@@ -1131,11 +1160,11 @@ function gateUc(docsDir, id) {
 	}
 	const uc = readFm(join(dir, "UC.md")).data;
 	if (uc.status !== "active") err("gate", `${id}: UC が active でない（現在 ${uc.status ?? "不明"}。draft のまま実装しない）`);
-	const reqs = listFiles(dir, /^REQ-\d+\.md$/);
-	if (reqs.length === 0) err("gate", `${id}: REQ が 1 件も無い（状態 × イベント表から REQ を導出してから実装する）`);
-	for (const f of reqs) {
-		const s = readFm(f).data.status;
-		if (s === "draft" || !s) err("gate", `${id}: ${basename(f, ".md")} が active でない（現在 ${s ?? "不明"}）`);
+	const reqs = reqDocsOf(join(dir, "UC.md"), readFileSync(join(dir, "UC.md"), "utf8"), id).docs;
+	if (reqs.length === 0) err("gate", `${id}: REQ が 1 件も無い（状態 × イベント表から REQ を導出し、UC.md の「要件」の節に書いてから実装する）`);
+	for (const d of reqs) {
+		const s = d.status;
+		if (s === "draft" || !s) err("gate", `${id}: ${d.id} が active でない（現在 ${s ?? "不明"}）`);
 	}
 	//  契約は「存在し、かつ fixed」を要求する（契約なしのまま実装が進む事故を断つ）
 	const contractFile = join(dir, "contract.yaml");

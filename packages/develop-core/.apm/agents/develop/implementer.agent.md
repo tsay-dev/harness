@@ -10,7 +10,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 ## 入力契約
 
 - **`mode`**: `logic | appearance | schema | probe`。mode が範囲を、ルール束と書き込み先が層を決めます。backend / frontend をペルソナで分けません。
-- **UC ディレクトリ**（`UC.md`、全 `REQ-nnn.md`、`contract.yaml`）、REQ が指す BR、`docs/01-glossary.md` をパスで。entity・列・状態名は用語集のコード識別子に従います。
+- **UC ディレクトリ**（`UC.md`（REQ は「要件」の節）、`contract.yaml`）、REQ が指す BR、`docs/01-glossary.md` をパスで。entity・列・状態名は用語集のコード識別子に従います。
 - **BE テスト（Red）**: あればパスまたは UC タグ。`logic` では開始後に届くことがあります。契約と REQ 文から実装し、テスト付きの再起動を想定します。
 - **UC のシナリオテスト**（`@scenario UC-nnn`）: 完了時入力としてだけ受け取ります。frontend の `logic` は接続して成功させ、`appearance` は再起動時に識別子と文言をテストの導出結果へ合わせます。編集しません。
 - **規約**: 書くパスに対応する規約が届きます（Claude では `paths` で自動、ほかはオーケストレーターがパスで渡す）。開始前に全部読み、未受領なら規約なしとして進みます（カタログ探索や創作はしない）。

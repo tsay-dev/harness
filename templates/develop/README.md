@@ -15,7 +15,7 @@ spec-lint はこのディレクトリのテンプレートから必須 frontmatt
 | `goals-backlog.md` | `docs/goals-backlog.md` | spec-author |
 | `GOAL.md` | `docs/goals/GOAL-nn-<slug>/GOAL.md` | spec-author（🙋 → `active`） |
 | `UC.md` | `docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md` | spec-author（🙋 → `active`）。`phase:` 行は orchestrator |
-| `REQ.md` | `…/UC-nnn-<slug>/REQ-nnn.md` | spec-author（🙋 → `active`）。`## 検証方針` は test-author |
+| `UC.md` の「要件」の節 | `…/UC-nnn-<slug>/UC.md` の `## 要件`（`### REQ-nnn` の小節。ADR-0067） | spec-author（🙋 → `active`）。`#### 検証方針` は test-author |
 | `BR.md` | `docs/rules/BR-nnn.md` | spec-author（🙋 → `active`） |
 | `NFR.md` | `docs/nfr/NFR-nnn.md` | spec-author（🙋 → `active`） |
 | `contract.yaml` | `…/UC-nnn-<slug>/contract.yaml`（HTTP・非 HTTP 共通の境界形状） | spec-author（🤖 → orchestrator が `fixed`） |
@@ -27,7 +27,7 @@ spec-lint はこのディレクトリのテンプレートから必須 frontmatt
 | `harness.config.json` | 利用プロジェクト直下の `harness.config.json` | orchestrator が一度ひな形を置き、利用プロジェクトが維持する（`commands` に自身の検査と契約アダプターを指定。スタックの値は選択した `rules-*` の harness.config.json の末端文書が差分で示す）。検査の範囲（none の宣言を含む）を決めるので、変更は 🙋 人間の承認（gate-hook が確認を求める。ADR-0057） |
 | （空ファイル） | `docs/goals/.gitkeep`、`docs/rules/.gitkeep`、`docs/nfr/.gitkeep`、`docs/adr/.gitkeep`、`e2e/.gitkeep`（`tests.system.dirs` に合わせる） | orchestrator がひな形と一緒に置く。`docs/goals/` が無いと spec-lint / contract-run は設定エラーで止まり、active な UC が 1 件でもあると、宣言した固定パスが無いことを trace-check が C26 の違反にする |
 
-UC ディレクトリ（`UC.md` + `REQ-*.md` + `contract.yaml`）が一つの垂直スライスの SSOT であり、
+UC ディレクトリ（`UC.md`（REQ は「要件」の節）+ `contract.yaml`）が一つの垂直スライスの SSOT であり、
 そこでの `ls` がスライスの範囲を定義する。列とキーの形はこのテンプレートが定め、
 何を書かないかの判断は各作成者の専門技術に従う。
 

@@ -6,6 +6,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, "..", "trace-check.mjs");
@@ -15,6 +16,7 @@ const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "harness.c
 const NONE = { none: "このテストでは扱わない" };
 
 function run(root, ...args) {
+	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
 	return spawnSync("node", [TOOL, "--root", root, ...args], { encoding: "utf8" });
 }
 
@@ -406,4 +408,26 @@ test("C26: 宣言した共有語彙・用語集のファイルが無ければ違
 	const r = run(root);
 	assert.equal(r.status, 2, r.stdout + r.stderr);
 	assert.match(r.stderr, /contract\.exclude_codes は廃止した/);
+});
+
+test("C12: REQ の ID が 2 つの UC の「要件」の節に重複していれば違反（ADR-0067）", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const dup = join(root, "docs/goals/GOAL-01-register/UC-002-browse/REQ-001.md");
+	const first = join(root, "docs/goals/GOAL-01-register/UC-001-register/REQ-001.md");
+	writeFileSync(dup, readFileSync(first, "utf8").replace("uc: UC-001", "uc: UC-002"));
+	const r = run(root, "--only", "C12");
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	assert.match(r.stdout, /\[C12\].*REQ-001/);
+});
+
+test("--next req: REQ の本文に書かれた番号（ほかのプロジェクトの REQ への言及）は、使用済みに数えない", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const f = join(root, "docs/goals/GOAL-01-register/UC-001-register/REQ-001.md");
+	writeFileSync(f, `${readFileSync(f, "utf8")}\n## 検証方針\n\n- **検証しない**: 別のプロジェクトの REQ-901 が受け持つ範囲\n`);
+	const r = run(root, "--next", "req");
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.doesNotMatch(r.stdout, /REQ-902/);
+	assert.match(r.stdout, /^REQ-0\d\d$/m);
 });
