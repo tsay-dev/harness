@@ -71,6 +71,18 @@ test("verify: 失敗があれば 1。失敗した検査の名前と出力の末�
 	assert.match(r.stderr, /  test: exit 3\n    boom/);
 });
 
+test("verify --verbose: 通った検査の出力（警告など）も表示する", () => {
+	const tools = makeTools();
+	writeFileSync(join(tools, "spec-lint", "spec-lint.mjs"), `console.log("  warn  docs/x.md: 何かの警告");\n`);
+	const root = makeRoot({ commands: cmds({ test: "echo test-out" }) });
+	const quiet = run(root, [], { tools });
+	assert.doesNotMatch(quiet.stdout, /何かの警告/);
+	const r = run(root, ["--verbose"], { tools });
+	assert.equal(r.status, 0, r.stderr);
+	assert.match(r.stdout, /== spec-lint（通過）\n  warn  docs\/x\.md: 何かの警告/);
+	assert.match(r.stdout, /== test（通過）\ntest-out/);
+});
+
 test("verify: 設定が無ければ失敗（1）。使い方の誤りは 2", () => {
 	const tools = makeTools();
 	const r = run(makeRoot(null), [], { tools });

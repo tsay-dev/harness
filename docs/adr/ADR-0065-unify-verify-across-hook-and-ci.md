@@ -38,11 +38,11 @@ date: 2026-11-17
   level で実行しなかった検査は、skip として理由と一緒に表示する。`commands` の宣言の欠落は、どの level でも失敗にする。フックと CI のそれぞれでどの level を使うかは、利用プロジェクトが選ぶ。
 - monorepo では、unit ごとに、unit の設定の `commands` を unit のディレクトリで実行する。ルートの設定の `commands` は、あれば unit の後に実行し、無くてもよい。`--unit <名前>` で検査する unit を絞れる。
 - `commands.extra`（`{ "<名前>": "<コマンド>" }`）を足す。4 つのキーのほかに実行するコマンドを、`test` の後、`system` の前に、書いた順で実行する。
-- 「失敗が減っていない」の判定を、直前のラウンドとの比較にする（2 ラウンドの履歴で働く）。
-- 制限時間を過ぎたコマンドと、`verify` が止められたときに実行中のコマンドは、プロセスグループごと止める。
-- 再利用ワークフローは、spec-lint と trace-check を直接呼ぶのをやめ、`harness verify` を呼ぶ。入力 `level`（既定 `lint`）、`setup_command`、`timeout` を足す。既定の動きは、これまで実行していた spec-lint と trace-check に config-lint が加わる。
+- 「失敗が減っていない」の判定を、直前のラウンドと同じ検査が落ちているか、にする（2 ラウンドの履歴で働く）。件数では比べない。型検査を直して次の lint で落ちた場合、件数は 1 件のままでも前へ進んでいるためである。
+- 制限時間を過ぎたコマンドと、`verify` が止められたときに実行中のコマンドは、プロセスグループごと止める。止めたコマンドが、グループを抜けた孫のプロセスを残していても、コマンド自身の終了で打ち切る。`--timeout 0` は制限なし（これまでと同じ）。
+- 再利用ワークフローは、spec-lint と trace-check を直接呼ぶのをやめ、`harness verify` を呼ぶ。入力 `level`（既定 `lint`）、`setup_command`、`timeout` を足す。既定の動きは、これまで実行していた spec-lint と trace-check に、config-lint と `commands` の宣言の検査が加わる。ワークフローは `verify --verbose` を呼び、通った検査の出力（警告など）もログに残す。入力 `spec_lint_args` が受けるのは `--ignore-legacy-layout` だけにする。
 - harness 自身の設定に `commands.test` を宣言し、`harness verify` で harness 自身の検査とテストをまとめて実行できるようにする。
-- 強制の所在: `tools/gate-hook/test/stop-gate.test.mjs` が、検査の並び、level ごとに実行するもの、unit ごとの実行、`commands.extra`、制限時間でプロセスを残さないこと、失敗が減らないときの解除を確かめる。`tools/gate-hook/test/verify.test.mjs` が、`verify` の終了コード、`--hook`、止められたときにプロセスを残さないことを確かめる。
+- 強制の所在: `tools/gate-hook/test/stop-gate.test.mjs` が、検査の並び、level ごとに実行するもの、unit ごとの実行、`commands.extra`、制限時間でプロセスを残さないこと、同じ検査が続けて落ちたときの解除、level と unit の指定で合格を使い回さないことを確かめる。`tools/gate-hook/test/verify.test.mjs` が、`verify` の終了コード、`--hook`、止められたときにプロセスを残さないことを確かめる。
 
 ## Consequences
 
@@ -62,6 +62,9 @@ date: 2026-11-17
 - level を `lint` や `fast` にしたフックは、実行しなかった検査を保証しない。その分を CI の level で補うかどうかは、利用プロジェクトの設定に任せている。フックも CI も低い level のままなら、テストはどこでも実行されない。これを機械では確かめていない。
 - monorepo で、ある unit の変更が別の unit に効くか（共有パッケージを変えた、など）は判断しない。`--unit` で絞るかどうかは呼ぶ側が決める。変えたファイルから unit を選ぶ仕組みは、この変更に含まない。
 - 再利用ワークフローで `fast` / `full` を使うには、依存の導入を `setup_command` に書く必要がある。Node のバージョンの選択、キャッシュ、ブラウザの導入など、それ以上の準備が要る利用プロジェクトは、自前のワークフローから `harness verify` を呼ぶ。
+- フックの skip の行の先頭が `[stop-gate]` から `[verify]` に変わる。フックの出力を文字列で探している利用プロジェクトは、直す必要がある。
+- Stop フックが検査の途中で止められた場合（フックの設定の `timeout` を過ぎた、など）、ラウンドも拒否ログも記録されない。これまでも同じだが、monorepo で全 unit のコマンドを実行するようになり、起きやすくなった。フックの `timeout` を、実行する level の合計より長くする。
+- グループを抜けた孫のプロセスそのものは止めない（止める手段が無い）。
 - 再利用ワークフローの変更は、GitHub Actions では実行して確かめていない。
 - プロセスグループごと止める動きは POSIX だけである。Windows では、これまでどおりシェルだけを止める。
 - 4 つ以外のシグナル（SIGKILL など）で `verify` だけが止められると、実行中のコマンドは残る。

@@ -18,7 +18,7 @@
 //    - 変更検出: git の HEAD + status + diff、未追跡ファイルの中身、harness.config.json、使う harness ツールの
 //      ハッシュが最終合格時と同じなら再検査しない（skip）。
 //    - ラウンド上限: stop_hook_active（既にフックで継続中）かつ rounds >= --max-rounds なら
-//      ブロックせず人間へ手渡す（release。systemMessage で利用者に表示）。直前のラウンドより失敗が減っていない場合も同様
+//      ブロックせず人間へ手渡す（release。systemMessage で利用者に表示）。直前のラウンドと同じ検査が落ちている場合も同様
 //      （--max-rounds を 3 以上にしたとき、上限を待たずに渡す）。
 //    状態は <ログと同じディレクトリ>/state.json に持つ（既定 .harness-gate/state.json。gate-hook が agent の書き込みを止める）。
 //
@@ -208,7 +208,7 @@ async function main() {
 		const configFiles = [configPath, ...(units ? Object.values(units).filter((d) => typeof d === "string").map((d) => resolve(root, d, CONFIG_FILE)) : [])];
 
 		//  4. 変更検出: 最終合格と同じツリー・設定・検査器なら再検査しない
-		const fp = fingerprint(root, stateDir, configFiles, toolsDir, JSON.stringify([opts.level, [...opts.only].sort()]));
+		const fp = fingerprint(root, stateDir, configFiles, toolsDir, JSON.stringify([opts.level, [...new Set(opts.only)].sort(), !!opts.ignoreLegacyLayout, opts.docs]));
 		if (!opts.force && fp && state.last_pass?.fingerprint === fp) {
 			console.log(`[stop-gate] 変更なし（最終合格 ${state.last_pass.ts}）`);
 			log("skip", "no-changes");
@@ -220,8 +220,10 @@ async function main() {
 		const s = state.session;
 		if (payload.stop_hook_active === true) {
 			const h = s.history;
-			//  直前のラウンドより失敗が減っていなければ、同じことを繰り返しても通らない。上限を待たずに人間へ渡す
-			const nonDecreasing = h.length >= 2 && h.at(-1).length >= h.at(-2).length;
+			//  直前のラウンドと同じ検査が落ちていれば、同じことを繰り返しても通らない。上限を待たずに人間へ渡す。
+			//  件数では比べない（型検査を直して次の lint で落ちた、という前進も、件数は 1 件のまま変わらないため）
+			const same = (a, b) => a.length === b.length && [...a].sort().join("\0") === [...b].sort().join("\0");
+			const nonDecreasing = h.length >= 2 && same(h.at(-1), h.at(-2));
 			const cap = s.rounds >= opts.maxRounds;
 			if (cap || nonDecreasing) {
 				release(cap ? "round-cap" : "non-decreasing", s, log, opts);

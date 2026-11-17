@@ -142,20 +142,36 @@ function runStep(name, cmd, cwd, timeoutSec) {
 		};
 		child.stdout.setEncoding("utf8").on("data", keep);
 		child.stderr.setEncoding("utf8").on("data", keep);
-		const timer = setTimeout(() => {
-			timedOut = true;
-			killTree(child);
-		}, timeoutSec * 1000);
+		//  制限時間 0 は「制限なし」。setTimeout が扱える上限（約 24 日）を超える値は上限に丸める
+		const timer =
+			timeoutSec > 0
+				? setTimeout(() => {
+						timedOut = true;
+						killTree(child);
+					}, Math.min(timeoutSec * 1000, 2 ** 31 - 1))
+				: null;
 		let spawnError = null;
-		child.on("error", (e) => {
-			spawnError = e;
-		});
-		child.on("close", (code, signal) => {
+		let finished = false;
+		const finish = (code, signal) => {
+			if (finished) return;
+			finished = true;
 			clearTimeout(timer);
 			current = null;
 			if (stopBy) return stopSelf(); //  止められた。続きを実行しない
 			if (spawnError) output += `\n${spawnError.message}`;
 			done({ name: timedOut ? `timeout:${name}` : name, ok: !timedOut && !spawnError && code === 0, code, signal, timedOut, output });
+		};
+		child.on("error", (e) => {
+			spawnError = e;
+		});
+		child.on("close", finish);
+		//  止めたコマンドが、プロセスグループを抜けた孫（setsid したデーモンなど）を残していると、孫が出力の口を
+		//  握ったままになり close が来ない。止めたときは、コマンド自身の終了で打ち切る
+		child.on("exit", (code, signal) => {
+			if (!timedOut && !stopBy) return;
+			child.stdout.destroy();
+			child.stderr.destroy();
+			finish(code, signal);
 		});
 	});
 }
@@ -171,7 +187,7 @@ export const tailLines = (text, n) => {
 //  検査を実行する。
 //    root: プロジェクトのルート / configPath: ルートの設定 / loaded: readConfig(configPath) の結果
 //    opts: { docs, timeout, level, only: [unit の名前], ignoreLegacyLayout: 旧レイアウトが残っていても続ける（spec-lint へ渡す。移行中だけ） }
-//  戻り: { failures, skipped, notes, ran }
+//  戻り: { failures, skipped, notes, ran, outputs }
 export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	const q = (p) => `"${p.replace(/"/g, '\\"')}"`;
 	const level = LEVELS.indexOf(opts.level ?? "full");
@@ -179,10 +195,13 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	const skipped = [];
 	//  表示は判定が終わってから呼び出し側が出す（フックの解放時は、stdout を systemMessage の JSON だけにするため）
 	const notes = [];
+	//  実行した検査の出力（通ったものも）。verify --verbose が、警告などを CI のログに出すのに使う
+	const outputs = [];
 	let ran = 0;
 	const run = async (name, cmd, cwd = root) => {
 		ran++;
 		const r = await runStep(name, cmd, cwd, opts.timeout);
+		outputs.push({ name: r.name, ok: r.ok, output: r.output });
 		if (!r.ok) failures.push(r);
 		return r.ok;
 	};
@@ -205,12 +224,12 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 			"trace-check",
 			`${CONFIG_FILE} が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/${CONFIG_FILE} から置き、対象が無い範囲は { "none": "<理由>" } と宣言する${renamedConfigHint(configPath)}`,
 		);
-		return { failures, skipped, notes, ran };
+		return { failures, skipped, notes, ran, outputs };
 	}
 	if (loaded.error) {
 		await specLint("", resolve(root, opts.docs));
 		fail("config", `${loaded.error}。${CONFIG_FILE} を直す（検査の範囲とコマンドを読めないので、紐づきの検査と commands を実行できない）`);
-		return { failures, skipped, notes, ran };
+		return { failures, skipped, notes, ran, outputs };
 	}
 
 	//  1. 設定の形（unit の設定も config-lint が読む）
@@ -232,6 +251,8 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		if (extraError) fail(`commands.extra${label}`, extraError);
 		const steps = [];
 		for (const k of ["typecheck", "lint", "test"]) steps.push({ key: k, name: `${k}${label}`, decl: keys[k], need: 1 });
+		//  extra の形が誤っているときは、どれを実行すべきかが決まらないので、extra から先を実行しない
+		if (extraError) steps.push({ key: "extra", name: `extra${label}`, decl: { error: extraError }, need: 1 });
 		for (const x of extra) steps.push({ key: `extra.${x.name}`, name: `extra.${x.name}${label}`, decl: { cmd: x.cmd }, need: 1 });
 		steps.push({ key: "system", name: `system${label}`, decl: keys.system, need: 2 });
 		for (const s of steps) {
@@ -249,12 +270,12 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	};
 
 	const units = unitsOf(cfg);
-	const only = opts.only ?? [];
+	const only = [...new Set(opts.only ?? [])];
 	if (!units) {
 		if (only.length) fail("config", `--unit は、設定に git.units を宣言したプロジェクトでだけ使える（指定: ${only.join(", ")}）`);
 		await checkDocs("", root, resolve(root, opts.docs), configPath);
 		await runCommands("", root, cfg);
-		return { failures, skipped, notes, ran };
+		return { failures, skipped, notes, ran, outputs };
 	}
 
 	//  monorepo: 紐づきの宣言と commands は unit の側が持つ
@@ -291,5 +312,5 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		if (only.length) notes.push("[verify] --unit を指定したので、ルートの commands は実行しない");
 		else await runCommands("", root, cfg);
 	}
-	return { failures, skipped, notes, ran };
+	return { failures, skipped, notes, ran, outputs };
 }

@@ -15,6 +15,8 @@
 //      --unit     monorepo で、検査する unit の名前（複数可。省略すると全 unit）
 //      --timeout  検査 1 つあたりの秒数
 //      --tail     失敗した検査の出力のうち、表示する末尾の行数
+//      --verbose  実行した検査の出力を、通ったものも含めて全部表示する（警告や違反の一覧を CI のログに残す）
+//      --timeout 0 は制限なし。--config の相対パスは、実行したディレクトリから探す
 //      --ignore-legacy-layout  旧レイアウト（docs/specs/）が残っていても検査を続ける（spec-lint へ渡す。移行中だけ）
 //
 //  終了コード: 0 = すべて通過 / 1 = 失敗がある / 2 = 使い方の誤り
@@ -26,7 +28,7 @@ import { CONFIG_FILE } from "../_shared/config.mjs";
 import { LEVELS, readConfig, runSuite, tailLines } from "./suite.mjs";
 
 const USAGE =
-	"usage: verify.mjs [--level lint|fast|full] [--unit <名前>]... [--root .] [--docs docs] [--config harness.config.json] [--timeout 300] [--tail 15] [--ignore-legacy-layout]\n" +
+	"usage: verify.mjs [--level lint|fast|full] [--unit <名前>]... [--root .] [--docs docs] [--config harness.config.json] [--timeout 300] [--tail 15] [--verbose] [--ignore-legacy-layout]\n" +
 	"       verify.mjs --hook [stop-gate.mjs の引数...]";
 
 function usage(msg) {
@@ -50,6 +52,7 @@ function parseArgs(argv) {
 		else if (a === "--timeout") opts.timeout = Number(value());
 		else if (a === "--tail") opts.tail = Number(value());
 		else if (a === "--ignore-legacy-layout") opts.ignoreLegacyLayout = true;
+		else if (a === "--verbose") opts.verbose = true;
 		else usage(`不明な引数 ${a}`);
 	}
 	if (!LEVELS.includes(opts.level)) usage(`--level は ${LEVELS.join(" / ")}`);
@@ -70,7 +73,12 @@ async function main() {
 	const configPath = opts.config ? resolve(opts.config) : join(root, CONFIG_FILE);
 	const toolsDir = process.env.STOP_GATE_TOOLS_DIR || join(dirname(fileURLToPath(import.meta.url)), "..");
 
-	const { failures, skipped, notes, ran } = await runSuite(root, opts, toolsDir, configPath, readConfig(configPath));
+	const { failures, skipped, notes, ran, outputs } = await runSuite(root, opts, toolsDir, configPath, readConfig(configPath));
+	if (opts.verbose)
+		for (const o of outputs) {
+			console.log(`\n== ${o.name}（${o.ok ? "通過" : "失敗"}）`);
+			if (o.output.trim()) console.log(o.output.replace(/\s+$/, ""));
+		}
 	for (const n of notes) console.log(n);
 	const scope = `level ${opts.level}${opts.only.length ? `、unit: ${opts.only.join(", ")}` : ""}`;
 	if (failures.length === 0) {

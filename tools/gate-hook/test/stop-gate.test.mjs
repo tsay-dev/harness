@@ -74,6 +74,7 @@ function runGate(root, payload, { args = [], tools = null, fail = "" } = {}) {
 		input: typeof payload === "string" ? payload : JSON.stringify(payload),
 		encoding: "utf8",
 		env,
+		timeout: 120000, //  検査が終わらなくなる壊れ方をしたとき、テストごと止まり続けないように
 	});
 }
 
@@ -508,7 +509,82 @@ test("stop-gate: 制限時間を過ぎたコマンドは、シェルの子とし
 	assert.equal(size(), before, "制限時間の後も、コマンドが起動したプロセスが動き続けている");
 });
 
-test("stop-gate: 直前のラウンドより失敗が減っていなければ、上限を待たずに人間へ渡す", (t) => {
+test("stop-gate: 止めたコマンドがプロセスグループを抜けた孫を残していても、制限時間で戻る", { skip: process.platform === "win32" || spawnSync("setsid", ["true"]).status !== 0 }, (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { commands: cmds({ test: "setsid sleep 6 & sleep 60" }) }, { gitInit: false });
+	const started = Date.now();
+	const r = runGate(root, stop(root), { tools, args: ["--timeout", "1"] });
+	assert.equal(r.status, 2, r.stdout);
+	assert.match(r.stderr, /失敗 = timeout:test/);
+	assert.ok(Date.now() - started < 4000, `戻るまで ${Date.now() - started}ms かかった`);
+});
+
+test("stop-gate: --timeout 0 は制限なし", (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { commands: cmds({ test: "sleep 0.3" }) }, { gitInit: false });
+	const r = runGate(root, stop(root), { tools, args: ["--timeout", "0"] });
+	assert.equal(r.status, 0, r.stderr);
+});
+
+test("stop-gate: unit の設定が JSON として壊れていれば、その unit を失敗にして、ほかの unit は検査する", (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { git: { units: { a: "a", b: "b" } } }, { gitInit: false });
+	mkdirSync(join(root, "a"));
+	mkdirSync(join(root, "b"));
+	writeFileSync(join(root, "a", "harness.config.json"), "{broken");
+	writeConfig(join(root, "b"), { commands: cmds({ test: "pwd > ran.txt" }) });
+	runGate(root, stop(root), { tools });
+	assert.deepEqual(last(root).failures, ["config:a"]);
+	assert.ok(existsSync(join(root, "b", "ran.txt")));
+});
+
+test("stop-gate: commands.extra の説明の欄（_ で始まるキー）は実行しない。--ignore-legacy-layout は spec-lint に渡す", (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { commands: cmds({ extra: { _comment: "exit 1", gateway: "echo x > ran.txt" } }) }, { gitInit: false });
+	const r = runGate(root, stop(root), { tools, args: ["--ignore-legacy-layout"] });
+	assert.equal(r.status, 0, r.stderr);
+	assert.ok(existsSync(join(root, "ran.txt")));
+	const c = calls(tools);
+	assert.deepEqual(c[1].args, ["validate", "--docs", join(root, "docs"), "--ignore-legacy-layout"]);
+});
+
+test("stop-gate: commands.extra の形が誤っていれば、extra から先（system も）を実行しない", (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { commands: cmds({ extra: { a: "echo a >> ran.txt", bad: { x: 1 } }, system: "echo s >> ran.txt" }) }, { gitInit: false });
+	runGate(root, stop(root), { tools });
+	assert.deepEqual(last(root).failures, ["commands.extra"]);
+	assert.ok(!existsSync(join(root, "ran.txt")));
+});
+
+test("stop-gate: コマンドの標準入力は閉じている（入力を待つコマンドで止まらない）", (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { commands: cmds({ test: "cat > got.txt" }) }, { gitInit: false });
+	const r = runGate(root, stop(root), { tools, args: ["--timeout", "5"] });
+	assert.equal(r.status, 0, r.stderr);
+	assert.equal(readFileSync(join(root, "got.txt"), "utf8"), "");
+});
+
+test("stop-gate: 指紋は --unit の指定と、使う検査の並び（suite.mjs）の変更で変わる", (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { git: { units: { a: "a", b: "b" } } });
+	for (const u of ["a", "b"]) {
+		mkdirSync(join(root, u));
+		writeConfig(join(root, u), { commands: cmds() });
+	}
+	git(root, "add", "-A");
+	git(root, "commit", "-q", "-m", "units");
+	assert.equal(runGate(root, stop(root), { tools, args: ["--unit", "a"] }).status, 0);
+	assert.match(runGate(root, stop(root), { tools, args: ["--unit", "a"] }).stdout, /変更なし/);
+	//  別の unit を指定したら、合格を使い回さない
+	assert.doesNotMatch(runGate(root, stop(root), { tools, args: ["--unit", "b"] }).stdout, /変更なし/);
+	assert.match(runGate(root, stop(root), { tools, args: ["--unit", "b"] }).stdout, /変更なし/);
+	//  検査の並びを書き換えたら、合格を使い回さない
+	mkdirSync(join(tools, "gate-hook"), { recursive: true });
+	writeFileSync(join(tools, "gate-hook", "suite.mjs"), "// changed\n");
+	assert.doesNotMatch(runGate(root, stop(root), { tools, args: ["--unit", "b"] }).stdout, /変更なし/);
+});
+
+test("stop-gate: 直前のラウンドと同じ検査が落ちていれば、上限を待たずに人間へ渡す", (t) => {
 	const tools = makeTools(t);
 	const root = makeRoot(t, { commands: cmds({ test: "exit 1" }) }, { gitInit: false });
 	const args = ["--max-rounds", "5"];
@@ -523,12 +599,16 @@ test("stop-gate: 直前のラウンドより失敗が減っていなければ、
 	assert.match(JSON.parse(r.stdout).systemMessage, /失敗が減らない/);
 	assert.equal(calls(tools).length, 0);
 
-	//  失敗が減っている間は続ける
-	const root2 = makeRoot(t, { commands: cmds({ test: "exit 1" }) }, { gitInit: false });
-	assert.equal(runGate(root2, stop(root2), { tools, args, fail: "trace-check" }).status, 2); //  2 件
-	assert.equal(runGate(root2, stop(root2, { stop_hook_active: true }), { tools, args }).status, 2); //  1 件
-	assert.equal(runGate(root2, stop(root2, { stop_hook_active: true }), { tools, args }).status, 2); //  減っていたので検査した
-	assert.equal(last(root2).decision, "block");
+	//  落ちる検査が変わっている間は続ける（件数が 1 件のままでも、型検査 → lint と前へ進んでいる）
+	const root2 = makeRoot(t, { commands: cmds({ typecheck: "exit 1", lint: "exit 1", test: "exit 1" }) }, { gitInit: false });
+	assert.equal(runGate(root2, stop(root2), { tools, args }).status, 2);
+	assert.deepEqual(last(root2).failures, ["typecheck"]);
+	writeConfig(root2, { commands: cmds({ typecheck: "exit 0", lint: "exit 1", test: "exit 1" }) });
+	assert.equal(runGate(root2, stop(root2, { stop_hook_active: true }), { tools, args }).status, 2);
+	assert.deepEqual(last(root2).failures, ["lint"]);
+	writeConfig(root2, { commands: cmds({ typecheck: "exit 0", lint: "exit 0", test: "exit 1" }) });
+	assert.equal(runGate(root2, stop(root2, { stop_hook_active: true }), { tools, args }).status, 2); //  前へ進んでいるので検査した
+	assert.deepEqual(last(root2).failures, ["test"]);
 });
 
 test("stop-gate: 実際の spec-lint / trace-check / contract-run とテンプレートの harness.config.json で動く（結合）", (t) => {

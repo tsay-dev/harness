@@ -135,7 +135,14 @@ jobs:
           VERIFY_TIMEOUT: ${{ inputs.timeout }}
         run: |
           set -euo pipefail
-          node "$HARNESS_ROOT/bin/harness.mjs" verify --level "$LEVEL" --timeout "$VERIFY_TIMEOUT" --tail 400 $SPEC_LINT_ARGS < /dev/null
+          #   spec_lint_args が受けるのは --ignore-legacy-layout だけ（ほかの引数で検査の範囲を変えさせない）
+          extra=()
+          case "$SPEC_LINT_ARGS" in
+            "") ;;
+            "--ignore-legacy-layout") extra=(--ignore-legacy-layout) ;;
+            *) echo "::error::spec_lint_args が受けるのは --ignore-legacy-layout だけ（実際: $SPEC_LINT_ARGS）"; exit 2 ;;
+          esac
+          node "$HARNESS_ROOT/bin/harness.mjs" verify --level "$LEVEL" --timeout "$VERIFY_TIMEOUT" --verbose "${extra[@]}" < /dev/null
 
       #   PR の各コミットの UC: トレーラを検査（UC / REQ が active でない・契約が無い/未 fixed なら落とす）
       #   モノレポ（git.units）では、コミットの scope が指す unit の docs で UC を引く（ADR-0040）

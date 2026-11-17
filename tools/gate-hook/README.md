@@ -96,8 +96,9 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 | `full` | 1〜6 | マージ前の CI、手元での最終確認 |
 
 - level で実行しなかった検査は、`[verify] skip: …（--level lint では実行しない）` と表示する。黙って省かない。
-- 全失敗を一度に報告するため、1〜4 は常に全部実行する。型検査を通らないコードのテストはノイズなので、5 は最初の失敗で止める。
-- `--timeout` を超えた検査は `timeout:<検査>` という失敗になる。超えたコマンドは、シェルの子として動くテストランナーごと（プロセスグループごと）止める。
+- 全失敗を一度に報告するため、1〜4 は（level が実行するものを）全部実行する。型検査を通らないコードのテストはノイズなので、5 は最初の失敗で止める。
+- `--timeout` を超えた検査は `timeout:<検査>` という失敗になる。超えたコマンドは、シェルの子として動くテストランナーごと（プロセスグループごと）止める。`--timeout 0` は制限なし。
+- `commands.extra` の形が誤っているときは、extra から先（`system` も）を実行しない。
 - 設定（`harness.config.json`）が無ければ失敗（紐づきの検査は省略できない。ADR-0056）。JSON として読めなければ `config` の失敗。
 
 **`commands` の `typecheck` / `lint` / `test` / `system` は宣言が必須。** それぞれ文字列のコマンドか `{ "none": "<理由>" }` で、
@@ -134,7 +135,7 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 - **回数上限**: Stop hook の阻止でモデルが既に継続中なら、Claude Code は `stop_hook_active: true` を設定する。
   その状態でセッションが既に `--max-rounds` 回連続失敗したら、再度阻止せず**解除**する（exit 0）。
   解除したときは stdout に `{"systemMessage": "[stop-gate] 終端ゲートが通らないまま解放した…。失敗: …"}` だけを出し、
-  Claude Code が利用者に表示する。残る失敗は人間へ渡す。直前のラウンドより失敗の件数が減っていない場合（`non-decreasing`）も、上限を待たずに
+  Claude Code が利用者に表示する。残る失敗は人間へ渡す。直前のラウンドと同じ検査が落ちている場合（`non-decreasing`）も、上限を待たずに
   同じく解除する（`--max-rounds` を 3 以上にしたときに働く。既定の 2 では、上限と同じ回で解除される）。セッション ID の変更、成功、解除後に回数をリセットする。
 - 状態（`last_pass` の指紋、セッションごとの回数と失敗履歴）はログ隣の `state.json` に置く
   （既定 `.harness-gate/state.json`）。gate-hook が `.harness-gate/` への Write / Edit を止める。利用プロジェクトの `.gitignore` に `.harness-gate/` を追加する。
@@ -172,15 +173,15 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 ## verify — CI と手元から同じ検査を実行する
 
 ```bash
-node .harness/bin/harness.mjs verify [--level lint|fast|full] [--unit <名前>]... [--root <プロジェクトのルート>] [--timeout 300] [--tail 15]
+node .harness/bin/harness.mjs verify [--level lint|fast|full] [--unit <名前>]... [--root <プロジェクトのルート>] [--timeout 300] [--tail 15] [--verbose]
 ```
 
 Stop フックと同じ検査を、標準入力もラウンドの記録も使わずに 1 回実行する。状態もログも残さない。終了コードは、すべて通過で 0、失敗があれば 1、使い方の誤りで 2。
-失敗した検査の名前と出力の末尾は、標準エラー出力に出す。止められたら（SIGINT / SIGTERM / SIGHUP / SIGQUIT）、実行中のコマンドをプロセスグループごと止め、残りを実行せずに同じシグナルで終わる。
+失敗した検査の名前と出力の末尾は、標準エラー出力に出す。`--verbose` を付けると、実行した検査の出力を、通ったものも含めて全部表示する（spec-lint の警告や、違反の一覧の全体を CI のログに残す）。`--config` の相対パスは、実行したディレクトリから探す（Stop フックではプロジェクトのルートから）。止められたら（SIGINT / SIGTERM / SIGHUP / SIGQUIT）、実行中のコマンドをプロセスグループごと止め、残りを実行せずに同じシグナルで終わる。
 
 `harness verify --hook` は、Stop フックとして動く（`stop-gate.mjs` を直接呼ぶのと同じ）。
 
-CI では、再利用ワークフロー `.github/workflows/spec-gate.yml` が `harness verify` を実行する。既定の level は `lint`。テストまで CI で実行するなら、`with:` に `level: fast`（または `full`）と、依存を入れる `setup_command`（例: `npm ci`）を渡す。
+CI では、再利用ワークフロー `.github/workflows/spec-gate.yml` が `harness verify --verbose` を実行する。既定の level は `lint`。テストまで CI で実行するなら、`with:` に `level: fast`（または `full`）と、依存を入れる `setup_command`（例: `npm ci`）を渡す。
 
 ## 導入（利用プロジェクト側）
 
@@ -205,7 +206,7 @@ CI では、再利用ワークフロー `.github/workflows/spec-gate.yml` が `h
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.harness/bin/harness.mjs\" verify --hook --level fast",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.harness/bin/harness.mjs\" verify --hook",
             "timeout": 600
           }
         ]
@@ -215,7 +216,7 @@ CI では、再利用ワークフロー `.github/workflows/spec-gate.yml` が `h
 }
 ```
 
-`Stop` 項目に `matcher` はなく、毎回の終了で発火する。`--level` は、ターンの終わりごとに実行できる重さに合わせて選ぶ（シナリオテストまで実行するなら `full`、テストが遅ければ `lint`）。フックで実行しなかった分は、CI の level で補う。各 hook は単独でも導入できる。
+`Stop` 項目に `matcher` はなく、毎回の終了で発火する。この例は、シナリオテストまで実行する（`--level` の既定は `full`）。ターンの終わりごとには重すぎるなら、`--level fast`（シナリオテストを除く）か `--level lint`（読むだけ）を付ける。フックで実行しなかった分は、CI の level で補う。フックも CI も低い level のままだと、その検査はどこでも実行されない。各 hook は単独でも導入できる。
 
 明示選択するこれらの hooks は利用プロジェクトの `.claude/settings.local.json` に置く。生成プロンプトディレクトリを修正したり、`settings.json` を規約ルーターにしたりしない。
 
