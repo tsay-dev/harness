@@ -2,7 +2,7 @@
 
 ## 正本と確認した仕様
 
-正本は `packages/`、実行アセットは `tools/`、文書書式は `templates/` に置く。`.claude/`・`.agents/`・`.codex/`・`.cursor/`・`.grok/` は生成先であり、直接編集しない。全部入りの manifest は置かない。
+正本は `packages/`、実行アセットは `tools/` と入口の `bin/`、文書書式は `templates/` に置く。`.claude/`・`.agents/`・`.codex/`・`.cursor/`・`.grok/` は生成先であり、直接編集しない。全部入りの manifest は置かない。
 
 2026-09-08 に **Microsoft APM CLI 0.30.0** と公式資料を確認した。公式サイトは更新されるため、APM 更新時は下記を再検証する。
 
@@ -53,19 +53,20 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 
 APM は中立拡張の `x-model-tier` を provider の model field に変換しない。install 後は、オーケストレーターが `apm_modules/` の元 source から tier を読み、上の対応表に従って起動時に適用する（Claude では opus / sonnet / haiku、Codex では JSON の 3 段、Cursor では同段の family）。Grok Build は per-launch の model 指定がないため親を継承し、要求段を保証できなければその制約を報告する。
 
-## tools / templates を別途用意する
+## tools / bin / templates を別途用意する
 
-APM packages は tools / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。
+APM packages は tools / bin / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。入口の `bin/harness.mjs` は `../tools/` を相対パスで読むので、`bin/` も同じ checkout のまま置く。入口は名前から同梱ツールを選んで引数をそのまま渡すだけで、ツールのファイルを直接呼んでも検査の結果は同じ（ADR-0063。対応は `bin/harness.mjs` の表が正本）。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。
 
 ```bash
 # <release-tag> を実在する、package と整合するタグに置き換える
 # git clone --branch <release-tag> https://github.com/tsay-dev/harness.git .harness
 
-node .harness/tools/spec-lint/spec-lint.mjs validate
-node .harness/tools/trace-check/trace-check.mjs
-node .harness/tools/contract-run/contract-run.mjs          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
+node .harness/bin/harness.mjs                    # 使えるコマンドの一覧
+node .harness/bin/harness.mjs lint spec          # 仕様の文書の書式と状態の決まり
+node .harness/bin/harness.mjs lint refs          # 仕様・コード・テストの ID の紐づき
+node .harness/bin/harness.mjs lint git branch    # traceconfig.json に git を宣言したホストのみ実行される
+node .harness/bin/harness.mjs run cases          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
 node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計
-node .harness/tools/git-lint/git-lint.mjs branch           # traceconfig.json に git を宣言したホストのみ実行される
 ```
 
 - Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
@@ -88,9 +89,8 @@ node .harness/tools/git-lint/git-lint.mjs branch           # traceconfig.json �
 
 ```bash
 python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
-node --test "tools/**/*.test.mjs"        # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint
-node tools/spec-lint/spec-lint.mjs validate
-node tools/trace-check/trace-check.mjs
+node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / 入口
+node bin/harness.mjs lint                # lint spec → lint refs → lint git branch
 ```
 
 native APM install は別の fresh consumer で確認する。公開前はローカルパッケージを絶対パスで指定する。
@@ -103,7 +103,7 @@ apm install --target codex /absolute/path/to/harness/packages/rules-next
 確認する項目:
 
 1. 各パッケージを単独で install でき、develop-core + rules-next の consumer にほかのスタックの葉が出ない。
-2. installed package に tools / templates が同梱されない。
+2. installed package に tools / bin / templates が同梱されない。
 3. Claude 出力の `paths` と Cursor 出力の `globs` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
 4. どの target の install も `.claude/settings.json` を作らない。Codex / Grok の install が root `AGENTS.md` や全文の rules router を生成しない。Grok Build の `.grok/rules/` が常に読まれる設定になっていない。
 5. skill 本文のリンクが `apm_modules/` 内で解決し、`.claude/` がなくても到達できる。

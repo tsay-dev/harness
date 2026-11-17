@@ -2,7 +2,7 @@
 
 エージェントの skill / agent / rules の正本を管理する、ベンダー中立の APM モノレポです。必要なパッケージだけを各プロジェクトへ取り込み、Claude / Codex / Cursor / Grok 向けに展開します。特定ベンダーの設定集ではありません。
 
-**正本は `packages/`、実行アセットは `tools/`、書式は `templates/`。`.claude/`・`.agents/`・`.codex/`・`.cursor/`・`.grok/` は生成物で、直接編集しません。** ルートの `AGENTS.md`・`CLAUDE.md` はこのリポジトリ自身の作業規約です。
+**正本は `packages/`、実行アセットは `tools/` と入口の `bin/`、書式は `templates/`。`.claude/`・`.agents/`・`.codex/`・`.cursor/`・`.grok/` は生成物で、直接編集しません。** ルートの `AGENTS.md`・`CLAUDE.md` はこのリポジトリ自身の作業規約です。
 
 ## 到達状態
 
@@ -46,7 +46,7 @@ dependencies:
 apm install
 ```
 
-`tools/` と `templates/` は APM パッケージ外です。spec-lint / trace-check やテンプレートを使う工程では、このリポジトリを別途 `.harness/` などへ取得して版を固定します。フック、CI、ブランチ保護の設置と検証コマンドの宣言は消費プロジェクトの責務です。公開前のローカル検証、対象の選択、固定版、既存ホストの移行は [APM 導入ガイド](docs/apm.md) にあります。
+`tools/`、`bin/`、`templates/` は APM パッケージ外です。spec-lint / trace-check やテンプレートを使う工程では、このリポジトリを別途 `.harness/` などへ取得して版を固定します。同梱ツールは `node .harness/bin/harness.mjs <コマンド>` の 1 つの入口から呼べます（引数なしで一覧を表示。ADR-0063）。フック、CI、ブランチ保護の設置と検証コマンドの宣言は消費プロジェクトの責務です。公開前のローカル検証、対象の選択、固定版、既存ホストの移行は [APM 導入ガイド](docs/apm.md) にあります。
 
 ## 常駐ゼロ
 
@@ -78,6 +78,7 @@ harness/
     rules-expo/
     rules-swiftui/
     grilling/
+  bin/harness.mjs                   # 同梱ツールの入口（harness <コマンド>）。APM 外
   tools/                            # spec-lint、trace-check、contract-run、gate-hook、git-lint、apm。APM 外
   templates/                        # 文書書式。APM 外
   docs/apm.md
