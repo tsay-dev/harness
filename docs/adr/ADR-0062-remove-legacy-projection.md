@@ -22,7 +22,7 @@ supersedes: ADR-0008
 - モデルの対応表（`tools/apm/claude-models.json`、`tools/codex-sync/models.json`）は残す。APM は `x-model-tier` をプロバイダーのモデル指定に変換しないので、オーケストレーターが起動時に tier からこの表を引く（ADR-0029 の、native APM の面についての決定をそのまま使う）。置き場も変えない。
 - 互換展開を前提にしたほかの有効な ADR の記述は、対象の経路が無くなる。それぞれのほかの決定は変えない。
   - ADR-0026: 「APM の install と旧 `init.sh` 系の生成経路を混在させない」「生成マーカーを既存の sync / lint 手順で確認する」。APM の出力に生成マーカーは無い。
-  - ADR-0028: 「互換 adapter が provider の model field を生成し、`x-model-tier` を provider 出力から除去する」。APM の出力には `x-model-tier` がそのまま残り、model field は書かれない。
+  - ADR-0028: 「互換 adapter が provider の model field を生成し、`x-model-tier` を provider 出力から除去する」。APM の出力では、Claude / Cursor / Grok Build の agent に `x-model-tier` がそのまま残り、Codex の TOML には tier も残らない。どの出力にも model field は書かれない。
   - ADR-0029: 「互換 projector が TOML にモデルを書き出す」。
   - ADR-0033: 「legacy 射影も補助ファイルを出力する」。
   - ADR-0034: 「ADR-0008 の射影決定は生きている」。
@@ -47,7 +47,7 @@ supersedes: ADR-0008
   - agent の名前が重複しないこと。
 - 互換展開が出力に付けていたものが、APM の出力には無い。
   - Cursor の規約の `alwaysApply: false`。
-  - 規約をパッケージごとのディレクトリに分ける配置。APM は 1 つのディレクトリに並べるので、複数の `rules-*` を同時に選ぶと、同じ名前の規約（`common-testing` など）が重なる。
+  - 規約をパッケージごとのディレクトリに分ける配置。APM は 1 つのディレクトリに並べる。複数の `rules-*` を同時に選ぶと、同じ名前の規約（`common-testing` など）が重なるおそれがある（実物では確かめていない）。
   - Codex で、モデルからの暗黙の起動を禁じた skill に付ける `agents/openai.yaml`。
   - 生成物であることを示すマーカー。
 - Grok Build では、規約が `.grok/rules/` に展開される。ADR-0008 は、全文で読まれる規約の展開は常駐ゼロを壊すとして写さなかった。Grok Build がこの規約をいつ読むかは確かめていない。

@@ -44,7 +44,7 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 ### 出力と常駐ゼロ
 
 - skills はフォルダ単位（`SKILL.md` と同梱の `references/*.md`）で原則 `.agents/skills/` に共有配置され、target に必要な発見経路も生成される。agents の出力は Claude `.claude/agents/`、Codex `.codex/agents/`、Cursor `.cursor/agents/`、Grok Build `.grok/agents/`。配布名に package 名が付くことがあるため、短いファイル名を展開後の識別子だと決めつけない。
-- Claude / Cursor では scoped instructions をそれぞれの形式へ展開し、書くファイルに合わせて自動で読み込まれる。Codex / Grok Build では install だけで root `AGENTS.md` は作られず、instructions は `apm_modules/` に残る。オーケストレーターが選択済み package の `applyTo` と書くパスを照合し、合う葉だけをパスで渡す（develop skill の `references/bundles.md`）。本文を常駐させるルーターは作らない。
+- Claude / Cursor では scoped instructions をそれぞれの形式へ展開し、書くファイルに合わせて自動で読み込まれる。Codex / Grok Build では install だけで root `AGENTS.md` は作られない。Codex では instructions は `apm_modules/` に残る。Grok Build では `.grok/rules/` にも展開されるが、Grok Build がこれをいつ読むかは確かめていない（ADR-0062）。どちらも、オーケストレーターが選択済み package の `applyTo` と書くパスを照合し、合う葉だけをパスで渡す（develop skill の `references/bundles.md`）。本文を常駐させるルーターは作らない。
 - agent 本文は読む規約を名指しせず、相対リンクも持たない。規約の配送と `HARNESS_ROOT` はオーケストレーターの Task 入力が担う（ADR-0047 / ADR-0048）。
 
 ### モデル設定の差異
@@ -104,8 +104,9 @@ apm install --target codex /absolute/path/to/harness/packages/rules-next
 
 1. 各パッケージを単独で install でき、develop-core + rules-next の consumer にほかのスタックの葉が出ない。
 2. installed package に tools / templates が同梱されない。
-3. Claude 出力の `paths` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
-4. Codex / Grok の install が root `AGENTS.md` や全文の rules router を生成しない。
+3. Claude 出力の `paths` と Cursor 出力の `globs` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
+4. Codex / Grok の install が root `AGENTS.md`、ルートの `settings.json`、全文の rules router を生成しない。Grok Build の `.grok/rules/` が常に読まれる設定になっていない。
 5. skill 本文のリンクが `apm_modules/` 内で解決し、`.claude/` がなくても到達できる。
+6. agent の名前が重複せず、複数の `rules-*` を選んだときに同じ名前の規約が互いを上書きしていない。
 
 各 provider 上での対話、委譲、モデル選択の実行確認は、ファイルの install と参照の検証とは別に、実際のセッションで行う。
