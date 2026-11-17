@@ -326,12 +326,25 @@ test("gate-hook: 保留の一覧（DEFERRED.md）を新しく作る・frozen_at 
 	//  行を足す（起票日を凍結した日より前に偽っても、足すこと自体を承認に回す）。同じ ID の行を増やしても同じ
 	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-002", "DEF-003"]) })), /行を足す（DEF-003）/);
 	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-002", "DEF-002"]) })), /行を足す/);
+	//  1 行消して別の ID を 1 行足す（行の数は同じ）
+	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-009"]) })), /行を足す（DEF-009）/);
+	//  コメントの中の例の行を消して、実際の行を足す
+	put(root, file, body("2026-01-01", ["DEF-001"]) + `\n<!--\n${row("DEF-002")}\n-->\n`);
+	assert.match(askOf(run({ file_path: file, content: body("2026-01-01", ["DEF-001", "DEF-002"]) })), /行を足す（DEF-002）/);
+	put(root, file, body("2026-01-01", ["DEF-001", "DEF-002"]));
+	//  monorepo の unit 配下の一覧（--docs の外）でも同じ。パスの大文字小文字も区別しない
+	const unitFile = "apps/a/docs/verification/DEFERRED.md";
+	assert.match(askOf(run({ file_path: unitFile, content: body("2026-01-01", []) })), /新しく作る/);
+	put(root, unitFile, body("2026-01-01", ["DEF-001"]));
+	assert.match(askOf(run({ file_path: "apps/a/docs/Verification/deferred.md", edits: [{ old_string: "frozen_at: 2026-01-01", new_string: "frozen_at: 2026-06-01" }] })), /保留の一覧は凍結済み/);
+	assert.match(askOf(run({ file_path: unitFile, edits: [{ old_string: "frozen_at: 2026-01-01", new_string: "frozen_at: 2026-06-01" }] })), /frozen_at を/);
+	assert.equal(run({ file_path: unitFile, content: body("2026-01-01", []) }).stdout, "");
 	//  書き込み後の内容が分からない
 	assert.match(askOf(run({ file_path: file, old_string: "この文は無い", new_string: "x" })), /判定できない/);
 	//  行を消す・文言を直すだけなら止めない
 	assert.equal(run({ file_path: file, content: body("2026-01-01", ["DEF-002"]) }).stdout, "");
 	assert.equal(run({ file_path: file, old_string: "| 指摘 | 理由 | 未定 |\n| DEF-002", new_string: "| 指摘を直した | 理由 | 未定 |\n| DEF-002" }).stdout, "");
-	assert.deepEqual(readLog(root).map((l) => l.reason), Array(6).fill("deferred"));
+	assert.deepEqual(readLog(root).map((l) => l.reason), Array(11).fill("deferred"));
 });
 
 test("gate-hook: active な UC の actor を変える書き込みは ask（actor-kind）。draft の UC は ask しない", (t) => {

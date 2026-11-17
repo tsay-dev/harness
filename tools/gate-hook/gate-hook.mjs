@@ -208,7 +208,8 @@ function deferredUnfreeze(abs, input) {
 	if (after === undefined) return "書き込み後の内容を判定できない";
 	if ((fm(before).frozen_at ?? "") !== (fm(after).frozen_at ?? "")) return `frozen_at を ${fm(before).frozen_at || "（なし）"} → ${fm(after).frozen_at || "（なし）"} に変える`;
 	//  行の数で比べる（ID を使い回して中身を書き換える足し方は、ここでは見分けない）
-	const ids = (text) => text.split("\n").map((l) => /^\s*\|\s*(DEF-\d+)\s*\|/.exec(l)?.[1]).filter(Boolean);
+	//  HTML コメントの中（ひな形の例）は行に数えない
+	const ids = (text) => text.replace(/<!--[\s\S]*?-->/g, "").split("\n").map((l) => /^\s*\|\s*(DEF-\d+)\s*\|/.exec(l)?.[1]).filter(Boolean);
 	const had = ids(before);
 	const added = ids(after).filter((id) => !had.includes(id));
 	if (added.length || ids(after).length > had.length) return `行を足す（${added.join(", ") || "ID の重複"}）`;
@@ -386,6 +387,24 @@ function main() {
 			ask(guarded.reason, guarded.message, ctx);
 		}
 
+		//  保留の一覧は凍結済み（ADR-0068）。docs の場所によらず、どの階層の verification/DEFERRED.md でも判定する
+		//  （monorepo では unit ごとに <unit>/docs/verification/DEFERRED.md を持つ）
+		if (lower === "verification/deferred.md" || lower.endsWith("/verification/deferred.md")) {
+			ctx.target = rel;
+			let unfreeze;
+			try {
+				unfreeze = deferredUnfreeze(abs, input);
+			} catch (e) {
+				unfreeze = `書き込みを判定できない（${e?.message ?? e}）`;
+			}
+			if (unfreeze)
+				ask(
+					"deferred",
+					`${rel}: ${unfreeze}。保留の一覧は凍結済みで、新しく作らず、行も足さない（ADR-0068）。指摘は機械検査にするか、人間に聞いて仕様に書く。それでも変えるなら、差分を確認してから許可する`,
+					ctx,
+				);
+		}
+
 		//  SSOT は常に通す（ゲートを通すための行為を塞がない）。ただし status の変更は義務の増減なので扱いを分ける
 		const docsDir = opts.docs.replace(/\/+$/, "");
 		const docsLower = docsDir.toLowerCase();
@@ -393,20 +412,6 @@ function main() {
 			ctx.target = rel;
 			let change;
 			let downgraded = [];
-			if (lower.endsWith("verification/deferred.md")) {
-				let unfreeze;
-				try {
-					unfreeze = deferredUnfreeze(abs, input);
-				} catch (e) {
-					unfreeze = `書き込みを判定できない（${e?.message ?? e}）`;
-				}
-				if (unfreeze)
-					ask(
-						"deferred",
-						`${rel}: ${unfreeze}。保留の一覧は凍結済みで、新しく作らず、行も足さない（ADR-0068）。指摘は機械検査にするか、人間に聞いて仕様に書く。それでも変えるなら、差分を確認してから許可する`,
-						ctx,
-					);
-			}
 			try {
 				change = classifyStatusChange(abs, rel, input);
 				if (lower === actorsPath(root, docsDir).toLowerCase()) downgraded = actorDowngrades(abs, input);

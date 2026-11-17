@@ -164,7 +164,7 @@ test("DEFERRED.md: frozen_at より後の起票日の行は err（保留を新�
 test("DEFERRED.md: frozen_at が無い・日付でない・先の日付なら err", () => {
 	const none = validate({ deferredRows: [row("DEF-001")], frozenAt: null });
 	assert.equal(none.status, 1, none.out);
-	assert.match(none.out, /frozen_at が無い — 保留の一覧は凍結済み/);
+	assert.match(none.out, /ERROR .*frozen_at が無い — 保留の一覧は凍結済み/);
 	for (const [frozenAt, message] of [
 		["2026/11/18", /frozen_at は YYYY-MM-DD/],
 		["2026-02-31", /frozen_at は YYYY-MM-DD/], //  実在しない日付
@@ -177,6 +177,8 @@ test("DEFERRED.md: frozen_at が無い・日付でない・先の日付なら er
 	}
 	//  UTC より進んだ時刻帯で凍結した当日の日付（UTC では明日）は通す
 	assert.equal(validate({ deferredRows: [], frozenAt: daysAgo(-1) }).status, 0);
+	//  件数は行の数（ID の重複した行・ID が不正な行も 1 件ずつ数える）
+	assert.match(validate({ deferredRows: [row("DEF-001"), row("DEF-001"), row("DEF-x")] }).out, /凍結済みの保留が 3 件残っている/);
 	//  起票日も、実在しない日付は err
 	const fake = validate({ deferredRows: [row("DEF-001", { date: "2026-02-31" })] });
 	assert.equal(fake.status, 1, fake.out);
