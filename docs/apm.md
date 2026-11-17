@@ -84,6 +84,17 @@ node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-ga
 5. APM の manifest / lock と別アセットを設置して install し、ホストの事実・検証コマンド・フックの参照先を新配置へ更新する。
 6. 以後の更新は APM で行う。
 
+## 設定ファイルの名前を変える（traceconfig.json → harness.config.json）
+
+設定ファイルの名前は `harness.config.json` に変わった（ADR-0064）。`traceconfig.json` は読まれない。中身のキーは変わっていないので、名前を変えるだけで移れる。自動では移らない。
+
+1. プロジェクトのルートと、monorepo なら設定を持つ unit のそれぞれで、`git mv traceconfig.json harness.config.json` を実行する。
+2. プロジェクトの側で `traceconfig.json` を名指ししている場所を直す。フックの設定、CI のワークフロー、`CLAUDE.md` / `AGENTS.md`、変更されたファイルから unit を選ぶスクリプトなど。
+3. `node .harness/bin/harness.mjs lint` を実行し、設定を読めていることを確かめる。
+4. gate-hook の拒否ログの理由 `traceconfig` は `config` に変わった。古いログを集計している場合は、名前を読み替える。
+
+古い名前のファイルだけが残っていると、完了の判定と CI が、改名したことを添えて失敗する。
+
 ## 検証手順
 
 リポジトリ直下で実行する。

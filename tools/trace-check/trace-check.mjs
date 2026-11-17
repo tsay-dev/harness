@@ -70,7 +70,7 @@ import { spawnSync } from "node:child_process";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope, isGlob } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
-import { renamedConfigHint } from "../_shared/config.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
 const GOAL_DIR_RE = /^(GOAL-\d+)/;
@@ -1535,7 +1535,7 @@ function parseArgs(argv) {
 function main() {
 	const opts = parseArgs(process.argv.slice(2));
 	const root = resolve(opts.root);
-	const cfg = loadConfig(root, opts.config ? resolve(opts.config) : join(root, "harness.config.json"));
+	const cfg = loadConfig(root, opts.config ? resolve(opts.config) : join(root, CONFIG_FILE));
 	if ("baseline_file" in cfg) {
 		console.error("trace-check: baseline_file は廃止した（ADR-0056）。harness.config.json からキーを削除し、台帳ファイルも削除する");
 		return 2;

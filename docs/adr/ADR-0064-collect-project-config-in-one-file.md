@@ -23,16 +23,16 @@ date: 2026-11-17
 
 ## Decision
 
-- 設定ファイルの名前を `harness.config.json` にする。`traceconfig.json` は読まない。古い名前のファイルだけが残っているときは、各ツールと再利用ワークフローが、改名したことと移し方を添えて失敗する。いまあるキーの形は変えないので、ファイルの名前を変えるだけで移れる。
+- 設定ファイルの名前を `harness.config.json` にする。`traceconfig.json` は読まない。古い名前のファイルだけが残っているときは、設定を読むツール（trace-check、git-lint、contract-run、config-lint、stop-gate、`spec-lint gate`）と再利用ワークフローが、改名したことを添えて失敗する。monorepo の unit に残っている場合も同じ。いまあるキーの形は変えないので、ファイルの名前を変えるだけで移れる。
 - 設定に書くことを 3 種類に分け、種類ごとに書き方を変える。
   1. **harness が直接使う事実**（`docs` / `source` / `tests` / `schema` / `contract` / `commands` / `git` など）。値そのものを書く。いまのキーをそのまま使う。
   2. **ほかに正本がある決めごと**（`rules`）。正本のファイルと、確かめる `commands` のキーだけを書く。決めごとの中身は設定に書き写さない。
   3. **ほかに置き場が無い決めごと**（`conventions`）。決めごとを 1 文と、機械で確かめていない理由を書く。機械で確かめられるようになったら、`rules` へ移す。
-- 人間が認めた例外は `exceptions` に、何を認めたかと認めた日を書く。
+- 人間が認めた例外は `exceptions` に、何を認めたかと認めた日を書く。書けるのは、機械が確かめていない決めごと（`conventions`）に対する例外である。`exceptions` はどの検査も読まず、検査の違反を免除しない。紐づきの検査に例外を作らないという ADR-0056 の決定は変えない。
 - `harness lint config`（`tools/config-lint`）を足す。最上位のキーの名前と、`rules` / `conventions` / `exceptions` の形を検査する。`conventions` は、違反が無くても毎回、件数と一覧を表示する。`harness lint` だけで呼んだときに続けて実行する検査（ADR-0063 の 3 つ）の先頭に、`lint config` を加える。
-- 最上位に使えるキーは、ひな形（`templates/develop/harness.config.json`）のキーから導く。使えるキーの一覧を、ひな形と検査の 2 か所に持たない。
+- 最上位に使えるキーは、ひな形（`templates/develop/harness.config.json`）のキーから導く。使えるキーの一覧を、ひな形と検査の 2 か所に持たない。ひな形に値を置くと既定の動きを上書きしてしまう任意のキー（いまは `comment_pattern` だけ）は、`tools/_shared/config.mjs` に一覧を持つ。各ツールが最上位から読むキーがすべて通ることを、テストで確かめる。
 - `rules` / `conventions` / `exceptions` は省略できる。省略したものは「未宣言」と表示し、「0 件」とは区別する。
-- 強制の所在: `tools/config-lint/test/config-lint.test.mjs` が、検査項目 K1〜K4 のそれぞれについて、形の誤りを 1 つ入れると落ちることを確かめる。`tools/_shared/test/config.test.mjs` と stop-gate のテストが、古い名前のファイルを読まずに案内を出して失敗することを確かめる。
+- 強制の所在: `tools/config-lint/test/config-lint.test.mjs` が、検査項目 K1〜K4 のそれぞれについて、形の誤りを 1 つ入れると落ちることを確かめる。`tools/_shared/test/config.test.mjs` と stop-gate、config-lint のテストが、古い名前のファイルを読まずに案内を出して失敗することを確かめる（unit に残っている場合を含む）。
 
 ## Consequences
 
@@ -45,6 +45,7 @@ date: 2026-11-17
 **代償と今後の制約**
 
 - 利用プロジェクトは、設定ファイルの名前を変える必要がある。自動では移らない。版を上げた時点で、古い名前のままのプロジェクトは、完了の判定と CI が失敗する（案内は出る）。
+- gate-hook は、古い名前のファイルだけが残っていても失敗しない。アクター表の場所（`docs.actors`）を設定から読めないので、既定の `docs/02-actors.md` を見る。アクター表を別の場所に置いている利用プロジェクトでは、改名するまで、アクター表の書き換えに承認を求める動きが働かない。同じ間、完了の判定は毎回失敗するので、改名しないまま作業が進むことは無い。
 - gate-hook の拒否ログの理由 `traceconfig` と、stop-gate の失敗の名前 `traceconfig` が `config` に変わる。古いログの集計とは名前が合わなくなる。
 - `lint config` が確かめるのは形だけである。`rules` の `source` がその決めごとを本当に定めているか、`check` のコマンドが本当に確かめているか、`conventions` に書くべき決めごとが書かれずに残っていないかは、確かめない。
 - `rules` / `conventions` / `exceptions` を読むのは `lint config` だけである。利用プロジェクトの `CLAUDE.md` から決めごとの文章を消して設定へ移す作業と、agent が設定を読んで従うようにする変更は、この変更に含まない。それまでは、決めごとが `CLAUDE.md` と設定の両方に書かれうる。

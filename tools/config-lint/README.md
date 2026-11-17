@@ -29,16 +29,17 @@
 - `rules` の `check` は、`commands` にコマンドとして宣言されたキーを指す。確かめる手段が無い決めごとは `rules` に書けないので、`conventions` に書く。
 - `conventions` の決めごとを機械で確かめられるようになったら（lint の規則を足した、など）、`conventions` から消して `rules` に移す。
 - `conventions` は、違反が無くても毎回、件数と一覧を表示する。機械が見ていない範囲を、見えるままにしておくためである。
+- `exceptions` は、どの検査も読まない。書いても、検査の違反は違反のままである。紐づきの検査に例外は無い（ADR-0056）。書けるのは、機械が確かめていない決めごと（`conventions`）に対して人間が認めた例外だけである。
 - 3 つとも省略できる。省略したものは「未宣言」と表示し、「0 件」とは区別する。
 
 ## 検査項目
 
 | ID | 内容 |
 | --- | --- |
-| K1 | 最上位のキーは、ひな形（`templates/develop/harness.config.json`）にあるものだけ。名前の打ち間違いを通さない |
-| K2 | `rules` は `{ <名前>: { "source", "check" } }`。`source` は実在するファイル。`check` は `commands` にコマンドの文字列で宣言されたキー（`none` の宣言と未宣言は不可） |
+| K1 | 最上位のキーは、ひな形（`templates/develop/harness.config.json`）にあるものと、ひな形に値を置けない任意のキー（`tools/_shared/config.mjs` の `OPTIONAL_TOP_KEYS`。いまは `comment_pattern`）だけ。名前の打ち間違いを通さない |
+| K2 | `rules` は `{ <名前>: { "source", "check" } }`。`source` は、設定ファイルがあるディレクトリの中の実在するファイル（相対パス）。`check` は `commands` にコマンドの文字列で宣言されたキー（`none` の宣言、未宣言、説明の欄 `_comment`、`contract_adapter` は不可） |
 | K3 | `conventions` は `[{ "rule", "unchecked_because" }]`。どちらも 1 行の文。同じ `rule` を 2 回書かない |
-| K4 | `exceptions` は `[{ "what", "approved" }]`。`what` は 1 行の文、`approved` は実在する日付（`YYYY-MM-DD`） |
+| K4 | `exceptions` は `[{ "what", "approved" }]`。`what` は 1 行の文、`approved` は今日までの実在する日付（`YYYY-MM-DD`） |
 
 検査するのは形だけである。次のことは確かめない。
 
@@ -47,12 +48,12 @@
 - `exceptions` の日付に、人間が本当に認めたか。設定ファイルへの書き込みは、gate-hook が人間の承認を求める（ADR-0057）。
 - `docs` / `source` / `tests` / `commands` などの値が正しいか。それぞれを読むツールが検査する。
 
-monorepo（`git.units`）では、ルートの設定に続けて、設定ファイルを持つ unit を検査する。`rules` の `source` は、その設定ファイルがあるディレクトリから探す。
+monorepo（`git.units`）では、ルートの設定に続けて、設定ファイルを持つ unit を検査する。`rules` の `source` と unit は、設定ファイルがあるディレクトリから探す（`--config` で別の場所を指しても同じ）。unit に古い名前（`traceconfig.json`）のファイルだけが残っていれば、改名の案内を出して 2 で終わる。
 
 ## 使い方
 
 ```bash
-node tools/config-lint/config-lint.mjs [--root <プロジェクトのルート>] [--config harness.config.json]
+node tools/config-lint/config-lint.mjs [--root <プロジェクトのルート>] [--config <設定ファイル>]
 ```
 
 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 使い方の誤り、設定ファイルが無い、JSON として読めない。

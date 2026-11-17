@@ -74,6 +74,12 @@ const BAD = [
 	["K2", "check が none の宣言を指す", (c) => (c.rules.layers.check = "system"), /commands\.system は none（まだ無い）.*conventions に書く/],
 	["K2", "check が無い", (c) => delete c.rules.layers.check, /rules\.layers\.check が無い/],
 	["K2", "rules の項目に知らないキー", (c) => (c.rules.layers.note = "x"), /rules\.layers に知らないキー「note」/],
+	["K2", "source が絶対パス", (c) => (c.rules.layers.source = "/etc/hostname"), /設定ファイルがあるディレクトリの中のファイルを相対パスで書く/],
+	["K2", "source が外を指す", (c) => (c.rules.layers.source = "../x.mjs"), /設定ファイルがあるディレクトリの中のファイルを相対パスで書く/],
+	["K2", "check が説明の欄を指す", (c) => ((c.commands._comment = "説明"), (c.rules.layers.check = "_comment")), /「_comment」は、決めごとを確かめるコマンドではない/],
+	["K2", "check が契約の実例のプロセスを指す", (c) => ((c.commands.contract_adapter = "node a.mjs"), (c.rules.layers.check = "contract_adapter")), /決めごとを確かめるコマンドではない/],
+	["K2", "check の先がコマンドの文字列でない", (c) => (c.commands.lint = 1), /commands\.lint がコマンドの文字列でない/],
+	["K3", "rule に制御文字", (c) => (c.conventions[0].rule = "a\u001b[31mb"), /conventions\[0\]\.rule は 1 行の文で書く/],
 	["K3", "conventions がオブジェクト", (c) => (c.conventions = {}), /conventions は配列で書く/],
 	["K3", "rule が無い", (c) => delete c.conventions[0].rule, /conventions\[0\]\.rule は 1 行の文で書く/],
 	["K3", "rule が複数行", (c) => (c.conventions[0].rule = "a\nb"), /conventions\[0\]\.rule は 1 行の文で書く/],
@@ -84,6 +90,8 @@ const BAD = [
 	["K4", "what が無い", (c) => delete c.exceptions[0].what, /exceptions\[0\]\.what は 1 行の文で書く/],
 	["K4", "approved の書式が違う", (c) => (c.exceptions[0].approved = "2026/10/15"), /approved は実在する日付を YYYY-MM-DD で書く/],
 	["K4", "approved が実在しない日付", (c) => (c.exceptions[0].approved = "2026-02-30"), /approved は実在する日付/],
+	["K4", "approved が先の日付", (c) => (c.exceptions[0].approved = "2999-01-01"), /approved が先の日付になっている/],
+	["K4", "exceptions の項目に知らないキー", (c) => (c.exceptions[0].by = "x"), /exceptions\[0\] に知らないキー「by」/],
 	["K4", "approved が無い", (c) => delete c.exceptions[0].approved, /approved は実在する日付/],
 ];
 for (const [id, name, f, re] of BAD) {
@@ -120,6 +128,34 @@ test("monorepo では unit の設定も検査し、source は unit のディレ�
 	const ng = run(d);
 	assert.equal(ng.status, 1);
 	assert.match(ng.stdout, /K2  rules\.layers\.source のファイルが無い/);
+});
+
+test("ひな形に値を置けない任意のキー（comment_pattern）は K1 を通る", () => {
+	const r = run(project({ comment_pattern: "^\\s*#" }));
+	assert.equal(r.status, 0, r.stdout);
+});
+
+test("各ツールが設定の最上位から読むキーは、すべて K1 を通る", () => {
+	const tools = join(HERE, "..", "..");
+	const read = new Set();
+	for (const f of ["trace-check/trace-check.mjs", "contract-run/contract-run.mjs", "gate-hook/stop-gate.mjs", "gate-hook/gate-hook.mjs"]) {
+		for (const m of readFileSync(join(tools, f), "utf8").matchAll(/\bcfg\??\.([a-z][a-z_]*)/g)) read.add(m[1]);
+	}
+	assert.ok(read.has("docs") && read.has("commands") && read.size >= 10, [...read].join(" "));
+	const r = run(project(Object.fromEntries([...read].map((k) => [k, {}]))));
+	assert.doesNotMatch(r.stdout, /K1/, r.stdout);
+});
+
+test("--config で別の場所を指しても、source は設定ファイルがあるディレクトリから探す", () => {
+	const d = project(null, { "x/c.json": JSON.stringify(base()), "x/eslint.config.mjs": "" });
+	const r = spawnSync(process.execPath, [TOOL, "--config", "x/c.json"], { encoding: "utf8", input: "", cwd: d });
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test("unit に古い名前のファイルだけが残っていれば、飛ばさずに案内を出して失敗する", () => {
+	const r = run(project({ git: { units: { api: "apps/api" } } }, { "apps/api/traceconfig.json": "{}" }));
+	assert.equal(r.status, 2, r.stdout);
+	assert.match(r.stderr, /unit api（apps\/api）に harness\.config\.json が無い.*改名した/);
 });
 
 test("知らない引数は 2 で終わる", () => {

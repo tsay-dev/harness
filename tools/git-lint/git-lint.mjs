@@ -37,7 +37,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { renamedConfigHint } from "../_shared/config.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const TAG = "[git-lint]";
 //  commit.md「type 一覧」表と同じ閉じた語彙（test がこの一致を固定する）
@@ -290,7 +290,7 @@ function main() {
 	const opts = parseArgs(process.argv.slice(2));
 	if (!opts) return 2;
 	const root = resolve(opts.root ?? process.cwd());
-	const raw = loadConfig(opts.config ? resolve(opts.config) : join(root, "harness.config.json"));
+	const raw = loadConfig(opts.config ? resolve(opts.config) : join(root, CONFIG_FILE));
 	if (!raw) return 2;
 	const cfg = readGitBlock(raw, root);
 	if (!cfg) return 2;

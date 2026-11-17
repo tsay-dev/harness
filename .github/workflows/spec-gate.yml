@@ -124,7 +124,9 @@ jobs:
               echo "== unit $name ($dir)"
               node "$HARNESS_ROOT/tools/spec-lint/spec-lint.mjs" validate --docs "$dir/docs" $SPEC_LINT_ARGS < /dev/null || rc=1
             elif [ -d "$dir/docs" ]; then
-              echo "::error::unit $name ($dir) は docs を持つのに $dir/harness.config.json が無い（紐づきの検査は省略できない。ADR-0056）"; rc=1
+              echo "::error::unit $name ($dir) は docs を持つのに $dir/harness.config.json が無い（紐づきの検査は省略できない。ADR-0056。traceconfig.json が残っているなら harness.config.json に改名する）"; rc=1
+            elif [ -f "$dir/traceconfig.json" ]; then
+              echo "::error::unit $name ($dir) に traceconfig.json がある。設定ファイルは harness.config.json に改名した（git mv で移す）"; rc=1
             else
               echo "unit $name ($dir): docs なし"
             fi
@@ -147,7 +149,9 @@ jobs:
               echo "== unit $name ($dir)"
               node "$HARNESS_ROOT/tools/trace-check/trace-check.mjs" --root "$dir" --config "$dir/harness.config.json" < /dev/null || rc=1
             elif [ -d "$dir/docs" ]; then
-              echo "::error::unit $name ($dir) は docs を持つのに $dir/harness.config.json が無い（紐づきの検査は省略できない。ADR-0056）"; rc=1
+              echo "::error::unit $name ($dir) は docs を持つのに $dir/harness.config.json が無い（紐づきの検査は省略できない。ADR-0056。traceconfig.json が残っているなら harness.config.json に改名する）"; rc=1
+            elif [ -f "$dir/traceconfig.json" ]; then
+              echo "::error::unit $name ($dir) に traceconfig.json がある。設定ファイルは harness.config.json に改名した（git mv で移す）"; rc=1
             else
               echo "unit $name ($dir): docs なし"
             fi

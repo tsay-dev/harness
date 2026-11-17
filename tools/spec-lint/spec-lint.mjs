@@ -43,6 +43,7 @@ import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -1085,11 +1086,17 @@ function findUcDir(docsDir, id) {
 //  --uc は --unit で決める（docs/adr/ADR-0040）。units の書式（名前の形・ディレクトリの実在）を検査するのは
 //  git-lint で、ここでは名前 → ディレクトリの対応だけを読む。
 //  返り値: null = 未宣言（単一ユニット。docs は cwd 直下） / Map<名前, ディレクトリ> / undefined = 設定異常
-const UNITS_CONFIG = "harness.config.json";
+const UNITS_CONFIG = CONFIG_FILE;
 const COMMIT_SCOPE_RE = /^[A-Za-z]+(?:\(([^()]*)\))?!?: /;
 
 function readUnits() {
-	if (!existsSync(UNITS_CONFIG)) return null;
+	if (!existsSync(UNITS_CONFIG)) {
+		//  古い名前のファイルだけが残っていると、monorepo を単一ユニットと取り違えるので、案内を出して止める
+		const hint = renamedConfigHint(UNITS_CONFIG);
+		if (!hint) return null;
+		console.error(`spec-lint gate: ${UNITS_CONFIG} が無い${hint}`);
+		return undefined;
+	}
 	let cfg;
 	try {
 		cfg = JSON.parse(readFileSync(UNITS_CONFIG, "utf8"));

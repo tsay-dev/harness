@@ -42,7 +42,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { lineOf, parseStrictYaml } from "../_shared/strict-yaml.mjs";
-import { renamedConfigHint } from "../_shared/config.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const TAG = "[contract-run]";
 const UC_DIR_RE = /^UC-\d+-[a-z0-9-]+$/;
@@ -368,7 +368,7 @@ async function main() {
 	const opts = parseArgs(process.argv.slice(2));
 	if (!opts) return 2;
 	const root = resolve(opts.root ?? process.cwd());
-	const cfg = loadConfig(opts.config ? resolve(opts.config) : join(root, "harness.config.json"));
+	const cfg = loadConfig(opts.config ? resolve(opts.config) : join(root, CONFIG_FILE));
 	if (!cfg) return 2;
 	const docsDir = resolve(root, opts.docs);
 	//  docs の場所の書き損じで「実行する実例が無い」と黙って通らないよう、goals が無ければ設定エラー（ADR-0056）

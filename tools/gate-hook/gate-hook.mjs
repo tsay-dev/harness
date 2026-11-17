@@ -57,6 +57,7 @@ import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { matchesAny } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
+import { CONFIG_FILE } from "../_shared/config.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
 
@@ -188,7 +189,7 @@ function ucActorChange(abs, rel, input) {
 //  アクター表のパス（harness.config.json の docs.actors。無ければテンプレートの既定）
 function actorsPath(root, docsDir) {
 	try {
-		const cfg = JSON.parse(readFileSync(join(root, "harness.config.json"), "utf8"));
+		const cfg = JSON.parse(readFileSync(join(root, CONFIG_FILE), "utf8"));
 		if (typeof cfg?.docs?.actors === "string") return cfg.docs.actors.replace(/^\.\//, "");
 	} catch {}
 	return `${docsDir}/02-actors.md`;
@@ -270,7 +271,7 @@ const HOOK_SETTINGS_RE = /(^|\/)\.claude\/settings[^/]*\.json$|(^|\/)\.(?:codex|
 
 function guardedTarget(rel) {
 	const p = rel.toLowerCase();
-	if (p === "harness.config.json" || p.endsWith("/harness.config.json"))
+	if (p === CONFIG_FILE || p.endsWith(`/${CONFIG_FILE}`))
 		return {
 			reason: "config",
 			message: `${rel} は検査の範囲（none の宣言、注釈の正規表現、commands）を決めるため、人間の承認で変える（ADR-0057）。差分を確認してから許可する`,

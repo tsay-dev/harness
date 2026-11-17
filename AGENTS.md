@@ -5,4 +5,4 @@
 - **生成済みのプロバイダー向けディレクトリを手で編集しない:** `.claude/`、`.agents/`、`.codex/`、`.cursor/`、`.grok/`。中立ソースを変更し、選択したパッケージを再生成する。`.claude/` はどの対象に対しても正本ではない。
 - パッケージの選択、生成、検証は [`docs/apm.md`](./docs/apm.md) に従う。既定の全部入りパッケージはない。プロバイダー向けの展開は APM だけで行う（ADR-0062）。
 - Codex のモデルカタログ ID は `tools/codex-sync/models.json` にある。APM はインストールした agent にモデルを書き込まないので、orchestrator が起動時に、agent の `x-model-tier` からこの表でモデルを選ぶ。インストール済み agent を手で修正しない。
-- ホスト固有の事実は、そのホストの `AGENTS.md` または `CLAUDE.md` に書く。このファイルは harness リポジトリの作業用入口だけを担い、作業ガイドを重複させない。
+- ホスト固有の事実は、そのホストの `harness.config.json`（ADR-0064）と `AGENTS.md` または `CLAUDE.md` に書く。このファイルは harness リポジトリの作業用入口だけを担い、作業ガイドを重複させない。

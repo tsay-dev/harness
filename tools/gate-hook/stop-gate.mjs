@@ -50,7 +50,7 @@ import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
-import { renamedConfigHint } from "../_shared/config.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const USAGE =
 	"usage: stop-gate.mjs [--docs docs] [--config harness.config.json] [--log <path>] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]";
@@ -60,7 +60,7 @@ const COMMAND_KEYS = ["typecheck", "lint", "test", "system"];
 //  ---- 引数 ----------------------------------------------------------------
 
 function parseArgs(argv) {
-	const opts = { docs: "docs", config: "harness.config.json", log: null, maxRounds: 2, timeout: 300, tail: 15, force: false };
+	const opts = { docs: "docs", config: CONFIG_FILE, log: null, maxRounds: 2, timeout: 300, tail: 15, force: false };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--docs") opts.docs = argv[++i];
@@ -288,7 +288,7 @@ function runSuite(root, opts, toolsDir, configPath, loaded) {
 			}
 			const unitRoot = resolve(root, dir);
 			const unitDocs = join(unitRoot, "docs");
-			const unitCfg = join(unitRoot, "harness.config.json");
+			const unitCfg = join(unitRoot, CONFIG_FILE);
 			const hasDocs = existsSync(unitDocs);
 			if (!existsSync(unitCfg)) {
 				if (hasDocs)
@@ -296,6 +296,7 @@ function runSuite(root, opts, toolsDir, configPath, loaded) {
 						`trace-check:${name}`,
 						`unit ${name}（${dir}）は docs を持つのに ${dir}/harness.config.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/harness.config.json から置く${renamedConfigHint(unitCfg)}`,
 					);
+				else if (renamedConfigHint(unitCfg)) fail(`config:${name}`, `unit ${name}（${dir}）に ${dir}/${CONFIG_FILE} が無い${renamedConfigHint(unitCfg)}`);
 				else notes.push(`[stop-gate] unit ${name}（${dir}）: docs なし`);
 				continue;
 			}
@@ -359,7 +360,7 @@ function main() {
 		const configPath = resolve(root, opts.config);
 		const loaded = readConfig(configPath);
 		const units = unitsOf(loaded.cfg);
-		const configFiles = [configPath, ...(units ? Object.values(units).filter((d) => typeof d === "string").map((d) => resolve(root, d, "harness.config.json")) : [])];
+		const configFiles = [configPath, ...(units ? Object.values(units).filter((d) => typeof d === "string").map((d) => resolve(root, d, CONFIG_FILE)) : [])];
 
 		//  4. 変更検出: 最終合格と同じツリー・設定・検査器なら再検査しない
 		const fp = fingerprint(root, stateDir, configFiles, toolsDir);
@@ -414,7 +415,7 @@ function main() {
 		}
 		out.push(
 			"直せる失敗は直し、修正範囲を再検証してから終了すること。人間ゲート待ちや後続の担当の成果物でしか直せない失敗は、未達として報告して終える。" +
-				"harness.config.json を緩めて（none にする、範囲を狭める）通さない。機械判定できない指摘は docs/verification/DEFERRED.md に記録し、機械判定できるものは保留にしない。",
+				"設定（harness.config.json）を緩めて（none にする、範囲を狭める）通さない。機械判定できない指摘は docs/verification/DEFERRED.md に記録し、機械判定できるものは保留にしない。",
 		);
 		process.stderr.write(out.join("\n") + "\n");
 		log("block", names[0], { round: s.rounds, failures: names });
