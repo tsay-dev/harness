@@ -18,8 +18,8 @@
 //    - 変更検出: git の HEAD + status + diff、未追跡ファイルの中身、harness.config.json、使う harness ツールの
 //      ハッシュが最終合格時と同じなら再検査しない（skip）。
 //    - ラウンド上限: stop_hook_active（既にフックで継続中）かつ rounds >= --max-rounds なら
-//      ブロックせず人間へ手渡す（release。systemMessage で利用者に表示）。直前のラウンドと同じ検査が落ちている場合も同様
-//      （--max-rounds を 3 以上にしたとき、上限を待たずに渡す）。
+//      ブロックせず人間へ手渡す（release。systemMessage で利用者に表示）。前のラウンドから進んでいない場合（直前に落ちた検査が今回もすべて落ちている、
+//      または落ちる検査の組が前のものへ戻った）も同様（--max-rounds を 3 以上にしたとき、上限を待たずに渡す）。
 //    状態は <ログと同じディレクトリ>/state.json に持つ（既定 .harness-gate/state.json。gate-hook が agent の書き込みを止める）。
 //
 //  fail-open / fail-closed の境界:
@@ -117,7 +117,7 @@ function makeLogger(logPath, session, startedAt) {
 //  ラウンド上限で人間へ手渡す。stdout は JSON だけにする（Claude Code が systemMessage を利用者に表示する）
 function release(why, s, log, opts) {
 	const failures = s.last_failures.join(", ") || "なし";
-	const message = `[stop-gate] 終端ゲートが通らないまま解放した（${s.rounds} ラウンド連続で不通過、上限 ${opts.maxRounds}。${why === "non-decreasing" ? "失敗が減らない。" : ""}残りは人間の裁定へ）。失敗: ${failures}`;
+	const message = `[stop-gate] 終端ゲートが通らないまま解放した（${s.rounds} ラウンド連続で不通過、上限 ${opts.maxRounds}。${why === "non-decreasing" ? "前のラウンドから進んでいない。" : ""}残りは人間の裁定へ）。失敗: ${failures}`;
 	process.stdout.write(JSON.stringify({ systemMessage: message }) + "\n");
 	log("release", why, { round: s.rounds, failures: s.last_failures });
 }
@@ -220,10 +220,14 @@ async function main() {
 		const s = state.session;
 		if (payload.stop_hook_active === true) {
 			const h = s.history;
-			//  直前のラウンドと同じ検査が落ちていれば、同じことを繰り返しても通らない。上限を待たずに人間へ渡す。
+			//  前へ進んでいなければ、同じことを繰り返しても通らない。上限を待たずに人間へ渡す。進んでいないのは次の 2 つ。
+			//    - 直前のラウンドで落ちた検査が、今回もすべて落ちている（同じか、落ちる検査が増えた）
+			//    - 落ちる検査の組が、前に出たものへ戻った（直しては壊す往復）
 			//  件数では比べない（型検査を直して次の lint で落ちた、という前進も、件数は 1 件のまま変わらないため）
-			const same = (a, b) => a.length === b.length && [...a].sort().join("\0") === [...b].sort().join("\0");
-			const nonDecreasing = h.length >= 2 && same(h.at(-1), h.at(-2));
+			const names = (r) => new Set(r.map((n) => n.replace(/^timeout:/, "")));
+			const key = (r) => [...names(r)].sort().join("\0");
+			const stuck = (prev, now) => [...names(prev)].every((n) => names(now).has(n));
+			const nonDecreasing = h.length >= 2 && (stuck(h.at(-2), h.at(-1)) || h.slice(0, -1).some((r) => key(r) === key(h.at(-1))));
 			const cap = s.rounds >= opts.maxRounds;
 			if (cap || nonDecreasing) {
 				release(cap ? "round-cap" : "non-decreasing", s, log, opts);

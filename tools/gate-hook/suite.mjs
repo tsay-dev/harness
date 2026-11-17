@@ -100,6 +100,8 @@ function readCommands(cfg, testsDeclared) {
 
 //  実行中のコマンド（プロセスグループの先頭）。止められたら、これを止めてから自分も止まる
 let current = null;
+//  実行中のコマンドを打ち切る関数（コマンド自身が終わっているのに、孫が出力の口を握って戻らないときに使う）
+let currentAbort = null;
 const killTree = (child) => {
 	try {
 		if (posix && child.pid) process.kill(-child.pid, "SIGKILL");
@@ -114,8 +116,10 @@ const STOP_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"];
 let stopBy = null;
 const onStop = (sig) => {
 	stopBy ??= sig;
-	if (current) killTree(current);
-	else stopSelf();
+	if (current) {
+		killTree(current);
+		currentAbort?.();
+	} else stopSelf();
 };
 function stopSelf() {
 	for (const s of STOP_SIGNALS) process.removeListener(s, onStop);
@@ -148,15 +152,18 @@ function runStep(name, cmd, cwd, timeoutSec) {
 				? setTimeout(() => {
 						timedOut = true;
 						killTree(child);
+						abort();
 					}, Math.min(timeoutSec * 1000, 2 ** 31 - 1))
 				: null;
 		let spawnError = null;
 		let finished = false;
+		let exited = null; //  コマンド自身が終わっていれば { code, signal }
 		const finish = (code, signal) => {
 			if (finished) return;
 			finished = true;
 			clearTimeout(timer);
 			current = null;
+			currentAbort = null;
 			if (stopBy) return stopSelf(); //  止められた。続きを実行しない
 			if (spawnError) output += `\n${spawnError.message}`;
 			done({ name: timedOut ? `timeout:${name}` : name, ok: !timedOut && !spawnError && code === 0, code, signal, timedOut, output });
@@ -165,13 +172,19 @@ function runStep(name, cmd, cwd, timeoutSec) {
 			spawnError = e;
 		});
 		child.on("close", finish);
-		//  止めたコマンドが、プロセスグループを抜けた孫（setsid したデーモンなど）を残していると、孫が出力の口を
-		//  握ったままになり close が来ない。止めたときは、コマンド自身の終了で打ち切る
-		child.on("exit", (code, signal) => {
-			if (!timedOut && !stopBy) return;
+		//  コマンドが、プロセスグループを抜けた孫（setsid したデーモンなど）を残していると、孫が出力の口を
+		//  握ったままになり close が来ない。止めたとき（制限時間・停止）は、コマンド自身が終わっていれば、
+		//  口を閉じて打ち切る。コマンドが先に終わっていた場合も、後から止めた時点で打ち切る
+		const abort = () => {
+			if (!exited) return;
 			child.stdout.destroy();
 			child.stderr.destroy();
-			finish(code, signal);
+			finish(exited.code, exited.signal);
+		};
+		currentAbort = abort;
+		child.on("exit", (code, signal) => {
+			exited = { code, signal };
+			if (timedOut || stopBy) abort();
 		});
 	});
 }

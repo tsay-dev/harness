@@ -519,6 +519,16 @@ test("stop-gate: 止めたコマンドがプロセスグループを抜けた孫
 	assert.ok(Date.now() - started < 4000, `戻るまで ${Date.now() - started}ms かかった`);
 });
 
+test("stop-gate: コマンドが孫を残して先に終わっていても、制限時間で戻る", { skip: process.platform === "win32" || spawnSync("setsid", ["true"]).status !== 0 }, (t) => {
+	const tools = makeTools(t);
+	const root = makeRoot(t, { commands: cmds({ test: "setsid sleep 6 & echo done" }) }, { gitInit: false });
+	const started = Date.now();
+	const r = runGate(root, stop(root), { tools, args: ["--timeout", "1"] });
+	assert.equal(r.status, 2, r.stdout);
+	assert.match(r.stderr, /失敗 = timeout:test/);
+	assert.ok(Date.now() - started < 4000, `戻るまで ${Date.now() - started}ms かかった`);
+});
+
 test("stop-gate: --timeout 0 は制限なし", (t) => {
 	const tools = makeTools(t);
 	const root = makeRoot(t, { commands: cmds({ test: "sleep 0.3" }) }, { gitInit: false });
@@ -578,6 +588,10 @@ test("stop-gate: 指紋は --unit の指定と、使う検査の並び（suite.m
 	//  別の unit を指定したら、合格を使い回さない
 	assert.doesNotMatch(runGate(root, stop(root), { tools, args: ["--unit", "b"] }).stdout, /変更なし/);
 	assert.match(runGate(root, stop(root), { tools, args: ["--unit", "b"] }).stdout, /変更なし/);
+	//  同じ unit を重ねて書いても、同じ指定として扱う
+	assert.match(runGate(root, stop(root), { tools, args: ["--unit", "b", "--unit", "b"] }).stdout, /変更なし/);
+	//  spec-lint へ渡す引数が違えば、合格を使い回さない
+	assert.doesNotMatch(runGate(root, stop(root), { tools, args: ["--unit", "b", "--ignore-legacy-layout"] }).stdout, /変更なし/);
 	//  検査の並びを書き換えたら、合格を使い回さない
 	mkdirSync(join(tools, "gate-hook"), { recursive: true });
 	writeFileSync(join(tools, "gate-hook", "suite.mjs"), "// changed\n");
@@ -596,8 +610,25 @@ test("stop-gate: 直前のラウンドと同じ検査が落ちていれば、上
 	assert.equal(r.status, 0, r.stderr);
 	assert.equal(last(root).decision, "release");
 	assert.equal(last(root).reason, "non-decreasing");
-	assert.match(JSON.parse(r.stdout).systemMessage, /失敗が減らない/);
+	assert.match(JSON.parse(r.stdout).systemMessage, /前のラウンドから進んでいない/);
 	assert.equal(calls(tools).length, 0);
+
+	//  落ちる検査が増えたとき（悪化）も、進んでいないので渡す
+	const root3 = makeRoot(t, { commands: cmds({ test: "exit 1" }) }, { gitInit: false });
+	assert.equal(runGate(root3, stop(root3), { tools, args }).status, 2); //  test
+	assert.equal(runGate(root3, stop(root3, { stop_hook_active: true }), { tools, args, fail: "trace-check" }).status, 2); //  trace-check, test
+	assert.equal(runGate(root3, stop(root3, { stop_hook_active: true }), { tools, args }).status, 0);
+	assert.equal(last(root3).reason, "non-decreasing");
+
+	//  落ちる検査の組が前のものへ戻ったとき（直しては壊す往復）も渡す
+	const root4 = makeRoot(t, { commands: cmds({ lint: "exit 1" }) }, { gitInit: false });
+	assert.equal(runGate(root4, stop(root4), { tools, args }).status, 2); //  lint
+	writeConfig(root4, { commands: cmds({ lint: "exit 0", test: "exit 1" }) });
+	assert.equal(runGate(root4, stop(root4, { stop_hook_active: true }), { tools, args }).status, 2); //  test（前進）
+	writeConfig(root4, { commands: cmds({ lint: "exit 1" }) });
+	assert.equal(runGate(root4, stop(root4, { stop_hook_active: true }), { tools, args }).status, 2); //  lint（戻った。この回は検査する）
+	assert.equal(runGate(root4, stop(root4, { stop_hook_active: true }), { tools, args }).status, 0);
+	assert.equal(last(root4).reason, "non-decreasing");
 
 	//  落ちる検査が変わっている間は続ける（件数が 1 件のままでも、型検査 → lint と前へ進んでいる）
 	const root2 = makeRoot(t, { commands: cmds({ typecheck: "exit 1", lint: "exit 1", test: "exit 1" }) }, { gitInit: false });

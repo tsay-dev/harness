@@ -135,7 +135,7 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 - **回数上限**: Stop hook の阻止でモデルが既に継続中なら、Claude Code は `stop_hook_active: true` を設定する。
   その状態でセッションが既に `--max-rounds` 回連続失敗したら、再度阻止せず**解除**する（exit 0）。
   解除したときは stdout に `{"systemMessage": "[stop-gate] 終端ゲートが通らないまま解放した…。失敗: …"}` だけを出し、
-  Claude Code が利用者に表示する。残る失敗は人間へ渡す。直前のラウンドと同じ検査が落ちている場合（`non-decreasing`）も、上限を待たずに
+  Claude Code が利用者に表示する。残る失敗は人間へ渡す。前のラウンドから進んでいない場合（`non-decreasing`。直前に落ちた検査が今回もすべて落ちている、または落ちる検査の組が前のものへ戻った）も、上限を待たずに
   同じく解除する（`--max-rounds` を 3 以上にしたときに働く。既定の 2 では、上限と同じ回で解除される）。セッション ID の変更、成功、解除後に回数をリセットする。
 - 状態（`last_pass` の指紋、セッションごとの回数と失敗履歴）はログ隣の `state.json` に置く
   （既定 `.harness-gate/state.json`）。gate-hook が `.harness-gate/` への Write / Edit を止める。利用プロジェクトの `.gitignore` に `.harness-gate/` を追加する。
