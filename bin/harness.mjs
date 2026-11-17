@@ -30,6 +30,7 @@ const TOOLS = process.env.HARNESS_TOOLS_DIR
 //  コマンド表。words = コマンド名の並び、script = tools/ からの相対パス、prefix = 利用者の引数の前に付ける引数。
 //  一覧（引数なしの表示）もここから作る。名前と行き先の正本はこの表だけ。
 const COMMANDS = [
+	{ group: "読むだけ", words: ["lint", "config"], script: "config-lint/config-lint.mjs", prefix: [], desc: "プロジェクトの設定の形を検査し、機械で確かめていない決めごとを一覧する" },
 	{ group: "読むだけ", words: ["lint", "spec"], script: "spec-lint/spec-lint.mjs", prefix: ["validate"], desc: "仕様の文書の書式と状態の決まりを検査する" },
 	{ group: "読むだけ", words: ["lint", "refs"], script: "trace-check/trace-check.mjs", prefix: [], desc: "仕様・コード・テストの ID の紐づきを検査する" },
 	{ group: "読むだけ", words: ["lint", "git", "branch"], script: "git-lint/git-lint.mjs", prefix: ["branch"], desc: "ブランチ名の書式を検査する" },
@@ -44,7 +45,7 @@ const COMMANDS = [
 ];
 
 //  `harness lint` だけで呼んだときに続けて実行するもの（引数なしで意味が決まる検査だけ）
-const LINT_ALL = [["lint", "spec"], ["lint", "refs"], ["lint", "git", "branch"]];
+const LINT_ALL = [["lint", "config"], ["lint", "spec"], ["lint", "refs"], ["lint", "git", "branch"]];
 
 const sameWords = (a, b) => a.length === b.length && a.every((w, i) => w === b[i]);
 const find = (words) => COMMANDS.find((c) => sameWords(c.words, words));

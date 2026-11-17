@@ -62,6 +62,7 @@ APM packages は tools / bin / templates を含まない。develop の検証と�
 # git clone --branch <release-tag> https://github.com/tsay-dev/harness.git .harness
 
 node .harness/bin/harness.mjs                    # 使えるコマンドの一覧
+node .harness/bin/harness.mjs lint config        # 設定（harness.config.json）の形。機械で確かめていない決めごとを一覧する
 node .harness/bin/harness.mjs lint spec          # 仕様の文書の書式と状態の決まり
 node .harness/bin/harness.mjs lint refs          # 仕様・コード・テストの ID の紐づき
 node .harness/bin/harness.mjs lint git branch    # harness.config.json に git を宣言したホストのみ実行される
@@ -89,8 +90,8 @@ node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-ga
 
 ```bash
 python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
-node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / 入口
-node bin/harness.mjs lint                # lint spec → lint refs → lint git branch
+node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / config-lint / 入口
+node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint git branch
 ```
 
 native APM install は別の fresh consumer で確認する。公開前はローカルパッケージを絶対パスで指定する。

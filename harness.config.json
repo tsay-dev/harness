@@ -42,5 +42,8 @@
   "contract": {
     "none": "harness 自身は ADR だけを持ち、アプリのコードと仕様を持たない"
   },
-  "git": {}
+  "git": {},
+  "rules": {},
+  "conventions": [],
+  "exceptions": []
 }
