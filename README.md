@@ -82,7 +82,6 @@ harness/
   templates/                        # 文書書式。APM 外
   docs/apm.md
   docs/adr/
-  init.sh                           # 選択パッケージからの互換展開
 ```
 
 develop の agent は `spec-author`、`test-author`（`track: backend-logic / scenario`）、`implementer`（`mode: logic / appearance / schema / probe`）、`reviewer`（`mode: structure / slice / proposal`）、`attacker` の 5 体で、別コンテキストが必要な場合だけ分けています。各 agent は `x-model-tier`（top / mid / light）を 1 つ宣言し、プロバイダーのモデル名はアダプターの対応表だけが持ちます。
