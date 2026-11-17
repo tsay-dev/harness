@@ -1,7 +1,7 @@
 ---
 id: ADR-0008
 title: Grok Build 向けに agent だけを name: で flatten して .grok/agents へ射影する
-status: accepted
+status: superseded
 date: 2026-08-26
 ---
 

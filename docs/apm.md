@@ -44,18 +44,18 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 ### 出力と常駐ゼロ
 
 - skills はフォルダ単位（`SKILL.md` と同梱の `references/*.md`）で原則 `.agents/skills/` に共有配置され、target に必要な発見経路も生成される。agents の出力は Claude `.claude/agents/`、Codex `.codex/agents/`、Cursor `.cursor/agents/`、Grok Build `.grok/agents/`。配布名に package 名が付くことがあるため、短いファイル名を展開後の識別子だと決めつけない。
-- Claude / Cursor では scoped instructions をそれぞれの形式へ展開し、書くファイルに合わせて自動で読み込まれる。Codex / Grok Build では install だけで root `AGENTS.md` は作られず、instructions は `apm_modules/` に残る。オーケストレーターが選択済み package の `applyTo` と書くパスを照合し、合う葉だけをパスで渡す（develop skill の `references/bundles.md`）。本文を常駐させるルーターは作らない。
+- Claude / Cursor では scoped instructions をそれぞれの形式へ展開し、書くファイルに合わせて自動で読み込まれる。Codex / Grok Build では install だけで root `AGENTS.md` は作られない。Codex では instructions は `apm_modules/` に残る。Grok Build では `.grok/rules/` にも展開されるが、Grok Build がこれをいつ読むかは確かめていない（ADR-0062）。どちらも、オーケストレーターが選択済み package の `applyTo` と書くパスを照合し、合う葉だけをパスで渡す（develop skill の `references/bundles.md`）。本文を常駐させるルーターは作らない。
 - agent 本文は読む規約を名指しせず、相対リンクも持たない。規約の配送と `HARNESS_ROOT` はオーケストレーターの Task 入力が担う（ADR-0047 / ADR-0048）。
 
 ### モデル設定の差異
 
 中立 agent ソースは provider 固有の `model:` を持たず、`x-model-tier: top | mid | light` を各 agent の frontmatter に 1 つ宣言する。Claude family の対応は `tools/apm/claude-models.json`、Codex catalog ID と reasoning effort は `tools/codex-sync/models.json` に置き、どちらにも agent 名を列挙しない（ADR-0028 / ADR-0029）。
 
-互換 adapter は tier を読み、Claude では opus / sonnet / haiku、Codex では JSON の 3 段へ変換する。Cursor は `inherit` に正規化し、オーケストレーターが起動時に同段の family を選ぶ。Grok Build は per-launch の model 指定がないため親を継承し、要求段を保証できなければその制約を報告する。APM の native integrator が中立拡張を provider の model field に変換するとは仮定せず、native install 後はオーケストレーターが `apm_modules/` の元 source から tier を読んで起動時に適用する。
+APM は中立拡張の `x-model-tier` を provider の model field に変換しない。install 後は、オーケストレーターが `apm_modules/` の元 source から tier を読み、上の対応表に従って起動時に適用する（Claude では opus / sonnet / haiku、Codex では JSON の 3 段、Cursor では同段の family）。Grok Build は per-launch の model 指定がないため親を継承し、要求段を保証できなければその制約を報告する。
 
 ## tools / templates を別途用意する
 
-APM packages は tools / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。この checkout の `init.sh` は APM consumer に実行しない。
+APM packages は tools / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。
 
 ```bash
 # <release-tag> を実在する、package と整合するタグに置き換える
@@ -71,34 +71,23 @@ node .harness/tools/git-lint/git-lint.mjs branch           # traceconfig.json �
 - Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
 - ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `traceconfig.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
 
-## 旧 init.sh 利用者の移行
+## 旧方式からの移行
 
-旧方式（`.claude` の symlink / submodule / copy）は新方式へ上書きせず、次の順で移行する。旧引数（`--mode` / `update` / `--force`）は新 `init.sh` が無変更で停止する。移行対応表は `tools/apm/migration-map.json`。削除した用途（翻訳、動画制作、メディア生成）に移行先はない（ADR-0046）。
+旧方式（`.claude` の symlink / submodule / copy、`init.sh` による互換展開）は廃止した（ADR-0062）。新方式へ上書きせず、次の順で移行する。削除した用途（翻訳、動画制作、メディア生成）に移行先はない（ADR-0046）。
 
 1. 現在の導入方式、固定版、`.claude` が symlink か実体かを調べ、ホスト固有の skills / rules / settings と未保存の変更を退避する。
 2. 必要な用途・スタックと target を決める。全体導入に相当する root 依存は作らない。
 3. 新しい consumer または移行用 checkout で APM install を先に検証し、選択した packages だけが存在してホスト独自ファイルを上書きしないことを確認する。
-4. 旧方式が所有する symlink・生成物・導入記録を対象を確認してから外す。リンク先を再帰削除せず、`.harness` の gitlink を通常 clone で上書きしない。
+4. 旧方式が所有する symlink・生成物・導入記録（`.harness-legacy.json` と、それが記録するファイル）を対象を確認してから外す。リンク先を再帰削除せず、`.harness` の gitlink を通常 clone で上書きしない。
 5. APM の manifest / lock と別アセットを設置して install し、ホストの事実・検証コマンド・フックの参照先を新配置へ更新する。
-6. 以後の更新は APM に一本化する。APM と互換展開を同じ消費プロジェクトで混ぜない。
-
-## 互換展開とリポジトリ編集
-
-APM を使わない環境では `init.sh` を選択パッケージの中立ソースから各 target への互換生成に使う。`install` は `claude` の別名。`tools/{codex,cursor,grok}-sync/sync.sh` も同じ入口を呼ぶ。選択と source は `.harness-legacy.json` に記録され、複数 target では選択を一致させる。APM の manifest / lock / modules があるホストへの互換生成は拒否する。
-
-```bash
-./init.sh codex /path/to/legacy-consumer --package develop-core --package rules-next
-./init.sh codex . --package develop-core --package rules-next   # このリポジトリで検証生成する例
-```
-
-編集は `packages/` / `tools/` / `templates/` へ行い、該当パッケージだけを再生成する。
+6. 以後の更新は APM で行う。
 
 ## 検証手順
 
 リポジトリ直下で実行する。
 
 ```bash
-python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、互換生成の所有権
+python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
 node --test "tools/**/*.test.mjs"        # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint
 node tools/spec-lint/spec-lint.mjs validate
 node tools/trace-check/trace-check.mjs
@@ -115,8 +104,9 @@ apm install --target codex /absolute/path/to/harness/packages/rules-next
 
 1. 各パッケージを単独で install でき、develop-core + rules-next の consumer にほかのスタックの葉が出ない。
 2. installed package に tools / templates が同梱されない。
-3. Claude 出力の `paths` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
-4. Codex / Grok の install が root `AGENTS.md` や全文の rules router を生成しない。
+3. Claude 出力の `paths` と Cursor 出力の `globs` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
+4. どの target の install も `.claude/settings.json` を作らない。Codex / Grok の install が root `AGENTS.md` や全文の rules router を生成しない。Grok Build の `.grok/rules/` が常に読まれる設定になっていない。
 5. skill 本文のリンクが `apm_modules/` 内で解決し、`.claude/` がなくても到達できる。
+6. agent の名前が重複せず、複数の `rules-*` を選んだときに同じ名前の規約が互いを上書きしていない。
 
 各 provider 上での対話、委譲、モデル選択の実行確認は、ファイルの install と参照の検証とは別に、実際のセッションで行う。

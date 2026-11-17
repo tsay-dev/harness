@@ -13,13 +13,13 @@ Icon?
 # ログ・一時ファイル
 *.log
 
-# Cursor 射影（生成物。取り込み先/検証用に ./init.sh cursor で再生成する）
+# Cursor 向けの生成物
 .cursor/
 
-# Grok Build 射影（生成物。./init.sh grok で再生成する。config.toml 等は対象外）
+# Grok Build 向けの生成物（config.toml 等は対象外）
 .grok/agents/
 
-# Codex 射影（生成物。./init.sh codex で再生成する。ホストの .codex/config.toml は対象外）
+# Codex 向けの生成物（ホストの .codex/config.toml は対象外）
 .agents/
 .codex/agents/
 
@@ -36,5 +36,4 @@ Icon?
 .codex/
 .cursor/
 .grok/
-.harness-legacy.json
 __pycache__/

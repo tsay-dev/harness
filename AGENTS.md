@@ -3,6 +3,6 @@
 このリポジトリを変更する前に [`CLAUDE.md`](./CLAUDE.md) を読む。正本は `packages/` 配下のプロバイダーに依存しない APM パッケージと、`tools/`、`templates/`。会話、`docs/` 配下の成果物、コミットメッセージ、コード内コメントは日本語で書く。
 
 - **生成済みのプロバイダー向けディレクトリを手で編集しない:** `.claude/`、`.agents/`、`.codex/`、`.cursor/`、`.grok/`。中立ソースを変更し、選択したパッケージを再生成する。`.claude/` はどの対象に対しても正本ではない。
-- パッケージの選択、生成、検証は [`docs/apm.md`](./docs/apm.md) に従う。既定の全部入りパッケージはない。同じ消費プロジェクトで APM と旧 `init.sh` の出力を混ぜない。
-- 旧 Codex のモデルカタログ ID は `tools/codex-sync/models.json` にある。このファイルを変更したら再生成する。ネイティブ APM と旧アダプターではモデルの扱いが異なる。インストール済み agent を手で修正しない。
+- パッケージの選択、生成、検証は [`docs/apm.md`](./docs/apm.md) に従う。既定の全部入りパッケージはない。プロバイダー向けの展開は APM だけで行う（ADR-0062）。
+- Codex のモデルカタログ ID は `tools/codex-sync/models.json` にある。APM はインストールした agent にモデルを書き込まないので、orchestrator が起動時に、agent の `x-model-tier` からこの表でモデルを選ぶ。インストール済み agent を手で修正しない。
 - ホスト固有の事実は、そのホストの `AGENTS.md` または `CLAUDE.md` に書く。このファイルは harness リポジトリの作業用入口だけを担い、作業ガイドを重複させない。
