@@ -21,12 +21,14 @@ date: 2026-11-17
 ## Decision
 
 - REQ は、属する UC の `UC.md` の `## 要件` の節に、1 ID を 1 つの小節（`### REQ-nnn`）として書く。`REQ-nnn.md` は置かない。
-- 小節は、項目の並び（`- pattern:` / `- br:` / `- status:`）、要件文（`>` で始まる EARS の 1 文）、`#### 検証方針` の順に書く。
+- 小節は、項目の並び（`- pattern:` / `- br:` / `- status:`。状態についての補足を書く任意の `- note:`）、要件文（`>` で始まる EARS の 1 文）、`#### 検証方針` の順に書く。
+- REQ の小節は「要件」の節の中にだけ書く。節の外に書いた `### REQ-nnn` と、2 つ目の「要件」の節は違反にする（どの検査にも掛からない REQ を作らない）。
 - どの UC の要件かは、書かれている `UC.md` で決まる。項目に `uc` は書かない。
 - REQ の番号、状態（`draft` / `active` / `withdrawn`）、EARS の 1 文、検証方針と分割クラス、テストの注釈（`@covers REQ-nnn#class`）の意味は変えない。
 - 読み方は `tools/_shared/reqs.mjs` の 1 か所に置く。spec-lint、trace-check、gate-hook は、小節から組み立てた REQ の文書（これまでの `REQ-nnn.md` と同じ形）に対して、これまでと同じ検査を行う。UC 自身の検査は、「要件」の節を除いた部分に対して行う。
-- gate-hook は、`UC.md` への書き込みで、REQ の状態を下げる変更と、`active` な REQ の小節を消す変更に、人間の承認を求める（これまで `REQ-nnn.md` への書き込みで行っていた確認と同じ）。
-- `REQ-nnn.md` が残っていれば違反にする。移すスクリプト `harness migrate reqs`（`tools/docs-migrate/merge-reqs.mjs`）を用意する。スクリプトは、移した小節を読み戻して元と同じ中身になることを確かめ、合わないものが 1 つでもあれば何も書き換えない。
+- gate-hook は、`UC.md` への書き込みで、REQ の状態を下げる変更と、`active` な REQ の小節を消す変更に、人間の承認を求める（これまで `REQ-nnn.md` への書き込みで行っていた確認と同じ）。REQ の昇格と `active` での追加は、止めずに記録する。
+- REQ の状態は、どのツールも同じ読み方で読む（小節から組み立てた文書の frontmatter として読む）。行末の案内のコメントの有無で、ツールごとに値が割れないようにする。
+- `REQ-nnn.md` が残っていれば違反にする。移すスクリプト `harness migrate reqs`（`tools/docs-migrate/merge-reqs.mjs`）を用意する。スクリプトは、移した小節を読み戻して元と同じ中身になることを確かめ、合わないものが 1 つでもあれば何も書き換えない。落とすのは、ひな形の案内の文面と一致するものだけにする。`status` の値の後ろに案内に続けて書かれた文（撤回した理由など）は、項目 `note` に移す。
 - ひな形は、`templates/develop/REQ.md` をやめ、`templates/develop/UC.md` の末尾に「要件」の節を足す。spec-lint は、UC と REQ の必須の項目を、どちらも UC のひな形から導く。
 - 契約（`contract.yaml`）は、これまでどおり別のファイルに置く。契約の実例を実行する道具が読む形式で、文章の文書に混ぜると読み方が 2 つになるため。
 - 強制の所在: `tools/docs-migrate/test/merge-reqs.test.mjs` が、節の読み方と、移す前後で中身が同じになること、移せないものがあれば書き換えないことを確かめる。spec-lint・trace-check・gate-hook のテストは、入力の REQ を「要件」の節に畳んだうえで、これまでと同じ検査が働くことを確かめる。

@@ -70,7 +70,7 @@ import { spawnSync } from "node:child_process";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope, isGlob } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
-import { reqDocsOf } from "../_shared/reqs.mjs";
+import { reqDocsOf, splitUc } from "../_shared/reqs.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
@@ -458,6 +458,8 @@ function collectDefinitions(cfg) {
 		for (const f of walk(base, [".md"])) {
 			const fm = frontmatter(f);
 			if (fm.id && ID_KIND_RE.test(fm.id)) (registry[fm.id] ||= []).push(f);
+			//  REQ は UC.md の「要件」の節の小節（ADR-0067）。同じ ID の小節が、別の UC.md や同じ UC.md に 2 つあれば重複
+			if (key === "docs.goals_dir" && basename(f) === "UC.md") for (const r of splitUc(read(f)).reqs) (registry[r.id] ||= []).push(f);
 		}
 	}
 	return registry;

@@ -23,11 +23,17 @@
 //  `# REQ-nnn` で始まる本文」を持つ 1 つの文書として検査する。ここでは、小節からその形の文書（reqDoc）を組み立てる。
 //  小節の中の見出しは 2 段浅くする（`#### 検証方針` → `## 検証方針`）。
 
+import { parseFrontmatter } from "./frontmatter.mjs";
+
 export const REQS_HEADING = "要件";
 const REQ_HEADING_RE = /^### (REQ-\d+)\s*$/;
 const ATTR_RE = /^- ([a-z_]+):\s*(.*)$/;
 //  小節の項目として書けるキー（書く順）
-export const REQ_ATTRS = ["pattern", "br", "status"];
+export const REQ_ATTRS = ["pattern", "br", "status", "note"];
+//  note は、状態についての補足（撤回した理由など）を 1 行で書く任意の項目
+
+//  項目の値。行末の「 # …」は案内のコメントとして読まない（frontmatter の読み方と同じ。tools/_shared/frontmatter.mjs）
+const valueOf = (raw) => parseFrontmatter(`---\nv: ${raw}\n---\n`).data.v ?? "";
 
 //  UC.md の本文を、UC 自身の部分と REQ の小節に分ける。
 //  戻り: { ucText: 「要件」の節を見出しごと除いた UC.md, reqs: [{ id, line, attrs, body }], problems: [{ line, msg }] }
@@ -57,7 +63,8 @@ export function splitUc(text) {
 	for (let i = start + 1; i < end; i++) {
 		const line = lines[i];
 		if (/^(```|~~~)/.test(line)) inFence = !inFence;
-		const m = inFence ? null : REQ_HEADING_RE.exec(line);
+		//  小節の前の案内の HTML コメントの中は、見出しとして読まない
+		const m = inFence || (!cur && commentOpen) ? null : REQ_HEADING_RE.exec(line);
 		if (m) {
 			cur = { id: m[1], line: i + 1, attrs: [], bodyLines: [], inAttrs: true };
 			reqs.push(cur);
@@ -90,6 +97,14 @@ export function splitUc(text) {
 	}
 	//  UC 自身の部分は、「要件」の節を見出しごと除いたもの
 	const ucText = [...lines.slice(0, start), ...lines.slice(end)].join("\n");
+	//  節の外に書いた REQ の小節と、2 つ目の「要件」の節は、どの検査にも掛からなくなるので問題にする
+	inFence = false;
+	for (let i = 0; i < lines.length; i++) {
+		if (/^(```|~~~)/.test(lines[i])) inFence = !inFence;
+		if (inFence || (i >= start && i < end)) continue;
+		if (REQ_HEADING_RE.test(lines[i])) problems.push({ line: i + 1, msg: `${lines[i].trim()} が「${REQS_HEADING}」の節の外にある（REQ の小節は「## ${REQS_HEADING}」の節の中に書く）` });
+		else if (new RegExp(`^## ${REQS_HEADING}\\s*$`).test(lines[i])) problems.push({ line: i + 1, msg: `「## ${REQS_HEADING}」の節が 2 つある（1 つにまとめる）` });
+	}
 	return {
 		ucText,
 		hasSection: true,
@@ -140,30 +155,47 @@ export function reqDocsOf(ucPath, ucText, ucId) {
 			continue;
 		}
 		seen.add(r.id);
-		docs.push({ id: r.id, label: `${ucPath}#${r.id}`, line: r.line, text: reqDocText(r, ucId), status: new Map(r.attrs).get("status") ?? null });
+		//  status は、検査ツールが文書から読む値と同じ読み方で読む（行末の案内のコメントや引用符で、ツールごとに値が割れないように）
+		const text = reqDocText(r, ucId);
+		docs.push({ id: r.id, label: `${ucPath}#${r.id}`, line: r.line, text, status: parseFrontmatter(text).data.status || null });
 	}
 	return { ucText: s.ucText, problems: s.problems, hasSection: s.hasSection, docs };
 }
 
 //  1 つの REQ の文書（これまでの REQ-nnn.md の形）から、UC.md に書く小節を作る。
-//  意味を変えない変換だけを行う: frontmatter の id / uc と `# REQ-nnn` の題は小節の見出しと置き場で表し、
-//  status の値の後ろの案内のコメントと、ひな形の案内の HTML コメント（guidance に渡した書き出しで始まるもの）は落とす。
-//  戻り: { id, section } または { error }
-export function sectionFromReqDoc(text, { guidance = [] } = {}) {
+//  意味を変えない変換だけを行う: frontmatter の id / uc と `# REQ-nnn` の題は小節の見出しと置き場で表す。
+//  落とすのは、ひな形の案内だけ:
+//    - status の値の後ろのコメントのうち、statusGuidance に渡した書き出し（案内の文面）に当たる部分
+//    - 本文の HTML コメントのうち、guidance に渡した書き出しで始まるもの
+//  status の後ろに案内のほかに書かれた文（撤回した理由など）は、項目 note に移す。ほかの項目の行末のコメントは移せない。
+//  戻り: { id, uc, section } または { error }
+export function sectionFromReqDoc(text, { guidance = [], statusGuidance = [] } = {}) {
 	const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(text);
 	if (!m) return { error: "frontmatter が無い" };
 	const fm = [];
+	let note = null;
 	for (const line of m[1].split(/\r?\n/)) {
 		if (!line.trim()) continue;
 		const kv = /^([a-z_]+):\s*(.*)$/.exec(line);
 		if (!kv) return { error: `frontmatter の行を読めない: ${line}` };
-		fm.push([kv[1], kv[2].replace(/\s+#.*$/, "").trim()]);
+		const c = /^(.*?)\s+#\s*(.*)$/.exec(kv[2]);
+		if (!c) {
+			fm.push([kv[1], kv[2].trim()]);
+			continue;
+		}
+		if (kv[1] !== "status") return { error: `${kv[1]} の行末にコメントがある（小節に移せない。コメントを消すか、本文に移してから実行する）: ${line}` };
+		fm.push([kv[1], c[1].trim()]);
+		const g = statusGuidance.find((x) => c[2].startsWith(x));
+		const rest = (g === undefined ? c[2] : c[2].slice(g.length)).replace(/^[\s。．.、,]+/, "").trim();
+		if (rest) note = rest;
 	}
 	const get = (k) => fm.find(([x]) => x === k)?.[1];
 	const id = get("id");
 	if (!id || !/^REQ-\d+$/.test(id)) return { error: "id が REQ-nnn でない" };
 	const unknown = fm.map(([k]) => k).filter((k) => k !== "id" && k !== "uc" && !REQ_ATTRS.includes(k));
 	if (unknown.length) return { error: `小節に移せない項目がある: ${unknown.join(", ")}` };
+	if (note !== null && get("note") !== undefined) return { error: "status の行末の文と note の両方がある" };
+	if (note !== null) fm.push(["note", note]);
 
 	let body = m[2];
 	const norm = (s) => s.replace(/\s+/g, " ").trim();
@@ -177,7 +209,7 @@ export function sectionFromReqDoc(text, { guidance = [] } = {}) {
 		.replace(/\s+$/, "");
 	if (/^#{1,3} /m.test(stripFences(body))) return { error: "本文に、小節より浅い見出しが残る（# / ## / ###）" };
 	const attrs = REQ_ATTRS.filter((k) => get(k) !== undefined && get(k) !== "").map((k) => `- ${k}: ${get(k)}`);
-	return { id, uc: get("uc") ?? null, section: `### ${id}\n\n${attrs.join("\n")}\n\n${body}\n` };
+	return { id, uc: get("uc") ?? null, note, section: `### ${id}\n\n${attrs.join("\n")}\n\n${body}\n` };
 }
 
 function stripFences(body) {

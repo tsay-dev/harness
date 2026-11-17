@@ -105,9 +105,55 @@ test("節の読み方: 小節の外の行、REQ でない小節、書けない�
 });
 
 test("1 つの REQ の文書を小節に直す: 落とすのは決めたものだけ", () => {
-	const r = sectionFromReqDoc(req("REQ-003").replace("- **参照先**", "<!-- これは案内ではない独自のコメント -->\n- **参照先**"), { guidance: ["要件作成者ではなくテスト設計者が所有する"] });
+	const r = sectionFromReqDoc(req("REQ-003").replace("- **参照先**", "<!-- これは案内ではない独自のコメント -->\n- **参照先**"), { guidance: ["要件作成者ではなくテスト設計者が所有する"], statusGuidance: ["draft | active | withdrawn（active = 人間承認済み）"] });
 	assert.equal(r.id, "REQ-003");
 	assert.match(r.section, /これは案内ではない独自のコメント/);
 	assert.doesNotMatch(r.section, /要件作成者ではなく/);
 	assert.doesNotMatch(r.section, /人間承認済み/); //  status の後ろの案内
+});
+
+test("status の後ろに、案内に続けて人が書いた文（撤回した理由など）は、落とさずに項目 note に移す", () => {
+	const why = "フォローリクエストを廃止した（ADR-0064）ので撤回した";
+	const d = project({
+		[`${DIR}/UC.md`]: UC,
+		[`${DIR}/REQ-001.md`]: req("REQ-001", { status: `withdrawn       # draft | active | withdrawn（active = 人間承認済み）。${why}` }),
+		[`${DIR}/REQ-002.md`]: req("REQ-002", { status: "withdrawn  # REQ-205 に統合した" }),
+		[`${DIR}/REQ-003.md`]: req("REQ-003", { status: "active   # draft | active | withdrawn (active = approved by a human)" }),
+	});
+	const r = run(d, ["--write"]);
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.match(r.stdout, /note に移したもの 2 件/);
+	const text = readFileSync(join(d, DIR, "UC.md"), "utf8");
+	assert.match(text, new RegExp(`### REQ-001\\n\\n- pattern: Event-driven\\n- br: BR-016\\n- status: withdrawn\\n- note: ${why.replace(/[()（）]/g, "\\$&")}\\n`));
+	assert.match(text, /### REQ-002\n\n- pattern: Event-driven\n- br: BR-016\n- status: withdrawn\n- note: REQ-205 に統合した\n/);
+	assert.match(text, /### REQ-003\n\n- pattern: Event-driven\n- br: BR-016\n- status: active\n\n>/); //  案内だけなら note は付かない
+	assert.deepEqual(reqDocsOf("UC.md", text, "UC-001").docs.map((x) => x.status), ["withdrawn", "withdrawn", "active"]);
+});
+
+test("status 以外の項目の行末にコメントがあれば、黙って落とさずに失敗する", () => {
+	const d = project({ [`${DIR}/UC.md`]: UC, [`${DIR}/REQ-001.md`]: req("REQ-001").replace("br: BR-016", "br: BR-016   # 見直し中") });
+	const r = run(d, ["--write"]);
+	assert.equal(r.status, 1);
+	assert.match(r.stdout, /br の行末にコメントがある/);
+});
+
+test("節の読み方: status は、行末の案内のコメントや引用符があっても、検査ツールと同じ値に読む", () => {
+	const uc = (line) => `---\nid: UC-001\n---\n\n# UC-001\n\n## 要件\n\n### REQ-001\n\n- pattern: Ubiquitous\n${line}\n\n> x\n`;
+	const status = (line) => reqDocsOf("UC.md", uc(line), "UC-001").docs[0].status;
+	assert.equal(status("- status: draft          # draft | active | withdrawn（active = 人間承認済み）"), "draft");
+	assert.equal(status("- status: active   # 承認済み"), "active");
+	//  引用符つきの値は、検査ツール（frontmatter の読み方）も引用符ごと読み、語彙の外として違反にする。ここでも同じ値にする
+	assert.equal(status('- status: "active"'), '"active"');
+	assert.equal(status("- status: active"), "active");
+});
+
+test("節の読み方: 節の外に書いた REQ の小節と、2 つ目の「要件」の節は問題にする", () => {
+	const head = "---\nid: UC-001\n---\n\n# UC-001\n\n";
+	const msgs = (body) => reqDocsOf("UC.md", head + body, "UC-001").problems.map((p) => p.msg).join("\n");
+	assert.match(msgs("## 概要\n\n### REQ-777\n\n- status: active\n\n> x\n\n## 要件\n\n### REQ-001\n\n- status: active\n\n> y\n"), /### REQ-777 が「要件」の節の外にある/);
+	assert.match(msgs("## 要件\n\n### REQ-001\n\n- status: active\n\n> y\n\n## メモ\n\n### REQ-002\n\n- status: draft\n\n> z\n"), /### REQ-002 が「要件」の節の外にある/);
+	assert.match(msgs("## 要件\n\n### REQ-001\n\n- status: active\n\n> y\n\n## 要件\n\n### REQ-002\n\n- status: draft\n\n> z\n"), /「## 要件」の節が 2 つある/);
+	//  コードの囲みの中と、小節の前の案内のコメントの中の見出しは、小節として読まない
+	assert.equal(msgs("## 概要\n\n```\n### REQ-777\n```\n\n## 要件\n\n<!--\n### REQ-000 のように書く\n-->\n\n### REQ-001\n\n- status: active\n\n> y\n"), "");
+	assert.deepEqual(reqDocsOf("UC.md", head + "## 要件\n\n<!--\n### REQ-000\n-->\n\n### REQ-001\n\n- status: active\n\n> y\n", "UC-001").docs.map((d) => d.id), ["REQ-001"]);
 });

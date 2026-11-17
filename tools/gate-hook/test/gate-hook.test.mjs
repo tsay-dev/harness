@@ -353,6 +353,27 @@ test("gate-hook: REQ は UC.md の「要件」の節から読む。draft の REQ
 	assert.match(ask(down).permissionDecisionReason, /REQ-002 の status/);
 	const removed = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"]]) });
 	assert.equal(ask(removed)?.permissionDecision, "ask");
+	//  ひな形どおりに、status の後ろに案内のコメントがあっても、同じ値に読む（読み方がツールごとに割れない）
+	const commented = (reqs) => ucDoc(reqs).replace(/- status: (\w+)/g, "- status: $1          # draft | active | withdrawn（active = 人間承認済み）");
+	write(`${dir}/UC.md`, commented([["REQ-001", "active"], ["REQ-002", "draft"]]));
+	const blocked2 = hook({ file_path: "src/a.ts", content: "x" });
+	assert.equal(blocked2.status, 2, blocked2.stdout);
+	assert.match(blocked2.stderr, /draft の REQ がある（REQ-002）/);
+	write(`${dir}/UC.md`, commented([["REQ-001", "active"], ["REQ-002", "active"]]));
+	const down2 = hook({ file_path: `${dir}/UC.md`, content: commented([["REQ-001", "active"], ["REQ-002", "draft"]]) });
+	assert.equal(ask(down2)?.permissionDecision, "ask", down2.stdout + down2.stderr);
+	//  コメントを足すだけの書き込みは、降格ではない
+	const addComment = hook({ file_path: `${dir}/UC.md`, content: commented([["REQ-001", "active"], ["REQ-002", "active"]]).replace("人間承認済み）", "人間承認済み）。補足") });
+	assert.equal(ask(addComment), null);
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
+	//  REQ の昇格と、active での追加は、止めずに記録する（status-up）
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "draft"]]));
+	const up = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]) });
+	assert.equal(up.status, 0);
+	assert.equal(ask(up), null);
+	const logged = readFileSync(join(root, ".harness-gate", "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).at(-1);
+	assert.deepEqual([logged.decision, logged.reason], ["pass", "status-up"]);
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
 	//  status が変わらない書き込みは、そのまま通す
 	const same = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]).replace("> 1 文", "> 1 文（直し）") });
 	assert.equal(same.status, 0);

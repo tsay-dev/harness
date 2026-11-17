@@ -409,3 +409,14 @@ test("C26: 宣言した共有語彙・用語集のファイルが無ければ違
 	assert.equal(r.status, 2, r.stdout + r.stderr);
 	assert.match(r.stderr, /contract\.exclude_codes は廃止した/);
 });
+
+test("C12: REQ の ID が 2 つの UC の「要件」の節に重複していれば違反（ADR-0067）", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const dup = join(root, "docs/goals/GOAL-01-register/UC-002-browse/REQ-001.md");
+	const first = join(root, "docs/goals/GOAL-01-register/UC-001-register/REQ-001.md");
+	writeFileSync(dup, readFileSync(first, "utf8").replace("uc: UC-001", "uc: UC-002"));
+	const r = run(root, "--only", "C12");
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	assert.match(r.stdout, /\[C12\].*REQ-001/);
+});

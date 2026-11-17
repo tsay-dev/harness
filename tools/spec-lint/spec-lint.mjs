@@ -431,7 +431,6 @@ function validateReq(file, ucDirId) {
 	checkRequiredFm(file, data, fmt.required);
 	const status = checkStatus(file, data.status, NODE_STATUS);
 	if (data.pattern && !EARS_PATTERNS.includes(data.pattern)) err(file, `pattern は ${EARS_PATTERNS.join(" | ")} のいずれか。実際: "${data.pattern}"（R-402）`);
-	if (data.uc && ucDirId && data.uc !== ucDirId) err(file, `uc "${data.uc}" が配置ディレクトリの UC "${ucDirId}" と不一致（R-1007）`);
 	if (data.br && !/^BR-\d+(\s*,\s*BR-\d+)*$/.test(data.br)) err(file, `br は BR-nnn（複数はカンマ区切り）。実際: "${data.br}"`);
 
 	//  EARS 文: 検証方針の前に blockquote 段落がちょうど 1 つ（R-401: 1 要件 1 文）

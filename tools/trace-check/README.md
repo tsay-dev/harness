@@ -179,7 +179,7 @@ active な REQ がある間、`source.dirs` の全ファイルは `source.unit_d
 | C6 | 層が禁止された層を import する（設定の `layering`。`layer_pattern` が層のパス階層を指定し、`{layer}` = `root` 配下の第一階層、`*/{layer}` = 第二階層、例: `Features/<name>/Domain`）。C6 は `import_patterns` だけを見る。同じモジュールに層があり互いに import しない言語（単一モジュール Swift アプリ）では一致対象がなく、正常な C6 は沈黙であり証明ではない。代わりにプラットフォーム linter で方向を保証し、`layering` は省略する | R-702 |
 | C7 | 実装のエラーコード（`contract.error_source` の `error_code_pattern` の一致）が `docs.shared` の `errorCodes` の部分集合ではない | R-703 |
 | C8 | `active` GOAL を実現する UC がない | — |
-| C9 | 配置と frontmatter が不一致: ディレクトリ接頭辞 ≠ `id`、`GOAL.md` / `UC.md` 欠落、REQ ファイル名 ≠ `id`、REQ が自身の `uc:` 直下にない、UC の `goal:` ≠ そのディレクトリ。goals 配下で検査の対象にならない文書（`_shared` 以外の `_` ディレクトリ、`id` を持つのに配置に無い md）も違反 | R-1006 / R-1007 |
+| C9 | 配置と frontmatter が不一致: ディレクトリ接頭辞 ≠ `id`、`GOAL.md` / `UC.md` 欠落、`REQ-nnn.md` が残っている（REQ は `UC.md` の「要件」の節に書く。ADR-0067）、「要件」の節の書き方の誤り（節の外の `### REQ-nnn`、節が 2 つ、書けない項目）、UC の `goal:` ≠ そのディレクトリ。goals 配下で検査の対象にならない文書（`_shared` 以外の `_` ディレクトリ、`id` を持つのに配置に無い md）も違反 | R-1006 / R-1007 |
 | C10 | 宣言された分割クラスに保留でないテストがない、または `active` REQ がクラスを一つも宣言しない（下限） | R-1101 / R-1104 |
 | C11 | テストがクラスを指定しない、または未宣言のクラスを指定する（生成テストの上限）。`tests.test_pattern` に一致する `tests.dirs` の全テストに窓の `@covers` を求め、REQ の `@covers` が 2 つ以上のテストと、どのテストにも属さない `@covers` も違反。仕様を持たないテスト（技術部品の自己検査）は `tests.dirs` の外に置く（ADR-0055） | R-1102 / R-1103 |
 | C12 | 同じ ID が複数ファイルで定義される（採番衝突） | R-204 |

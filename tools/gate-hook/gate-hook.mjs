@@ -213,6 +213,12 @@ function classifyStatusChange(abs, rel, input) {
 		for (const [id, st] of was) {
 			if (HIGH.has(st) && !HIGH.has(now.get(id) ?? null)) return { kind: "down", from: st, to: now.get(id) ?? null, field: `${id} の status`, isNew: false };
 		}
+		//  UC 自身の status が変わらない書き込みで、REQ が義務を生む値になった（昇格・active での追加）ら、記録して通す
+		if (from === to) {
+			for (const [id, st] of now) {
+				if (HIGH.has(st) && !HIGH.has(was.get(id) ?? null)) return { kind: "up", from: was.get(id) ?? null, to: st, field: `${id} の status`, isNew: false };
+			}
+		}
 	}
 	if (exists && from === to) return null;
 	if (!exists && to === null) return null; //  status を持たない新規ファイル（メモ等）

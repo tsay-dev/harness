@@ -8,7 +8,8 @@
 //  行うこと（UC のディレクトリごと）:
 //    1. REQ-nnn.md を番号の順に読み、1 つずつ小節（### REQ-nnn・項目の並び・本文）に直す。
 //       frontmatter の id と uc、本文の `# REQ-nnn` の題は、小節の見出しと置き場が表すので書かない。
-//       status の値の後ろの案内のコメントと、検証方針の下のひな形の案内の HTML コメントは落とす。ほかは 1 文字も変えない
+//       落とすのは、ひな形の案内だけ（status の値の後ろの案内の文面と、検証方針の下の案内の HTML コメント）。
+//       status の後ろに案内に続けて書かれた文（撤回した理由など）は、項目 note に移す。ほかは 1 文字も変えない
 //    2. 直した小節を検査ツールと同じ読み方で読み戻し、元のファイルと同じ中身になることを確かめる（合わなければ何も書かない）
 //    3. UC.md の末尾に `## 要件` の節を足し、REQ-nnn.md を消す（--write のときだけ）
 //  移せないもの（uc が置き場の UC と違う、小節に書けない項目がある、UC.md にすでに「要件」の節がある、など）が
@@ -27,6 +28,8 @@ import { REQS_HEADING, reqDocsOf, sectionFromReqDoc } from "../_shared/reqs.mjs"
 const TAG = "[merge-reqs]";
 //  検証方針の下に置かれていた、ひな形の案内のコメントの書き出し（日本語のひな形と、その前の英語のひな形）
 const GUIDANCE = ["要件作成者ではなくテスト設計者が所有する", "Owned by the test designer, not by the requirement"];
+//  status の値の後ろに置かれていた、ひな形の案内の文面（長いものから照らす）。これに続けて書かれた文は、項目 note に移す
+const STATUS_GUIDANCE = ["draft | active | withdrawn（active = 人間承認済み）", "draft | active | withdrawn (active = approved by a human)", "draft | active | withdrawn"];
 
 function usage(msg) {
 	if (msg) console.error(`${TAG} ${msg}`);
@@ -63,7 +66,6 @@ function comparable(text) {
 	const norm = (s) => s.replace(/\s+/g, " ").trim();
 	return text
 		.replace(/\r\n/g, "\n")
-		.replace(/^(status:\s*\S+)\s+#.*$/m, "$1")
 		.replace(/<!--([\s\S]*?)-->\n?/g, (all, inner) => (GUIDANCE.some((g) => norm(inner).startsWith(g)) ? "" : all))
 		.split("\n")
 		.map((l) => l.replace(/\s+$/, ""))
@@ -75,7 +77,19 @@ function comparable(text) {
 function comparableDoc(text) {
 	const m = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text.replace(/\r\n/g, "\n"));
 	if (!m) return comparable(text);
-	const fm = m[1].split("\n").filter((l) => l.trim()).map((l) => l.replace(/\s+#.*$/, "").replace(/:\s*/, ": ").trim()).sort().join("\n");
+	//  status の行末は、案内の文面を除き、続けて書かれた文を note の行として数える（移した後の項目 note と比べる）
+	const fm = m[1]
+		.split("\n")
+		.filter((l) => l.trim())
+		.flatMap((l) => {
+			const c = /^(status):\s*(.*?)\s+#\s*(.*)$/.exec(l);
+			if (!c) return [l.replace(/:\s*/, ": ").trim()];
+			const g = STATUS_GUIDANCE.find((x) => c[3].startsWith(x));
+			const rest = (g === undefined ? c[3] : c[3].slice(g.length)).replace(/^[\s。．.、,]+/, "").trim();
+			return rest ? [`status: ${c[2]}`, `note: ${rest}`] : [`status: ${c[2]}`];
+		})
+		.sort()
+		.join("\n");
 	return `${fm}\n---\n${comparable(m[2])}`;
 }
 
@@ -89,6 +103,7 @@ function main() {
 	}
 	const errs = [];
 	const plans = [];
+	let notes = 0;
 	for (const g of dirs(goals)) {
 		for (const u of dirs(join(goals, g))) {
 			const udir = join(goals, g, u);
@@ -115,13 +130,14 @@ function main() {
 			for (const n of reqFiles) {
 				const f = join(udir, n);
 				const text = readFileSync(f, "utf8");
-				const r = sectionFromReqDoc(text, { guidance: GUIDANCE });
+				const r = sectionFromReqDoc(text, { guidance: GUIDANCE, statusGuidance: STATUS_GUIDANCE });
 				if (r.error) {
 					errs.push(`${rel(f)}: ${r.error}`);
 					continue;
 				}
 				if (r.id !== n.replace(/\.md$/, "")) errs.push(`${rel(f)}: id（${r.id}）がファイル名と違う`);
 				if (r.uc !== ucId) errs.push(`${rel(f)}: uc（${r.uc}）が置き場の UC（${ucId}）と違う`);
+				if (r.note) notes += 1;
 				sections.push(r.section);
 				originals.set(r.id, { file: f, text });
 			}
@@ -148,14 +164,14 @@ function main() {
 	const total = plans.reduce((n, p) => n + p.count, 0);
 	if (!opts.write) {
 		for (const p of plans) console.log(`  ${relative(root, p.ucFile)}: REQ ${p.count} 件を「${REQS_HEADING}」の節へ`);
-		console.log(`${TAG} 移せる: UC ${plans.length} 件、REQ ${total} 件（--write で書き換える）`);
+		console.log(`${TAG} 移せる: UC ${plans.length} 件、REQ ${total} 件（status の後ろの文を note に移すもの ${notes} 件。--write で書き換える）`);
 		return 0;
 	}
 	for (const p of plans) {
 		writeFileSync(p.ucFile, p.merged);
 		for (const f of p.files) rmSync(f);
 	}
-	console.log(`${TAG} 移した: UC ${plans.length} 件、REQ ${total} 件（REQ-nnn.md は消した）`);
+	console.log(`${TAG} 移した: UC ${plans.length} 件、REQ ${total} 件（status の後ろの文を note に移したもの ${notes} 件。REQ-nnn.md は消した）`);
 	return 0;
 }
 
