@@ -1,7 +1,7 @@
 ---
 id: ADR-0065
 title: 完了の判定を Stop フックと CI で同じ検査の並びにし、どこまで実行するかを level で選ぶ
-status: proposed
+status: accepted
 date: 2026-11-17
 ---
 
