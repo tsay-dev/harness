@@ -26,7 +26,7 @@ rl.on("line", (line) => {
 	const req = JSON.parse(line);
 	appendFileSync("adapter-seen.jsonl", line + "\\n");
 	if (table.crash !== undefined) { console.error("boom"); process.exit(table.crash); }
-	if (table.hang) { setInterval(() => {}, 1000); return; }
+	if (table.hang) { setInterval(() => appendFileSync("adapter-alive.log", "."), 50); return; }
 	if (table.silent) return;
 	if (table.garbage) { process.stdout.write("not json\\n"); return; }
 	const r = req.request ?? {};
@@ -208,6 +208,12 @@ test("応答が来ないまま生き続ければ --timeout で exit 2", (t) => {
 	const r = run(root, "--timeout", "1");
 	assert.equal(r.status, 2);
 	assert.match(r.stderr, /タイムアウト（1 秒）/);
+	//  シェルの子として動いていたアダプタも止まっている（シェルだけを止めると残り、contract-run が終わらなくなる）。
+	//  止まったプロセスが回収されるまで pid は残りうるので、生存は「動き続けているか」で見る
+	const alive = () => readFileSync(join(root, "adapter-alive.log"), "utf8").length;
+	const before = alive();
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+	assert.equal(alive(), before, "タイムアウトの後もアダプタが動き続けている");
 });
 
 test("応答を返さずに終了すれば未応答の id を挙げて exit 2", (t) => {

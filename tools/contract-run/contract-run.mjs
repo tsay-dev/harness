@@ -207,12 +207,29 @@ function runAdapter(cmd, root, requests, timeoutSec) {
 		let error = null;
 		let done = false;
 		const known = new Set(requests.map((r) => r.id));
-		const child = spawn(cmd, { cwd: root, shell: true, stdio: ["pipe", "pipe", "pipe"] });
+		//  shell 経由なので、child はシェルで、アダプタはその子になることがある（dash は fork する）。
+		//  シェルだけを止めるとアダプタが残り、パイプが閉じずに close が来ない。プロセスグループごと止める
+		const posix = process.platform !== "win32";
+		const child = spawn(cmd, { cwd: root, shell: true, stdio: ["pipe", "pipe", "pipe"], detached: posix });
+		const killTree = () => {
+			try {
+				if (posix && child.pid) process.kill(-child.pid, "SIGKILL");
+				else child.kill("SIGKILL");
+			} catch {
+				child.kill("SIGKILL");
+			}
+		};
+		//  グループを分けたので、こちらが先に終わるときはアダプタを残さない
+		const onExit = () => {
+			if (!done) killTree();
+		};
+		process.once("exit", onExit);
 
 		const finish = (code, signal) => {
 			if (done) return;
 			done = true;
 			clearTimeout(timer);
+			process.removeListener("exit", onExit);
 			if (!error && code !== 0) error = `アダプタが異常終了した（exit ${code ?? signal}）`;
 			if (!error) {
 				const missing = requests.filter((r) => !replies.has(r.id));
@@ -227,7 +244,7 @@ function runAdapter(cmd, root, requests, timeoutSec) {
 		const abort = (msg) => {
 			if (error) return;
 			error = msg;
-			child.kill("SIGKILL");
+			killTree();
 		};
 		const timer = setTimeout(() => abort(`タイムアウト（${timeoutSec} 秒）`), timeoutSec * 1000);
 
