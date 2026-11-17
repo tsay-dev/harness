@@ -59,6 +59,7 @@ if (!paths.every(path => matchesAny(path, patterns))) process.exit(1);
             self.assertTrue((package / 'apm.yml').is_file())
             self.assertFalse((package / 'tools').exists())
             self.assertFalse((package / 'templates').exists())
+            self.assertFalse((package / 'bin').exists())
             for source in package.rglob('*.md'):
                 text = source.read_text()
                 if source.name.endswith('.instructions.md'):

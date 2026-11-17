@@ -1,6 +1,6 @@
 # CLAUDE.md — harness 自体の開発ガイド
 
-このリポジトリは、プロバイダーに依存しない agent の skill、agent、instruction のソースであり、独立して選択できる APM パッケージとして配布する。正本は `packages/`、実行可能な資産は `tools/`、文書形式は `templates/` にある。`.claude/` は `.agents/`、`.codex/`、`.cursor/`、`.grok/` と同じく生成物。
+このリポジトリは、プロバイダーに依存しない agent の skill、agent、instruction のソースであり、独立して選択できる APM パッケージとして配布する。正本は `packages/`、実行可能な資産は `tools/` と入口の `bin/`、文書形式は `templates/` にある。`.claude/` は `.agents/`、`.codex/`、`.cursor/`、`.grok/` と同じく生成物。
 
 思想とパッケージ選択は [`README.md`](./README.md)、APM の契約、移行、検証は [`docs/apm.md`](./docs/apm.md) を読む。このファイルは harness 自体を変更するときの作業指針。
 
@@ -17,7 +17,7 @@
 - **ホスト固有の事実をここに追加しない。** 共有 harness は汎用的な手順と規則を持つ。案件のスタック、アドレス、コマンド、例外はそのホストの `AGENTS.md` または `CLAUDE.md` に書く。
 - **知識を重複させない。** 文書形式の正本は `templates/` の一か所に置き、spec-lint が必須項目をそこから導出する。作業技法は agent 本文に置く。ただし、入力が orchestrator 自身の判断だけで、自身が実行する副作用（commit、ADR）のガードレールと書式、ルール末端ファイルの配送契約は、その skill の `references/*.md` に置く。プロンプトが持つのは到達状態、不変条件、入出力契約と、機械が検査せずモデルが自力で到達しない知識だけで、手順の順序・回数、機械が検査する事項の再説明、重複表、チェックリストは置かない（ADR-0044）。ファイル種別ごとの行数上限は `tools/apm/test_projection.py` が固定し、縮む方向にだけ動かす。コピーはしない。agent 本文を移したら元は削除する。
 - **厳守事項と柔軟な事項を分ける。** 絶対に破れない事項（3 つの人間ゲート、producer ≠ judge、終端チェックリスト、閉じた語彙）は hook と lint で強制する。そこへ至る方法（順序、深さ、起動順序）は orchestrator が決め、skill に手順として書かない。手順を追加する前に機械チェックを追加する。agent は別コンテキストが必要な場合だけ追加する（隔離、並列性、独立性。「subagent に渡すと要約によって推論を捨てることになるか？」が該当するなら手元に戻す）。
-- **実行可能な資産を APM パッケージの外に置く。** `tools/` と `templates/` は明示的に別途配置する資産であり、APM primitive ではない。
+- **実行可能な資産を APM パッケージの外に置く。** `tools/`、`bin/`、`templates/` は明示的に別途配置する資産であり、APM primitive ではない。
 
 ## 1. 基本規則
 
@@ -40,6 +40,7 @@
 | 専門 agent | `packages/<package>/.apm/agents/**/*.agent.md` | orchestrator が専門担当を起動する。 |
 | 文書のひな形 | `templates/<procedure>/` | producer が必要な形式を読む。 |
 | 実行可能な資産 / プロバイダーごとのモデルの対応表 | `tools/<name>/` | 明示的な呼び出し。 |
+| 同梱ツールの入口 | `bin/harness.mjs` | `harness <コマンド>`。名前から同梱ツールを選んで引数を渡すだけで、検査の中身は持たない（ADR-0063）。 |
 | パッケージ manifest | `packages/<package>/apm.yml` | APM が選択したパッケージを解決する。 |
 
 `.apm/` を、APM が探索できない独自の構成に平坦化しない。manifest フィールドや primitive メタデータを変更する前に公式スキーマを確認する。検証済みのバージョンと出典は `docs/apm.md` を参照する。
@@ -99,6 +100,7 @@ applyTo: "**/crow3_*/app/classes/**"
 | contract-run | 契約例を実行する経路は `traceconfig.json` の `commands.contract_adapter` だけ。実行する実例があるのにアダプターが無ければ失敗にし、`skip` 応答も失敗に数える（ADR-0056）。baseline ファイルは置かない。 |
 | gate-hook / stop-gate | ホスト設定で明示的に有効化し、自動注入しない。PreToolUse は `UC.md` から phase を読む。`.harness-gate/` の書き込みを阻止し、`traceconfig.json`・`.harness/`・hook の設定・`.github/workflows/` の書き込みと、docs の status の降格、`UC.md` の `active` と契約の `fixed` への昇格に人間の承認を求める（ADR-0057）。Stop は traceconfig だけから（推測せずに。traceconfig が無ければ失敗）spec-lint → trace-check → contract-run → `commands.typecheck` / `lint` / `test` → `commands.system`（シナリオスイート。`test` が Green になった後に最後に実行）の順で動かし、`commands` の 4 キーは宣言か理由付きの none を必須にする。monorepo は unit ごとに検査する。ツリー（未追跡ファイル、traceconfig、ツールを含む）が変わらなければ省略し、`stop_hook_active` の場合は `--max-rounds` で解除して利用者に表示する。判定中の例外は fail-closed。両方とも拒否ログに追記する。 |
 | git-lint | 判断不要の事項だけを決める: ブランチ名の形式、prefix、topic、コミットヘッダーの `type`、末尾のピリオド、monorepo の `scope`。`traceconfig.json` が `git` を宣言した場所だけで実行する。未宣言のホストと除外ブランチは「未検査」と報告し、合格とはしない。`type` の一覧は `commit.md` の表と一致させる（テストで固定）。baseline はなく、パスや差分の規則も持たない。 |
+| 入口（`bin/harness.mjs`） | 名前と行き先の対応は `bin/harness.mjs` の表が正本。ツールや役目を足したら表にも足し、`bin/test/harness.test.mjs` の行き先の一覧と合わせる。入口に検査や引数の解釈を書かない。 |
 | インストール / 文書 | コマンドが実際の help と一致する。新規インストールと既存ホストの移行を区別する。旧方式の利用プロジェクトは `docs/apm.md` の移行手順で APM へ移る（ADR-0062）。 |
 
 品質の軸は、パッケージの隔離、参照の整合性、常駐ゼロ、プロセスの意味の維持。委譲やモデル選択を評価するとき、パッケージングの検証は実際のプロバイダーセッションの代わりにはならない。
