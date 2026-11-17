@@ -7,7 +7,7 @@
 //
 //  前提の構成（rules/develop/docs.md §10–11）:
 //    docs/goals/<GOAL-nn-slug>/GOAL.md
-//                             └ <UC-nnn-slug>/UC.md + REQ-*.md + contract.yaml（縦は互いに素）
+//                             └ <UC-nnn-slug>/UC.md（REQ は「要件」の節の小節）+ contract.yaml（縦は互いに素）
 //    docs/rules/BR-*.md  docs/nfr/NFR-*.md  docs/adr/ADR-*.md（横は中央）
 //    所属の SSOT は frontmatter。パスは配置であり、両者の整合を C9 が検査する。
 //    各 REQ の「## 検証方針」は分割クラス `#name` を宣言する（下限 C10 / 上限 C11）。
@@ -70,6 +70,7 @@ import { spawnSync } from "node:child_process";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope, isGlob } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
+import { reqDocsOf } from "../_shared/reqs.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
@@ -91,6 +92,8 @@ const read = (p) => readFileSync(p, "utf8");
 
 //  frontmatter は tools/_shared/frontmatter.mjs が唯一の読み方（spec-lint / gate-hook と同じ。曖昧な書き方は spec-lint が違反にする）
 const frontmatter = (path) => parseFrontmatter(read(path)).data;
+//  UC・REQ の文面。UC は「要件」の節を除いた UC 自身の部分、REQ は自分の小節だけ（同じ UC.md に書かれた別の REQ の文面を混ぜない）
+const textOf = (doc) => doc.text ?? read(doc.file);
 
 function listDirs(dir) {
 	if (!existsSync(dir)) return [];
@@ -411,17 +414,21 @@ class Corpus {
 				const uid = ufm.id || dirUc;
 				this.ucs[uid] = { goal: ufm.goal, actor: ufm.actor || "", status: statusOf(ufm.status, asActive), phase: ufm.phase || "", dir: udir, goalDir: gdir, file: ufile };
 
-				for (const f of listFiles(udir, (n) => /^REQ-\d+\.md$/.test(n))) {
-					known.add(f);
-					const fm = frontmatter(f);
-					const stem = basename(f, ".md");
-					const rid = fm.id || stem;
-					if (fm.id && fm.id !== stem)
-						this.pathViolations.push(`${r(f)}: frontmatter id (${fm.id}) がファイル名 (${stem}) と一致しない`);
-					const text = read(f);
+				//  REQ は UC.md の「要件」の節の小節（ADR-0067。読み方は tools/_shared/reqs.mjs）
+				const parts = reqDocsOf(ufile, read(ufile), uid);
+				this.ucs[uid].text = parts.ucText;
+				for (const p of parts.problems) this.pathViolations.push(`${r(ufile)}:${p.line}: ${p.msg}`);
+				for (const d of parts.docs) {
+					const fm = parseFrontmatter(d.text).data;
+					const text = d.text;
 					const idx = text.indexOf(POLICY_HEADING);
 					const classes = idx >= 0 ? [...text.slice(idx).matchAll(CLASS_DECL_RE)].map((x) => x[1]) : [];
-					this.reqs[rid] = { uc: fm.uc, status: statusOf(fm.status, asActive), dir: udir, goalDir: gdir, file: f, hasPolicy: idx >= 0, classes, br: fm.br || "" };
+					if (this.reqs[d.id]) this.pathViolations.push(`${r(ufile)}: ${d.id} が ${r(this.reqs[d.id].file)} にもある（REQ の ID はプロジェクトで 1 つ）`);
+					this.reqs[d.id] = { uc: fm.uc, status: statusOf(fm.status, asActive), dir: udir, goalDir: gdir, file: ufile, text, hasPolicy: idx >= 0, classes, br: fm.br || "" };
+				}
+				for (const f of listFiles(udir, (n) => /^REQ-\d+\.md$/.test(n))) {
+					known.add(f);
+					this.pathViolations.push(`${r(f)}: REQ は UC.md の「要件」の節に小節として書く（ADR-0067）。harness migrate reqs --write で移す`);
 				}
 			}
 		}
@@ -437,7 +444,7 @@ class Corpus {
 			if (known.has(f)) continue;
 			const id = frontmatter(f).id;
 			if (id)
-				this.pathViolations.push(`${r(f)}: id (${id}) を持つが GOAL.md / UC.md / REQ-nnn.md の配置に無いので検査の対象にならない（ファイル名か置き場を直す）`);
+				this.pathViolations.push(`${r(f)}: id (${id}) を持つが GOAL.md / UC.md の配置に無いので検査の対象にならない（ファイル名か置き場を直す）`);
 		}
 	}
 }
@@ -823,7 +830,7 @@ function visionKpis(cfg) {
 const isPlaceholder = (id) => /-0+$/.test(id);
 const stripHtmlComments = (text) => text.replace(/<!--[\s\S]*?-->/g, "");
 const idsIn = (text, re) => [...new Set([...stripHtmlComments(text).matchAll(re)].map((m) => m[0]))].filter((id) => !isPlaceholder(id)).sort();
-const referencedIds = (file, re) => idsIn(read(file), re);
+const referencedIds = (doc, re) => idsIn(textOf(doc), re);
 
 //  UC の表の節（状態 × イベント表、例外系の走査）だけを返す。他の節（主シナリオなど）の REQ ID は表のセルではない
 //  節の見つけ方は spec-lint と同じ（見出しが「状態」「例外系」で始まる ## 節）
@@ -1045,7 +1052,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 	const uncovered = (t, head, none) => (t?.pending.length ? `${head}は${pendingHint(t.pending)}` : `${head}が存在しない${none}`);
 
 	const referencedBrs = new Set();
-	for (const d of [...Object.values(corpus.reqs), ...Object.values(corpus.ucs)]) for (const m of read(d.file).matchAll(brRe)) referencedBrs.add(m[0]);
+	for (const d of [...Object.values(corpus.reqs), ...Object.values(corpus.ucs)]) for (const m of textOf(d).matchAll(brRe)) referencedBrs.add(m[0]);
 	const referencedGoals = new Set(Object.values(corpus.ucs).filter((u) => u.status !== "withdrawn").map((u) => u.goal));
 	const activeReqs = Object.keys(corpus.reqs).filter((r) => corpus.reqs[r].status === "active").sort();
 	const activeUcs = Object.keys(corpus.ucs).filter((u) => corpus.ucs[u].status === "active").sort();
@@ -1149,7 +1156,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 	//  C16: active な UC / REQ が参照する BR は定義されていて active（C4 の逆方向）
 	for (const [id, doc] of [...Object.entries(corpus.ucs), ...Object.entries(corpus.reqs)].sort(([a], [b]) => a.localeCompare(b))) {
 		if (doc.status !== "active") continue;
-		for (const br of referencedIds(doc.file, brRe))
+		for (const br of referencedIds(doc, brRe))
 			if (!(br in brs)) fail("C16", `${id} が未定義の ${br} を参照している`);
 			else if (brs[br] === "withdrawn") fail("C16", `${id} が撤回済みの ${br} を参照している`);
 			else if (brs[br] !== "active") fail("C16", `${id} (active) が ${brs[br]} の ${br} を参照している（BR を承認して active にするか、参照を外す）`);
@@ -1157,7 +1164,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 
 	//  C17: active な UC の表（状態 × イベント表と例外系の走査）とその UC の REQ が 1 対 1 に対応する（R-404）
 	for (const uid of activeUcs) {
-		const cells = idsIn(tableSections(read(corpus.ucs[uid].file)), reqRe);
+		const cells = idsIn(tableSections(textOf(corpus.ucs[uid])), reqRe);
 		for (const rid of cells) {
 			const rq = corpus.reqs[rid];
 			if (!rq) fail("C17", `${uid} の表が未定義の ${rid} を指している（予約した REQ を作るか、セルを直す）`);
@@ -1304,7 +1311,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 	if (glossary && !glossary.hasTable && activeUcs.length)
 		fail("C26", `docs.glossary（${cfg.docs.glossary}）に「コード識別子」の列を持つ表が無い（active な UC がある。用語集の表の列名をテンプレートに合わせる）`);
 	if (source && glossary?.length) {
-		let text = [...activeUcs.map((u) => corpus.ucs[u].file), ...activeReqs.map((r) => corpus.reqs[r].file)].map((f) => stripHtmlComments(read(f))).join("\n");
+		let text = [...activeUcs.map((u) => corpus.ucs[u]), ...activeReqs.map((r) => corpus.reqs[r])].map((d) => stripHtmlComments(textOf(d))).join("\n");
 		const used = [];
 		for (const e of [...glossary].sort((a, b) => b.term.length - a.term.length))
 			if (text.includes(e.term)) {
@@ -1461,10 +1468,11 @@ function runChecks(cfg, { asActive = false } = {}) {
 //  ---- 索引（派生物: ファイルへコミットしない） ----------------------------------------
 
 function printIndex(cfg) {
-	const firstQuote = (path) => {
-		for (const line of read(path).split(/\r?\n/)) if (line.startsWith("> ")) return line.slice(2).trim();
+	const firstQuoteOf = (text) => {
+		for (const line of text.split(/\r?\n/)) if (line.startsWith("> ")) return line.slice(2).trim();
 		return "";
 	};
+	const firstQuote = (path) => firstQuoteOf(read(path));
 	const corpus = new Corpus(cfg);
 	const out = ["# 索引（生成物 / trace-check --index。コミット禁止）"];
 	for (const goal of Object.keys(corpus.goals).sort()) {
@@ -1475,9 +1483,9 @@ function printIndex(cfg) {
 			out.push(`   ${uid}/ [${u.status}${u.phase ? ` / ${u.phase}` : ""}]  ${frontmatter(u.file).title || ""}`);
 			for (const [rid, r] of Object.entries(corpus.reqs).sort()) {
 				if (r.dir !== u.dir) continue;
-				let text = firstQuote(r.file);
+				let text = firstQuoteOf(textOf(r));
 				if (text.length > 42) text = text.slice(0, 42) + "…";
-				out.push(`     ${rid} [${frontmatter(r.file).pattern || "?"}] ${text}`, `            classes: ${r.classes.map((k) => `#${k}`).join(" ")}`);
+				out.push(`     ${rid} [${parseFrontmatter(textOf(r)).data.pattern || "?"}] ${text}`, `            classes: ${r.classes.map((k) => `#${k}`).join(" ")}`);
 			}
 		}
 	}

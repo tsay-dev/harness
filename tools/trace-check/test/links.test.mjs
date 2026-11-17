@@ -7,6 +7,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, "..", "trace-check.mjs");
@@ -52,7 +53,10 @@ function project(t, { files = {}, configure = () => {} } = {}) {
 	return root;
 }
 
-const run = (root, ...args) => spawnSync("node", [TOOL, "--root", root, ...args], { encoding: "utf8" });
+const run = (root, ...args) => {
+	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
+	return spawnSync("node", [TOOL, "--root", root, ...args], { encoding: "utf8" });
+};
 
 test("紐づきの揃った最小のプロジェクトは違反 0 件（テンプレートの harness.config.json のまま）", (t) => {
 	const r = run(project(t));

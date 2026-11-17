@@ -65,6 +65,7 @@ const ROUTES = [
 	[["guard"], "gate-hook/gate-hook.mjs", []],
 	[["next-id"], "trace-check/trace-check.mjs", ["--next"]],
 	[["index"], "trace-check/trace-check.mjs", ["--index"]],
+	[["migrate", "reqs"], "docs-migrate/merge-reqs.mjs", []],
 	[["convert"], "spec-lint/spec-lint.mjs", ["convert"]],
 ];
 

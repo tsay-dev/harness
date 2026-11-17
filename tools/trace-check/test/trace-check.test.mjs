@@ -6,6 +6,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, "..", "trace-check.mjs");
@@ -15,6 +16,7 @@ const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "harness.c
 const NONE = { none: "このテストでは扱わない" };
 
 function run(root, ...args) {
+	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
 	return spawnSync("node", [TOOL, "--root", root, ...args], { encoding: "utf8" });
 }
 

@@ -15,7 +15,7 @@
 | 受け手 | 「書くパス」 |
 | --- | --- |
 | `spec-author` | 今回書く `docs/` 配下のパス |
-| `test-author`（`backend-logic`） | 作成するテストファイルと、`## 検証方針` を書く REQ のパス |
+| `test-author`（`backend-logic`） | 作成するテストファイルと、検証方針を書く REQ（`UC.md` のパスと REQ の ID） |
 | `test-author`（`scenario`） | 作成するシナリオテストのパス（`harness.config.json` の `tests.system`） |
 | `implementer`（`logic` / `appearance` / `probe`） | 作成・編集する本番コードのパス |
 | `implementer`（`schema`） | スキーマ正本のパス |

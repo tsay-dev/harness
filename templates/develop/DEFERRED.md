@@ -17,6 +17,6 @@ reviewer の指摘のうち、機械検査（spec-lint / trace-check / contract-
 <!--
 1 行 1 件。対象はホスト直下からの相対パス。昇格先は spec-lint | trace-check | contract-run | test | typecheck | lint | hook | 未定。
 例:
-| DEF-001 | 2026-09-14 | reviewer | docs/goals/GOAL-01-x/UC-003-y/REQ-031.md | 「速やかに」の観測基準が文にない | 閾値が NFR に無く、テストの期待値を決められない | 未定 |
+| DEF-001 | 2026-09-14 | reviewer | docs/goals/GOAL-01-x/UC-003-y/UC.md#REQ-031 | 「速やかに」の観測基準が文にない | 閾値が NFR に無く、テストの期待値を決められない | 未定 |
 配置: docs/verification/DEFERRED.md。 本文は日本語で書く。 行だけを使い、文章形式の指摘を書かない。
 -->

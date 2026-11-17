@@ -36,7 +36,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 | `02-actors.md` | actor の閉じた集合（`ACT-nn`、システム actor を含む。種別は「人間」か「システム」で始め、「システム」で始まる actor だけが人間でない。spec-lint / C15） | goal を実現する UC（R-103） |
 | `GOAL.md` / `goals-backlog.md` | R-301 の達成状態を actor の言葉で 1 文、`actor`、`origin`（KPI）、`domain`（R-1009。backlog の書式はテンプレート） | 達成手段、操作手順、配下 UC の一覧 |
 | `UC.md` | R-302 のシナリオ、状態 × イベント表、事前・事後条件、BR の**参照** | 実装設計、BR 本文、REQ 本文、導出 REQ の一覧、契約のエラー評価順序（R-1207） |
-| `REQ-nnn.md` | EARS 1 文、frontmatter（`pattern`、`uc`、`br`、`status`）、検証方針 | 実装手段、UI 詳細、テストケースの内容 |
+| `UC.md` の「要件」の節の `### REQ-nnn` | 項目（`pattern`、`br`、`status`）、EARS 1 文、検証方針 | 実装手段、UI 詳細、テストケースの内容 |
 | `BR-nnn.md` | ルールの存在、意図、`enforced_at` | 参照元、機械可読にできる値（R-102）、契約のエラー評価順序（R-1207） |
 | `NFR-nnn.md` | 閾値 + 計測方法、検証の所在（保留でないテストの `@covers NFR-nnn` か `measured_by:`。`measured_by` は `docs.*` で宣言した文書（GLOBAL.md を含む）の外にあるリポジトリ内のファイルで、中にその NFR の ID が現れる。外部の計測は ID と計測先を書いた runbook を指す。C20） | 計測できないもの（R-104） |
 | `ADR-nnnn-<slug>.md` | Context / Decision / Consequences、却下した選択肢と理由 | 現在の設計状態（ADR は更新せず置き換える） |
@@ -85,12 +85,12 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 ## 10. ファイル粒度と配置
 
-- **R-1001 (MUST)** GOAL / UC / REQ / BR / NFR / ADR は 1 ID に 1 ファイルです。ファイル名は ID（ノードファイルは `GOAL.md` と `UC.md`、ADR は `ADR-nnnn-<slug>.md`）。
-- **R-1002 (MUST)** REQ の検証方針は REQ ファイル内の `## 検証方針` に置きます（C2）。プロジェクト全体の除外だけを `docs/verification/GLOBAL.md` に置きます。
+- **R-1001 (MUST)** GOAL / UC / BR / NFR / ADR は 1 ID に 1 ファイルです。REQ は、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節（`### REQ-nnn`）として書きます。ファイル名は ID（ノードファイルは `GOAL.md` と `UC.md`、ADR は `ADR-nnnn-<slug>.md`）。
+- **R-1002 (MUST)** REQ の検証方針は、その REQ の小節の中の `#### 検証方針` に置きます（C2）。プロジェクト全体の除外だけを `docs/verification/GLOBAL.md` に置きます。
 - **R-1003 (MUST)** 索引は生成し、コミットしません（`trace-check --index`）。
-- **R-1004 (MUST)** ディレクトリ全体の読み取りを既定にせず、frontmatter の参照（UC の `goal:`、REQ の `uc:`、`br:`）から読むものを決めます。
+- **R-1004 (MUST)** ディレクトリ全体の読み取りを既定にせず、参照（UC の `goal:`、REQ の `br:`）から読むものを決めます。
 - **R-1005 (SHOULD)** 1 ファイルはおおむね 100 行以下です。超えたら分割するか、値を機械可読にします。
-- **R-1006 (MUST)** GOAL → UC → REQ は木なので、`docs/goals/<GOAL-nn-slug>/<UC-nnn-slug>/` に `UC.md`、その `REQ-*.md`、`contract.yaml` を置き、横断領域（BR / NFR / ADR / glossary / `_shared`）は `docs/` 直下に集約します。
+- **R-1006 (MUST)** GOAL → UC → REQ は木なので、`docs/goals/<GOAL-nn-slug>/<UC-nnn-slug>/` に `UC.md`（REQ は `UC.md` の「要件」の節に小節として書く。ADR-0067）と `contract.yaml` を置き、横断領域（BR / NFR / ADR / glossary / `_shared`）は `docs/` 直下に集約します。
 - **R-1007 (MUST)** 所属の SSOT は frontmatter で、ディレクトリは配置です。一致は C9 が検査し、再構成時は先に frontmatter を更新します。
 - **R-1008 (SHOULD)** 未着手 goal は `docs/goals-backlog.md` に置き、着手時にディレクトリへ昇格します。
 - **R-1009 (MUST)** vision に複数ドメインがあれば、各 goal は `domain:`（backlog は `- **ドメイン**:` 行）で所属を宣言し、許容値の閉じた集合は `00-vision.md` が持ちます。
@@ -98,7 +98,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 ## 11. 分割クラス（テスト生成の下限と上限）
 
-- **R-1101 (MUST)** 各 `active` REQ の `## 検証方針` に 1 つ以上の分割クラスを `` - `#name` — 意図を 1 行 `` で宣言します。クラス一覧がその要件に必要なテスト全体の SSOT です。
+- **R-1101 (MUST)** 各 `active` REQ の `#### 検証方針` に 1 つ以上の分割クラスを `` - `#name` — 意図を 1 行 `` で宣言します。クラス一覧がその要件に必要なテスト全体の SSOT です。
 - **R-1102 (MUST)** 各テストは `@covers REQ-nnn#class` で宣言済みクラスをちょうど 1 つ指定します（C11）。
 - **R-1103 (MUST)** テスト追加前に方針へクラスを宣言します。方針外のテストは C11 で失敗します（生成テストの上限）。
 - **R-1104 (MUST)** 各宣言済みクラスを最低 1 つのテストで覆います（C10）。検証しない入力領域はクラスにせず、理由とともに「検証しない」に書きます。

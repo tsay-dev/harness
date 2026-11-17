@@ -320,3 +320,41 @@ test("gate-hook: active な UC の actor を変える書き込みは ask（actor
 	assert.match(askOf(run({ file_path: `${dir}/UC.md`, old_string: "actor: ACT-01", new_string: "actor: ACT-02" })), /actor ACT-01 → ACT-02/);
 	assert.equal(run({ file_path: "docs/goals/GOAL-01-x/UC-002-z/UC.md", old_string: "actor: ACT-01", new_string: "actor: ACT-02" }).stdout, "");
 });
+
+test("gate-hook: REQ は UC.md の「要件」の節から読む。draft の REQ があれば実装を止め、REQ の降格は承認を求める（ADR-0067）", (t) => {
+	const root = mkdtempSync(join(tmpdir(), "harness gate-hook reqs "));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const dir = "docs/goals/GOAL-01-x/UC-001-y";
+	const ucDoc = (reqs) =>
+		`---\nid: UC-001\nstatus: active\nphase: 実装\n---\n\n# UC-001\n\n## 要件\n\n${reqs.map(([id, st]) => `### ${id}\n\n- pattern: Ubiquitous\n- status: ${st}\n\n> 1 文\n`).join("\n")}`;
+	const write = (rel, text) => {
+		mkdirSync(join(root, rel, ".."), { recursive: true });
+		writeFileSync(join(root, rel), text);
+	};
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "draft"]]));
+	write(`${dir}/contract.yaml`, "x-uc: UC-001\nx-status: fixed\n");
+	const hook = (input) =>
+		spawnSync("node", [HOOK, "--code", "src/**"], {
+			input: JSON.stringify({ tool_name: "Write", tool_input: input, cwd: root, session_id: "s" }),
+			encoding: "utf8",
+			env: { ...process.env, CLAUDE_PROJECT_DIR: root },
+		});
+	//  draft の REQ がある間は、実装コードを書けない
+	const blocked = hook({ file_path: "src/a.ts", content: "x" });
+	assert.equal(blocked.status, 2, blocked.stdout);
+	assert.match(blocked.stderr, /draft の REQ がある（REQ-002）/);
+	//  すべて active なら書ける
+	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
+	assert.equal(hook({ file_path: "src/a.ts", content: "x" }).status, 0);
+	//  REQ の status を下げる書き込みと、active な REQ の小節を消す書き込みは、人間の承認を求める
+	const ask = (r) => (r.stdout ? JSON.parse(r.stdout).hookSpecificOutput : null);
+	const down = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"], ["REQ-002", "withdrawn"]]) });
+	assert.equal(ask(down)?.permissionDecision, "ask", down.stdout + down.stderr);
+	assert.match(ask(down).permissionDecisionReason, /REQ-002 の status/);
+	const removed = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"]]) });
+	assert.equal(ask(removed)?.permissionDecision, "ask");
+	//  status が変わらない書き込みは、そのまま通す
+	const same = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]).replace("> 1 文", "> 1 文（直し）") });
+	assert.equal(same.status, 0);
+	assert.equal(ask(same), null);
+});

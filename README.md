@@ -79,7 +79,7 @@ harness/
     rules-swiftui/
     grilling/
   bin/harness.mjs                   # 同梱ツールの入口（harness <コマンド>）。APM 外
-  tools/                            # spec-lint、trace-check、exec-check、contract-run、gate-hook、git-lint、config-lint、apm。APM 外
+  tools/                            # spec-lint、trace-check、exec-check、contract-run、gate-hook、git-lint、config-lint、docs-migrate、apm。APM 外
   templates/                        # 文書書式。APM 外
   docs/apm.md
   docs/adr/

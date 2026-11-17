@@ -6,7 +6,7 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
 - **検証する配置**: `docs/00-vision.md` `01-glossary.md` `02-actors.md`（任意で
   `goals-backlog.md`、`design.md`、`verification/GLOBAL.md`、`verification/DEFERRED.md` —
   機械判定できない reviewer 指摘の台帳。行のみ）、`docs/goals/GOAL-nn-<slug>/GOAL.md`、
-  `…/UC-nnn-<slug>/`（`UC.md`、`REQ-nnn.md`、`contract.yaml`）、`docs/rules/BR-nnn.md`、`docs/nfr/NFR-nnn.md`、
+  `…/UC-nnn-<slug>/`（`UC.md`（REQ は「要件」の節の `### REQ-nnn`。ADR-0067）、`contract.yaml`）、`docs/rules/BR-nnn.md`、`docs/nfr/NFR-nnn.md`、
   `docs/adr/ADR-nnnn-<slug>.md`、`docs/_shared/components.yaml`。
 - **検証する書式**: SSOT は `../../templates/develop/` のテンプレート。必須 frontmatter キー
   （テンプレートのコメントに `optional` とあるキーは任意）、必須節、契約の必須 `x-` キーを
@@ -74,7 +74,8 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
 - 必須 frontmatter / 必須節 / 必須 `x-` キーの欠落、語彙外の status。
 - frontmatter の曖昧な書き方: 先頭が空白の行、キーの重複、区切りもどき（`--- ` や `---x`）、終わりの `---` の閉じ忘れ、
   `キー: 値` でない行。ツールごとに読みが割れてすり抜けになるため（ADR-0056）。
-- UC ディレクトリにある `UC.md` / `REQ-nnn.md` 以外の md（trace-check の対象に入らず紐づきの検査をすり抜ける。資料は `docs/attic` へ）。
+- UC ディレクトリにある `REQ-nnn.md`（REQ は `UC.md` の「要件」の節に書く。`harness migrate reqs --write` で移す）。
+- UC ディレクトリにある `UC.md` 以外の md（trace-check の対象に入らず紐づきの検査をすり抜ける。資料は `docs/attic` へ）。
 - `contract.yaml` の無い `active` UC（ファイルを省略せず、境界ゼロは `operations: {}` + `x-no-boundary` で宣言する）。
 - `02-actors.md` の表で、`種別` が `人間` か `システム` で始まらないアクター（trace-check の C15 は `システム` で始まるものだけを人間でないと数える）。
 - ディレクトリ名の違反（`GOAL-nn-<slug>`、`UC-nnn-<slug>`、`ADR-nnnn-<slug>.md`）、ディレクトリや

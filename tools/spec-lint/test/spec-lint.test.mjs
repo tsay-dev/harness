@@ -294,8 +294,9 @@ test("frontmatter の曖昧な書き方（先頭が空白の行、キーの重�
 	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
 	try {
 		writeMinimalDocs(root);
-		const file = join(root, "docs/goals/GOAL-01-a/UC-001-b/REQ-001.md");
-		writeFileSync(file, readFileSync(file, "utf8").replace(/^status: (\w+)$/m, "status: draft\n status: $1\nstatus: $1"));
+		//  UC.md の frontmatter で確かめる（REQ は UC.md の「要件」の節の小節で、frontmatter を持たない）
+		const file = join(root, "docs/goals/GOAL-01-a/UC-001-b/UC.md");
+		writeFileSync(file, readFileSync(file, "utf8").replace(/^status: (\w+)(.*)$/m, "status: draft\n status: $1\nstatus: $1"));
 		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
 		const out = r.stdout + r.stderr;
 		assert.equal(r.status, 1, out);
