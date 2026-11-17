@@ -76,11 +76,14 @@ test("baseline は持たない: 台帳ファイルがあっても違反は失敗
 	const r = validate({ contractExtra: "x-evaluation-order: [a, b]", hostFiles: { ".spec-baseline.json": JSON.stringify([key]) } });
 	assert.equal(r.status, 1, r.out);
 	assert.match(r.out, /\.spec-baseline\.json: baseline は廃止した/);
+	//  空の作業場所で実行する（一時フォルダの親を作業場所にすると、ほかのテストの入力まで畳んでしまう）
+	const empty = mkdtempSync(join(tmpdir(), "spec-lint-empty-"));
 	for (const flag of ["--strict", "--update-baseline"]) {
-		const u = runNode(SPEC_LINT, ["validate", flag], { cwd: tmpdir() });
+		const u = runNode(SPEC_LINT, ["validate", flag], { cwd: empty });
 		assert.equal(u.status, 2, u.stdout + u.stderr);
 		assert.match(u.stderr, new RegExp(`${flag} は廃止した`));
 	}
+	rmSync(empty, { recursive: true, force: true });
 });
 
 test("operation 直下の未知のキー（x-* 含む）は err", () => {
@@ -161,9 +164,23 @@ test("DEFERRED.md: frozen_at より後の起票日の行は err（保留を新�
 test("DEFERRED.md: frozen_at が無い・日付でない・先の日付なら err", () => {
 	const none = validate({ deferredRows: [row("DEF-001")], frozenAt: null });
 	assert.equal(none.status, 1, none.out);
-	assert.match(none.out, /frozen_at/);
-	assert.match(validate({ deferredRows: [], frozenAt: "2026/11/18" }).out, /frozen_at は YYYY-MM-DD/);
-	assert.match(validate({ deferredRows: [], frozenAt: "2999-01-01" }).out, /frozen_at 2999-01-01 が先の日付になっている/);
+	assert.match(none.out, /frozen_at が無い — 保留の一覧は凍結済み/);
+	for (const [frozenAt, message] of [
+		["2026/11/18", /frozen_at は YYYY-MM-DD/],
+		["2026-02-31", /frozen_at は YYYY-MM-DD/], //  実在しない日付
+		["2999-01-01", /frozen_at 2999-01-01 が未来/],
+		[daysAgo(-2), /が未来/], //  余裕は 1 日だけ
+	]) {
+		const r = validate({ deferredRows: [], frozenAt });
+		assert.equal(r.status, 1, `${frozenAt}: ${r.out}`);
+		assert.match(r.out, message);
+	}
+	//  UTC より進んだ時刻帯で凍結した当日の日付（UTC では明日）は通す
+	assert.equal(validate({ deferredRows: [], frozenAt: daysAgo(-1) }).status, 0);
+	//  起票日も、実在しない日付は err
+	const fake = validate({ deferredRows: [row("DEF-001", { date: "2026-02-31" })] });
+	assert.equal(fake.status, 1, fake.out);
+	assert.match(fake.out, /DEF-001: 起票日は YYYY-MM-DD/);
 });
 
 test("DEFERRED.md: 列数が 7 でなければ err", () => {

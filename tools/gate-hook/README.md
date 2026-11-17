@@ -36,6 +36,7 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 | `.github/workflows/**` | 人間の承認を求める | あり（`ask` / `workflow`） |
 | `docs/` 配下で status の降格（`active` / `fixed` / `living` / `frozen` から、それ以外の値・status 行の削除・引用符を付けた値などの語彙の外の値へ）と、判定中の例外 | 人間の承認を求める。検査の義務を減らすため。契約の `x-status` は共有の厳格 YAML パーサーで読む（他のツールと同じ値） | あり（`ask` / `status-down`） |
 | アクター表（harness.config.json の `docs.actors`、無ければ `docs/02-actors.md`）で人間のアクターを削除する、種別を「システム」に変える、または active な `UC.md` の `actor:` を変える | 人間の承認を求める。シナリオテスト（C15）の義務を減らすため | あり（`ask` / `actor-kind`） |
+| `docs/verification/DEFERRED.md`（保留の一覧）を新しく作る、`frozen_at` を変える、行を足す（行を消すだけの書き込みは対象外）と、判定中の例外 | 人間の承認を求める。一覧は凍結済みで、足せば未決を持ち越せるため（ADR-0068） | あり（`ask` / `deferred`） |
 | `docs/` 配下で `UC.md` の `active`、契約の `fixed` への昇格（新規作成で書く場合も） | 人間の承認を求める。実装着手ゲートを開ける人間ゲートを agent が自力で開けないため | あり（`ask` / `status-up-gate`） |
 | `docs/` 配下でそれ以外の昇格（REQ / BR / NFR / GOAL の `draft` → `active`、単一文書の `draft` → `living` / `frozen`）と、status を持つ新規作成 | 許可 | あり（`pass` / `status-up`） |
 | `docs/` 配下でそれ以外（status が変わらない、status を持たない新規ファイル、`draft` ↔ `withdrawn` など義務の増減を伴わない変更） | 許可（SSOT の書き込みはゲートの前提条件） | なし |
@@ -232,7 +233,7 @@ CI では、再利用ワークフロー `.github/workflows/spec-gate.yml` が `h
 | `event` | `PreToolUse` \| `Stop` |
 | `session` | Claude Code の `session_id`、または `null` |
 | `decision` | `block` \| `pass` \| `skip` \| `release` \| `ask`（gate-hook が止めずに人間の承認を求めた） |
-| `reason` | gate-hook: 実装ゲートは `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `internal-error` `ok`。ask は `config` `harness` `hook-settings` `workflow` `status-down` `status-up-gate` `actor-kind`。`pass` / `status-up`（docs の status の昇格・新規作成）、`block` / `harness-gate`（`.harness-gate/` への書き込み）。stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`、または阻止時の最初の失敗名（`spec-lint` `trace-check` `contract-run` `config` `commands.<k>` `typecheck` `lint` `test` `system`、`timeout:<step>`、monorepo では `<step>:<unit>`） |
+| `reason` | gate-hook: 実装ゲートは `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `internal-error` `ok`。ask は `config` `harness` `hook-settings` `workflow` `status-down` `status-up-gate` `actor-kind` `deferred`。`pass` / `status-up`（docs の status の昇格・新規作成）、`block` / `harness-gate`（`.harness-gate/` への書き込み）。stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`、または阻止時の最初の失敗名（`spec-lint` `trace-check` `contract-run` `config` `commands.<k>` `typecheck` `lint` `test` `system`、`timeout:<step>`、monorepo では `<step>:<unit>`） |
 | `target` | gate-hook: root からのゲート対象ファイル相対パス。それ以外は `null` |
 | `uc` | gate-hook: 検査した進行中 UC の ID。それ以外は `null` |
 | `round` | stop-gate: 阻止 / 解除時の回数。それ以外は `null` |

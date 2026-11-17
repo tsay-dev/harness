@@ -41,7 +41,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 | `NFR-nnn.md` | 閾値 + 計測方法、検証の所在（保留でないテストの `@covers NFR-nnn` か `measured_by:`。`measured_by` は `docs.*` で宣言した文書（GLOBAL.md を含む）の外にあるリポジトリ内のファイルで、中にその NFR の ID が現れる。外部の計測は ID と計測先を書いた runbook を指す。C20） | 計測できないもの（R-104） |
 | `ADR-nnnn-<slug>.md` | Context / Decision / Consequences、却下した選択肢と理由 | 現在の設計状態（ADR は更新せず置き換える） |
 | `verification/GLOBAL.md` | プロジェクト全体の「検証しない」範囲と理由 | REQ ごとの方針（REQ に置く） |
-| `verification/DEFERRED.md`（既存のものだけ） | 凍結済みの、過去の保留の一覧。解消した行を消すだけ（ADR-0068） | 新しい行、新しい一覧。指摘は、機械検査にするか、人間に聞いて仕様に書く |
+| `verification/DEFERRED.md`（既存のものだけ） | 凍結済みの、過去の保留の一覧。解消した行を orchestrator が消すだけ（ADR-0068） | 新しい行、新しい一覧。指摘は、機械検査にするか、人間に聞いて仕様に書く |
 | `contract.yaml` | 境界の形（操作、型、**評価順の**エラー、エラーコードごとに失敗例 1 つ） | 同内容の説明文コピー、ルール、目的、エラーの順序・排他性の説明文 |
 
 ## 4. 要件（EARS）

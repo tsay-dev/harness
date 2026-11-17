@@ -25,6 +25,7 @@
 //        降格（active → draft / withdrawn、fixed → draft、living / frozen → draft / withdrawn）→ ask（status-down）
 //        UC.md の active と契約の fixed への昇格（新規作成を含む）→ ask（status-up-gate）。実装着手ゲートを agent が自力で開けない
 //        アクター表で人間のアクターを削除する・種別をシステムに変える、active な UC の actor を変える → ask（actor-kind）。判定中の例外 → ask（status-down）
+//        保留の一覧（docs/verification/DEFERRED.md）を新しく作る・frozen_at を変える・行を足す → ask（deferred）。一覧は凍結済み（ADR-0068）
 //        それ以外の昇格と新規作成 → 許可し pass / status-up と記録
 //      status が変わらない書き込みは記録せずに許可。SSOT を書く行為はゲートの前提なので止めない。
 //    - .claude 等のプロバイダー出力・--code 非マッチ・--exclude マッチ → 許可（exit 0）。
@@ -42,7 +43,7 @@
 //    reason 語彙: misconfig | no-goals | no-active-phase | uc-not-active | req-draft |
 //                 contract-missing | contract-not-fixed | internal-error | ok（実装ゲート）、
 //                 harness-gate（block）、config | harness | hook-settings | workflow |
-//                 status-down | status-up-gate | actor-kind（ask）、status-up（pass）
+//                 status-down | status-up-gate | actor-kind | deferred（ask）、status-up（pass）
 //
 //  設定はフックコマンドの引数で渡す（設定ファイルを増やさない。submodule 配置でも
 //  取り込み先の settings.local.json に閉じる）:
@@ -195,6 +196,23 @@ function actorsPath(root, docsDir) {
 		if (typeof cfg?.docs?.actors === "string") return cfg.docs.actors.replace(/^\.\//, "");
 	} catch {}
 	return `${docsDir}/02-actors.md`;
+}
+
+//  保留の一覧（DEFERRED.md）への書き込みのうち、凍結（ADR-0068）を外すもの。戻り: 理由の文 | null
+//  新しく作る、frozen_at を変える、行（DEF-nnn）を足す。行を消すだけの書き込みは null
+function deferredUnfreeze(abs, input) {
+	const exists = existsSync(abs) && statSync(abs).isFile();
+	const before = exists ? readFileSync(abs, "utf8") : null;
+	if (before === null) return "新しく作る";
+	const after = afterContent(input, before);
+	if (after === undefined) return "書き込み後の内容を判定できない";
+	if ((fm(before).frozen_at ?? "") !== (fm(after).frozen_at ?? "")) return `frozen_at を ${fm(before).frozen_at || "（なし）"} → ${fm(after).frozen_at || "（なし）"} に変える`;
+	//  行の数で比べる（ID を使い回して中身を書き換える足し方は、ここでは見分けない）
+	const ids = (text) => text.split("\n").map((l) => /^\s*\|\s*(DEF-\d+)\s*\|/.exec(l)?.[1]).filter(Boolean);
+	const had = ids(before);
+	const added = ids(after).filter((id) => !had.includes(id));
+	if (added.length || ids(after).length > had.length) return `行を足す（${added.join(", ") || "ID の重複"}）`;
+	return null;
 }
 
 //  docs への書き込みの status の変化を分類する。戻り: null（変化なし・判定不能）| { kind, from, to, field }
@@ -375,6 +393,20 @@ function main() {
 			ctx.target = rel;
 			let change;
 			let downgraded = [];
+			if (lower.endsWith("verification/deferred.md")) {
+				let unfreeze;
+				try {
+					unfreeze = deferredUnfreeze(abs, input);
+				} catch (e) {
+					unfreeze = `書き込みを判定できない（${e?.message ?? e}）`;
+				}
+				if (unfreeze)
+					ask(
+						"deferred",
+						`${rel}: ${unfreeze}。保留の一覧は凍結済みで、新しく作らず、行も足さない（ADR-0068）。指摘は機械検査にするか、人間に聞いて仕様に書く。それでも変えるなら、差分を確認してから許可する`,
+						ctx,
+					);
+			}
 			try {
 				change = classifyStatusChange(abs, rel, input);
 				if (lower === actorsPath(root, docsDir).toLowerCase()) downgraded = actorDowngrades(abs, input);

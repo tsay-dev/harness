@@ -309,7 +309,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
       <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>spec-lint・trace-check（<code>harness_ref</code> で固定した版。unit ごと）</li><li>harness.config.json・status・workflow の変更をジョブ要約に出す</li></ul>
       <p><code>git</code> 未宣言なら「未検査」。merge で止めるのはブランチ保護と CODEOWNERS。</p></div>
     <div class="step"><span class="when">6 · スライス完了</span><h3>判定と人間ゲート</h3>
-      <ul><li>reviewer の「阻止」がゼロ</li><li>持ち越しは DEFERRED.md へ</li><li>UC の phase が 完了</li></ul>
+      <ul><li>reviewer の「阻止」がゼロ</li><li>reviewer の「問い」に人間が答え済み</li><li>UC の phase が 完了</li></ul>
       <p>テストが全部通っただけでは完了ではない。</p></div>
   </div>
 </section>
@@ -432,7 +432,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>NFR-nnn</td><td>非機能要件（閾値と計測方法、検証の所在）</td><td>spec-lint（書式）・C12・C20</td></tr>
         <tr><td>ADR-nnnn</td><td>判断の記録。変更は supersedes を持つ新 ADR</td><td>spec-lint（書式・supersedes の解決）・C12</td></tr>
         <tr><td>verification/GLOBAL.md</td><td>プロジェクト全体で検証しない範囲と理由（NFR の計測の所在は持たない）</td><td>spec-lint（書式）</td></tr>
-        <tr><td>verification/DEFERRED.md</td><td>機械検査にできない reviewer 指摘の台帳</td><td>spec-lint（行文法）</td></tr>
+        <tr><td>verification/DEFERRED.md</td><td>凍結済みの、過去の保留の一覧（新しい行は足さない）</td><td>spec-lint（行文法）</td></tr>
         <tr><td>goals-backlog.md</td><td>未着手のゴール。着手時にディレクトリへ昇格</td><td>spec-lint（書式）</td></tr>
         <tr><td>CLAUDE.md / AGENTS.md</td><td>利用プロジェクトの作業指針（地図）</td><td>spec-lint（150 行以下）</td></tr>
         <tr><td>harness.config.json</td><td>検査の設定（範囲と置き場、none の宣言、注釈とコメントの正規表現、保留の印、commands、layering、policy、git）</td><td>trace-check が宣言を検査（設定エラー・C26・C27）。変更は人間が承認（gate-hook の ask）</td></tr>

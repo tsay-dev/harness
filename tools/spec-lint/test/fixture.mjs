@@ -197,7 +197,7 @@ id: VERIFICATION_DEFERRED
 status: living${frozenAt === null ? "" : `\nfrozen_at: ${frozenAt}`}
 ---
 
-# 保留台帳（機械判定できない指摘）
+# 保留台帳（凍結済み）
 
 ## 保留中の指摘
 
