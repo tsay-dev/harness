@@ -27,7 +27,7 @@
 | パッケージ選択は読み込みより先 | 必要な場面とスタックだけをインストールする。パッケージが存在しても、その本文全体を読み込む権限にはならない。 |
 | 作ること ≠ 判定すること | producer と oracle / reviewer / attacker / judge は、別コンテキストの別 agent とする。producer は自分自身の判定を承認しない。 |
 | skill がプロセスを駆動する | orchestrator が判断の中核、委譲、ゲート、状態遷移を所有する。実装やテストは書かない。自身が書くのは状態、`_shared`、`DEFERRED.md`、ADR、git。 |
-| 参照は skill → agent の 1 本だけ | orchestrator は起動する agent の名前、mode、tier を知る。agent は読むべき規約を名指しせず、書くパスに対応して届いた末端文書に従う。末端文書は skill も agent も知らず、そのパスに置くファイルの事実だけを持つ（ADR-0048）。skill が探索してよいのは配送メタデータとアドレスだけで、末端文書の本文を要約したり、節番号や内容に依存したりしない。 |
+| 参照は skill → agent の 1 本だけ | orchestrator は起動する agent の名前、mode、tier を知る。agent は読むべき規約を名指しせず、書くパスに対応して届いた末端文書に従う。`rules-*` の末端文書は skill も agent も知らず、そのパスに置くファイルの事実だけを持つ（ADR-0048）。skill が探索してよいのは配送メタデータとアドレスだけで、末端文書の本文を要約したり、節番号や内容に依存したりしない。 |
 
 手順名は skill、agent、instruction の場面をまたいで安定させる。パッケージ境界は責務を変えずに配布を分ける。`attack` orchestrator は develop の agent と規則を共有し、重複させない。小さなスライスでの深さは develop orchestrator の判断であり、別 skill にはしない。
 
