@@ -33,6 +33,8 @@ const COMMANDS = [
 	{ group: "読むだけ", words: ["lint", "config"], script: "config-lint/config-lint.mjs", prefix: [], desc: "プロジェクトの設定の形を検査し、機械で確かめていない決めごとを一覧する" },
 	{ group: "読むだけ", words: ["lint", "spec"], script: "spec-lint/spec-lint.mjs", prefix: ["validate"], desc: "仕様の文書の書式と状態の決まりを検査する" },
 	{ group: "読むだけ", words: ["lint", "refs"], script: "trace-check/trace-check.mjs", prefix: [], desc: "仕様・コード・テストの ID の紐づきを検査する" },
+	{ group: "読むだけ", words: ["lint", "entry"], script: "exec-check/exec-check.mjs", prefix: ["entry"], desc: "テストの入口が、本番と同じ組み立てを呼んでいるかを検査する" },
+	{ group: "読むだけ", words: ["lint", "coverage"], script: "exec-check/exec-check.mjs", prefix: ["coverage"], desc: "テストの実行の記録を読み、どのテストからも実行されなかったソースを洗い出す" },
 	{ group: "読むだけ", words: ["lint", "git", "branch"], script: "git-lint/git-lint.mjs", prefix: ["branch"], desc: "ブランチ名の書式を検査する" },
 	{ group: "読むだけ", words: ["lint", "git", "message"], script: "git-lint/git-lint.mjs", prefix: ["message"], desc: "コミットメッセージの書式を検査する" },
 	{ group: "読むだけ", words: ["lint", "git", "uc"], script: "spec-lint/spec-lint.mjs", prefix: ["gate"], desc: "コミットが指す UC が実装に入れる状態かを検査する" },
@@ -45,7 +47,7 @@ const COMMANDS = [
 ];
 
 //  `harness lint` だけで呼んだときに続けて実行するもの（引数なしで意味が決まる検査だけ）
-const LINT_ALL = [["lint", "config"], ["lint", "spec"], ["lint", "refs"], ["lint", "git", "branch"]];
+const LINT_ALL = [["lint", "config"], ["lint", "spec"], ["lint", "refs"], ["lint", "entry"], ["lint", "git", "branch"]];
 
 const sameWords = (a, b) => a.length === b.length && a.every((w, i) => w === b[i]);
 const find = (words) => COMMANDS.find((c) => sameWords(c.words, words));

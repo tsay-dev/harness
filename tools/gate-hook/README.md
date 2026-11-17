@@ -82,9 +82,9 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 | --- | --- | --- | --- |
 | 1 | `config-lint --config <設定ファイル>`（設定の形。ルートで 1 回。unit の設定も config-lint が読む） | lint 以上 | 収集 |
 | 2 | `spec-lint validate --docs <docs>` | lint 以上 | 収集 |
-| 3 | `trace-check --root <root> --config <設定ファイル>` | lint 以上 | 収集 |
+| 3 | `trace-check --root <root> --config <設定ファイル>`、続けて `exec-check entry`（テストの入口が、本番と同じ組み立てを呼んでいるか） | lint 以上 | 収集 |
 | 4 | `contract-run --root <root> --config <設定ファイル> --docs <docs>`。実行する実例があるのにアダプターが無い場合と skip した例は、contract-run 自身が失敗にする | fast 以上 | 収集 |
-| 5 | `commands.typecheck` → `commands.lint` → `commands.test` → `commands.extra` の各コマンド（書いた順） | fast 以上 | 最初の失敗で停止 |
+| 5 | `commands.typecheck` → `commands.lint` → `commands.test` → `exec-check coverage`（`test` が書いた実行の記録を読む。`test` が通ったときだけ） → `commands.extra` の各コマンド（書いた順） | fast 以上 | 最初の失敗で停止 |
 | 6 | `commands.system`（シナリオテスト全件。ブラウザ / シミュレーター / 実機） | full | 5 が通ったときだけ実行 |
 
 `--level` で、どこまで実行するかを選ぶ（既定は `full`）。
@@ -127,7 +127,7 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 
 - **変更なし**: `git rev-parse HEAD` + `git status --porcelain` + `git diff HEAD` に、未追跡ファイル
   （`git ls-files -o --exclude-standard`）の中身、`harness.config.json`（unit のものも。ignore されていても）、
-  使う harness ツール（`config-lint.mjs`、`spec-lint.mjs`、`trace-check.mjs`、`contract-run.mjs`、`suite.mjs`、`tools/_shared/*.mjs`）、
+  使う harness ツール（`config-lint.mjs`、`spec-lint.mjs`、`trace-check.mjs`、`exec-check.mjs`、`contract-run.mjs`、`suite.mjs`、`tools/_shared/*.mjs`）、
   `--level` と `--unit` の指定を加えたハッシュを取る
   （自身の状態ディレクトリは除外）。最終成功時の記録と同じなら `[stop-gate] 変更なし（最終合格 <ts>）` と
   表示して再実行せず終了を許可する。`--force` はこれを無効化する。
