@@ -4,9 +4,9 @@
 //
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { writeMinimalDocs, runNode, SPEC_LINT } from "./fixture.mjs";
 
 //  一時ルートで validate を走らせる（cwd はホストのルート ＝ DEFERRED の対象パスの基準）
@@ -14,7 +14,10 @@ function validate(opts = {}) {
 	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
 	try {
 		writeMinimalDocs(root, opts);
-		for (const [rel, text] of Object.entries(opts.hostFiles ?? {})) writeFileSync(join(root, rel), text);
+		for (const [rel, text] of Object.entries(opts.hostFiles ?? {})) {
+			mkdirSync(dirname(join(root, rel)), { recursive: true });
+			writeFileSync(join(root, rel), text);
+		}
 		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
 		return { ...r, out: r.stdout + r.stderr };
 	} finally {
@@ -29,6 +32,42 @@ const row = (id, { date = daysAgo(1), target = TARGET, promote = "未定" } = {}
 
 test("素の fixture は validate を通る", () => {
 	const r = validate();
+	assert.equal(r.status, 0, r.out);
+});
+
+//  ---- ADR の置き換え ----
+const adr = (id, status, supersedes = null) =>
+	`---\nid: ${id}\ntitle: 決定\nstatus: ${status}\ndate: 2026-01-01\n${supersedes ? `supersedes: ${supersedes}\n` : ""}---\n\n# ${id} 決定\n\n## Context\n\n経緯。\n\n## Decision\n\n決めたこと。\n\n## Consequences\n\n結果。\n\n## 却下した選択肢\n\n- **別の案**: 採らない理由。\n`;
+const adrFiles = (oldStatus, newStatus) => ({
+	"docs/adr/ADR-0001-old.md": adr("ADR-0001", oldStatus),
+	"docs/adr/ADR-0002-new.md": adr("ADR-0002", newStatus, "ADR-0001"),
+});
+
+test("ADR: accepted の ADR が置き換えた ADR は superseded でなければ err", () => {
+	const r = validate({ hostFiles: adrFiles("accepted", "accepted") });
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /ADR-0002（accepted）が ADR-0001 を置き換えているのに、ADR-0001 の status が accepted/);
+});
+
+test("ADR: 置き換えた側がさらに置き換えられて superseded になっていても、最初の ADR は superseded でなければ err", () => {
+	const r = validate({
+		hostFiles: {
+			"docs/adr/ADR-0001-first.md": adr("ADR-0001", "accepted"),
+			"docs/adr/ADR-0002-second.md": adr("ADR-0002", "superseded", "ADR-0001"),
+			"docs/adr/ADR-0003-third.md": adr("ADR-0003", "accepted", "ADR-0002"),
+		},
+	});
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /ADR-0002（superseded）が ADR-0001 を置き換えているのに、ADR-0001 の status が accepted/);
+});
+
+test("ADR: 置き換えられた側が superseded なら通る", () => {
+	const r = validate({ hostFiles: adrFiles("superseded", "accepted") });
+	assert.equal(r.status, 0, r.out);
+});
+
+test("ADR: 置き換える側が proposed の間は、置き換えられる側が accepted のままでも通る", () => {
+	const r = validate({ hostFiles: adrFiles("accepted", "proposed") });
 	assert.equal(r.status, 0, r.out);
 });
 

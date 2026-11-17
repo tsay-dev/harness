@@ -1,7 +1,7 @@
 ---
 id: ADR-0054
 title: active な NFR は保留でないテストの @covers NFR-nnn か、ID を含む docs の外のファイルを指す measured_by で検証の所在を持ち、trace-check が検査する
-status: proposed
+status: accepted
 date: 2026-10-20
 ---
 

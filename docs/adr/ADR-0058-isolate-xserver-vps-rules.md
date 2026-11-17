@@ -1,7 +1,7 @@
 ---
 id: ADR-0058
 title: Xserver VPS 向け規約を独立した選択パッケージにする
-status: proposed
+status: accepted
 date: 2026-11-05
 ---
 

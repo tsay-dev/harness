@@ -1,7 +1,7 @@
 ---
 id: ADR-0056
 title: docs と実装の紐づきに例外を作らず、baseline と黙った省略を廃止し、対象の不在は traceconfig に理由付きで宣言し、義務のある範囲では不在を認めない
-status: proposed
+status: accepted
 date: 2026-10-20
 supersedes: ADR-0005
 ---

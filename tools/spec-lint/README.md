@@ -87,7 +87,7 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
   メタ変数であり空欄ではない）。HTML コメント、コード span / fence、YAML コメントは走査しない。
   REQ の `## 検証方針` は除外し、内容は trace-check の C2 / C10 が扱う。
 - UC またはいずれかの REQ が `draft` の `fixed` 契約、`phase` が `定義` を超えた `draft` UC、
-  解決しない `x-spec` / `$ref`、存在しない ADR の `supersedes`。
+  解決しない `x-spec` / `$ref`、存在しない ADR の `supersedes`、承認済み（`proposed` でない）の ADR が置き換えたのに `superseded` になっていない ADR。
 - 受理する YAML 部分集合外の構文: anchors / aliases（`&` / `*`）、block scalars（`|` / `>`）、tabs、
   重複キー。OpenAPI 書式のままの契約、UC ディレクトリに残る `api-contract.yaml`。
 - `transport` / `direction` / `owned` / `auth` / `summary` 欠落、transport に属さないフィールドを持つ操作、

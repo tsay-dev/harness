@@ -1,7 +1,7 @@
 ---
 id: ADR-0055
 title: 仕様に紐づける範囲は traceconfig の場所の宣言で決め、ソースの全ファイルを実現単位の置き場か技術部品の置き場に分類し、コードに書く仕様外の印を廃止する
-status: proposed
+status: accepted
 date: 2026-10-20
 supersedes: ADR-0053
 ---
