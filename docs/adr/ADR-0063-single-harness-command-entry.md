@@ -1,7 +1,7 @@
 ---
 id: ADR-0063
 title: 同梱ツールの入口を harness コマンド 1 つにし、何をするかで選ぶ名前にそろえる
-status: proposed
+status: accepted
 date: 2026-11-17
 ---
 

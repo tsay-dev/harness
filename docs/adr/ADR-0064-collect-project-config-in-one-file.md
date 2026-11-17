@@ -1,7 +1,7 @@
 ---
 id: ADR-0064
 title: プロジェクトの設定を harness.config.json 1 つに集め、決めごとを 3 種類に分けて書く
-status: proposed
+status: accepted
 date: 2026-11-17
 ---
 
