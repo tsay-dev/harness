@@ -219,17 +219,21 @@ function runAdapter(cmd, root, requests, timeoutSec) {
 				child.kill("SIGKILL");
 			}
 		};
-		//  グループを分けたので、こちらが先に終わるときはアダプタを残さない
-		const onExit = () => {
-			if (!done) killTree();
+		//  グループを分けたので、端末の Ctrl-C や呼び出し側の停止（グループ宛てのシグナル）はアダプタに届かない。
+		//  こちらがシグナルで止められるときに、アダプタを止めてから同じシグナルで終わる（SIGKILL は受け取れないので防げない）
+		const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
+		const onSignal = (sig) => {
+			killTree();
+			for (const s of SIGNALS) process.removeListener(s, onSignal);
+			process.kill(process.pid, sig);
 		};
-		process.once("exit", onExit);
+		for (const s of SIGNALS) process.on(s, onSignal);
 
 		const finish = (code, signal) => {
 			if (done) return;
 			done = true;
 			clearTimeout(timer);
-			process.removeListener("exit", onExit);
+			for (const s of SIGNALS) process.removeListener(s, onSignal);
 			if (!error && code !== 0) error = `アダプタが異常終了した（exit ${code ?? signal}）`;
 			if (!error) {
 				const missing = requests.filter((r) => !replies.has(r.id));

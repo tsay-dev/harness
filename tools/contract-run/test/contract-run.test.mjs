@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const TOOL = join(dirname(fileURLToPath(import.meta.url)), "..", "contract-run.mjs");
@@ -122,6 +122,15 @@ function makeHost({ table = OK_TABLE, adapter = "node adapter.mjs", contract = C
 	return root;
 }
 
+//  hang のアダプタは 50 ミリ秒ごとに adapter-alive.log へ追記する。止まったプロセスが回収されるまで pid は残りうるので、
+//  生存は「追記が続いているか」で見る
+const heartbeat = (root) => (existsSync(join(root, "adapter-alive.log")) ? readFileSync(join(root, "adapter-alive.log"), "utf8").length : 0);
+function assertAdapterStopped(root, message) {
+	const before = heartbeat(root);
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+	assert.equal(heartbeat(root), before, message);
+}
+
 function run(root, ...args) {
 	const r = spawnSync(process.execPath, [TOOL, "--root", root, ...args], { encoding: "utf8" });
 	return { status: r.status, stdout: r.stdout, stderr: r.stderr };
@@ -208,12 +217,23 @@ test("応答が来ないまま生き続ければ --timeout で exit 2", (t) => {
 	const r = run(root, "--timeout", "1");
 	assert.equal(r.status, 2);
 	assert.match(r.stderr, /タイムアウト（1 秒）/);
-	//  シェルの子として動いていたアダプタも止まっている（シェルだけを止めると残り、contract-run が終わらなくなる）。
-	//  止まったプロセスが回収されるまで pid は残りうるので、生存は「動き続けているか」で見る
-	const alive = () => readFileSync(join(root, "adapter-alive.log"), "utf8").length;
-	const before = alive();
-	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
-	assert.equal(alive(), before, "タイムアウトの後もアダプタが動き続けている");
+	//  シェルの子として動いていたアダプタも止まっている（シェルだけを止めると残り、contract-run が終わらなくなる）
+	assert.ok(heartbeat(root) > 0, "アダプタが動き始めていない（テストの前提が成り立っていない）");
+	assertAdapterStopped(root, "タイムアウトの後もアダプタが動き続けている");
+});
+
+test("contract-run が SIGTERM で止められたら、アダプタも止めてから終わる", async (t) => {
+	const root = makeHost({ table: { hang: true, replies: {} } });
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const child = spawn(process.execPath, [TOOL, "--root", root, "--timeout", "30"], { stdio: "ignore" });
+	const exited = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
+	//  アダプタが動き始めるまで待つ（最長 10 秒）
+	for (let i = 0; i < 200 && heartbeat(root) === 0; i++) await new Promise((r) => setTimeout(r, 50));
+	assert.ok(heartbeat(root) > 0, "アダプタが動き始めていない（テストの前提が成り立っていない）");
+	child.kill("SIGTERM");
+	const { signal } = await exited;
+	assert.equal(signal, "SIGTERM");
+	assertAdapterStopped(root, "contract-run が止められた後もアダプタが動き続けている");
 });
 
 test("応答を返さずに終了すれば未応答の id を挙げて exit 2", (t) => {
