@@ -53,8 +53,6 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 
 互換 adapter は tier を読み、Claude では opus / sonnet / haiku、Codex では JSON の 3 段へ変換する。Cursor は `inherit` に正規化し、オーケストレーターが起動時に同段の family を選ぶ。Grok Build は per-launch の model 指定がないため親を継承し、要求段を保証できなければその制約を報告する。APM の native integrator が中立拡張を provider の model field に変換するとは仮定せず、native install 後はオーケストレーターが `apm_modules/` の元 source から tier を読んで起動時に適用する。
 
-Righthub（Xserver VPS 内で完結する Node.js + Hono + React SPA + PostgreSQL + Prisma）は `rules-righthub` を選ぶ。API、PostgreSQL、ファイル保存は VPS 内に置く。PostgreSQL の版、プロキシ、プロセス管理方式は消費プロジェクトで宣言し。
-
 ## tools / templates を別途用意する
 
 APM packages は tools / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。この checkout の `init.sh` は APM consumer に実行しない。

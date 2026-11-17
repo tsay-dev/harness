@@ -27,7 +27,7 @@
 | パッケージ選択は読み込みより先 | 必要な場面とスタックだけをインストールする。パッケージが存在しても、その本文全体を読み込む権限にはならない。 |
 | 作ること ≠ 判定すること | producer と oracle / reviewer / attacker / judge は、別コンテキストの別 agent とする。producer は自分自身の判定を承認しない。 |
 | skill がプロセスを駆動する | orchestrator が判断の中核、委譲、ゲート、状態遷移を所有する。実装やテストは書かない。自身が書くのは状態、`_shared`、`DEFERRED.md`、ADR、git。 |
-| 参照は instruction → skill の一方向 | 末端文書は手順を参照してよい。skill が探索してよいのは配送メタデータとアドレスだけであり、instruction 本文を要約したり、その節番号や内容に依存したりしない。受け取る agent が末端文書を読む。 |
+| 参照は skill → agent の 1 本だけ | orchestrator は起動する agent の名前、mode、tier を知る。agent は読むべき規約を名指しせず、書くパスに対応して届いた末端文書に従う。`rules-*` の末端文書は skill も agent も知らず、そのパスに置くファイルの事実だけを持つ（ADR-0048）。skill が探索してよいのは配送メタデータとアドレスだけで、末端文書の本文を要約したり、節番号や内容に依存したりしない。 |
 
 手順名は skill、agent、instruction の場面をまたいで安定させる。パッケージ境界は責務を変えずに配布を分ける。`attack` orchestrator は develop の agent と規則を共有し、重複させない。小さなスライスでの深さは develop orchestrator の判断であり、別 skill にはしない。
 
@@ -48,7 +48,7 @@
 
 ### instruction の追加
 
-1. 最初にインストール境界を選ぶ。フレームワークの末端文書は選択された専用パッケージだけに置く: `rules-next`、`rules-cloudflare-hono-react`、`rules-crow`、`rules-expo`、`rules-swiftui`。`develop-core` に置くのは文書やコメントなど、プラットフォームに依存しない関心事だけ。
+1. 最初にインストール境界を選ぶ。フレームワークの末端文書は選択された専用パッケージだけに置く: `rules-next`、`rules-cloudflare-hono-react`、`rules-righthub`、`rules-crow`、`rules-expo`、`rules-swiftui`。`develop-core` に置くのは文書やコメントなど、プラットフォームに依存しない関心事だけ。
 2. **末端文書 1 つにつき関心事 1 つ**を保つ。instruction のファイル名で場面 / プラットフォーム / フレームワーク / レイヤーの特殊化を保つ。APM 0.30.0 は `.apm/instructions/` 直下の instruction ファイルを探索する。共通規則をレイヤー別の末端文書へ転記しない。
 3. **`applyTo` を中立の配送契約として宣言する。** YAML 配列ではなくカンマ区切りの文字列を使う。想定する受け手が書くファイルを正確に列挙する: テスト設計者にはテストのアドレス、DB 設計者にはネイティブスキーマのアドレス、実装担当者には本番コードのアドレス。広い glob が有効なのは、一致するすべてのアドレスに適用する規則だけ。狭すぎる glob は黙って配送を止める。
 4. Claude の `paths:` はアダプターが出力するものであり、ソース構文ではない。他のプロバイダーにも同等のネイティブな遅延読み込み機能があるとは仮定しない。instruction はインストール済み APM パッケージに残り、呼び出し時に探索して読める。
