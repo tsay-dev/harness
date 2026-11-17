@@ -18,7 +18,7 @@
 //  環境変数 HARNESS_TOOLS_DIR は同梱ツールの探索先（<このファイルの場所>/../tools）を差し替える（テスト用）。
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, writeSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -106,7 +106,6 @@ function run(cmd, rest) {
 			else done(code);
 		};
 		current = spawn(process.execPath, [script, ...cmd.prefix, ...rest], { stdio: "inherit" });
-		if (stopBy) current.kill(stopBy);
 		current.on("error", (e) => {
 			console.error(`harness: ${cmd.words.join(" ")} を起動できない: ${e.message}`);
 			finish(2);
@@ -129,7 +128,14 @@ async function main() {
 	if (sameWords(argv, ["lint"])) {
 		let worst = 0;
 		for (const words of LINT_ALL) {
-			console.log(`\n== harness ${words.join(" ")}`);
+			//  出力先が先に閉じていたら（harness lint | head など）、残りを実行せずに失敗で終わる。
+			//  実行していない検査を、通ったことにしない
+			try {
+				writeSync(1, `\n== harness ${words.join(" ")}\n`);
+			} catch (e) {
+				if (e.code === "EPIPE") return Math.max(worst, 1);
+				throw e;
+			}
 			worst = Math.max(worst, await run(find(words), []));
 		}
 		return worst;
@@ -149,11 +155,5 @@ async function main() {
 	}
 	return run(hit.cmd, hit.rest);
 }
-
-//  出力先が先に閉じたら（harness lint | head など）、黙って終わる
-process.stdout.on("error", (e) => {
-	if (e.code === "EPIPE") process.exit(0);
-	throw e;
-});
 
 process.exitCode = await main();

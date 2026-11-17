@@ -177,27 +177,39 @@ test("harness lint の途中で止められたら、渡した先が 0 で終わ�
 	assert.ok(!existsSync(ran), "止められた後に、残りの検査が実行された");
 });
 
-test("渡した先が終わる瞬間に届いた止める指示も取りこぼさない", { skip: process.platform === "win32" }, () => {
-	//  最初の検査が、自分の終了の直前（0〜3ms 前）に入口へ SIGTERM を送る。指示は必ず残りの検査より前に出ている
-	for (let i = 0; i < 24; i++) {
+test("渡した先が終わった直後、次の検査を起動する前に届いた止める指示も取りこぼさない", { skip: process.platform === "win32" }, () => {
+	//  最初の検査が見張りを残して終わる。見張りは、入口が最初の検査を回収したのを見てから入口へ SIGTERM を送る
+	//  （kill -0 は回収されるまで成功する）。指示は、検査と検査の間に届く
+	for (let i = 0; i < 12; i++) {
 		const dir = fakeTools();
 		const ran = join(dir, "ran");
 		writeFileSync(
 			join(dir, "spec-lint/spec-lint.mjs"),
-			`process.kill(process.ppid, "SIGTERM");\nconst end = Date.now() + ${i % 4};\nwhile (Date.now() < end);\n`,
+			`import { spawn } from "node:child_process";\n` +
+				`spawn("sh", ["-c", "while kill -0 " + process.pid + " 2>/dev/null; do :; done; kill -TERM " + process.ppid], { detached: true, stdio: "ignore" }).unref();\n` +
+				`setTimeout(() => process.exit(0), 30);\n`,
 		);
 		for (const s of ["trace-check/trace-check.mjs", "git-lint/git-lint.mjs"]) {
-			writeFileSync(join(dir, s), `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "x");\n`);
+			writeFileSync(join(dir, s), `import { appendFileSync } from "node:fs";\nsetTimeout(() => appendFileSync(${JSON.stringify(ran)}, "x"), 200);\n`);
 		}
 		const r = harness(["lint"], { HARNESS_TOOLS_DIR: dir });
 		assert.equal(r.signal, "SIGTERM", `${i} 回目: status=${r.status}`);
+		spawnSync("sleep", ["0.3"]);
 		assert.ok(!existsSync(ran), `${i} 回目: 止められた後に残りの検査が実行された`);
 	}
 });
 
-test("出力先が先に閉じても、例外を出さずに終わる", { skip: process.platform === "win32" }, () => {
-	const r = spawnSync("sh", ["-c", `"${process.execPath}" "${ENTRY}" lint | true`], { encoding: "utf8", env: { ...process.env, HARNESS_TOOLS_DIR: fakeTools() } });
+test("harness lint の出力先が先に閉じたら、残りを実行せず、失敗で終わる", { skip: process.platform === "win32" }, () => {
+	const dir = fakeTools();
+	const ran = join(dir, "ran");
+	writeFileSync(join(dir, "spec-lint/spec-lint.mjs"), `setTimeout(() => {}, 300);\n`);
+	for (const s of ["trace-check/trace-check.mjs", "git-lint/git-lint.mjs"]) {
+		writeFileSync(join(dir, s), `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "x");\n`);
+	}
+	const r = spawnSync("bash", ["-c", `"${process.execPath}" "${ENTRY}" lint | true; exit \${PIPESTATUS[0]}`], { encoding: "utf8", env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
+	assert.equal(r.status, 1, r.stderr);
 	assert.doesNotMatch(r.stderr, /EPIPE|Unhandled/);
+	assert.ok(!existsSync(ran), "出力先が閉じた後に残りの検査が実行された");
 });
 
 test("標準入力は渡した先に届く（フックは標準入力の JSON を読む）", () => {
