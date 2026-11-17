@@ -24,6 +24,9 @@ class Packages(unittest.TestCase):
                 self.assertNotIn(name, text, f'{mapping}: agent 名 {name} を持っている')
         for tier, pin in json.loads((ROOT / 'tools/codex-sync/models.json').read_text())['tiers'].items():
             self.assertEqual(set(pin), {'model', 'reasoning_effort'}, tier)
+            self.assertTrue(all(isinstance(v, str) and v for v in pin.values()), tier)
+        for tier, family in json.loads((ROOT / 'tools/apm/claude-models.json').read_text())['tiers'].items():
+            self.assertTrue(isinstance(family, str) and family, tier)
 
     def test_righthub_database_rules_reach_prisma_schemas(self):
         source = ROOT / 'packages/rules-righthub/.apm/instructions/backend-database.instructions.md'

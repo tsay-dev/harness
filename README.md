@@ -84,7 +84,7 @@ harness/
   docs/adr/
 ```
 
-develop の agent は `spec-author`、`test-author`（`track: backend-logic / scenario`）、`implementer`（`mode: logic / appearance / schema / probe`）、`reviewer`（`mode: structure / slice / proposal`）、`attacker` の 5 体で、別コンテキストが必要な場合だけ分けています。各 agent は `x-model-tier`（top / mid / light）を 1 つ宣言し、プロバイダーのモデル名はアダプターの対応表だけが持ちます。
+develop の agent は `spec-author`、`test-author`（`track: backend-logic / scenario`）、`implementer`（`mode: logic / appearance / schema / probe`）、`reviewer`（`mode: structure / slice / proposal`）、`attacker` の 5 体で、別コンテキストが必要な場合だけ分けています。各 agent は `x-model-tier`（top / mid / light）を 1 つ宣言し、プロバイダーのモデル名は `tools/` の対応表だけが持ちます。
 
 ## docs の SDD / SSOT
 

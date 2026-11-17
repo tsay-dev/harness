@@ -12,7 +12,7 @@
 
 - **常駐ゼロを破らない。** 常駐するルール索引、`AGENTS.md` / `CLAUDE.md` 内のルーター、`settings.json` への自動注入を追加しない（`gate-hook` / `stop-gate` などの hook はホストが明示的に有効化する）。導出できる文書台帳をコミットしない（`trace-check --index` が必要時に索引を生成する。`docs/verification/DEFERRED.md` は唯一コミットする台帳であり、どのソースからも再生成できない、反例付きの reviewer 指摘を保持する）。APM で可能だからという理由だけで、インストール済み instruction 全体を基底文書にコンパイルしない。
 - **生成済みのプロバイダー向けディレクトリを手で編集しない。** `.claude/`、`.agents/`、`.codex/`、`.cursor/`、`.grok/` は出力。`packages/` または `tools/` を変更して再生成する。ルートの `AGENTS.md` / `CLAUDE.md` はこのリポジトリの作業用入口であり、生成されたルールルーターではない。
-- **あるプロバイダーの出力を、別のプロバイダーの正本にしない。** アダプターは一時的な中間ファイルを使ってよいが、入力は選択した中立パッケージに由来しなければならない。
+- **あるプロバイダーの出力を、別のプロバイダーの正本にしない。** 展開の入力は、選択した中立パッケージに由来しなければならない。
 - **既定で全部をインストールしない。** ルートの全部入り APM パッケージは存在しない。開発と各フレームワークは独立して選択できる状態を保つ。
 - **ホスト固有の事実をここに追加しない。** 共有 harness は汎用的な手順と規則を持つ。案件のスタック、アドレス、コマンド、例外はそのホストの `AGENTS.md` または `CLAUDE.md` に書く。
 - **知識を重複させない。** 文書形式の正本は `templates/` の一か所に置き、spec-lint が必須項目をそこから導出する。作業技法は agent 本文に置く。ただし、入力が orchestrator 自身の判断だけで、自身が実行する副作用（commit、ADR）のガードレールと書式、ルール末端ファイルの配送契約は、その skill の `references/*.md` に置く。プロンプトが持つのは到達状態、不変条件、入出力契約と、機械が検査せずモデルが自力で到達しない知識だけで、手順の順序・回数、機械が検査する事項の再説明、重複表、チェックリストは置かない（ADR-0044）。ファイル種別ごとの行数上限は `tools/apm/test_projection.py` が固定し、縮む方向にだけ動かす。コピーはしない。agent 本文を移したら元は削除する。
@@ -92,13 +92,13 @@ applyTo: "**/crow3_*/app/classes/**"
 | manifest / パッケージ境界 | APM がパッケージを認識する。新規インストールに選択した依存だけが入り、tools / templates が同梱されない。 |
 | instruction | 有効な `applyTo`、関心事 1 つ、想定する書き手のアドレス、Claude 出力の `paths` が glob の意味を失わないこと。 |
 | skill | 呼び出しが動作する。行数上限内（`test_projection.py`）。オーケストレーションと実装を分離したままにする。ゲートと `active` / `fixed` / `phase` の遷移は orchestrator が保持する。参照が `.claude/` なしで動作する。`references/*.md` が全プロバイダーの出力にあり、それ自体には frontmatter を持たない。 |
-| agent | producer / judge が独立している。明示的な契約、有効な `x-model-tier`、正しい対象変換とモデル方針。develop の構成は、別コンテキストが正当化された 5 役に留める（`tools/apm/test_projection.py` が tier の集合を固定する）。 |
-| プロバイダー向けの展開 | 展開は APM だけで行う（ADR-0062）。Claude 出力の `paths` と Cursor 出力の `globs` が `applyTo` と同じ対象を表す。遅延読み込みのない対象にルールを常駐させない。モデルの対応表は tier の 3 段だけを持ち、agent 名を持たない（`tools/apm/test_projection.py`）。 |
+| agent | producer / judge が独立している。明示的な契約、有効な `x-model-tier`、モデルの段は `x-model-tier` だけで宣言し、プロバイダーのモデル名を書かない。develop の構成は、別コンテキストが正当化された 5 役に留める（`tools/apm/test_projection.py` が tier の集合を固定する）。 |
+| プロバイダー向けの展開 | 展開は APM だけで行う（ADR-0062）。モデルの対応表は tier の 3 段だけを持ち、agent 名を持たない（`tools/apm/test_projection.py`）。APM の出力（Claude の `paths` と Cursor の `globs` が `applyTo` と同じ対象を表すこと、選択外のパッケージが出ないこと、遅延読み込みのない対象にルールが常駐しないこと）は機械で検査していない。パッケージの構成や `applyTo` の書き方を変えたら、新しい consumer で `docs/apm.md` の確認項目を手で確かめる。 |
 | テンプレート / spec-lint | 必須形式はテンプレートから導出する。閉じた語彙（`status`、`phase`、`pattern`、`transport`、`direction`、operation の 13 キーと `errors[]` の各項目の 3 キー、`DEFERRED.md` の行文法）を、実行可能な lint の正本として維持する。`fixed` 契約にはエラーコードごとに失敗例を 1 つ置く。baseline は持たず、違反はすべて失敗にする（ADR-0056）。判断を含まない変換の注記を保つ。`gate` は monorepo のコミットの UC を、その `scope` が示す unit（`git.units`）の文書内で解決し、scope が unit でない `UC:` trailer を失敗にする。読むのは unit の対応表だけで、`git.units` の形式は git-lint が担当する。 |
 | trace-check | トレーサビリティのみ: C1–C27。各検査の意味、義務表、注釈の窓の規則は `tools/trace-check/README.md` が正本で、ここに再掲しない。宣言キーは最上位の `covers_pattern` / `implements_pattern` / `id_patterns` / `scenario_pattern` / `nfr_pattern` / `operation_pattern` / `comment_pattern`、`docs`、`source`、`tests`、`tests.system`、`schema`、`contract`。紐づきに例外を作らない（ADR-0056）: baseline、コードに書く例外の印、黙った省略を持たず、撤回済みの仕様への参照も違反にする。宣言の省略は設定エラーにし、`{ "none": "<理由>" }` は義務が無い間だけ通す。形式検証を重複させない。`--only` と `--next` の予約を保つ。 |
 | contract-run | 契約例を実行する経路は `traceconfig.json` の `commands.contract_adapter` だけ。実行する実例があるのにアダプターが無ければ失敗にし、`skip` 応答も失敗に数える（ADR-0056）。baseline ファイルは置かない。 |
 | gate-hook / stop-gate | ホスト設定で明示的に有効化し、自動注入しない。PreToolUse は `UC.md` から phase を読む。`.harness-gate/` の書き込みを阻止し、`traceconfig.json`・`.harness/`・hook の設定・`.github/workflows/` の書き込みと、docs の status の降格、`UC.md` の `active` と契約の `fixed` への昇格に人間の承認を求める（ADR-0057）。Stop は traceconfig だけから（推測せずに。traceconfig が無ければ失敗）spec-lint → trace-check → contract-run → `commands.typecheck` / `lint` / `test` → `commands.system`（シナリオスイート。`test` が Green になった後に最後に実行）の順で動かし、`commands` の 4 キーは宣言か理由付きの none を必須にする。monorepo は unit ごとに検査する。ツリー（未追跡ファイル、traceconfig、ツールを含む）が変わらなければ省略し、`stop_hook_active` の場合は `--max-rounds` で解除して利用者に表示する。判定中の例外は fail-closed。両方とも拒否ログに追記する。 |
 | git-lint | 判断不要の事項だけを決める: ブランチ名の形式、prefix、topic、コミットヘッダーの `type`、末尾のピリオド、monorepo の `scope`。`traceconfig.json` が `git` を宣言した場所だけで実行する。未宣言のホストと除外ブランチは「未検査」と報告し、合格とはしない。`type` の一覧は `commit.md` の表と一致させる（テストで固定）。baseline はなく、パスや差分の規則も持たない。 |
-| インストール / 文書 | コマンドが実際の help と一致する。新規インストールと既存ホストの移行を区別する。APM と旧方式の所有権が重ならない。 |
+| インストール / 文書 | コマンドが実際の help と一致する。新規インストールと既存ホストの移行を区別する。旧方式の利用プロジェクトは `docs/apm.md` の移行手順で APM へ移る（ADR-0062）。 |
 
 品質の軸は、パッケージの隔離、参照の整合性、常駐ゼロ、プロセスの意味の維持。委譲やモデル選択を評価するとき、パッケージングの検証は実際のプロバイダーセッションの代わりにはならない。
