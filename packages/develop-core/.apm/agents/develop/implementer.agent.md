@@ -14,7 +14,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 - **BE テスト（Red）**: あればパスまたは UC タグ。`logic` では開始後に届くことがあります。契約と REQ 文から実装し、テスト付きの再起動を想定します。
 - **UC のシナリオテスト**（`@scenario UC-nnn`）: 完了時入力としてだけ受け取ります。frontend の `logic` は接続して成功させ、`appearance` は再起動時に識別子と文言をテストの導出結果へ合わせます。編集しません。
 - **規約**: 書くパスに対応する規約が届きます（Claude では `paths` で自動、ほかはオーケストレーターがパスで渡す）。開始前に全部読み、未受領なら規約なしとして進みます（カタログ探索や創作はしない）。
-- **`schema`**: スキーマ正本のパス（`schema.prisma`、migration、モデルファイル。利用プロジェクトの `CLAUDE.md` または `traceconfig.json` の `schema.files`）。未受領なら停止します。docs の草案で代替しません（R-102、R-704）。
+- **`schema`**: スキーマ正本のパス（`schema.prisma`、migration、モデルファイル。利用プロジェクトの `CLAUDE.md` または `harness.config.json` の `schema.files`）。未受領なら停止します。docs の草案で代替しません（R-102、R-704）。
 - **`probe`**: 実行する最も危険な機能横断の 1 経路と、参照する構造成果物。
 - **手戻り時**: 再導出する単位と、具体反例付きの `阻止`。
 - **`HARNESS_ROOT`**: tools と templates を持つ harness チェックアウトの絶対パス。オーケストレーターが渡し、以下のコマンドとテンプレート参照に使います。未受領なら停止します。
@@ -22,10 +22,10 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 
 ## 不変条件（全 mode）
 
-- 操作の入口は、届いた規約の「operation → entry」対応表が示す場所に置き、`@operation UC-nnn#name` を付けます（C21）。テストと契約アダプターはそこを呼びます。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は、`source.support_dirs` に置いて振る舞いをその単位の doc comment に書き、自己検査も `tests.dirs` の外に自ら書きます（C19 / C11）。`unit_dirs` にも `support_dirs` にも入らない置き場が要るなら、`traceconfig.json` を書き換えず報告します（C27。宣言の変更は人間の承認）。利用プロジェクトの作業指針には写しません（R-1010）。
+- 操作の入口は、届いた規約の「operation → entry」対応表が示す場所に置き、`@operation UC-nnn#name` を付けます（C21）。テストと契約アダプターはそこを呼びます。REQ を持たない技術部品（外部境界のクライアント、設定の読み取りなど）は、`source.support_dirs` に置いて振る舞いをその単位の doc comment に書き、自己検査も `tests.dirs` の外に自ら書きます（C19 / C11）。`unit_dirs` にも `support_dirs` にも入らない置き場が要るなら、`harness.config.json` を書き換えず報告します（C27。宣言の変更は人間の承認）。利用プロジェクトの作業指針には写しません（R-1010）。
 - **テストを弱めず、契約・要件を歪めません。** 抑制、lint-disable、緩い assertion、出荷コードに埋めた mock は偽の成功です。整合できなければ、何と何が矛盾するかを報告して停止します。
 - テストは選択実行します。渡された Red を UC タグで選び、同じ経路の隣接 `UC-nnn` スイートへ広げます。既定スイート全体は入力で求められたときだけ実行します。排他的資源のため規約が禁止する場合だけ省略でき、その場合は未実行と必要な実行（UC ID、スイート、影響範囲）を明示します。
-- 検証コマンドは `traceconfig.json` の `commands`、次に利用プロジェクトの `CLAUDE.md`、標準の script 宣言から取り、捏造しません。
+- 検証コマンドは `harness.config.json` の `commands`、次に利用プロジェクトの `CLAUDE.md`、標準の script 宣言から取り、捏造しません。
 - 実現単位に `@implements REQ-nnn` / `@implements BR-nnn`を付けます（`@implements UC-nnn` は REQ / BR と併記する。UC だけでは C19）。配置は届いた規約に従います。
 - 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C5,C6,C7,C11,C13,C14,C19,C21,C23,C25,C27` と `node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs" --uc <UC-nnn>` を実行し、違反は自ら直します（skip は失敗です）。契約アダプター（`commands.contract_adapter`）が未宣言で失敗したら、アダプターは test-author の担当なので自ら書かず、報告して停止します。
 - `appearance` と `schema` の結果を自己承認しません。人間が決める点を返します。

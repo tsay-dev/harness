@@ -15,7 +15,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 | 統合 | workerd 上の Cloudflare Workers Vitest 統合。ローカル D1 / DO / R2 バインディング、本番リソースなし | `tests/integration/` |
 | システム | 実 SPA + Worker のシナリオ環境に対する Playwright | `e2e/` |
 
-- 探索はフォルダーとランナー設定で分離し、既定テストが workerd、DB、ブラウザなしで成功するようにする。`traceconfig.json` に `commands.test`、最終ゲートで使うなら `commands.system` を宣言し、統合コマンドは別に記録する。
+- 探索はフォルダーとランナー設定で分離し、既定テストが workerd、DB、ブラウザなしで成功するようにする。`harness.config.json` に `commands.test`、最終ゲートで使うなら `commands.system` を宣言し、統合コマンドは別に記録する。
 - `commands.contract_adapter` は利用プロジェクトが明示的に書くもので、Hono RPC が自動で提供しない。宣言済みコマンドだけを使う。
 
 ## 操作 → 入口（実装を読まずに導出）
@@ -35,4 +35,4 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 
 - 既定 / 統合ケースは外側のグループを `UC-nnn <title>` とし、各テスト本文の先頭行に `// @covers REQ-nnn#class` を置く。シナリオテストは[システムテスト](system-testing.instructions.md)の注釈を使う。
 - 時刻と乱数を注入し、外部境界だけをフェイクにし、共有状態を片付ける。実時間の sleep で同期しない。
-- タイトルとコメントは `traceconfig.json` の `policy.language`（未宣言なら日本語）。
+- タイトルとコメントは `harness.config.json` の `policy.language`（未宣言なら日本語）。

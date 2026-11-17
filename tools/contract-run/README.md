@@ -21,14 +21,14 @@ contract-run は各例を**利用プロジェクトが書いたアダプター�
 ## 使い方
 
 ```bash
-node tools/contract-run/contract-run.mjs [--root <host root>] [--config traceconfig.json] [--docs docs]
+node tools/contract-run/contract-run.mjs [--root <host root>] [--config harness.config.json] [--docs docs]
                                           [--uc UC-012 ...] [--all] [--include-external] [--json] [--timeout 120]
 ```
 
 | フラグ | 意味 |
 | --- | --- |
 | `--root` | 利用プロジェクト直下（既定: 現在のディレクトリ）。アダプターはここを cwd に実行 |
-| `--config` | 読む `traceconfig.json`（既定: `<root>/traceconfig.json`）。設定欠落は exit `2`。探索はしない |
+| `--config` | 読む `harness.config.json`（既定: `<root>/harness.config.json`）。設定欠落は exit `2`。探索はしない |
 | `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は `<docs>/goals/**/UC-*/contract.yaml` 配下で探す。`<docs>/goals` が無ければ exit `2` |
 | `--uc` | `x-uc` が一致する契約だけ（繰り返し指定、またはカンマ区切り） |
 | `--all` | `draft` 契約も実行（既定: `x-status: fixed` のみ） |
@@ -47,7 +47,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 ```
 
 終了コード: `0` = `fail` も `skip` もない / `1` = 一つ以上の `fail` か `skip`、または実行する実例があるのにアダプターが無い /
-`2` = 設定またはアダプターエラー（`traceconfig.json` 欠落、`<docs>/goals` が無い、解析不能な契約、アダプターの異常終了 /
+`2` = 設定またはアダプターエラー（`harness.config.json` 欠落、`<docs>/goals` が無い、解析不能な契約、アダプターの異常終了 /
 タイムアウト / プロトコル違反）。`<docs>/goals` の不在を失敗にするのは、`--docs` の書き損じで「実行する実例が無い」と
 黙って通らないため（ADR-0056）。docs をまだ持たない利用プロジェクトは `docs/goals/` を作る（空なら `.gitkeep` を置く）。`operations: {}` の操作は表示せずスキップする。
 `response` も `error` も `events` もない例は、それ自体を `fail` として報告する（不正な例。アダプターへは送らない）。
@@ -119,7 +119,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 - **Next.js** — route handler または server action を直接 import し、**プロセス内**で呼ぶ。
   `request` から `Request`（または action の引数）を構築し、例同士が依存しないようメモリー内または
   トランザクション内のテスト DB で実行し、JSON body を `response` に読む。throw された domain error や
-  エラー body を契約 `code` に変換する（利用プロジェクトには既に単一エラーコード正本 — `traceconfig.json` の
+  エラー body を契約 `code` に変換する（利用プロジェクトには既に単一エラーコード正本 — `harness.config.json` の
   `contract.error_source` — があるので、通常は一行の対応）。開発サーバーを起動して HTTP で呼ばない。
   目的はネットワークでなく境界の形状。
 - **PHP（Crow / 素の PHP）** — フレームワークを一度初期化し、操作を所有するモジュールを読み込み、
@@ -169,7 +169,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 contract-run は形状を実行する。正常な実行 + テスト成功 + trace-check 違反ゼロは、
 「機械で確認できる範囲で docs と実装が一致する」状態。
 
-## `traceconfig.json` への宣言
+## `harness.config.json` への宣言
 
 ```json
 "commands": {
@@ -181,7 +181,7 @@ contract-run は形状を実行する。正常な実行 + テスト成功 + trac
 ```
 
 `commands` ブロックは `tools/gate-hook`（最終ゲート）とこのツールだけが読み、trace-check は無視する。
-`contract_adapter` はテンプレートに無い。アダプターを書いてから宣言する（`traceconfig.json` の変更なので人間が承認する。ADR-0057）。
+`contract_adapter` はテンプレートに無い。アダプターを書いてから宣言する（`harness.config.json` の変更なので人間が承認する。ADR-0057）。
 アダプターができるまでは、実行する実例があれば contract-run は失敗する。推測でアダプターを作らない。
 
 ## 制約

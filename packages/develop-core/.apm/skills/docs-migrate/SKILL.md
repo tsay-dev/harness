@@ -17,7 +17,7 @@ description: プロジェクトの docs とコードを harness の SDD/SSOT 配
 - **A-4 フェーズゲート。** 各フェーズ末に停止し、人間が成果物をレビューします。1 フェーズ = 1 コミット（または commit.md に従うコミット群）。
 - **A-5 違反ゼロで進める。** 既知の違反を通す仕組みはありません（ADR-0056）。各フェーズ末に `spec-lint validate`（フェーズ 7 までは `--ignore-legacy-layout` だけ許す）と `trace-check` を exit 0 にします。宣言の範囲を狭く始めて広げ、注釈の揃った範囲だけを `tests.dirs` / `source.unit_dirs` に入れます。義務（active な文書、fixed な契約）が無い間は `none` や空の範囲が通り、文書を `active` にした時点で義務が効きます（C26）。
 - **承認は記録し、status は紐づきが揃ってから進める。** 各フェーズの承認は報告に記録し、GOAL・UC・REQ・BR・NFR はフェーズ 6 まで `draft`、契約も `draft` に留めます（先に進めると C1 / C8 / C10 / C14 / C17 / C20 / C26 が発火し A-5 を壊す）。義務を生まない単一文書（vision、glossary、actors）だけは承認後に `frozen` / `living` にできます。
-- `OPEN-QUESTIONS.md` はあなただけが書きます。横断的な単一ファイル編集（`traceconfig.json`、`_shared`、共有ファイルの注釈）は並行 Task の前に単独で終えます。`traceconfig.json` の書き込みは gate-hook が人間の承認を求めるので、宣言を広げる変更はフェーズ単位で 1 回の書き込みにまとめて承認を受けてよい。
+- `OPEN-QUESTIONS.md` はあなただけが書きます。横断的な単一ファイル編集（`harness.config.json`、`_shared`、共有ファイルの注釈）は並行 Task の前に単独で終えます。`harness.config.json` の書き込みは gate-hook が人間の承認を求めるので、宣言を広げる変更はフェーズ単位で 1 回の書き込みにまとめて承認を受けてよい。
 - **情報を黙って落とさない。** 新配置で行き先がないものは ADR、issue、コミットメッセージ、attic のいずれかに振り、計画と報告に明記します。
 
 ## フェーズと人間ゲート
@@ -25,7 +25,7 @@ description: プロジェクトの docs とコードを harness の SDD/SSOT 配
 | フェーズ | 成果物 | 🙋 で決めること |
 | --- | --- | --- |
 | 0 棚卸し（書き換えなし） | `spec-lint validate` の分類結果、`${HARNESS_ROOT}/templates/docs-migrate/INVENTORY.md` からの `docs/INVENTORY.md`（SSOT候補 / 派生物 / 重複 / 不明）、コードから集めた entity と状態値、`OPEN-QUESTIONS.md` | 分類、特に重複の組でどちらを本文にするか。適合済み（exit 0）ならここで停止 |
-| 1 骨格と検査 | `docs/{goals,rules,nfr,adr,verification,_shared,attic}/`、テンプレートからの `traceconfig.json`（全宣言。範囲は狭く始め、対象が無いものは `{ "none": "<理由>" }`。`commands` も宣言か理由付き none）と `_shared/components.yaml`、CI への spec-lint / trace-check 追加（`spec_lint_args: --ignore-legacy-layout`） | なし（本文は書かない） |
+| 1 骨格と検査 | `docs/{goals,rules,nfr,adr,verification,_shared,attic}/`、テンプレートからの `harness.config.json`（全宣言。範囲は狭く始め、対象が無いものは `{ "none": "<理由>" }`。`commands` も宣言か理由付き none）と `_shared/components.yaml`、CI への spec-lint / trace-check 追加（`spec_lint_args: --ignore-legacy-layout`） | なし（本文は書かない） |
 | 2 語彙・actor・goal | `spec-author`（`domain`）が既存資料から抽出した `01-glossary.md`（表記揺れは禁止同義語へ）、`00-vision.md`（KPI は資料になければ `未計測`）、`02-actors.md`、GOAL / backlog、計測方法のある NFR | 正規語と禁止同義語。承認後に vision / glossary / actors だけ `frozen` / `living`、GOAL と NFR は承認を報告に記録し `draft` のまま |
 | 3 UC と表 | `spec-author`（`usecase`、UC ごと並行）が入口（controller、CLI、job）から導いた `UC.md`。表はコードの分岐から埋め、分岐がないセルは `?` のまま `OPEN-QUESTIONS.md` へ | UC 粒度（R-503）と穴の一覧。承認を報告に記録し、`draft` のまま |
 | 4 要件と業務ルール | `spec-author`（`requirements`、並行）が表の予約 ID で書いた `REQ-nnn.md` と抽出した `BR-nnn.md`。値は R-102 で既存定数・制約を SSOT にする。原文は attic へ | REQ 一覧と BR 抽出。承認を報告に記録し、`draft` のまま |

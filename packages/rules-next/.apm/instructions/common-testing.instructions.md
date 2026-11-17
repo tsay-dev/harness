@@ -19,7 +19,7 @@ harness は runner を固定しない。選択と設定、既定スイート全�
 | --- | --- | --- |
 | `transport: http`、`wire.path: /api/users`、`wire.method: POST` | `app/api/users/route.ts`（`wire.path` を `app/` 配下に置き、その下の `route.ts`）| `wire.method` と同名の export（`POST`）。`examples.*.request` から作った `Request` で呼ぶ |
 | Server Action（プロジェクト ADR による `transport: internal`、または利用先が Actions に対応付ける同一アプリ内の更新）| feature の `actions.ts`（`CLAUDE.md` で宣言したミューテーション・コントローラーの場所）| operation と完全に同名の export（`renameUser` なら `renameUser`）。`examples.*.request` を引数に呼ぶ |
-| `commands.contract_adapter`（`traceconfig.json`）経由 | なし。operation 名と example で adapter を駆動し、テストコードに実装 symbol は登場しない | — |
+| `commands.contract_adapter`（`harness.config.json`）経由 | なし。operation 名と example で adapter を駆動し、テストコードに実装 symbol は登場しない | — |
 
 実装が別の場所に入口を置いたなら実装を移す（R-801）。
 

@@ -11,7 +11,7 @@ Righthub は、利用プロジェクトが宣言した Xserver VPS 内で動く 
 
 - VPS 内のリバースプロキシと Node.js で Vite React SPA と Hono API を同一オリジンから配信する。ブラウザルートは TanStack Router、サーバー状態は TanStack Query、型付き HTTP 呼び出しは Hono RPC、HTTP 入力境界は Zod + `@hono/zod-validator`、リレーショナル永続化は VPS 内の PostgreSQL + Prisma。接続とスキーマの規約は[永続化](backend-database.instructions.md)に従う。WebSocket とファイル保存は必要な機能だけに導入する。
 - API、DB、非公開ファイルの実行・保存先は Xserver VPS 内に置く。RSC と Server Actions は導入しない。
-- 選択した単位、実際のパス、接続設定、逸脱は利用プロジェクトの `AGENTS.md` / `CLAUDE.md` に地図として宣言する（R-1010）。コマンドは `traceconfig.json` の `commands`、バージョンはマニフェストとロックファイルが持つ。
+- 選択した単位、実際のパス、接続設定、逸脱は利用プロジェクトの `AGENTS.md` / `CLAUDE.md` に地図として宣言する（R-1010）。コマンドは `harness.config.json` の `commands`、バージョンはマニフェストとロックファイルが持つ。
 
 ## 配置（機能単位）
 
@@ -36,4 +36,4 @@ Righthub は、利用プロジェクトが宣言した Xserver VPS 内で動く 
 - React 機能の `index.ts` は意図的な公開 API。外部はそこから import し、機能内部は直接相互に import する。ほかの場所に再 export の連鎖を作らない。
 - `packages/shared/src/<feature>/schemas.ts` にはブラウザで安全な HTTP / WebSocket の Zod スキーマと推論型だけを置く。DB スキーマ、行、サービス実装、接続設定は置かない。
 - ブラウザコードはサーバーのランタイムモジュール、接続設定、DB スキーマ、秘密情報を import しない。Hono の `AppType` の `import type` だけが例外で、バンドルから消えること。
-- 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーは手編集せず再生成する。コメントとユーザー向け文言は `traceconfig.json` の `policy.language`（未宣言なら日本語）。
+- 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーは手編集せず再生成する。コメントとユーザー向け文言は `harness.config.json` の `policy.language`（未宣言なら日本語）。

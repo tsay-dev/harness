@@ -102,7 +102,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     <li><strong>code</strong> には本番コードとテストの 2 種類があり、どちらも注釈（<code>@implements</code> / <code>@covers</code> / <code>@scenario</code> / <code>@operation</code>）で仕様の ID を指します。注釈として数えるのはコメントの中にあるものだけで、どの単位の注釈かは単位の印の直上（または直後）のコメント行の「窓」で決まります。</li>
     <li><strong>checks</strong> は 2 つではなく 3 層です。文書と注釈を読む静的検査（spec-lint、trace-check）、実際に動かす検査（contract-run、テスト）、書き込み・終了・コミットで止める関所（gate-hook、stop-gate、spec-lint gate、git-lint）です。</li>
     <li>点線の紐づけは機械が検査せず、reviewer が担う線です。どの線にも、機械が見るのは注釈や参照の存在までで、意味の正しさは人間ゲートと reviewer が担います。</li>
-    <li>紐づきに例外はありません（ADR-0056）。baseline も、コードに書く例外の印もありません。対象が本当に無い範囲だけを <code>traceconfig.json</code> に理由付きの none で宣言し、active な文書が求める範囲は none にできません（義務表、C26）。</li>
+    <li>紐づきに例外はありません（ADR-0056）。baseline も、コードに書く例外の印もありません。対象が本当に無い範囲だけを <code>harness.config.json</code> に理由付きの none で宣言し、active な文書が求める範囲は none にできません（義務表、C26）。</li>
   </ul>
 </header>
 
@@ -243,7 +243,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="pill anno"><rect x="410" y="442" width="100" height="16" rx="8"/><text x="460" y="454">contract-run</text></g>
 
         <!-- 7 layering → import -->
-        <g class="node"><rect x="20" y="478" width="230" height="44" rx="6"/><text class="ntj" x="135" y="505">traceconfig.json の layering</text></g>
+        <g class="node"><rect x="20" y="478" width="230" height="44" rx="6"/><text class="ntj" x="135" y="505">harness.config.json の layering</text></g>
         <g class="node"><rect x="670" y="478" width="230" height="44" rx="6"/><text class="ntj" x="785" y="505">本番コードの import</text></g>
         <line x1="252" y1="500" x2="666" y2="500" class="e anno" marker-end="url(#b-anno)"/>
         <text class="elj mid" x="460" y="492">禁止された層への import を検出</text>
@@ -298,15 +298,15 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
       <p>その後、人間が承認して <code>active</code> にする。UC の active と契約の fixed は gate-hook が承認を求める。</p></div>
     <div class="step"><span class="when">2 · 実装を書く直前</span><h3>gate-hook（PreToolUse）</h3>
       <ul><li>UC が active</li><li>REQ に draft がない</li><li>契約が fixed</li><li>UC の phase が 実装 / 検証</li></ul>
-      <p>満たさなければ書き込みを止める。traceconfig・検査器・hook の設定・workflow・status の降格は人間に承認を求める（ask）。</p></div>
+      <p>満たさなければ書き込みを止める。harness.config.json・検査器・hook の設定・workflow・status の降格は人間に承認を求める（ask）。</p></div>
     <div class="step"><span class="when">3 · ターン終了時</span><h3>stop-gate（Stop）</h3>
       <ul><li>spec-lint → trace-check → contract-run</li><li>typecheck → lint → test</li><li>system（シナリオテスト）</li></ul>
-      <p>コマンドは <code>traceconfig.json</code> の <code>commands</code> だけから取る（4 キーは宣言か none が必須）。traceconfig.json が無ければ失敗。例外でも止める（fail-closed）。</p></div>
+      <p>コマンドは <code>harness.config.json</code> の <code>commands</code> だけから取る（4 キーは宣言か none が必須）。harness.config.json が無ければ失敗。例外でも止める（fail-closed）。</p></div>
     <div class="step"><span class="when">4 · コミット時</span><h3>spec-lint gate</h3>
       <ul><li><code>UC:</code> trailer の UC と REQ が active</li><li>契約が fixed</li></ul>
       <p>commit-msg hook への接続は任意。</p></div>
     <div class="step"><span class="when">5 · PR / CI</span><h3>git-lint ほか</h3>
-      <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>spec-lint・trace-check（<code>harness_ref</code> で固定した版。unit ごと）</li><li>traceconfig・status・workflow の変更をジョブ要約に出す</li></ul>
+      <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>spec-lint・trace-check（<code>harness_ref</code> で固定した版。unit ごと）</li><li>harness.config.json・status・workflow の変更をジョブ要約に出す</li></ul>
       <p><code>git</code> 未宣言なら「未検査」。merge で止めるのはブランチ保護と CODEOWNERS。</p></div>
     <div class="step"><span class="when">6 · スライス完了</span><h3>判定と人間ゲート</h3>
       <ul><li>reviewer の「阻止」がゼロ</li><li>持ち越しは DEFERRED.md へ</li><li>UC の phase が 完了</li></ul>
@@ -325,7 +325,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>trace-check</td><td>下の C1–C27。docs 同士、docs と code、層の向き、ID の衝突、宣言と義務の矛盾、ソースの分類。紐づきの宣言が省略されていれば設定エラーで、対象が無い範囲は理由付きの none として報告に出す（baseline は無い）</td><td>注釈した単位が文を本当に実現しているか</td></tr>
         <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。実行する実例があるのにアダプターが無い場合と skip は失敗</td></tr>
         <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
-        <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか。traceconfig・検査器・hook の設定・workflow への書き込みと、status の降格、UC の active・契約の fixed への昇格は人間に承認を求める</td><td>Bash による書き込み、Claude Code 以外のプロバイダー、monorepo の unit の docs の status</td></tr>
+        <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか。harness.config.json・検査器・hook の設定・workflow への書き込みと、status の降格、UC の active・契約の fixed への昇格は人間に承認を求める</td><td>Bash による書き込み、Claude Code 以外のプロバイダー、monorepo の unit の docs の status</td></tr>
         <tr><td>stop-gate</td><td>ターン終了時に上の検査を順に実行</td><td>ツリーに変更がないとき（省略）</td></tr>
         <tr><td>git-lint</td><td>ブランチ名の形（B1–B3）、コミットヘッダーの type・末尾ピリオド・monorepo の scope（M1–M3）</td><td>差分と名前が合っているか（reviewer）</td></tr>
       </tbody>
@@ -362,7 +362,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C23</td><td>スキーマの制約（<code>schema.constraint_pattern</code>）に <code>@implements</code> が無い</td><td><span class="tag anno">スキーマ → BR</span></td></tr>
         <tr><td>C24</td><td>撤回されていない契約があるとき、共有語彙のエラーコードがどの契約の errors でも使われていない</td><td><span class="tag ok">components → 契約</span></td></tr>
         <tr><td>C25</td><td>active な UC・REQ が使う用語の、用語集のコード識別子がソース（コメント行以外）に無い（用語集の status によらない）</td><td><span class="tag anno">用語集 → コード</span></td></tr>
-        <tr><td>C26</td><td>義務がある範囲の none、範囲・印の一致 0 件、active な UC があるときの固定パスの不在（下の義務表）</td><td><span class="tag ok">traceconfig ↔ 文書</span></td></tr>
+        <tr><td>C26</td><td>義務がある範囲の none、範囲・印の一致 0 件、active な UC があるときの固定パスの不在（下の義務表）</td><td><span class="tag ok">harness.config.json ↔ 文書</span></td></tr>
         <tr><td>C27</td><td><code>source.dirs</code> のファイルが <code>unit_dirs</code> にも <code>support_dirs</code> にも入らない、または <code>unit_dirs</code> のファイルが走査対象の拡張子でない、<code>unit_dirs</code> の中で <code>source.dirs</code> の <code>!</code> で外したのにテストの範囲にも入らない</td><td><span class="tag anno">ソースの全ファイル</span></td></tr>
       </tbody>
     </table>
@@ -391,14 +391,14 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <p>義務がある範囲で、単位・テスト・入口・制約の印の一致が 0 件なのも違反です。宣言した固定パスが無いことは、active な UC があれば違反（作るか、理由付きの none にする）、それ以外はレポートに「未作成」と出すだけです。</p>
 
   <h3>分類（C27）: ソースの全ファイルの置き場</h3>
-  <p>active な REQ がある間、<code>source.dirs</code> の全ファイル（git が管理するもの。拡張子を問わない）は、仕様を実現する単位の置き場 <code>source.unit_dirs</code> か、REQ を持たない技術部品の置き場 <code>source.support_dirs</code> のどちらかに入ります。C19 が <code>@implements</code> を求めるのは <code>unit_dirs</code> の単位だけです。置き場を増やすことは <code>traceconfig.json</code> の変更なので、人間が承認します。</p>
+  <p>active な REQ がある間、<code>source.dirs</code> の全ファイル（git が管理するもの。拡張子を問わない）は、仕様を実現する単位の置き場 <code>source.unit_dirs</code> か、REQ を持たない技術部品の置き場 <code>source.support_dirs</code> のどちらかに入ります。C19 が <code>@implements</code> を求めるのは <code>unit_dirs</code> の単位だけです。置き場を増やすことは <code>harness.config.json</code> の変更なので、人間が承認します。</p>
 
   <h3>gate-hook が人間に承認を求める書き込み（ask）</h3>
   <div class="table">
     <table>
       <thead><tr><th>書き込み</th><th>理由</th></tr></thead>
       <tbody>
-        <tr><td>**/traceconfig.json</td><td>検査の範囲（none の宣言、範囲、注釈の正規表現、commands）を決める。大文字小文字を無視し、unit のものも含む</td></tr>
+        <tr><td>**/harness.config.json</td><td>検査の範囲（none の宣言、範囲、注釈の正規表現、commands）を決める。大文字小文字を無視し、unit のものも含む</td></tr>
         <tr><td>.harness/**</td><td>検査器そのもの</td></tr>
         <tr><td>.claude/settings*.json</td><td>hook の設定（ゲートを外せる）</td></tr>
         <tr><td>.github/workflows/**</td><td>CI の検査と、固定した検査器の版（<code>harness_ref</code>）</td></tr>
@@ -416,12 +416,12 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>注釈した単位が本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>技術部品の置き場（<code>source.support_dirs</code>）に置かれたコードに、REQ にすべき業務ルールが紛れていないか。none の宣言と置き場を含む <code>traceconfig.json</code> の変更は人間が承認する（gate-hook が確認を求める）。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>技術部品の置き場（<code>source.support_dirs</code>）に置かれたコードに、REQ にすべき業務ルールが紛れていないか。none の宣言と置き場を含む <code>harness.config.json</code> の変更は人間が承認する（gate-hook が確認を求める）。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>NFR のテストや <code>measured_by</code> の計測が、閾値を本当に測っているか。C20 が見るのは、検証の所在が docs の外のファイルとして実在し、中に NFR の ID が現れることまで。外部の計測は runbook に ID と計測先を書く。</p></div>
     <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
     <div class="gap"><span class="who">主張の外</span><p>テストが実際に実行されたこと。trace-check は紐づきの有無を見るだけで、<code>@covers</code> したテストが CI で走って通ったかは突き合わせない（ADR-0056 の M9）。</p></div>
     <div class="gap"><span class="who">主張の外</span><p>C21 のパスの照合は文字列の比較。短い入口のパス（<code>/:id</code>）は別の操作の <code>wire.path</code> にも一致しうるし、method は見ない。行の正規表現で拾えない書き方の入口・単位も残る。</p></div>
-    <div class="gap"><span class="who">ブランチ保護</span><p>Bash や Claude Code 以外のプロバイダーでの <code>traceconfig.json</code> と status の変更は、gate-hook の承認を通らない。<code>traceconfig.json</code>・<code>docs/</code>・<code>.github/workflows/</code> を CODEOWNERS とブランチ保護で必須レビューにしない限り、機械では止まらない。monorepo の unit の docs の status も ask しない。</p></div>
+    <div class="gap"><span class="who">ブランチ保護</span><p>Bash や Claude Code 以外のプロバイダーでの <code>harness.config.json</code> と status の変更は、gate-hook の承認を通らない。<code>harness.config.json</code>・<code>docs/</code>・<code>.github/workflows/</code> を CODEOWNERS とブランチ保護で必須レビューにしない限り、機械では止まらない。monorepo の unit の docs の status も ask しない。</p></div>
   </div>
 
   <h3>横断文書</h3>
@@ -435,7 +435,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>verification/DEFERRED.md</td><td>機械検査にできない reviewer 指摘の台帳</td><td>spec-lint（行文法）</td></tr>
         <tr><td>goals-backlog.md</td><td>未着手のゴール。着手時にディレクトリへ昇格</td><td>spec-lint（書式）</td></tr>
         <tr><td>CLAUDE.md / AGENTS.md</td><td>利用プロジェクトの作業指針（地図）</td><td>spec-lint（150 行以下）</td></tr>
-        <tr><td>traceconfig.json</td><td>検査の設定（範囲と置き場、none の宣言、注釈とコメントの正規表現、保留の印、commands、layering、policy、git）</td><td>trace-check が宣言を検査（設定エラー・C26・C27）。変更は人間が承認（gate-hook の ask）</td></tr>
+        <tr><td>harness.config.json</td><td>検査の設定（範囲と置き場、none の宣言、注釈とコメントの正規表現、保留の印、commands、layering、policy、git）</td><td>trace-check が宣言を検査（設定エラー・C26・C27）。変更は人間が承認（gate-hook の ask）</td></tr>
       </tbody>
     </table>
   </div>

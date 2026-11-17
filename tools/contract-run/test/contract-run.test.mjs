@@ -1,6 +1,6 @@
 //
 //  contract-run のテスト（node --test）。
-//  一時ディレクトリに最小の host（traceconfig.json / docs / エコーアダプタ）を組み立て、
+//  一時ディレクトリに最小の host（harness.config.json / docs / エコーアダプタ）を組み立て、
 //  アダプタの返答を adapter-table.json で差し替えながら終了コードと出力を検証する。
 //  アダプタは cwd = host root で起動される契約なので、表と「見た要求」の記録はどちらも cwd 相対で読む。
 //
@@ -118,7 +118,7 @@ function makeHost({ table = OK_TABLE, adapter = "node adapter.mjs", contract = C
 	writeFileSync(join(root, "adapter.mjs"), ADAPTER);
 	writeFileSync(join(root, "adapter-table.json"), JSON.stringify(table));
 	const commands = adapter === null ? { test: "true" } : { test: "true", contract_adapter: adapter };
-	writeFileSync(join(root, "traceconfig.json"), JSON.stringify({ docs: { goals_dir: "docs/goals" }, commands }, null, 2));
+	writeFileSync(join(root, "harness.config.json"), JSON.stringify({ docs: { goals_dir: "docs/goals" }, commands }, null, 2));
 	return root;
 }
 
@@ -261,10 +261,10 @@ test("commands.contract_adapter が無くても、実行する実例が無けれ
 	assert.match(r.stdout, /実行する実例が無い/);
 });
 
-test("traceconfig.json が無ければ exit 2", (t) => {
+test("harness.config.json が無ければ exit 2", (t) => {
 	const root = makeHost();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
-	rmSync(join(root, "traceconfig.json"));
+	rmSync(join(root, "harness.config.json"));
 	const r = run(root);
 	assert.equal(r.status, 2);
 	assert.match(r.stderr, /設定が無い/);

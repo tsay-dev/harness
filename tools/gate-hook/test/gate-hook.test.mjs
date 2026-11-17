@@ -116,9 +116,9 @@ test("gate-hook: 壊れた stdin は fail-open（入口の不具合でセッシ�
 test("gate-hook: 検査の範囲・検査器・hook の設定・workflow は止めずに人間の承認を求め、理由を分けて記録する（ADR-0057）", (t) => {
 	const root = makeRoot(t);
 	const cases = [
-		["traceconfig.json", "traceconfig", /検査の範囲/],
-		["apps/a/traceconfig.json", "traceconfig", /apps\/a\/traceconfig\.json/],
-		["packages/ui/TraceConfig.JSON", "traceconfig", /人間の承認/],
+		["harness.config.json", "config", /検査の範囲/],
+		["apps/a/harness.config.json", "config", /apps\/a\/harness\.config\.json/],
+		["packages/ui/Harness.Config.JSON", "config", /人間の承認/],
 		[".harness/tools/trace-check/trace-check.mjs", "harness", /検査器/],
 		[".Harness/README.md", "harness", /検査器/],
 		[".claude/settings.json", "hook-settings", /hook の設定/],

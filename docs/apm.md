@@ -64,13 +64,13 @@ APM packages は tools / bin / templates を含まない。develop の検証と�
 node .harness/bin/harness.mjs                    # 使えるコマンドの一覧
 node .harness/bin/harness.mjs lint spec          # 仕様の文書の書式と状態の決まり
 node .harness/bin/harness.mjs lint refs          # 仕様・コード・テストの ID の紐づき
-node .harness/bin/harness.mjs lint git branch    # traceconfig.json に git を宣言したホストのみ実行される
+node .harness/bin/harness.mjs lint git branch    # harness.config.json に git を宣言したホストのみ実行される
 node .harness/bin/harness.mjs run cases          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
 node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計
 ```
 
 - Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
-- ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `traceconfig.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
+- ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `harness.config.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
 
 ## 旧方式からの移行
 

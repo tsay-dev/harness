@@ -20,7 +20,7 @@ SwiftUI iOS でテストを置く場所、入口、注釈だけを持つ。View 
 | --- | --- | --- |
 | `transport: http` / `sdk` / `local-store` / `device`（outbound）、operation `fetchUser` | Domain の `<Operation>UseCase`（`FetchUserUseCase`）。Repository protocol の fake で構築する | `examples.*.request` の引数で `execute(...)`。fake は `examples.*.response` を返すか `errors[].code` を throw する |
 | `transport: deeplink` / `push`（inbound）、operation `openItem` | 同じ `<Operation>UseCase`（`OpenItemUseCase`）。Router / app delegate は転送だけ | デコード済みペイロードで `execute(...)`。ペイロードのデコードは Data で別途検証する |
-| ホストの `commands.contract_adapter`（`traceconfig.json`）経由 | なし。operation 名と例でアダプターを同一プロセス内で駆動し、実装シンボルをテストに出さない | — |
+| ホストの `commands.contract_adapter`（`harness.config.json`）経由 | なし。operation 名と例でアダプターを同一プロセス内で駆動し、実装シンボルをテストに出さない | — |
 
 ## 注釈
 

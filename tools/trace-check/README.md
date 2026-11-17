@@ -8,9 +8,9 @@ harness に同梱する依存なしの Node ツール。docs の SSOT（GOAL →
   契約構造）は `../spec-lint/` の担当。両ツールは重複しない。frontmatter と契約 YAML は `../_shared/` の
   共有パーサーで読むので、spec-lint・gate-hook と同じ値に読む。
 - **例外を作らない**（ADR-0056）: baseline（既知の違反を通す台帳）、コードに書く例外の印、検査の黙った省略は無い。
-  違反は 1 件でも失敗にする。対象が本当に無い範囲だけを、`traceconfig.json` に理由付きで宣言する（下記「宣言」）。
+  違反は 1 件でも失敗にする。対象が本当に無い範囲だけを、`harness.config.json` に理由付きで宣言する（下記「宣言」）。
   宣言の変更は人間が承認する（ADR-0057）。
-- **読むもの**: 利用プロジェクト直下の `traceconfig.json`（`templates/develop/traceconfig.json` から一度ひな形を置き、
+- **読むもの**: 利用プロジェクト直下の `harness.config.json`（`templates/develop/harness.config.json` から一度ひな形を置き、
   利用プロジェクトが維持する）。注釈（`@covers` / `@implements` / `@scenario` / `@operation`）は正規表現で探し、
   **コメントの中にあるものだけ**を数える（下記「注釈と窓」）ので、任意の言語に対応する。
 - **生成するもの**: カバレッジ行列（レポート）と全プロジェクト索引（`--index`）。
@@ -19,7 +19,7 @@ harness に同梱する依存なしの Node ツール。docs の SSOT（GOAL →
   （merge 条件はテスト成功 + 違反ゼロ、R-803）。stop-gate と CI（spec-gate.yml）でも実行する。
 
 ```bash
-node trace-check.mjs [--root .] [--config traceconfig.json]   # 検査。違反が 1 件でもあれば exit 1
+node trace-check.mjs [--root .] [--config harness.config.json]   # 検査。違反が 1 件でもあれば exit 1
 node trace-check.mjs --as-active                              # draft の文書を active とみなして検査（承認前の自己検査）
 node trace-check.mjs --only C9,C12                            # 指定検査だけを判定（作成者の自己検査）。出力に「部分検査」と出す
 node trace-check.mjs --index                                  # 全プロジェクトの対応図。ID ごとに一行
@@ -113,7 +113,7 @@ active な REQ がある間、`source.dirs` の全ファイルは `source.unit_d
 - `unit_dirs` の中で `source.dirs` の `!` で外したファイル（`*.spec.ts` の名前の本番コードなど）が `tests.dirs` / `tests.system.dirs` にも入らなければ、どの検査にも見えないので違反。
   `support_dirs` に同居する技術部品の自己検査（`tests.dirs` の外に置く規約）は対象にしない。
 - 再 export だけのバレル（`index.ts` の `export { … } from`）を `unit_dirs` に置くと単位と読まれうるので、`!` で `unit_dirs` から外して `support_dirs` に置く。
-- 新しい置き場を作ること自体が `traceconfig.json` の変更（人間の承認）になる。同居テストは `source.dirs` の `!**/*.test.*` などで外す。
+- 新しい置き場を作ること自体が `harness.config.json` の変更（人間の承認）になる。同居テストは `source.dirs` の `!**/*.test.*` などで外す。
 
 ## 注釈と窓
 
@@ -210,7 +210,7 @@ baseline は無い（ADR-0056）。既知の違反を台帳に載せて通すこ
 - 義務が無い間（active な文書・fixed な契約が無い間）は、none も空の範囲も通る。文書を active にした時点で義務表が宣言を求める。
 - 紐づきの揃っていない文書は `draft` に留める。`active` にするのは、テストと注釈が揃ってから。
 - テストの無い既存の単位は、特性テストを書くまで `source.support_dirs` に置く。揃った範囲から `unit_dirs` / `tests.dirs` に移す。
-- 宣言を変えるたびに `traceconfig.json` の変更として人間が承認する（ADR-0057）。
+- 宣言を変えるたびに `harness.config.json` の変更として人間が承認する（ADR-0057）。
 
 手順は `/docs-migrate` が持つ。
 
@@ -247,13 +247,13 @@ EARS 文そのものが正しいか、注釈した単位が実際にその文を
 
 ## 宣言の変更を守る（推奨）
 
-`traceconfig.json` と docs の status の変更は、gate-hook が Claude Code の Write / Edit で人間の承認を求める（ADR-0057）。
+`harness.config.json` と docs の status の変更は、gate-hook が Claude Code の Write / Edit で人間の承認を求める（ADR-0057）。
 Bash や Claude Code 以外のプロバイダーでの変更は止まらないので、利用プロジェクトは merge 時に CODEOWNERS とブランチ保護で
 必須レビューにする（harness はテンプレートを置かない）。呼び出し側の CI ワークフローも PR で書き換えられるので、`.github/workflows/**` も含める。
 
 ```text
 # .github/CODEOWNERS の例（ブランチ保護で「Require review from Code Owners」を有効にする）
-**/traceconfig.json      @<レビューする人かチーム>
+**/harness.config.json      @<レビューする人かチーム>
 docs/                    @<レビューする人かチーム>
 /.github/workflows/      @<レビューする人かチーム>
 # commands が呼ぶテストの設定も（書き換えれば stop-gate の test / system を空振りにできる）

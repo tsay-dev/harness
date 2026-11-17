@@ -6,7 +6,7 @@
 //  判断を要さず機械で決まる部分だけを検査する。どのユニットを選ぶべきだったか、
 //  どのブランチから切ったか、差分と名前が合っているかは判断なので見ない（ADR-0039）。
 //
-//  何を検査するかはホストが traceconfig.json の git ブロックで宣言する:
+//  何を検査するかはホストが harness.config.json の git ブロックで宣言する:
 //    "git": {}                                  単一ユニット。ブランチは <type>/<topic>
 //    "git": { "units": { "app-a": "apps/a" } }  モノレポ。ブランチは <unit>/<topic>、scope も unit
 //    "git": { "exempt_branches": ["dependabot/**"] }   検査しないブランチ（bot など。glob は ** / * / ?）
@@ -23,7 +23,7 @@
 //    "Merge " / "Revert \"" で始まるものは git が作る文面なので対象外（一覧には出す）
 //
 //  使い方:
-//    node git-lint.mjs branch  [--name <branch>] [--root <host root>] [--config traceconfig.json]
+//    node git-lint.mjs branch  [--name <branch>] [--root <host root>] [--config harness.config.json]
 //    node git-lint.mjs message (--file <path> | --range <base>..<head>) [--branch <name>] [--root ...] [--config ...]
 //      --name     検査する名前（既定は現在のブランチ。CI の detached HEAD では必須）
 //      --file     commit-msg フックが渡すメッセージファイル（# 行は無視する）
@@ -37,6 +37,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { renamedConfigHint } from "../_shared/config.mjs";
 
 const TAG = "[git-lint]";
 //  commit.md「type 一覧」表と同じ閉じた語彙（test がこの一致を固定する）
@@ -75,7 +76,7 @@ function globToRegExp(glob) {
 
 function loadConfig(configPath) {
 	if (!existsSync(configPath)) {
-		console.error(`${TAG} 設定が無い: ${configPath}（テンプレート templates/develop/traceconfig.json を host 直下に置く）`);
+		console.error(`${TAG} 設定が無い: ${configPath}（テンプレート templates/develop/harness.config.json を host 直下に置く）${renamedConfigHint(configPath)}`);
 		return null;
 	}
 	try {
@@ -92,7 +93,7 @@ function readGitBlock(cfg, root) {
 	if (cfg.git === undefined) return { declared: false };
 	const g = cfg.git;
 	if (g === null || typeof g !== "object" || Array.isArray(g)) {
-		console.error(`${TAG} traceconfig.json の git はオブジェクトで書く`);
+		console.error(`${TAG} harness.config.json の git はオブジェクトで書く`);
 		return null;
 	}
 	let units = null;
@@ -277,8 +278,8 @@ function parseArgs(argv) {
 	}
 	if (opts.cmd !== "branch" && opts.cmd !== "message") {
 		console.error(
-			"usage: git-lint.mjs branch [--name <branch>] [--root .] [--config traceconfig.json]\n" +
-				"       git-lint.mjs message (--file <path> | --range <base>..<head>) [--branch <name>] [--root .] [--config traceconfig.json]",
+			"usage: git-lint.mjs branch [--name <branch>] [--root .] [--config harness.config.json]\n" +
+				"       git-lint.mjs message (--file <path> | --range <base>..<head>) [--branch <name>] [--root .] [--config harness.config.json]",
 		);
 		return null;
 	}
@@ -289,14 +290,14 @@ function main() {
 	const opts = parseArgs(process.argv.slice(2));
 	if (!opts) return 2;
 	const root = resolve(opts.root ?? process.cwd());
-	const raw = loadConfig(opts.config ? resolve(opts.config) : join(root, "traceconfig.json"));
+	const raw = loadConfig(opts.config ? resolve(opts.config) : join(root, "harness.config.json"));
 	if (!raw) return 2;
 	const cfg = readGitBlock(raw, root);
 	if (!cfg) return 2;
 
 	//  未宣言 ＝ 検査していない。pass ではないことを行に書いて 0 で終える
 	if (!cfg.declared) {
-		console.log(`${TAG} traceconfig.json に git が未宣言: ブランチ名・コミットメッセージの検査は行われていない`);
+		console.log(`${TAG} harness.config.json に git が未宣言: ブランチ名・コミットメッセージの検査は行われていない`);
 		return 0;
 	}
 	return opts.cmd === "branch" ? cmdBranch(root, cfg, opts) : cmdMessage(root, cfg, opts);

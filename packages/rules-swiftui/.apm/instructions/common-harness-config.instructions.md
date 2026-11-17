@@ -1,11 +1,11 @@
 ---
-description: "🔗 SwiftUI — traceconfig.json のスタックの値（ひな形からの差分）"
-applyTo: "**/traceconfig.json"
+description: "🔗 SwiftUI — harness.config.json のスタックの値（ひな形からの差分）"
+applyTo: "**/harness.config.json"
 ---
 
-# 🔗 SwiftUI — traceconfig.json のスタックの値
+# 🔗 SwiftUI — harness.config.json のスタックの値
 
-SwiftUI の iOS アプリで、harness のひな形 `traceconfig.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README が正本。パスは[共通のコーディング規則](common-coding.instructions.md)の Feature-first の配置とテストの既定例で、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる（日本語を含む名前は `[\\p{L}\\p{N}_]`）。
+SwiftUI の iOS アプリで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README が正本。パスは[共通のコーディング規則](common-coding.instructions.md)の Feature-first の配置とテストの既定例で、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる（日本語を含む名前は `[\\p{L}\\p{N}_]`）。
 
 ```json
 {

@@ -187,12 +187,12 @@ test("DEFERRED.md: status は living のみ", () => {
 
 //  ---- gate（UC: トレーラ） -------------------------------------------------------
 //  layout: { "<docs を置くディレクトリ（ホスト直下は "."）>": 契約の x-status }
-//  units:  traceconfig.json の git.units（null なら traceconfig.json を置かない ＝ 単一ユニット）
+//  units:  harness.config.json の git.units（null なら harness.config.json を置かない ＝ 単一ユニット）
 function gate(args, { layout = { ".": "fixed" }, units = null, message = null } = {}) {
 	const root = mkdtempSync(join(tmpdir(), "spec-lint-gate-"));
 	try {
 		for (const [dir, status] of Object.entries(layout)) writeMinimalDocs(join(root, dir), { status });
-		if (units) writeFileSync(join(root, "traceconfig.json"), JSON.stringify({ git: { units } }));
+		if (units) writeFileSync(join(root, "harness.config.json"), JSON.stringify({ git: { units } }));
 		if (message !== null) writeFileSync(join(root, "msg.txt"), message);
 		const r = runNode(SPEC_LINT, ["gate", ...args], { cwd: root });
 		return { ...r, out: r.stdout + r.stderr };
@@ -270,7 +270,7 @@ test("gate: --unit は単一ユニットのホストと --message では使え�
 	assert.equal(withMessage.status, 2, withMessage.out);
 });
 
-test("gate: git.units から unit を読めない traceconfig.json は設定異常（2）", () => {
+test("gate: git.units から unit を読めない harness.config.json は設定異常（2）", () => {
 	const r = gate(["--message", "msg.txt"], { layout: { "apps/a": "fixed" }, units: {}, message: commit("feat(app-a): ログインを足す") });
 	assert.equal(r.status, 2, r.out);
 	assert.match(r.out, /git\.units から unit を読めない/);

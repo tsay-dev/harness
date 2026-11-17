@@ -16,7 +16,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 | システム | simulator、実機、browser を起動する。シナリオ flow だけを持つ | `.maestro/` または `e2e/` | [システムテスト](system-testing.instructions.md) |
 
 - runner は Jest と `jest-expo` preset。素の `react-native` preset や独自の ts-jest 設定を作らない。
-- 単一コマンドで実行でき、終了コードで Red / Green が決まる。未導入なら先に導入する。選択、設定、コマンドはプロジェクトの `CLAUDE.md` に記録し、`traceconfig.json` に `commands.test`、`commands.system` を宣言する。
+- 単一コマンドで実行でき、終了コードで Red / Green が決まる。未導入なら先に導入する。選択、設定、コマンドはプロジェクトの `CLAUDE.md` に記録し、`harness.config.json` に `commands.test`、`commands.system` を宣言する。
 - フォルダーで分離し、`tests/integration` と `e2e` / `.maestro` を `testPathIgnorePatterns` に入れる。simulator も server もないマシンで既定スイートが Green になること。
 - 外部環境を起動しない契約適合テストは既定スイートに属し、結合スイートへ移さない。
 
@@ -29,7 +29,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 | `http` / `sdk`（送信側） | feature の API module（query 層の `queryFn` / `mutationFn` が import するファイル） | operation と完全に同名の関数（operation `fetchUser` → `fetchUser`）。`examples.*.request` で呼び、network は境界で fake にする |
 | `local-store` | feature の永続化 module | operation と完全に同名の関数（`saveAppearance`）。storage adapter を fake にする |
 | `device` / `deeplink` / `push` | OS 機能または受信入口を包む module | operation と完全に同名の関数。native module を mock にする |
-| `commands.contract_adapter`（`traceconfig.json`）経由 | なし | テストは operation 名と example で adapter をプロセス内で駆動する。実装 symbol は登場しない |
+| `commands.contract_adapter`（`harness.config.json`）経由 | なし | テストは operation 名と example で adapter をプロセス内で駆動する。実装 symbol は登場しない |
 
 実装が別の場所に入口を置いたなら実装を移す。テストは契約から導出される（R-801）。
 

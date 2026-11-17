@@ -41,7 +41,7 @@ crow には (A) `engine/kernel/` のフレームワーク本体と (B) `db_desig
 | --- | --- | --- |
 | `transport: http`、operation `getProgressRows`、`wire.path: /progress/get_progress_rows` | `app/.../module_progress.php` — `wire.path` の先頭セグメントに対応する `module_<resource>`（ルーティングが異なる場合は利用先の `CLAUDE.md` に対応を宣言） | `action_get_progress_rows` — `action_` + operation 名の snake_case。`crow_request` と `$hdb` を置換し、`exit_ok` / `exit_ng` の payload を読む |
 | その action の背後の判定（validation・権限・導出） | `app/classes/_common_/model_<table>.php` | action が委譲する手書きの `model_*` メソッド — 推奨 SUT。行オブジェクト・配列を引数として呼ぶ |
-| 利用先の `commands.contract_adapter`（`traceconfig.json`）を介する任意の operation | なし — operation 名と example でアダプターをプロセス内実行 | — |
+| 利用先の `commands.contract_adapter`（`harness.config.json`）を介する任意の operation | なし — operation 名と example でアダプターをプロセス内実行 | — |
 
 ## UC タグと `@covers`
 

@@ -8,7 +8,7 @@
 //  examples はテンプレートで既に必須の実値なので、そのままフィクスチャとして使う。
 //
 //  実装の呼び方はホストごとに違うため、本ツールは「アダプタ」を通してしか実装に触れない:
-//    traceconfig.json の commands.contract_adapter に書かれた 1 行を cwd = host root で 1 回だけ起動し、
+//    harness.config.json の commands.contract_adapter に書かれた 1 行を cwd = host root で 1 回だけ起動し、
 //    stdin に 1 例 1 行の JSON（要求）を順に流し、stdout の 1 行 1 JSON（応答）を id で突き合わせる。
 //      要求: {"id":1,"uc":"UC-012","operation":"createItem","transport":"http","direction":"outbound",
 //             "owned":true,"auth":"bearer","wire":{...}|null,"entry":"..."|null,"request":{...}|null,"case":"ok",
@@ -26,7 +26,7 @@
 //    response も error も無い例: 例の不備として fail
 //
 //  使い方:
-//    node contract-run.mjs [--root <host root>] [--config traceconfig.json] [--docs docs]
+//    node contract-run.mjs [--root <host root>] [--config harness.config.json] [--docs docs]
 //                          [--uc UC-012 ...] [--all] [--include-external] [--json] [--timeout 120]
 //      --uc                 x-uc で絞る（複数可）
 //      --all                draft の契約も実行する（既定は x-status: fixed だけ）
@@ -42,6 +42,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { lineOf, parseStrictYaml } from "../_shared/strict-yaml.mjs";
+import { renamedConfigHint } from "../_shared/config.mjs";
 
 const TAG = "[contract-run]";
 const UC_DIR_RE = /^UC-\d+-[a-z0-9-]+$/;
@@ -50,10 +51,10 @@ const UC_DIR_RE = /^UC-\d+-[a-z0-9-]+$/;
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
-//  traceconfig は探さない。無ければ 2（アダプタの宣言はここにしか無い）
+//  harness.config.json は探さない。無ければ 2（アダプタの宣言はここにしか無い）
 function loadConfig(configPath) {
 	if (!existsSync(configPath)) {
-		console.error(`${TAG} 設定が無い: ${configPath}（テンプレート templates/develop/traceconfig.json を host 直下に置く）`);
+		console.error(`${TAG} 設定が無い: ${configPath}（テンプレート templates/develop/harness.config.json を host 直下に置く）${renamedConfigHint(configPath)}`);
 		return null;
 	}
 	try {
@@ -367,7 +368,7 @@ async function main() {
 	const opts = parseArgs(process.argv.slice(2));
 	if (!opts) return 2;
 	const root = resolve(opts.root ?? process.cwd());
-	const cfg = loadConfig(opts.config ? resolve(opts.config) : join(root, "traceconfig.json"));
+	const cfg = loadConfig(opts.config ? resolve(opts.config) : join(root, "harness.config.json"));
 	if (!cfg) return 2;
 	const docsDir = resolve(root, opts.docs);
 	//  docs の場所の書き損じで「実行する実例が無い」と黙って通らないよう、goals が無ければ設定エラー（ADR-0056）

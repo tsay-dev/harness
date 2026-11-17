@@ -12,7 +12,7 @@
 
 | 利用プロジェクト | 名前 | 決め方 |
 | --- | --- | --- |
-| `traceconfig.json` に `git.units` がある（モノレポ） | `<unit>/<topic>` | `<unit>` は宣言済みの名前。スライスのユーザー価値が現れるアプリ → 変更が収まる共有パッケージ → どれでもなければ `repo` の順で選ぶ。`<unit>` 単独のブランチは禁止 |
+| `harness.config.json` に `git.units` がある（モノレポ） | `<unit>/<topic>` | `<unit>` は宣言済みの名前。スライスのユーザー価値が現れるアプリ → 変更が収まる共有パッケージ → どれでもなければ `repo` の順で選ぶ。`<unit>` 単独のブランチは禁止 |
 | `git.units` がない | `<type>/<topic>` | `<type>` はスライスの主変更のコミット `type`。利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に独自規約があればそれに従う |
 
 単位をディレクトリ構成から推測しません。未宣言なら人間に尋ね、`git.units` に記録してから切ります。切った直後に `node "${HARNESS_ROOT}/tools/git-lint/git-lint.mjs" branch` を実行します（`git` ブロックがなければ「未検査」であり合格ではありません）。
@@ -66,7 +66,7 @@
 
 ### subject（要約行）の規則
 
-命令形・現在形、末尾のピリオドなし、約 50 文字。`traceconfig.json` の `policy.language`（未宣言なら日本語）で書くが `type` は英語のまま。
+命令形・現在形、末尾のピリオドなし、約 50 文字。`harness.config.json` の `policy.language`（未宣言なら日本語）で書くが `type` は英語のまま。
 
 ### body / footer
 

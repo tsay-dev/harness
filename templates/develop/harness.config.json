@@ -1,5 +1,5 @@
 {
-  "_comment": "利用プロジェクト直下に traceconfig.json として置く（orchestrator が人間の承認を得て書く。値はスタックの rules-* の common-traceconfig が差分を示す）。tools/trace-check / spec-lint / contract-run / gate-hook が読む。キーの意味と検査項目は tools/trace-check/README.md。紐づきの宣言（docs.actors / vision / glossary / shared、source、tests、tests.system、schema、contract とその子）は省略できない。対象が無いなら { \"none\": \"<理由>\" } と書く。none と範囲の一致 0 件が通るのは、それを求める active な文書・fixed な契約が無い間だけ（C26）。baseline と、コードに書く例外の印は無い（ADR-0056）。dirs 系はパスか glob の配列で、\"!\" で始まるものは除外。注釈はコメントの中だけを数える（comment_pattern）。正規表現は u フラグでコンパイルする。",
+  "_comment": "利用プロジェクト直下に harness.config.json として置く（orchestrator が人間の承認を得て書く。値はスタックの rules-* の common-harness-config が差分を示す）。tools/trace-check / spec-lint / contract-run / gate-hook が読む。キーの意味と検査項目は tools/trace-check/README.md。紐づきの宣言（docs.actors / vision / glossary / shared、source、tests、tests.system、schema、contract とその子）は省略できない。対象が無いなら { \"none\": \"<理由>\" } と書く。none と範囲の一致 0 件が通るのは、それを求める active な文書・fixed な契約が無い間だけ（C26）。baseline と、コードに書く例外の印は無い（ADR-0056）。dirs 系はパスか glob の配列で、\"!\" で始まるものは除外。注釈はコメントの中だけを数える（comment_pattern）。正規表現は u フラグでコンパイルする。",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",

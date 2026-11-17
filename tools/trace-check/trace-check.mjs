@@ -14,7 +14,7 @@
 //
 //  紐づきに例外を作らない（ADR-0056）:
 //    - baseline（既知の違反を通す台帳）とコードに書く例外の印は持たない。違反はすべて失敗にする。
-//    - 紐づきの検査に要るキーは traceconfig.json で省略できない。対象が無いなら { "none": "<理由>" } と宣言する。
+//    - 紐づきの検査に要るキーは harness.config.json で省略できない。対象が無いなら { "none": "<理由>" } と宣言する。
 //      none と、範囲・印の一致 0 件が通るのは、それを求める active な文書・fixed な契約が無い間だけ（義務表 C26）。
 //    - 注釈（@covers / @scenario / @implements / @operation）はコメントの中にあるものだけを数え（comment_pattern）、
 //      単位への帰属は窓で決める: before ＝ 単位の印の行と、直上に連続するコメント行 / after ＝ 単位の印の行と、次の行がコメントならその行。
@@ -26,7 +26,7 @@
 //    C3   テストの @covers が実在し撤回されていない REQ を指しているか
 //    C4   すべての BR がいずれかの UC / REQ から参照されているか（死んだ規則）
 //    C5   コードの @implements が実在し撤回されていない ID を指しているか（孤児参照）
-//    C6   レイヤの依存方向が内向きに保たれているか（traceconfig の layering。紐づきではないので省略できる）
+//    C6   レイヤの依存方向が内向きに保たれているか（harness.config.json の layering。紐づきではないので省略できる）
 //    C7   実装のエラーコード ⊆ 契約語彙（docs.shared の errorCodes）か
 //    C8   すべての active な GOAL が 1 件以上の UC から参照されているか
 //    C9   パス整合: GOAL / UC ディレクトリ名と frontmatter id・goal の一致、ノード定義ファイルの存在、REQ のファイル名 = id、
@@ -53,7 +53,7 @@
 //    C27  source.dirs の全ファイルが source.unit_dirs か source.support_dirs のどちらかに入り、unit_dirs のファイルが走査対象の拡張子か
 //
 //  使い方:
-//    node trace-check.mjs [--root .] [--config traceconfig.json] [--as-active]   検査（違反が 1 件でもあれば FAIL）
+//    node trace-check.mjs [--root .] [--config harness.config.json] [--as-active]   検査（違反が 1 件でもあれば FAIL）
 //                                                                      --as-active は draft の文書を active とみなす（spec-author の自己検査）
 //    node trace-check.mjs --index                                      1 行 1 ID の索引を出力（生成物）
 //    node trace-check.mjs --next <goal|uc|req|br|nfr|adr> [--reserve N]  次の空き ID を N 件（既定 1）出力し、同時に予約する（R-204）。
@@ -70,6 +70,7 @@ import { spawnSync } from "node:child_process";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope, isGlob } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
+import { renamedConfigHint } from "../_shared/config.mjs";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
 const GOAL_DIR_RE = /^(GOAL-\d+)/;
@@ -156,7 +157,7 @@ function trackedFiles(cfg) {
 
 function loadConfig(root, configPath) {
 	if (!existsSync(configPath)) {
-		console.error(`trace-check: 設定が無い: ${configPath}（テンプレート templates/develop/traceconfig.json を host 直下に置く）`);
+		console.error(`trace-check: 設定が無い: ${configPath}（テンプレート templates/develop/harness.config.json を host 直下に置く）${renamedConfigHint(configPath)}`);
 		process.exit(2);
 	}
 	let cfg;
@@ -331,7 +332,7 @@ function checkDeclarations(cfg) {
 		["source.entry_files", "入口を探す範囲は source.entry_exclude（除外）と source.entry_file_pattern で決める"],
 	])
 		if (lookup(cfg, keyPath) !== undefined) errors.push(`${keyPath} は廃止した。${hint}。キーを削除する`);
-	//  monorepo のルートは紐づきを宣言しない（unit ごとに docs と traceconfig を持つ）
+	//  monorepo のルートは紐づきを宣言しない（unit ごとに docs と harness.config.json を持つ）
 	if (errors.length && isMap(cfg.git?.units) && Object.keys(cfg.git.units).length)
 		errors.unshift(`git.units がある monorepo のルートでは、unit ごとに --root <unit のディレクトリ> で実行する（${Object.values(cfg.git.units).join(", ")}）`);
 	return { errors, absent };
@@ -1374,7 +1375,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 	}
 
 	//  C27: 分類。source.dirs の全ファイル（git が管理するもの）は unit_dirs か support_dirs のどちらかに入る。
-	//  新しい置き場を作ること自体が traceconfig の変更（人間の承認）になる
+	//  新しい置き場を作ること自体が harness.config.json の変更（人間の承認）になる
 	if (srcSec) {
 		const unitD = declared(srcSec.unit_dirs) || [];
 		const supD = declared(srcSec.support_dirs) || [];
@@ -1402,7 +1403,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 			configError(`source.unit_dirs と source.support_dirs の両方に入るファイルがある: ${examples(both)}（どちらかから外す。"!" で除外できる）`);
 		if (obligations.has("source.support_dirs")) {
 			for (const [d, names] of byDir(unclassified))
-				fail("C27", `${d}/ の ${names.length} 件（${examples(names)}）が source.unit_dirs にも source.support_dirs にも入らない（実現単位の置き場か技術部品の置き場かを traceconfig.json で宣言する）`);
+				fail("C27", `${d}/ の ${names.length} 件（${examples(names)}）が source.unit_dirs にも source.support_dirs にも入らない（実現単位の置き場か技術部品の置き場かを harness.config.json で宣言する）`);
 			for (const [d, names] of byDir(wrongExt))
 				fail("C27", `${d}/ の ${names.length} 件（${examples(names)}）は source.unit_dirs にあるが拡張子が source.extensions に無い（走査されないので @implements を検査できない）`);
 			for (const [d, names] of byDir(hidden))
@@ -1534,14 +1535,14 @@ function parseArgs(argv) {
 function main() {
 	const opts = parseArgs(process.argv.slice(2));
 	const root = resolve(opts.root);
-	const cfg = loadConfig(root, opts.config ? resolve(opts.config) : join(root, "traceconfig.json"));
+	const cfg = loadConfig(root, opts.config ? resolve(opts.config) : join(root, "harness.config.json"));
 	if ("baseline_file" in cfg) {
-		console.error("trace-check: baseline_file は廃止した（ADR-0056）。traceconfig.json からキーを削除し、台帳ファイルも削除する");
+		console.error("trace-check: baseline_file は廃止した（ADR-0056）。harness.config.json からキーを削除し、台帳ファイルも削除する");
 		return 2;
 	}
 	const decl = checkDeclarations(cfg);
 	const declError = () => {
-		console.error("trace-check: traceconfig.json の宣言が足りないか誤っている（ADR-0056。紐づきの検査は黙って省かない）");
+		console.error("trace-check: harness.config.json の宣言が足りないか誤っている（ADR-0056。紐づきの検査は黙って省かない）");
 		for (const e of decl.errors) console.error(`  - ${e}`);
 		return 2;
 	};

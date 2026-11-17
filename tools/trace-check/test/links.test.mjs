@@ -1,5 +1,5 @@
 //  trace-check の回帰検証（ADR-0056 の合意事項）: コメントの中だけの注釈、保留のテスト、義務表（C26）、分類（C27）、
-//  C1 の起点、入口のパスの照合、設定エラー。テンプレートの traceconfig.json で、紐づきの揃った最小のプロジェクトを組み、1 か所ずつ崩す。
+//  C1 の起点、入口のパスの照合、設定エラー。テンプレートの harness.config.json で、紐づきの揃った最小のプロジェクトを組み、1 か所ずつ崩す。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -10,13 +10,13 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, "..", "trace-check.mjs");
-const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "traceconfig.json");
+const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "harness.config.json");
 
 const fm = (fields) => `---\n${Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n\n`;
 const G = "docs/goals/GOAL-01-x";
 const U = `${G}/UC-001-x`;
 
-//  紐づきの揃った最小のプロジェクト（違反 0 件）。files で上書き・追加（null は削除）し、configure で traceconfig を変える
+//  紐づきの揃った最小のプロジェクト（違反 0 件）。files で上書き・追加（null は削除）し、configure で harness.config.json を変える
 function project(t, { files = {}, configure = () => {} } = {}) {
 	const root = mkdtempSync(join(tmpdir(), "harness trace-check links "));
 	t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -24,7 +24,7 @@ function project(t, { files = {}, configure = () => {} } = {}) {
 	delete cfg.layering;
 	configure(cfg);
 	const base = {
-		"traceconfig.json": JSON.stringify(cfg, null, 2),
+		"harness.config.json": JSON.stringify(cfg, null, 2),
 		"docs/00-vision.md": `${fm({ id: "VISION", status: "frozen" })}| 指標 | 現状 | 目標 |\n| --- | --- | --- |\n| KPI-01 登録数 | 0 | 10 |\n`,
 		"docs/01-glossary.md": `${fm({ id: "GLOSSARY", status: "living" })}| 用語 | 定義 | コード識別子 | 禁止同義語 |\n| --- | --- | --- | --- |\n| 案件 | 登録する単位 | \`createX\` | 仕事 |\n`,
 		"docs/02-actors.md": `${fm({ id: "ACTORS", status: "living" })}| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | 人間 / 認証済 | 登録する |\n| ACT-02 | 夜間バッチ | システム / スケジューラー | 集計する |\n`,
@@ -54,7 +54,7 @@ function project(t, { files = {}, configure = () => {} } = {}) {
 
 const run = (root, ...args) => spawnSync("node", [TOOL, "--root", root, ...args], { encoding: "utf8" });
 
-test("紐づきの揃った最小のプロジェクトは違反 0 件（テンプレートの traceconfig.json のまま）", (t) => {
+test("紐づきの揃った最小のプロジェクトは違反 0 件（テンプレートの harness.config.json のまま）", (t) => {
 	const r = run(project(t));
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /違反なし/);

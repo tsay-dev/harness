@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TOOL = join(HERE, "..", "trace-check.mjs");
-const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "traceconfig.json");
+const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "harness.config.json");
 
 //  検査の対象外にする範囲は、キーを消さずに理由付きの none で宣言する（ADR-0056）
 const NONE = { none: "このテストでは扱わない" };
@@ -25,7 +25,7 @@ function makeRoot({ system = true } = {}) {
 	delete cfg.layering;
 	for (const k of ["contract", "schema", "source"]) cfg[k] = NONE;
 	if (!system) cfg.tests.system = NONE;
-	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
 
 	const w = (rel, text) => {
 		mkdirSync(dirname(join(root, rel)), { recursive: true });
@@ -79,7 +79,7 @@ function makeRefRoot({ vision = true } = {}) {
 	for (const k of ["contract", "schema", "source"]) cfg[k] = NONE;
 	cfg.tests.system = NONE;
 	if (!vision) cfg.docs.vision = NONE;
-	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
 
 	const w = (rel, text) => {
 		mkdirSync(dirname(join(root, rel)), { recursive: true });
@@ -155,7 +155,7 @@ function makeSourceRoot({ placement = "before", configure = () => {} } = {}) {
 	cfg.tests.system = NONE;
 	cfg.source.implements_placement = placement;
 	configure(cfg);
-	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
 	const w = (rel, text) => {
 		mkdirSync(dirname(join(root, rel)), { recursive: true });
 		writeFileSync(join(root, rel), text);
@@ -218,7 +218,7 @@ function makeNfrRoot() {
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	for (const k of ["_comment", "layering"]) delete cfg[k];
 	for (const k of ["contract", "schema", "source"]) cfg[k] = NONE;
-	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
 	const w = (rel, text) => {
 		mkdirSync(dirname(join(root, rel)), { recursive: true });
 		writeFileSync(join(root, rel), text);
@@ -278,7 +278,7 @@ test("baseline は持たない: baseline_file キーと廃止したフラグは�
 		assert.equal(u.status, 2, u.stdout + u.stderr);
 		assert.match(u.stderr, new RegExp(`${flag} は廃止した`));
 	}
-	const cfgPath = join(root, "traceconfig.json");
+	const cfgPath = join(root, "harness.config.json");
 	writeFileSync(cfgPath, JSON.stringify({ ...JSON.parse(readFileSync(cfgPath, "utf8")), baseline_file: ".trace-baseline.json" }));
 	const b = run(root);
 	assert.equal(b.status, 2, b.stdout + b.stderr);
@@ -291,7 +291,7 @@ function makeFullRoot() {
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	for (const k of ["_comment", "layering"]) delete cfg[k];
 	cfg.source.unit_dirs = ["src/usecase"];
-	writeFileSync(join(root, "traceconfig.json"), JSON.stringify(cfg, null, 2) + "\n");
+	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
 	const w = (rel, text) => {
 		mkdirSync(dirname(join(root, rel)), { recursive: true });
 		writeFileSync(join(root, rel), text);
@@ -399,7 +399,7 @@ test("C26: 宣言した共有語彙・用語集のファイルが無ければ違
 	const out = run(root, "--only", "C26").stdout;
 	assert.match(out, /\[C26\] docs\.shared の docs\/_shared\/components\.yaml が無い（active な UC がある）。作る/);
 	assert.match(out, /\[C26\] docs\.glossary の docs\/01-glossary\.md が無い（active な UC がある）。作る/);
-	const cfgPath = join(root, "traceconfig.json");
+	const cfgPath = join(root, "harness.config.json");
 	const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
 	cfg.contract.exclude_codes = ["INTERNAL"];
 	writeFileSync(cfgPath, JSON.stringify(cfg));

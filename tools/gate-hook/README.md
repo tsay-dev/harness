@@ -30,12 +30,12 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 | 書き込み対象 | 判定 | ログ記録 |
 | --- | --- | --- |
 | `.harness-gate/` 配下 | **阻止**（exit 2）。ログと stop-gate の状態はフック自身だけが書く | あり（`block` / `harness-gate`） |
-| `**/traceconfig.json`（unit の traceconfig も） | 止めずに人間の承認を求める（`permissionDecision: "ask"`）。検査の範囲（none の宣言、注釈の正規表現、`commands`）を決め、書き換えれば検査を外せるため（ADR-0057） | あり（`ask` / `traceconfig`） |
+| `**/harness.config.json`（unit の harness.config.json も） | 止めずに人間の承認を求める（`permissionDecision: "ask"`）。検査の範囲（none の宣言、注釈の正規表現、`commands`）を決め、書き換えれば検査を外せるため（ADR-0057） | あり（`ask` / `config`） |
 | `.harness/**`（検査器そのもの） | 人間の承認を求める | あり（`ask` / `harness`） |
 | `.claude/settings*.json` と、`.codex/` `.cursor/` `.grok/` `.agents/` 直下の `*.json` / `*.toml`（hook の設定。プロジェクト外のユーザー設定 `~/.claude/settings.json` なども） | 人間の承認を求める | あり（`ask` / `hook-settings`） |
 | `.github/workflows/**` | 人間の承認を求める | あり（`ask` / `workflow`） |
 | `docs/` 配下で status の降格（`active` / `fixed` / `living` / `frozen` から、それ以外の値・status 行の削除・引用符を付けた値などの語彙の外の値へ）と、判定中の例外 | 人間の承認を求める。検査の義務を減らすため。契約の `x-status` は共有の厳格 YAML パーサーで読む（他のツールと同じ値） | あり（`ask` / `status-down`） |
-| アクター表（traceconfig の `docs.actors`、無ければ `docs/02-actors.md`）で人間のアクターを削除する、種別を「システム」に変える、または active な `UC.md` の `actor:` を変える | 人間の承認を求める。シナリオテスト（C15）の義務を減らすため | あり（`ask` / `actor-kind`） |
+| アクター表（harness.config.json の `docs.actors`、無ければ `docs/02-actors.md`）で人間のアクターを削除する、種別を「システム」に変える、または active な `UC.md` の `actor:` を変える | 人間の承認を求める。シナリオテスト（C15）の義務を減らすため | あり（`ask` / `actor-kind`） |
 | `docs/` 配下で `UC.md` の `active`、契約の `fixed` への昇格（新規作成で書く場合も） | 人間の承認を求める。実装着手ゲートを開ける人間ゲートを agent が自力で開けないため | あり（`ask` / `status-up-gate`） |
 | `docs/` 配下でそれ以外の昇格（REQ / BR / NFR / GOAL の `draft` → `active`、単一文書の `draft` → `living` / `frozen`）と、status を持つ新規作成 | 許可 | あり（`pass` / `status-up`） |
 | `docs/` 配下でそれ以外（status が変わらない、status を持たない新規ファイル、`draft` ↔ `withdrawn` など義務の増減を伴わない変更） | 許可（SSOT の書き込みはゲートの前提条件） | なし |
@@ -79,8 +79,8 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 | # | ステップ | 実行条件 | 失敗時 |
 | --- | --- | --- | --- |
 | 1 | `spec-lint validate --docs <docs>` | 常に | 収集 |
-| 2 | `trace-check --root <root> --config <traceconfig>` | 常に。`traceconfig.json` が無ければ失敗（紐づきの検査は省略できない。ADR-0056）。JSON として読めなければ `traceconfig` の失敗 | 収集 |
-| 3 | `contract-run --root <root> --config <traceconfig> --docs <docs>` | `traceconfig.json` があれば常に。実行する実例があるのにアダプターが無い場合と skip した例は contract-run 自身が失敗にする | 収集 |
+| 2 | `trace-check --root <root> --config <設定ファイル>` | 常に。`harness.config.json` が無ければ失敗（紐づきの検査は省略できない。ADR-0056）。JSON として読めなければ `config` の失敗 | 収集 |
+| 3 | `contract-run --root <root> --config <設定ファイル> --docs <docs>` | `harness.config.json` があれば常に。実行する実例があるのにアダプターが無い場合と skip した例は contract-run 自身が失敗にする | 収集 |
 | 4 | `commands.typecheck` → `commands.lint` → `commands.test` | 文字列のコマンドなら実行、`{ "none": "<理由>" }` なら理由を表示して skip | 最初の失敗で停止 |
 | 5 | `commands.system`（シナリオスイート — ブラウザ / シミュレーター / デバイス — 全体を一度） | ステップ 4 が成功し、コマンドが宣言されている（none なら理由を表示して skip） | 収集 |
 
@@ -91,26 +91,26 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 
 **`commands` の `typecheck` / `lint` / `test` / `system` は宣言が必須。** それぞれ文字列のコマンドか `{ "none": "<理由>" }` で、
 欠落・理由の無い none・それ以外の型は、例外ではなく失敗の 1 項目（`commands.<k>`）になる。黙った skip を作らない。
-`traceconfig.json` が `tests` を none でなく宣言しているなら（monorepo では unit のどれかが宣言しているなら）、`commands.test` は none にできない。
-**コマンドは `traceconfig.json` の `commands` ブロックだけから取得し、推測してはならない。** `package.json` などから創作しない。
+`harness.config.json` が `tests` を none でなく宣言しているなら（monorepo では unit のどれかが宣言しているなら）、`commands.test` は none にできない。
+**コマンドは `harness.config.json` の `commands` ブロックだけから取得し、推測してはならない。** `package.json` などから創作しない。
 同梱ツールはこのスクリプト自身のディレクトリから解決するため、`.harness/` から動く。
 
 ### monorepo（`git.units`）
 
-`traceconfig.json` に `git.units`（`{ 単位名: ディレクトリ }`）があれば、ルートではステップ 1–3 を実行せず、unit ごとに実行する。
+`harness.config.json` に `git.units`（`{ 単位名: ディレクトリ }`）があれば、ルートではステップ 1–3 を実行せず、unit ごとに実行する。
 
 | unit の状態 | 扱い |
 | --- | --- |
-| `<dir>/traceconfig.json` がある | `spec-lint validate --docs <dir>/docs`、`trace-check --root <dir> --config <dir>/traceconfig.json`、`contract-run --root <dir> --config <dir>/traceconfig.json --docs <dir>/docs`。失敗名は `<step>:<unit>` |
-| docs も traceconfig も無い | `docs なし` と表示するだけ |
-| docs を持つのに traceconfig が無い | 失敗（`trace-check:<unit>`） |
+| `<dir>/harness.config.json` がある | `spec-lint validate --docs <dir>/docs`、`trace-check --root <dir> --config <dir>/harness.config.json`、`contract-run --root <dir> --config <dir>/harness.config.json --docs <dir>/docs`。失敗名は `<step>:<unit>` |
+| docs も harness.config.json も無い | `docs なし` と表示するだけ |
+| docs を持つのに harness.config.json が無い | 失敗（`trace-check:<unit>`） |
 
-ステップ 4–5 の `commands` はルートの `traceconfig.json` のものを使う。CI（`.github/workflows/spec-gate.yml`）の spec-lint / trace-check も同じ規則で unit ごとに実行する。
+ステップ 4–5 の `commands` はルートの `harness.config.json` のものを使う。CI（`.github/workflows/spec-gate.yml`）の spec-lint / trace-check も同じ規則で unit ごとに実行する。
 
 ### スキップ規則と収束
 
 - **変更なし**: `git rev-parse HEAD` + `git status --porcelain` + `git diff HEAD` に、未追跡ファイル
-  （`git ls-files -o --exclude-standard`）の中身、`traceconfig.json`（unit のものも。ignore されていても）、
+  （`git ls-files -o --exclude-standard`）の中身、`harness.config.json`（unit のものも。ignore されていても）、
   使う harness ツール（`spec-lint.mjs`、`trace-check.mjs`、`contract-run.mjs`、`tools/_shared/*.mjs`）を加えたハッシュを取る
   （自身の状態ディレクトリは除外）。最終成功時の記録と同じなら `[stop-gate] 変更なし（最終合格 <ts>）` と
   表示して再実行せず終了を許可する。`--force` はこれを無効化する。
@@ -127,13 +127,13 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 
 阻止時の stderr は、失敗ごとの末尾出力に続けて次を求める: 直せる失敗は直し、修正範囲を再検証してから終了する。
 人間ゲート待ちや後続の担当の成果物でしか直せない失敗は、未達として報告して終える。
-`traceconfig.json` を緩めて（none にする、範囲を狭める）通さない。
+`harness.config.json` を緩めて（none にする、範囲を狭める）通さない。
 
 ### fail-open と fail-closed
 
 | 状況 | 結果 |
 | --- | --- |
-| 検証ステップの失敗またはタイムアウト、`traceconfig.json` の構文の誤り、`commands` の欠落・型の誤り | **阻止**（exit 2）。ゲート自身の判定は fail-closed |
+| 検証ステップの失敗またはタイムアウト、`harness.config.json` の構文の誤り、`commands` の欠落・型の誤り | **阻止**（exit 2）。ゲート自身の判定は fail-closed |
 | stdin が読めない | 許可（exit 0、`skip` / `internal-error` と記録）。入口の不具合でセッションを壊してはならない |
 | stdin を読めた後の hook 内の例外 | **阻止**（exit 2、`block` / `internal-error`）。回数を数え、`stop_hook_active` で上限に達していれば解除する（状態を保存できず数えられないときも、継続中なら解除）。無限ループを避ける |
 | 未知の `--` 引数 | 使用法の行付き exit 2（誤導入は即座に見える必要がある） |
@@ -143,7 +143,7 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 | 引数 | 意味 |
 | --- | --- |
 | `--docs <dir>` | spec-lint に渡す docs ルート（既定 `docs`） |
-| `--config <path>` | trace 設定（既定: プロジェクト直下の `traceconfig.json`） |
+| `--config <path>` | trace 設定（既定: プロジェクト直下の `harness.config.json`） |
 | `--log <path>` | 拒否ログ（既定 `.harness-gate/log.jsonl`）。同じディレクトリに `state.json` を保持 |
 | `--max-rounds <n>` | 人間へ解除するまでのセッションごとの連続阻止回数（既定 `2`） |
 | `--timeout <sec>` | ステップごとのタイムアウト（既定 `300`）。設定の hook 自身の `timeout` は予想合計より大きくする |
@@ -199,7 +199,7 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 | `event` | `PreToolUse` \| `Stop` |
 | `session` | Claude Code の `session_id`、または `null` |
 | `decision` | `block` \| `pass` \| `skip` \| `release` \| `ask`（gate-hook が止めずに人間の承認を求めた） |
-| `reason` | gate-hook: 実装ゲートは `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `internal-error` `ok`。ask は `traceconfig` `harness` `hook-settings` `workflow` `status-down` `status-up-gate` `actor-kind`。`pass` / `status-up`（docs の status の昇格・新規作成）、`block` / `harness-gate`（`.harness-gate/` への書き込み）。stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`、または阻止時の最初の失敗名（`spec-lint` `trace-check` `contract-run` `traceconfig` `commands.<k>` `typecheck` `lint` `test` `system`、`timeout:<step>`、monorepo では `<step>:<unit>`） |
+| `reason` | gate-hook: 実装ゲートは `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `internal-error` `ok`。ask は `config` `harness` `hook-settings` `workflow` `status-down` `status-up-gate` `actor-kind`。`pass` / `status-up`（docs の status の昇格・新規作成）、`block` / `harness-gate`（`.harness-gate/` への書き込み）。stop-gate: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`、または阻止時の最初の失敗名（`spec-lint` `trace-check` `contract-run` `config` `commands.<k>` `typecheck` `lint` `test` `system`、`timeout:<step>`、monorepo では `<step>:<unit>`） |
 | `target` | gate-hook: root からのゲート対象ファイル相対パス。それ以外は `null` |
 | `uc` | gate-hook: 検査した進行中 UC の ID。それ以外は `null` |
 | `round` | stop-gate: 阻止 / 解除時の回数。それ以外は `null` |
@@ -231,7 +231,7 @@ jq -r 'select(.decision=="block") | "\(.ts) \(.hook) \(.reason) \(.target // (.f
   `trace-check` C15 が担当する。
 - **Bash（`sed -i`、リダイレクトなど）の書き込みは PreToolUse ゲートをそのまま通る。** matcher は
   Write/Edit 系だけに適用する。Bash も阻止する設計は誤検出が多すぎる（ビルドとテストを妨げる）ため、
-  意図的に対象外とする。traceconfig / status / 検査器 / workflow の ask も同じで、Bash や Claude Code 以外の
+  意図的に対象外とする。harness.config.json / status / 検査器 / workflow の ask も同じで、Bash や Claude Code 以外の
   プロバイダーでの変更は止まらない。CI（spec-gate.yml）が PR のジョブ要約にそれらの変更を出すので、
   merge 時に CODEOWNERS とブランチ保護で必須レビューにする（ADR-0057）。
 - **docs の status の判定は `--docs` の 1 か所だけ。** monorepo の unit の docs（`apps/a/docs` など）の status の変更は ask しない。
