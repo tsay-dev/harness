@@ -24,12 +24,14 @@
 //      X2  test_entry のファイルの中に、compose の名前が現れる（テストの入口が、本番の組み立てを呼んでいる）
 //    coverage（harness lint coverage）
 //      V1  記録が実在し、lcov として読めて、--since より新しい（古い記録で通さない）
-//      V2  範囲（coverage.scope。省略すると source.dirs）に入るソースのファイルが、すべて記録に載っている。
+//      V2  範囲（coverage.scope。省略すると source.dirs）に入るソースのファイルが、すべて記録に載っている
+//          （not_run に書いたファイルは、載っていなくてもよい）。
 //          範囲の外のソースは確かめず、件数を毎回表示する（確かめていない範囲を見えるままにする）
 //      V3  実行する行を持つソースのファイルは、1 行以上実行されている（not_run に書いたファイルを除く）
 //      V4  not_run の各項目は、path がソースのファイルで、reason があり、実際に 1 行も実行されていない
 //          （実行されるようになったら、項目を消す）
-//      V5  entry.compose のファイルが実行されている（entry を宣言しているとき）
+//      V5  entry.compose のファイルが実行されている（entry を宣言しているとき）。記録に関数ごとの情報（FN / FNDA）が
+//          あれば、compose の名前の関数が 1 回以上呼ばれていることまで確かめる
 //  確かめるのは「1 行も実行されなかったファイルが無いこと」まで。行ごとの割合のしきい値は持たない。
 //
 //  使い方:
@@ -90,15 +92,21 @@ function loadConfig(configPath) {
 	}
 }
 
+//  text の中に、識別子 name が（より長い識別子の一部としてではなく）現れるか
+function hasName(text, name) {
+	const esc = name.replace(/\$/g, "\\$");
+	return new RegExp(`(?<![\\p{ID_Continue}$])${esc}(?![\\p{ID_Continue}$])`, "u").test(text);
+}
+
 //  「<ファイル>#<名前>」を読む。誤りは errs に積んで null を返す
 function parseRef(key, value, root, errs) {
 	if (!isText(value)) {
 		errs.push(`X1  entry.${key} が無い（「<ファイル>#<名前>」で書く）`);
 		return null;
 	}
-	const m = /^([^#]+)#([A-Za-z_$][\w$]*)$/.exec(value.trim());
+	const m = /^([^#]+)#([\p{ID_Start}_$][\p{ID_Continue}$]*)$/u.exec(value.trim());
 	if (!m) {
-		errs.push(`X1  entry.${key} は「<ファイル>#<名前>」の形で書く（実際: ${value}）`);
+		errs.push(`X1  entry.${key} は「<ファイル>#<名前>」の形で書く。名前は識別子 1 つ（文字・数字・_・$。「.」や「::」でつないだ名前は書けない）（実際: ${value}）`);
 		return null;
 	}
 	const [, file, name] = m;
@@ -109,7 +117,7 @@ function parseRef(key, value, root, errs) {
 		return null;
 	}
 	const text = readFileSync(abs, "utf8");
-	if (!new RegExp(`(^|[^\\w$])${name.replace(/\$/g, "\\$")}([^\\w$]|$)`).test(text)) {
+	if (!hasName(text, name)) {
 		errs.push(`X1  entry.${key} の名前「${name}」が ${file} の中に無い`);
 		return null;
 	}
@@ -130,8 +138,10 @@ function readEntry(cfg, root) {
 	const testEntry = parseRef("test_entry", cfg.entry.test_entry, root, errs);
 	if (compose && testEntry) {
 		if (compose.file === testEntry.file) errs.push(`X2  entry.compose と entry.test_entry が同じファイルを指している（${compose.file}）。本番の組み立てとテストの入口は別のファイルに置く`);
-		else if (!new RegExp(`(^|[^\\w$])${compose.name.replace(/\$/g, "\\$")}([^\\w$]|$)`).test(testEntry.text))
-			errs.push(`X2  テストの入口（${testEntry.file}）の中に、本番の組み立ての名前「${compose.name}」が無い。テストが本番とは別の組み立てを通っている`);
+		else if (!hasName(testEntry.text, compose.name))
+			errs.push(
+				`X2  テストの入口（${testEntry.file}）の中に、本番の組み立ての名前「${compose.name}」が無い。テストの入口のファイルから、本番の組み立てを名前で直接呼ぶ（別のファイルを経由して呼ぶ形は、ここでは確かめられない）`,
+			);
 	}
 	return { state: "declared", compose, testEntry, errs };
 }
@@ -163,28 +173,61 @@ function sourceFiles(cfg, root) {
 
 //  ---- 実行の記録（lcov） -------------------------------------------------------
 
-//  戻り: Map<root からの相対パス, { lines: 実行する行の数, hit: 実行された行の数 }>
-function parseLcov(text, root, reportDir) {
+//  戻り: { files: Map<root からの相対パス, { lines: 実行する行の数, hit: 実行された行の数, fns: Map<関数の名前, 実行回数> }>, outside: root の外を指していた SF の例 }
+//  記録のパスは、絶対パスか、テストを実行したディレクトリ（root）からの相対パス。git の最上位からの相対パスも受ける。
+//  行ごとの記録（DA）が無いファイルは、行の数の要約（LF / LH）を使う。
+function parseLcov(text, root) {
+	const top = spawnSync("git", ["-C", root, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+	const gitTop = top.status === 0 ? top.stdout.trim() : null;
 	const files = new Map();
+	const outside = [];
 	let cur = null;
+	let summary = null; //  DA が無いときに使う LF / LH
+	let sawDA = false;
+	const close = () => {
+		if (cur !== null && !sawDA && summary) {
+			cur.lines += summary.lf;
+			cur.hit += summary.lh;
+		}
+		cur = null;
+		summary = null;
+		sawDA = false;
+	};
 	for (const raw of text.split(/\r?\n/)) {
 		const line = raw.trim();
 		if (line.startsWith("SF:")) {
+			close();
 			const sf = line.slice(3);
-			//  記録のパスは、絶対パスか、テストを実行したディレクトリからの相対パス。root の中のものだけを拾う
-			const abs = isAbsolute(sf) ? sf : existsSync(resolve(root, sf)) ? resolve(root, sf) : resolve(reportDir, sf);
+			const candidates = isAbsolute(sf) ? [sf] : [resolve(root, sf), ...(gitTop ? [resolve(gitTop, sf)] : [])];
+			const abs = candidates.find((c) => existsSync(c)) ?? candidates[0];
 			const rel = relative(root, abs);
-			cur = rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel) ? null : posixPath(rel);
-			if (cur !== null && !files.has(cur)) files.set(cur, { lines: 0, hit: 0 });
-		} else if (line.startsWith("DA:") && cur !== null) {
+			if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+				if (outside.length < 2) outside.push(sf);
+				continue;
+			}
+			const key = posixPath(rel);
+			if (!files.has(key)) files.set(key, { lines: 0, hit: 0, fns: new Map() });
+			cur = files.get(key);
+			summary = { lf: 0, lh: 0 };
+		} else if (cur === null) continue;
+		else if (line.startsWith("DA:")) {
 			const m = /^DA:(\d+),(-?\d+)/.exec(line);
 			if (!m) continue;
-			const f = files.get(cur);
-			f.lines += 1;
-			if (Number(m[2]) > 0) f.hit += 1;
-		} else if (line === "end_of_record") cur = null;
+			sawDA = true;
+			cur.lines += 1;
+			if (Number(m[2]) > 0) cur.hit += 1;
+		} else if (line.startsWith("LF:")) summary.lf = Number(line.slice(3)) || 0;
+		else if (line.startsWith("LH:")) summary.lh = Number(line.slice(3)) || 0;
+		else if (line.startsWith("FNDA:")) {
+			const m = /^FNDA:(\d+),(.+)$/.exec(line);
+			if (m) cur.fns.set(m[2], (cur.fns.get(m[2]) ?? 0) + Number(m[1]));
+		} else if (line.startsWith("FN:")) {
+			const name = line.slice(3).split(",").pop();
+			if (name && !cur.fns.has(name)) cur.fns.set(name, 0);
+		} else if (line === "end_of_record") close();
 	}
-	return files;
+	close();
+	return { files, outside };
 }
 
 function checkCoverage(cfg, root, since, entry) {
@@ -200,8 +243,10 @@ function checkCoverage(cfg, root, since, entry) {
 		return { errs: [...errs, `V1  実行の記録が無い: ${cov.report}（テストのコマンドが lcov 形式で書き出すようにする）`] };
 	if (since !== null && statSync(reportPath).mtimeMs < since)
 		return { errs: [...errs, `V1  実行の記録が古い: ${cov.report}（今回のテストの実行で書き直されていない。テストのコマンドが毎回書き出すようにする）`] };
-	const report = parseLcov(readFileSync(reportPath, "utf8"), root, resolve(reportPath, ".."));
-	if (report.size === 0) return { errs: [...errs, `V1  実行の記録にファイルが 1 つも無い: ${cov.report}（lcov 形式で、プロジェクトの中のファイルを記録する）`] };
+	const parsed = parseLcov(readFileSync(reportPath, "utf8"), root);
+	const report = parsed.files;
+	const outsideHint = parsed.outside.length ? `。記録のパスの例: ${parsed.outside.join("、")}（プロジェクトのルート ${root} の外を指している。パスの基準を確かめる）` : "";
+	if (report.size === 0) return { errs: [...errs, `V1  実行の記録に、プロジェクトの中のファイルが 1 つも無い: ${cov.report}（lcov 形式で記録する）${outsideHint}`] };
 
 	const allSources = sourceFiles(cfg, root);
 	const sources = allSources === null ? null : cov.scope === undefined ? allSources : allSources.filter((f) => inScope(f, cov.scope));
@@ -220,7 +265,7 @@ function checkCoverage(cfg, root, since, entry) {
 		const p = posixPath(x.path.trim().replace(/^\.\//, ""));
 		if (!isText(x.reason) || /[\r\n]/.test(x.reason)) errs.push(`V4  ${at}.reason は 1 行の文で書く（なぜどのテストからも実行されないのか）`);
 		if (notRun.has(p)) errs.push(`V4  ${at}.path が重複している: ${p}`);
-		else if (!sources.includes(p)) errs.push(`V4  ${at}.path がソースのファイルでない: ${p}（source.dirs に入る実在のファイルを書く）`);
+		else if (!sources.includes(p)) errs.push(`V4  ${at}.path がソースのファイルでない: ${p}（範囲に入る実在のファイルを、1 つずつ書く。ディレクトリは書けない）`);
 		notRun.set(p, x);
 	}
 
@@ -236,15 +281,24 @@ function checkCoverage(cfg, root, since, entry) {
 		if (r.hit > 0 && notRun.has(f)) errs.push(`V4  ${f} は実行されている。coverage.not_run から消す`);
 	}
 	const list = (fs) => fs.slice(0, 20).map((f) => `\n        ${f}`).join("") + (fs.length > 20 ? `\n        …ほか ${fs.length - 20} 件` : "");
-	if (missing.length) errs.push(`V2  実行の記録に載っていないソースが ${missing.length} 件ある（テストのコマンドの記録の対象に入れる）:${list(missing)}`);
+	if (missing.length) {
+		const none = missing.length === sources.length - [...notRun.keys()].filter((k) => sources.includes(k) && !report.has(k)).length;
+		const example = none ? `。記録のパスの例: ${[...report.keys()].slice(0, 2).join("、")}${outsideHint}（ソースのパスと基準が合っているかを確かめる）` : "";
+		errs.push(`V2  実行の記録に載っていないソースが ${missing.length} 件ある（テストのコマンドの記録の対象に入れる）${example}:${list(missing)}`);
+	}
 	if (idle.length)
 		errs.push(`V3  どのテストからも 1 行も実行されなかったソースが ${idle.length} 件ある（テストを通すか、使っていなければ消すか、理由を coverage.not_run に書く）:${list(idle)}`);
 	if (entry.state === "declared" && entry.compose) {
 		const r = report.get(entry.compose.file);
 		if (!r || r.hit === 0) errs.push(`V5  本番の組み立て（${entry.compose.file}）が、テストから実行されていない`);
+		//  関数ごとの記録があれば、組み立ての関数そのものが呼ばれたことまで確かめる（ファイルは読み込むだけで実行済みになる）
+		else if (r.fns.has(entry.compose.name) && r.fns.get(entry.compose.name) === 0)
+			errs.push(`V5  本番の組み立ての関数 ${entry.compose.name}（${entry.compose.file}）が、テストから 1 回も呼ばれていない`);
 	}
 	const withLines = sources.filter((f) => (report.get(f)?.lines ?? 0) > 0).length;
-	if (sources.length === 0) errs.push("V2  coverage.scope に入るソースが 1 つも無い（範囲の書き方を確かめる）");
+	if (sources.length === 0) errs.push(cov.scope === undefined ? "V2  source.dirs に入るソースが 1 つも無い（source の書き方を確かめる）" : "V2  coverage.scope に入るソースが 1 つも無い（範囲の書き方を確かめる）");
+	else if (withLines === 0 && missing.length < sources.length)
+		errs.push(`V1  実行の記録に、行の情報（DA、または LF / LH）を持つソースが 1 つも無い: ${cov.report}（行ごとの記録を書き出す設定にする）`);
 	const outside = allSources.length - sources.length;
 	return {
 		errs,

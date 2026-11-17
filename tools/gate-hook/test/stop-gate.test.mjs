@@ -501,10 +501,19 @@ test("stop-gate: 実行の記録の検査は test が通った直後にだけ実
 	runGate(root, stop(root), { tools });
 	assert.deepEqual(last(root).failures, ["test"]);
 	assert.ok(!names().includes("exec-check:coverage"));
-	//  test が none なら、記録を書くものが無いので実行しない
-	writeConfig(root, { commands: cmds({ test: NONE }) });
-	runGate(root, stop(root), { tools });
+	//  test が none なら、記録を書くものが無いので実行しない。coverage を宣言していれば、実行しなかったことを表示する
+	writeConfig(root, { commands: cmds({ test: NONE }), coverage: { report: "lcov.info" } });
+	const n = runGate(root, stop(root), { tools });
 	assert.ok(!names().includes("exec-check:coverage"));
+	assert.match(n.stdout, /skip: coverage（commands\.test が none なので、実行の記録が無い）/);
+	writeConfig(root, { commands: cmds({ test: "exit 0" }), coverage: { report: "lcov.info" } });
+	const l = runGate(root, stop(root), { tools, args: ["--level", "lint"] });
+	assert.match(l.stdout, /skip: coverage（--level lint では実行しない）/);
+	calls(tools);
+	//  宣言していなければ、表示しない（未宣言であることは exec-check 自身が、実行されたときに表示する）
+	writeConfig(root, { commands: cmds({ test: NONE }) });
+	assert.doesNotMatch(runGate(root, stop(root), { tools }).stdout, /skip: coverage/);
+	calls(tools);
 	//  記録の検査が落ちたら、その先を実行しない。失敗の名前は coverage
 	writeConfig(root, { commands: cmds({ test: "echo t >> ran.txt", extra: { x: "echo x >> ran.txt" }, system: "echo s >> ran.txt" }) });
 	writeFileSync(join(tools, "exec-check", "exec-check.mjs"), STUB + `if (process.argv[2] === "coverage") { console.log("V3 red"); process.exit(1); }\n`);

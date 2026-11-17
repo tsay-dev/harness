@@ -70,10 +70,11 @@ const BAD_ENTRY = [
 	["X1", "外のファイル", { cfg: change((c) => (c.entry.compose = "../x.ts#assemble")) }, /entry\.compose のファイルが無い/],
 	["X1", "名前がファイルの中に無い", { cfg: change((c) => (c.entry.compose = "src/compose.ts#build")) }, /名前「build」が src\/compose\.ts の中に無い/],
 	["X1", "名前の一部が一致するだけ", { cfg: change((c) => (c.entry.compose = "src/compose.ts#assem")) }, /名前「assem」が/],
+	["X1", "名前が識別子 1 つでない", { cfg: change((c) => (c.entry.compose = "src/compose.ts#App.assemble")) }, /名前は識別子 1 つ/],
 	["X1", "test_entry が無い", { cfg: change((c) => delete c.entry.test_entry) }, /entry\.test_entry が無い/],
 	["X1", "知らないキー", { cfg: change((c) => (c.entry.extra = "x")) }, /entry に知らないキー「extra」/],
 	["X1", "entry が文字列", { cfg: change((c) => (c.entry = "x")) }, /entry は \{ "compose", "test_entry" \}/],
-	["X2", "テストの入口が本番の組み立てを呼んでいない", { files: { "tests/app.ts": "export function createTestApp() { return mount(); }\n" } }, /本番の組み立ての名前「assemble」が無い。テストが本番とは別の組み立てを通っている/],
+	["X2", "テストの入口が本番の組み立てを呼んでいない", { files: { "tests/app.ts": "export function createTestApp() { return mount(); }\n" } }, /本番の組み立ての名前「assemble」が無い。テストの入口のファイルから、本番の組み立てを名前で直接呼ぶ/],
 	["X2", "テストの入口に、似た別の名前しか無い", { files: { "tests/app.ts": "export function createTestApp() { return assembleFake(); }\n" } }, /本番の組み立ての名前「assemble」が無い/],
 	["X2", "同じファイルを指す", { cfg: change((c) => (c.entry.test_entry = "src/compose.ts#assemble")) }, /同じファイルを指している/],
 ];
@@ -86,6 +87,28 @@ for (const [id, name, opts, re] of BAD_ENTRY) {
 	});
 }
 
+test("entry: 名前は、より長い識別子の一部としては数えない（前後どちらも）", () => {
+	for (const body of ["return xassemble();", "return assemblex();", "return _assemble();", "return assemble$();"]) {
+		const r = run(project({ files: { "tests/app.ts": `export function createTestApp() { ${body} }\n` } }), "entry");
+		assert.equal(r.status, 1, body);
+		assert.match(r.stdout, /err  X2  /);
+	}
+});
+
+test("entry: 日本語などの識別子も名前に書ける", () => {
+	const d = project({ cfg: change((c) => (c.entry.compose = "src/compose.ts#組み立て")), files: { "src/compose.ts": "export function 組み立て() {}\n", "tests/app.ts": "export function createTestApp() { return 組み立て(); }\n" } });
+	assert.equal(run(d, "entry").status, 0);
+});
+
+test("coverage: 関数ごとの記録があり、組み立ての関数が呼ばれていれば通る。行の要約だけの記録も読む", () => {
+	const fn = LCOV.replace("SF:src/compose.ts\n", "SF:src/compose.ts\nFN:1,assemble\nFNDA:4,assemble\n");
+	assert.equal(run(project({ lcov: fn }), "coverage").status, 0);
+	const summary = ["src/compose.ts", "src/a.ts"].map((f) => `SF:${f}\nLF:3\nLH:2\nend_of_record`).join("\n") + "\nSF:src/types.ts\nLF:0\nLH:0\nend_of_record\nSF:src/server.ts\nLF:3\nLH:0\nend_of_record";
+	const r = run(project({ lcov: summary }), "coverage");
+	assert.equal(r.status, 0, r.stdout);
+	assert.match(r.stdout, /実行する行があるもの 3 件/);
+});
+
 test("coverage: すべてのソースが実行されていれば通る。実行する行の無いファイル（型だけ）は違反にしない", () => {
 	const r = run(project(), "coverage");
 	assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -95,7 +118,12 @@ test("coverage: すべてのソースが実行されていれば通る。実行�
 
 const BAD_COV = [
 	["V1", "記録が無い", { lcov: null }, /実行の記録が無い: coverage\/lcov\.info/],
-	["V1", "記録が空", { lcov: "" }, /実行の記録にファイルが 1 つも無い/],
+	["V1", "記録が空", { lcov: "" }, /実行の記録に、プロジェクトの中のファイルが 1 つも無い/],
+	["V1", "記録のパスがすべて外を指す", { lcov: record("/elsewhere/src/a.ts", [1]) }, /プロジェクトの中のファイルが 1 つも無い[^]*記録のパスの例: \/elsewhere\/src\/a\.ts/],
+	["V1", "行の情報が 1 つも無い（SF だけ）", { lcov: Object.keys(SOURCES).map((f) => `SF:${f}\nend_of_record`).join("\n"), cfg: change((c) => ((c.coverage.not_run = []), delete c.entry)) }, /行の情報（DA、または LF \/ LH）を持つソースが 1 つも無い/],
+	["V2", "記録のパスの基準が違う（1 件も一致しない）", { lcov: Object.keys(SOURCES).map((f) => record(`pkg/${f}`, [1])).join("\n"), cfg: change((c) => ((c.coverage.not_run = []), delete c.entry)) }, /記録に載っていないソースが 4 件ある[^]*記録のパスの例: pkg\/src\//],
+	["V3", "行の要約（LF / LH）だけの記録で、実行 0 行のファイル", { lcov: ["src/compose.ts", "src/a.ts"].map((f) => `SF:${f}\nLF:3\nLH:2\nend_of_record`).join("\n") + "\nSF:src/types.ts\nLF:0\nLH:0\nend_of_record\nSF:src/server.ts\nLF:3\nLH:0\nend_of_record", cfg: change((c) => (c.coverage.not_run = [])) }, /1 行も実行されなかったソースが 1 件ある[^]*src\/server\.ts/],
+	["V5", "組み立てのファイルは読み込まれたが、関数は 1 回も呼ばれていない", { lcov: LCOV.replace("SF:src/compose.ts\n", "SF:src/compose.ts\nFN:1,assemble\nFNDA:0,assemble\n") }, /本番の組み立ての関数 assemble（src\/compose\.ts）が、テストから 1 回も呼ばれていない/],
 	["V1", "report が無い", { cfg: change((c) => delete c.coverage.report) }, /coverage\.report が無い/],
 	["V1", "知らないキー", { cfg: change((c) => (c.coverage.threshold = 80)) }, /coverage に知らないキー「threshold」/],
 	["V1", "scope が空", { cfg: change((c) => (c.coverage.scope = [])) }, /coverage\.scope は、パスか glob の配列で書く/],

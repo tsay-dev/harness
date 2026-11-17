@@ -65,6 +65,9 @@ export function unitsOf(cfg) {
 
 const isNone = (v) => isMap(v) && "none" in v;
 
+//  coverage が none でなく宣言されているか
+const declaresCoverage = (cfg) => cfg && isMap(cfg.coverage) && !isNone(cfg.coverage);
+
 //  tests が none でなく宣言されているか
 const declaresTests = (cfg) => cfg && cfg.tests !== undefined && !isNone(cfg.tests);
 
@@ -273,12 +276,18 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		steps.push({ key: "system", name: `system${label}`, decl: keys.system, need: 2 });
 		for (const s of steps) {
 			if (s.decl.error) break; //  順序に意味がある（前提が欠けたまま後続を実行しない）
+			//  実行の記録の検査は test の直後にだけ実行する。宣言しているのに test を実行しないときは、その旨を表示する
+			const noCoverage = (why) => {
+				if (s.key === "test" && declaresCoverage(unitCfg)) skip(`coverage${label}`, `coverage${label}（${why}）`);
+			};
 			if (s.decl.none !== undefined) {
 				skip(s.name, `commands.${s.key}${label} = none（${s.decl.none}）`);
+				noCoverage("commands.test が none なので、実行の記録が無い");
 				continue;
 			}
 			if (level < s.need) {
 				skip(s.name, `commands.${s.key}${label}（--level ${LEVELS[level]} では実行しない）`);
+				noCoverage(`--level ${LEVELS[level]} では実行しない`);
 				continue;
 			}
 			//  実行の記録は test が書く。前回の記録で通さないよう、test を始めた時刻より新しいことを確かめる
