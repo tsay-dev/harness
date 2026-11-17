@@ -62,15 +62,16 @@ APM packages は tools / bin / templates を含まない。develop の検証と�
 # git clone --branch <release-tag> https://github.com/tsay-dev/harness.git .harness
 
 node .harness/bin/harness.mjs                    # 使えるコマンドの一覧
+node .harness/bin/harness.mjs lint config        # 設定（harness.config.json）の形。機械で確かめていない決めごとを一覧する
 node .harness/bin/harness.mjs lint spec          # 仕様の文書の書式と状態の決まり
 node .harness/bin/harness.mjs lint refs          # 仕様・コード・テストの ID の紐づき
-node .harness/bin/harness.mjs lint git branch    # traceconfig.json に git を宣言したホストのみ実行される
+node .harness/bin/harness.mjs lint git branch    # harness.config.json に git を宣言したホストのみ実行される
 node .harness/bin/harness.mjs run cases          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
 node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計
 ```
 
 - Stop hook の終端ゲート（`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
-- ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `traceconfig.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
+- ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `harness.config.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
 
 ## 旧方式からの移行
 
@@ -83,14 +84,25 @@ node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-ga
 5. APM の manifest / lock と別アセットを設置して install し、ホストの事実・検証コマンド・フックの参照先を新配置へ更新する。
 6. 以後の更新は APM で行う。
 
+## 設定ファイルの名前を変える（traceconfig.json → harness.config.json）
+
+設定ファイルの名前は `harness.config.json` に変わった（ADR-0064）。`traceconfig.json` は読まれない。中身のキーは変わっていないので、名前を変えるだけで移れる。自動では移らない。
+
+1. プロジェクトのルートと、monorepo なら設定を持つ unit のそれぞれで、`git mv traceconfig.json harness.config.json` を実行する。
+2. プロジェクトの側で `traceconfig.json` を名指ししている場所を直す。フックの設定、CI のワークフロー、`CLAUDE.md` / `AGENTS.md`、変更されたファイルから unit を選ぶスクリプトなど。
+3. `node .harness/bin/harness.mjs lint` を実行し、設定を読めていることを確かめる。
+4. gate-hook の拒否ログの理由 `traceconfig` は `config` に変わった。古いログを集計している場合は、名前を読み替える。
+
+古い名前のファイルだけが残っていると、完了の判定と CI が、改名したことを添えて失敗する。
+
 ## 検証手順
 
 リポジトリ直下で実行する。
 
 ```bash
 python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
-node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / 入口
-node bin/harness.mjs lint                # lint spec → lint refs → lint git branch
+node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / config-lint / 入口
+node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint git branch
 ```
 
 native APM install は別の fresh consumer で確認する。公開前はローカルパッケージを絶対パスで指定する。

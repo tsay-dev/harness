@@ -7,7 +7,7 @@ orchestrator と reviewer が判断する（ADR-0039）。
 
 ## 利用プロジェクトが宣言するもの
 
-利用プロジェクトの `traceconfig.json` に `git` ブロックがある場合だけ検査する。
+利用プロジェクトの `harness.config.json` に `git` ブロックがある場合だけ検査する。
 なければ未検査と表示して `0` で終了する。スキップであり、成功ではない。
 
 ```jsonc
@@ -40,7 +40,7 @@ orchestrator と reviewer が判断する（ADR-0039）。
 ## 使い方
 
 ```bash
-node git-lint.mjs branch  [--name <branch>] [--root <host root>] [--config traceconfig.json]
+node git-lint.mjs branch  [--name <branch>] [--root <host root>] [--config harness.config.json]
 node git-lint.mjs message (--file <path> | --range <base>..<head>) [--branch <name>] [--root ...] [--config ...]
 ```
 

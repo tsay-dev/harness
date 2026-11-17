@@ -9,9 +9,9 @@ Next.js（App Router）でなければ破棄する。シナリオテストの定
 
 ## runner とフォルダー
 
-- Playwright（`@playwright/test`）、プロジェクト根の `e2e/`、設定は `playwright.config.ts`。フォルダーを変える利用先は `CLAUDE.md` と `traceconfig.json` の `tests.system.dirs` に宣言する。
+- Playwright（`@playwright/test`）、プロジェクト根の `e2e/`、設定は `playwright.config.ts`。フォルダーを変える利用先は `CLAUDE.md` と `harness.config.json` の `tests.system.dirs` に宣言する。
 - `e2e/` を既定スイートの探索から除外し、`tests.system.dirs` と `tests.dirs` を重ねない（重なるとシナリオテストが `@covers` のないテストとして C11 に報告される）。
-- 全件は `npx playwright test`、UC 選択は `npx playwright test --grep "UC-012"`。`traceconfig.json` の `commands.system` に宣言する。CI では宣言の有無にかかわらず実行する。
+- 全件は `npx playwright test`、UC 選択は `npx playwright test --grep "UC-012"`。`harness.config.json` の `commands.system` に宣言する。CI では宣言の有無にかかわらず実行する。
 - 利用先の `CLAUDE.md` が宣言するシナリオ環境（`webServer`、投入済みデータ、使い捨てアカウント）の実アプリケーションを操作する。backend を mock にしない。
 
 ## シナリオテストの形

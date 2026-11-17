@@ -52,6 +52,7 @@ test("表にあるツールは、同梱の tools/ にすべて実在する", () 
 });
 
 const ROUTES = [
+	[["lint", "config"], "config-lint/config-lint.mjs", []],
 	[["lint", "spec"], "spec-lint/spec-lint.mjs", ["validate"]],
 	[["lint", "refs"], "trace-check/trace-check.mjs", []],
 	[["lint", "git", "branch"], "git-lint/git-lint.mjs", ["branch"]],
@@ -86,10 +87,11 @@ test("終了コードは渡した先のものがそのまま返る", () => {
 	assert.equal(harness(["run", "cases"], { FAKE_EXIT_contract_run_mjs: "2" }).status, 2);
 });
 
-test("harness lint は 3 つを順に実行し、1 つ失敗しても残りを実行して最も大きい終了コードを返す", () => {
+test("harness lint は 4 つを順に実行し、1 つ失敗しても残りを実行して最も大きい終了コードを返す", () => {
 	const r = harness(["lint"], { FAKE_EXIT_spec_lint_mjs: "1" });
 	assert.equal(r.status, 1);
 	assert.deepEqual(r.calls, [
+		{ script: "config-lint/config-lint.mjs", args: [], cwd: CWD },
 		{ script: "spec-lint/spec-lint.mjs", args: ["validate"], cwd: CWD },
 		{ script: "trace-check/trace-check.mjs", args: [], cwd: CWD },
 		{ script: "git-lint/git-lint.mjs", args: ["branch"], cwd: CWD },

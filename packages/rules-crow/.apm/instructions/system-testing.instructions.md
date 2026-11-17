@@ -9,9 +9,9 @@ crow（crow3）アプリケーションの UC ごとのシナリオテスト（`
 
 ## 1. ランナーとフォルダー
 
-- アプリケーションルートの `e2e/` に Playwright（`@playwright/test`）を置き、設定は `playwright.config.ts`。PHP 側は関与せず、配信されたページを外から操作する。利用先は `CLAUDE.md` と `traceconfig.json` の `tests.system.dirs`（`extensions: [".ts"]`）にフォルダーを宣言する。
+- アプリケーションルートの `e2e/` に Playwright（`@playwright/test`）を置き、設定は `playwright.config.ts`。PHP 側は関与せず、配信されたページを外から操作する。利用先は `CLAUDE.md` と `harness.config.json` の `tests.system.dirs`（`extensions: [".ts"]`）にフォルダーを宣言する。
 - `e2e/` は `tests/` の配下に置かない（PHPUnit の探索が拾わず、`tests.system.dirs` と `tests.dirs` が重なると C11 がシナリオテストを `@covers` なしとして報告する）。
-- 全件実行はアプリケーションルートから `npx playwright test`（`traceconfig.json` の `commands.system` に宣言。CI は宣言の有無によらず実行）。UC による選択実行は `npx playwright test --grep "UC-012"`。
+- 全件実行はアプリケーションルートから `npx playwright test`（`harness.config.json` の `commands.system` に宣言。CI は宣言の有無によらず実行）。UC による選択実行は `npx playwright test --grep "UC-012"`。
 - 実アプリケーションを操作する（利用先のローカルサーバー、シード済み DB、使い捨てアカウントは `CLAUDE.md` に宣言し、推測で作らない）。モックしたバックエンドは使わない。
 
 ## 2. シナリオテストの形

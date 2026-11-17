@@ -1,6 +1,6 @@
 //
 //  git-lint のテスト（node --test）。
-//  一時ディレクトリに最小の host（traceconfig.json と、必要なら git リポジトリ）を組み立て、
+//  一時ディレクトリに最小の host（harness.config.json と、必要なら git リポジトリ）を組み立て、
 //  終了コードと出力を検証する。ディスク上の fixture は持たない。
 //
 
@@ -19,12 +19,12 @@ const COMMIT_MD = join(HERE, "..", "..", "..", "packages", "develop-core", ".apm
 const MONO = { git: { units: { "app-a": "apps/a", ui: "packages/ui" }, exempt_branches: ["dependabot/**"] } };
 const SINGLE = { git: {} };
 
-//  host を組む。config が null なら traceconfig.json を置かない
+//  host を組む。config が null なら harness.config.json を置かない
 function host(t, config, dirs = ["apps/a", "packages/ui"]) {
 	const root = mkdtempSync(join(tmpdir(), "harness git-lint "));
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	for (const d of dirs) mkdirSync(join(root, d), { recursive: true });
-	if (config !== null) writeFileSync(join(root, "traceconfig.json"), JSON.stringify(config));
+	if (config !== null) writeFileSync(join(root, "harness.config.json"), JSON.stringify(config));
 	return root;
 }
 

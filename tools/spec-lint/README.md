@@ -47,7 +47,7 @@ node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbo
 `<docs>/goals/` を作る。空なら `.gitkeep` を置く）。docs の場所の書き損じで検証が黙って空回りしないため（ADR-0056）。Node のみ（外部依存なし）。
 baseline は無い（ADR-0056）。違反は 1 件でも失敗にする。廃止した `--update-baseline` / `--strict` / `--baseline` は
 使用法エラー、残った `.spec-baseline.json` は読まずに警告する。
-モノレポの利用プロジェクト（`traceconfig.json` が `git.units` を宣言し、repository 直下から実行）では docs と
+モノレポの利用プロジェクト（`harness.config.json` が `git.units` を宣言し、repository 直下から実行）では docs と
 UC 番号は単位ごと。`gate` は一単位の `docs/` を検索する。`--message` はコミットヘッダーの `scope` から、
 `--uc` は `--unit` から単位を取る。宣言済み単位でない scope（`repo`、なし）で `UC:` を持つコミットは失敗する。
 trailer のないコミットは、ほかと同様、そのまま通す（ADR-0040）。

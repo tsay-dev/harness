@@ -30,7 +30,7 @@
 //                                                   baseline は持たない。違反はすべて失敗（ADR-0056）
 //    node spec-lint.mjs gate --message <file>       commit メッセージの UC: トレーラの UC が実装可能か検証（baseline は見ない）
 //    node spec-lint.mjs gate --uc UC-012            指定 UC が実装可能（UC / REQ が active・契約 fixed）か検証
-//        [--unit <名前>]                            モノレポ（traceconfig.json の git.units）のルートで実行するときの unit。
+//        [--unit <名前>]                            モノレポ（harness.config.json の git.units）のルートで実行するときの unit。
 //                                                   --message では unit をコミット 1 行目の scope から決める（ADR-0040）
 //    node spec-lint.mjs convert <openapi.yaml> [--uc UC-012] [--direction outbound|inbound] [--out contract.yaml]
 //                                                   旧 OpenAPI 3.x 契約を harness 契約へ機械変換する（形を保つだけ。判断は注記で返す）
@@ -43,6 +43,7 @@ import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -1080,16 +1081,22 @@ function findUcDir(docsDir, id) {
 	return null;
 }
 
-//  モノレポのホスト（traceconfig.json の git.units）では docs が unit ごとにあり、UC の番号も unit ごとに振られる。
+//  モノレポのホスト（harness.config.json の git.units）では docs が unit ごとにあり、UC の番号も unit ごとに振られる。
 //  どの unit の UC かは UC-nnn だけでは決まらないので、--message はコミット 1 行目の scope で、
 //  --uc は --unit で決める（docs/adr/ADR-0040）。units の書式（名前の形・ディレクトリの実在）を検査するのは
 //  git-lint で、ここでは名前 → ディレクトリの対応だけを読む。
 //  返り値: null = 未宣言（単一ユニット。docs は cwd 直下） / Map<名前, ディレクトリ> / undefined = 設定異常
-const UNITS_CONFIG = "traceconfig.json";
+const UNITS_CONFIG = CONFIG_FILE;
 const COMMIT_SCOPE_RE = /^[A-Za-z]+(?:\(([^()]*)\))?!?: /;
 
 function readUnits() {
-	if (!existsSync(UNITS_CONFIG)) return null;
+	if (!existsSync(UNITS_CONFIG)) {
+		//  古い名前のファイルだけが残っていると、monorepo を単一ユニットと取り違えるので、案内を出して止める
+		const hint = renamedConfigHint(UNITS_CONFIG);
+		if (!hint) return null;
+		console.error(`spec-lint gate: ${UNITS_CONFIG} が無い${hint}`);
+		return undefined;
+	}
 	let cfg;
 	try {
 		cfg = JSON.parse(readFileSync(UNITS_CONFIG, "utf8"));

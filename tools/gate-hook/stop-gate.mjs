@@ -7,18 +7,18 @@
 //
 //  検査の順序（1–3 は全部走らせて失敗を集める。4 は最初の失敗で止める）:
 //    1. spec-lint validate            docs SSOT のフォーマット / ライフサイクル
-//    2. trace-check                   トレーサビリティ（traceconfig.json が無ければ失敗。省略できない / ADR-0056）
+//    2. trace-check                   トレーサビリティ（harness.config.json が無ければ失敗。省略できない / ADR-0056）
 //    3. contract-run                  契約例の実行検査（実行する実例があるのにアダプタが無ければ contract-run 自身が失敗にする）
-//    4. commands.typecheck → lint → test（traceconfig.json の commands ブロックから）
+//    4. commands.typecheck → lint → test（harness.config.json の commands ブロックから）
 //    5. commands.system                シナリオテスト（system suite）全件。4 が全部通ったあとに 1 回（ADR-0035）
 //  commands の typecheck / lint / test / system は、文字列のコマンドか { "none": "<理由>" } の宣言が必須で、
 //  欠落は失敗の 1 項目（黙った skip を作らない）。none は理由を表示して skip。tests を宣言しているなら test は none にできない。
-//  コマンドは traceconfig.json に宣言されたものしか走らせない。推測・発明はしない。
+//  コマンドは harness.config.json に宣言されたものしか走らせない。推測・発明はしない。
 //
-//  monorepo（traceconfig.json の git.units = { 単位名: ディレクトリ }）:
-//    ルートでは 1–3 を実行せず、unit ごとに <dir>/traceconfig.json と <dir>/docs で実行する。
-//    docs も traceconfig も持たない unit は「docs なし」と表示するだけ。docs を持つのに traceconfig が無い unit は失敗。
-//    commands はルートの traceconfig.json のものを使う。
+//  monorepo（harness.config.json の git.units = { 単位名: ディレクトリ }）:
+//    ルートでは 1–3 を実行せず、unit ごとに <dir>/harness.config.json と <dir>/docs で実行する。
+//    docs も harness.config.json も持たない unit は「docs なし」と表示するだけ。docs を持つのに harness.config.json が無い unit は失敗。
+//    commands はルートの harness.config.json のものを使う。
 //
 //  Stop フックの入出力（Claude Code の契約）:
 //    stdin  JSON: session_id / cwd / hook_event_name:"Stop" / stop_hook_active / stop_reason
@@ -27,7 +27,7 @@
 //    その他 = 非ブロッキングエラー
 //
 //  収束制御（無限ループ防止）:
-//    - 変更検出: git の HEAD + status + diff、未追跡ファイルの中身、traceconfig.json、使う harness ツールの
+//    - 変更検出: git の HEAD + status + diff、未追跡ファイルの中身、harness.config.json、使う harness ツールの
 //      ハッシュが最終合格時と同じなら再検査しない（skip）。
 //    - ラウンド上限: stop_hook_active（既にフックで継続中）かつ rounds >= --max-rounds なら
 //      ブロックせず人間へ手渡す（release。systemMessage で利用者に表示）。失敗集合が 2 回連続で縮まらない場合も同様。
@@ -40,7 +40,7 @@
 //      ただし stop_hook_active でラウンド上限に達していれば、ラウンド上限と同じく解放する（無限ループを避ける）。
 //
 //  使い方（settings.local.json の Stop フックとして。README.md を参照）:
-//    node tools/gate-hook/stop-gate.mjs [--docs docs] [--config traceconfig.json]
+//    node tools/gate-hook/stop-gate.mjs [--docs docs] [--config harness.config.json]
 //         [--log .harness-gate/log.jsonl] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]
 //  環境変数 STOP_GATE_TOOLS_DIR は同梱ツールの探索先（<self dir>/..）を差し替える（テスト用）。
 
@@ -50,16 +50,17 @@ import { createHash } from "node:crypto";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 
 const USAGE =
-	"usage: stop-gate.mjs [--docs docs] [--config traceconfig.json] [--log <path>] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]";
+	"usage: stop-gate.mjs [--docs docs] [--config harness.config.json] [--log <path>] [--max-rounds 2] [--timeout 300] [--tail 15] [--force]";
 
 const COMMAND_KEYS = ["typecheck", "lint", "test", "system"];
 
 //  ---- 引数 ----------------------------------------------------------------
 
 function parseArgs(argv) {
-	const opts = { docs: "docs", config: "traceconfig.json", log: null, maxRounds: 2, timeout: 300, tail: 15, force: false };
+	const opts = { docs: "docs", config: CONFIG_FILE, log: null, maxRounds: 2, timeout: 300, tail: 15, force: false };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--docs") opts.docs = argv[++i];
@@ -125,7 +126,7 @@ function release(why, s, log, opts) {
 	log("release", why, { round: s.rounds, failures: s.last_failures });
 }
 
-//  ---- traceconfig.json --------------------------------------------------------
+//  ---- harness.config.json --------------------------------------------------------
 
 //  読めなければ { error }。無ければ { missing: true }
 function readConfig(path) {
@@ -183,7 +184,7 @@ function fingerprint(root, stateDir, configFiles, toolsDir) {
 	const h = createHash("sha256").update(head.stdout).update("\0").update(status.stdout).update("\0").update(diff.stdout);
 	//  未追跡ファイルは名前しか status に出ない。中身が変わっても指紋が変わるように中身を入れる
 	for (const p of untracked.stdout.split("\0").filter(Boolean).sort()) hashFile(h, `untracked:${p}`, join(root, p));
-	//  traceconfig.json は ignore されていても、リポジトリの外（--config）でも検査の範囲を決める
+	//  harness.config.json は ignore されていても、リポジトリの外（--config）でも検査の範囲を決める
 	for (const p of configFiles) hashFile(h, `config:${p}`, p);
 	for (const p of toolFiles(toolsDir)) hashFile(h, `tool:${relative(toolsDir, p)}`, p);
 	return h.digest("hex");
@@ -223,7 +224,7 @@ function readCommands(cfg, testsDeclared) {
 		else if (isNone(v)) {
 			if (typeof v.none !== "string" || !v.none.trim()) out[k] = { error: `commands.${k} の none に理由が無い（{ "none": "<理由>" }）` };
 			else if (k === "test" && testsDeclared)
-				out[k] = { error: `commands.test は none にできない（traceconfig.json が tests を宣言している。テストがあるなら実行するコマンドを書く）` };
+				out[k] = { error: `commands.test は none にできない（harness.config.json が tests を宣言している。テストがあるなら実行するコマンドを書く）` };
 			else out[k] = { none: v.none };
 		} else out[k] = { error: `commands.${k} は文字列のコマンドか { "none": "<理由>" }（実際: ${JSON.stringify(v)}）` };
 	}
@@ -253,7 +254,7 @@ function runSuite(root, opts, toolsDir, configPath, loaded) {
 	};
 	const tool = (name) => q(join(toolsDir, name, `${name}.mjs`));
 
-	//  1–3 を 1 組の docs / traceconfig に対して走らせる（失敗を集める）
+	//  1–3 を 1 組の docs / harness.config.json に対して走らせる（失敗を集める）
 	const checkDocs = (label, unitRoot, docsDir, cfgPath) => {
 		run(`spec-lint${label}`, `node ${tool("spec-lint")} validate --docs ${q(docsDir)}`);
 		run(`trace-check${label}`, `node ${tool("trace-check")} --root ${q(unitRoot)} --config ${q(cfgPath)}`);
@@ -263,17 +264,17 @@ function runSuite(root, opts, toolsDir, configPath, loaded) {
 	const { cfg } = loaded;
 	const units = unitsOf(cfg);
 	if (loaded.missing) {
-		//  traceconfig.json が無いことは「検査しない理由」ではなく失敗（紐づきの検査は黙って省かない / ADR-0056）
+		//  harness.config.json が無いことは「検査しない理由」ではなく失敗（紐づきの検査は黙って省かない / ADR-0056）
 		run("spec-lint", `node ${tool("spec-lint")} validate --docs ${q(opts.docs)}`);
 		fail(
 			"trace-check",
-			"traceconfig.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/traceconfig.json から置き、対象が無い範囲は { \"none\": \"<理由>\" } と宣言する",
+			`harness.config.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/harness.config.json から置き、対象が無い範囲は { "none": "<理由>" } と宣言する${renamedConfigHint(configPath)}`,
 		);
 		return { failures, skipped, notes, ran };
 	}
 	if (loaded.error) {
 		run("spec-lint", `node ${tool("spec-lint")} validate --docs ${q(opts.docs)}`);
-		fail("traceconfig", `${loaded.error}。traceconfig.json を直す（検査の範囲とコマンドを読めないので、紐づきの検査と commands を実行できない）`);
+		fail("config", `${loaded.error}。harness.config.json を直す（検査の範囲とコマンドを読めないので、紐づきの検査と commands を実行できない）`);
 		return { failures, skipped, notes, ran };
 	}
 
@@ -282,19 +283,20 @@ function runSuite(root, opts, toolsDir, configPath, loaded) {
 		//  monorepo: 紐づきの宣言は unit 側が持つ。ルートでは 1–3 を実行しない
 		for (const [name, dir] of Object.entries(units)) {
 			if (typeof dir !== "string" || !dir.trim()) {
-				fail(`traceconfig:${name}`, `git.units.${name} の値がディレクトリの文字列でない（実際: ${JSON.stringify(dir)}）`);
+				fail(`config:${name}`, `git.units.${name} の値がディレクトリの文字列でない（実際: ${JSON.stringify(dir)}）`);
 				continue;
 			}
 			const unitRoot = resolve(root, dir);
 			const unitDocs = join(unitRoot, "docs");
-			const unitCfg = join(unitRoot, "traceconfig.json");
+			const unitCfg = join(unitRoot, CONFIG_FILE);
 			const hasDocs = existsSync(unitDocs);
 			if (!existsSync(unitCfg)) {
 				if (hasDocs)
 					fail(
 						`trace-check:${name}`,
-						`unit ${name}（${dir}）は docs を持つのに ${dir}/traceconfig.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/traceconfig.json から置く`,
+						`unit ${name}（${dir}）は docs を持つのに ${dir}/harness.config.json が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/harness.config.json から置く${renamedConfigHint(unitCfg)}`,
 					);
+				else if (renamedConfigHint(unitCfg)) fail(`config:${name}`, `unit ${name}（${dir}）に ${dir}/${CONFIG_FILE} が無い${renamedConfigHint(unitCfg)}`);
 				else notes.push(`[stop-gate] unit ${name}（${dir}）: docs なし`);
 				continue;
 			}
@@ -358,7 +360,7 @@ function main() {
 		const configPath = resolve(root, opts.config);
 		const loaded = readConfig(configPath);
 		const units = unitsOf(loaded.cfg);
-		const configFiles = [configPath, ...(units ? Object.values(units).filter((d) => typeof d === "string").map((d) => resolve(root, d, "traceconfig.json")) : [])];
+		const configFiles = [configPath, ...(units ? Object.values(units).filter((d) => typeof d === "string").map((d) => resolve(root, d, CONFIG_FILE)) : [])];
 
 		//  4. 変更検出: 最終合格と同じツリー・設定・検査器なら再検査しない
 		const fp = fingerprint(root, stateDir, configFiles, toolsDir);
@@ -413,7 +415,7 @@ function main() {
 		}
 		out.push(
 			"直せる失敗は直し、修正範囲を再検証してから終了すること。人間ゲート待ちや後続の担当の成果物でしか直せない失敗は、未達として報告して終える。" +
-				"traceconfig.json を緩めて（none にする、範囲を狭める）通さない。機械判定できない指摘は docs/verification/DEFERRED.md に記録し、機械判定できるものは保留にしない。",
+				"設定（harness.config.json）を緩めて（none にする、範囲を狭める）通さない。機械判定できない指摘は docs/verification/DEFERRED.md に記録し、機械判定できるものは保留にしない。",
 		);
 		process.stderr.write(out.join("\n") + "\n");
 		log("block", names[0], { round: s.rounds, failures: names });

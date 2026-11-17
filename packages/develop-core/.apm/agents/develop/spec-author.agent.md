@@ -20,7 +20,7 @@ tools: Read, Write, Edit, Bash
 ## 不変条件
 
 - 雛形は `${HARNESS_ROOT}/templates/develop/` のテンプレートです。各テンプレートのコメントと届いた規約が、何を書き何を書かないかの正本です。
-- 新 ID はすべて `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --next <goal|uc|req|br|nfr>` で得ます（N セル分は `--next req --reserve N` を 1 回）。目視で採番しません。`traceconfig.json` がなければ報告し、今回だけ 01 / 001 から採番します。
+- 新 ID はすべて `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --next <goal|uc|req|br|nfr>` で得ます（N セル分は `--next req --reserve N` を 1 回）。目視で採番しません。`harness.config.json` がなければ報告し、今回だけ 01 / 001 から採番します。
 - 既存 UC の `phase:` と、どの文書の `status` も進めません。草案はすべて `draft`（契約は `x-status: draft`）で返し、自己承認しません。
 - 契約は形だけを持ちます（操作、型、必須性、列挙、`errors`、`examples`）。境界ごとに 1 操作、HTTP 以外の境界も同じ書式で、`transport` はテンプレートの判定表に従います。`_shared` には書かず、追加したい語彙を定義付きで報告します。
 - 書き終えたら `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" validate` と `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --as-active --only C4,C8,C9,C12,C16,C17,C18,C22`（draft を active とみなし、承認後に出る文書間の違反を先に見る）を実行し、自ら書いたファイルのエラーをすべて直します（後続の `target` が書く文書の不在による違反は直さず報告します）。Bash はこの 2 ツールにだけ使います。成功は書式の適合であり、正しさではありません。

@@ -1,6 +1,6 @@
 ---
 description: "📚 docs の SDD / SSOT 規約（ID 付きルール）"
-applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
+applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 ---
 
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
@@ -19,7 +19,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 ## 2. ID の文法
 
 - **R-201 (MUST)** ID は不変、内容は変更可能です。廃止は `status: withdrawn` であり削除ではありません。
-- **R-202 (MUST)** `GOAL-nn` / `UC-nnn` / `REQ-nnn` / `BR-nnn` / `NFR-nnn` / `ADR-nnnn` / `ACT-nn` / `KPI-nn`。番号は再利用しません。桁幅は `traceconfig.json` で変えます。
+- **R-202 (MUST)** `GOAL-nn` / `UC-nnn` / `REQ-nnn` / `BR-nnn` / `NFR-nnn` / `ADR-nnnn` / `ACT-nn` / `KPI-nn`。番号は再利用しません。桁幅は `harness.config.json` で変えます。
 - **R-203 (MUST)** 1 ID に 1 ファイル、frontmatter の `id:` に宣言します（例外は `goals-backlog.md` の `###` 見出しと ACT / KPI 表だけ）。本文に現れるほかの ID は参照で、参照先の定義は C16（BR）・C17（REQ）・C18（ACT・KPI）が検査します。
 - **R-204 (MUST)** 採番は `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --next <goal|uc|req|br|nfr|adr>`（原子的な予約。`--reserve N` で連番、`--next req` は UC 表が予約した ID も数える）。二重定義は C12 が検出します。
 - **R-205 (MUST)** 数値部は固定幅のゼロ埋めです。番号に所属や分類を埋め込みません（所属は frontmatter、R-1007）。
@@ -67,9 +67,9 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 ## 7. コードとの接続
 
 - **R-701 (MUST)** 実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流 ID を参照します（ID のみ。配置は comments 末端ファイル。存在しない ID は C5）。
-- **R-702 (MUST)** 層の依存方向は lint / C6（`traceconfig.json` の `layering`）で強制します。
+- **R-702 (MUST)** 層の依存方向は lint / C6（`harness.config.json` の `layering`）で強制します。
 - **R-703 (MUST)** 実装のエラーコードは `_shared` の `errorCodes` に含まれ（C7）、`errorCodes` のコードはどれかの契約の `errors` で使われます（C24）。
-- **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`traceconfig.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本で `@implements BR-nnn` 付きの制約として実現します（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
+- **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`harness.config.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本で `@implements BR-nnn` 付きの制約として実現します（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
 - **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14）。逆向き（実現単位を置く場所 `source.unit_dirs` の、どの仕様も指さない単位）は C19 が検出します。仕様を持たない技術部品は `source.support_dirs` に置き、`source.dirs` のファイルはどちらかに入れます（C27）。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
 
 ## 8. 変更手順
@@ -77,7 +77,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-801 (MUST) 上流優先。** 実装が仕様の誤りや穴を示したら、上流 SSOT を更新して再導出します（契約 → テスト → 実装）。
 - **R-802 (MUST)** 判断の変更は `supersedes:` を持つ新 ADR の追加で行い、既存 ADR を書き換えません。
 - **R-803 (MUST)** マージ条件はテスト成功かつ `spec-lint` / `trace-check` の違反ゼロです。
-- **R-804 (MUST)** 紐づきに例外を作りません。既知の違反を通す baseline、コードに書く例外の印、検査の黙った省略は持たず、対象が無いことは `traceconfig.json` に理由付きで宣言します（`{ "none": "<理由>" }`。それを求める active な文書・fixed な契約が無い間だけ通る。C26）。`traceconfig.json` の変更は人間が承認します（ADR-0057）。既存資料への導入は宣言の範囲を広げて進めます（ADR-0056）。
+- **R-804 (MUST)** 紐づきに例外を作りません。既知の違反を通す baseline、コードに書く例外の印、検査の黙った省略は持たず、対象が無いことは `harness.config.json` に理由付きで宣言します（`{ "none": "<理由>" }`。それを求める active な文書・fixed な契約が無い間だけ通る。C26）。`harness.config.json` の変更は人間が承認します（ADR-0057）。既存資料への導入は宣言の範囲を広げて進めます（ADR-0056）。
 
 ## 9. 統制の種類
 
@@ -94,7 +94,7 @@ applyTo: "docs/**,traceconfig.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-1007 (MUST)** 所属の SSOT は frontmatter で、ディレクトリは配置です。一致は C9 が検査し、再構成時は先に frontmatter を更新します。
 - **R-1008 (SHOULD)** 未着手 goal は `docs/goals-backlog.md` に置き、着手時にディレクトリへ昇格します。
 - **R-1009 (MUST)** vision に複数ドメインがあれば、各 goal は `domain:`（backlog は `- **ドメイン**:` 行）で所属を宣言し、許容値の閉じた集合は `00-vision.md` が持ちます。
-- **R-1010 (MUST)** 利用プロジェクトの作業指針（`docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md`）は地図です。構成、層の向き、命名規則、`traceconfig.json` に置けない逸脱、正本へのリンクだけを持ち、コード・設定・テストに正本がある事実（部品の振る舞い、環境変数、フェイクの使い方）と人の運用手順（README へ）を写しません。150 行以下（spec-lint）。REQ を持たない技術部品の振る舞いの正本は、その単位の doc comment です（ADR-0051）。
+- **R-1010 (MUST)** 利用プロジェクトの作業指針（`docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md`）は地図です。構成、層の向き、命名規則、`harness.config.json` に置けない逸脱、正本へのリンクだけを持ち、コード・設定・テストに正本がある事実（部品の振る舞い、環境変数、フェイクの使い方）と人の運用手順（README へ）を写しません。150 行以下（spec-lint）。REQ を持たない技術部品の振る舞いの正本は、その単位の doc comment です（ADR-0051）。
 
 ## 11. 分割クラス（テスト生成の下限と上限）
 

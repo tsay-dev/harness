@@ -17,7 +17,7 @@
 //  判定規則（上から順に最初に当たったもの。パスの比較は大文字小文字を無視する）:
 //    - .harness-gate/ 配下 → ブロック（exit 2）。ログと stop-gate の状態はフック自身だけが書く。
 //    - 検査の範囲・検査器・hook の設定 → 止めずに人間の承認を求める（permissionDecision: "ask"、ADR-0057）。
-//        **/traceconfig.json（reason: traceconfig）、.harness/**（harness）、
+//        **/harness.config.json（reason: config）、.harness/**（harness）、
 //        .claude/settings*.json と .codex / .cursor / .grok / .agents 直下の設定（プロジェクト外のユーザー設定を含む。hook-settings）、
 //        .github/workflows/**（workflow）。パスは大文字小文字を無視して比べる。
 //      書き換えれば検査を外せるため。
@@ -41,7 +41,7 @@
 //    母数＝ゲートされた書き込み、なので「ブロック率」がそのまま読める。
 //    reason 語彙: misconfig | no-goals | no-active-phase | uc-not-active | req-draft |
 //                 contract-missing | contract-not-fixed | internal-error | ok（実装ゲート）、
-//                 harness-gate（block）、traceconfig | harness | hook-settings | workflow |
+//                 harness-gate（block）、config | harness | hook-settings | workflow |
 //                 status-down | status-up-gate | actor-kind（ask）、status-up（pass）
 //
 //  設定はフックコマンドの引数で渡す（設定ファイルを増やさない。submodule 配置でも
@@ -57,6 +57,7 @@ import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { matchesAny } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
+import { CONFIG_FILE } from "../_shared/config.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
 
@@ -185,10 +186,10 @@ function ucActorChange(abs, rel, input) {
 	return a.status === "active" && (a.actor ?? "") !== (b.actor ?? "") ? [a.actor ?? "（なし）", b.actor ?? "（なし）"] : null;
 }
 
-//  アクター表のパス（traceconfig の docs.actors。無ければテンプレートの既定）
+//  アクター表のパス（harness.config.json の docs.actors。無ければテンプレートの既定）
 function actorsPath(root, docsDir) {
 	try {
-		const cfg = JSON.parse(readFileSync(join(root, "traceconfig.json"), "utf8"));
+		const cfg = JSON.parse(readFileSync(join(root, CONFIG_FILE), "utf8"));
 		if (typeof cfg?.docs?.actors === "string") return cfg.docs.actors.replace(/^\.\//, "");
 	} catch {}
 	return `${docsDir}/02-actors.md`;
@@ -270,9 +271,9 @@ const HOOK_SETTINGS_RE = /(^|\/)\.claude\/settings[^/]*\.json$|(^|\/)\.(?:codex|
 
 function guardedTarget(rel) {
 	const p = rel.toLowerCase();
-	if (p === "traceconfig.json" || p.endsWith("/traceconfig.json"))
+	if (p === CONFIG_FILE || p.endsWith(`/${CONFIG_FILE}`))
 		return {
-			reason: "traceconfig",
+			reason: "config",
 			message: `${rel} は検査の範囲（none の宣言、注釈の正規表現、commands）を決めるため、人間の承認で変える（ADR-0057）。差分を確認してから許可する`,
 		};
 	if (p.startsWith(".harness/"))

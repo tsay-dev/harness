@@ -29,7 +29,7 @@ tools: Read, Write, Bash, Grep, Glob
 ### `track: backend-logic`
 
 - 先に対象 REQ の `## 検証方針` に分割クラスを宣言します（R-1101–R-1105）。その節だけがあなたの担当で、文と frontmatter は触りません。クラス一覧が必要なテスト全体の SSOT（C10 が下限、C11 が上限）です。
-- テストは契約の操作を**その入口**で呼びます。入口は届いた規約の「operation → entry」対応表です。実装内部のシンボルは呼ばず、implementer が別の場所に置いたら implementer が動きます。契約アダプター（contract-run が契約の例を同じ入口へ渡すテスト側の資産。プロトコルは `${HARNESS_ROOT}/tools/contract-run/README.md`）もあなたが書き、`commands.contract_adapter` に宣言するコマンドを報告します（`traceconfig.json` はオーケストレーターが書く）。
+- テストは契約の操作を**その入口**で呼びます。入口は届いた規約の「operation → entry」対応表です。実装内部のシンボルは呼ばず、implementer が別の場所に置いたら implementer が動きます。契約アダプター（contract-run が契約の例を同じ入口へ渡すテスト側の資産。プロトコルは `${HARNESS_ROOT}/tools/contract-run/README.md`）もあなたが書き、`commands.contract_adapter` に宣言するコマンドを報告します（`harness.config.json` はオーケストレーターが書く）。
 - 各テストにちょうど 1 つの `@covers REQ-nnn#class`（位置は `tests.covers_placement`）。`errors[]` の各項目と隣接ペアごとに 1 クラスを宣言し、両条件を満たす入力で先のコードを検証します（R-1207）。担当 NFR は閾値を検証するテストに `@covers NFR-nnn`（クラスなし、REQ の `@covers` とは別に数える）を付け、テストで計測できないものは `measured_by` の候補として報告します。`tests.pending_pattern` に一致する保留のテストは被覆に数えられないので、このトラックでは保留にしません。
 - 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C3,C10,C11,C20` で担当 REQ・NFR の違反ゼロを確認します。
 

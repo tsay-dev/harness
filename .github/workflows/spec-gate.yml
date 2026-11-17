@@ -14,7 +14,7 @@
 #         with: { harness_ref: vX.Y.Z }
 #
 #   PR ではブランチ名とコミットメッセージの書式（tools/git-lint）も同じジョブで検査する。
-#   ホストが traceconfig.json に git を宣言したときだけ実行され、未宣言なら「検査していない」と出て通る。
+#   ホストが harness.config.json に git を宣言したときだけ実行され、未宣言なら「検査していない」と出て通る。
 #   失敗で merge を止めるには、ホストが既定ブランチの保護でこのジョブを必須チェックにする。
 #
 #   検査ツールは、harness_ref の tsay-dev/harness を $RUNNER_TEMP/harness に checkout して使う。
@@ -22,9 +22,9 @@
 #   harness_path（既定 .harness）は、利用者の .harness の HEAD が harness_ref と違うときに警告するためだけに読む。
 #   呼び出し側のワークフロー自体も PR で書き換えられるので、.github/workflows/** は CODEOWNERS などで必須レビューにする。
 #
-#   monorepo（traceconfig.json の git.units）では、spec-lint / trace-check を unit ごとに
-#   <dir>/traceconfig.json と <dir>/docs で実行する（stop-gate と同じ規則）。
-#   PR では、この PR で変わった traceconfig.json・status / x-status の行・workflow をジョブ要約に出す（止めない）。
+#   monorepo（harness.config.json の git.units）では、spec-lint / trace-check を unit ごとに
+#   <dir>/harness.config.json と <dir>/docs で実行する（stop-gate と同じ規則）。
+#   PR では、この PR で変わった harness.config.json・status / x-status の行・workflow をジョブ要約に出す（止めない）。
 name: spec-gate
 
 on:
@@ -98,16 +98,16 @@ jobs:
         with:
           node-version: 20
 
-      #   git.units を「名前<TAB>ディレクトリ」の行で書き出す（無ければ空。traceconfig.json が JSON として読めなければ落とす）
+      #   git.units を「名前<TAB>ディレクトリ」の行で書き出す（無ければ空。harness.config.json が JSON として読めなければ落とす）
       - name: Read units
         shell: bash
         run: |
           set -euo pipefail
-          node -e 'const fs=require("fs");if(!fs.existsSync("traceconfig.json"))process.exit(0);const u=(JSON.parse(fs.readFileSync("traceconfig.json","utf8")).git||{}).units;if(u&&typeof u==="object"&&!Array.isArray(u))for(const [k,v] of Object.entries(u)){if(typeof v!=="string"||!v.trim()){console.error(`git.units.${k} がディレクトリの文字列でない`);process.exit(1)}console.log(k+"\t"+v)}' > "$RUNNER_TEMP/units.tsv"
+          node -e 'const fs=require("fs");if(!fs.existsSync("harness.config.json"))process.exit(0);const u=(JSON.parse(fs.readFileSync("harness.config.json","utf8")).git||{}).units;if(u&&typeof u==="object"&&!Array.isArray(u))for(const [k,v] of Object.entries(u)){if(typeof v!=="string"||!v.trim()){console.error(`git.units.${k} がディレクトリの文字列でない`);process.exit(1)}console.log(k+"\t"+v)}' > "$RUNNER_TEMP/units.tsv"
           if [ -s "$RUNNER_TEMP/units.tsv" ]; then echo "monorepo:"; cat "$RUNNER_TEMP/units.tsv"; fi
 
       #   docs SSOT のフォーマット / ライフサイクル（契約カバレッジ warn 含む）。baseline は無く、違反はすべて落とす（ADR-0056）
-      #   monorepo では unit ごと。docs も traceconfig も持たない unit は「docs なし」、docs を持つのに traceconfig が無い unit は失敗
+      #   monorepo では unit ごと。docs も harness.config.json も持たない unit は「docs なし」、docs を持つのに harness.config.json が無い unit は失敗
       - name: Validate docs SSOT
         shell: bash
         env:
@@ -120,19 +120,21 @@ jobs:
           fi
           rc=0
           while IFS=$'\t' read -r name dir; do
-            if [ -f "$dir/traceconfig.json" ]; then
+            if [ -f "$dir/harness.config.json" ]; then
               echo "== unit $name ($dir)"
               node "$HARNESS_ROOT/tools/spec-lint/spec-lint.mjs" validate --docs "$dir/docs" $SPEC_LINT_ARGS < /dev/null || rc=1
             elif [ -d "$dir/docs" ]; then
-              echo "::error::unit $name ($dir) は docs を持つのに $dir/traceconfig.json が無い（紐づきの検査は省略できない。ADR-0056）"; rc=1
+              echo "::error::unit $name ($dir) は docs を持つのに $dir/harness.config.json が無い（紐づきの検査は省略できない。ADR-0056。traceconfig.json が残っているなら harness.config.json に改名する）"; rc=1
+            elif [ -f "$dir/traceconfig.json" ]; then
+              echo "::error::unit $name ($dir) に traceconfig.json がある。設定ファイルは harness.config.json に改名した（git mv で移す）"; rc=1
             else
               echo "unit $name ($dir): docs なし"
             fi
           done < "$RUNNER_TEMP/units.tsv"
           exit $rc
 
-      #   トレーサビリティ（被覆・@covers/@implements/@operation・配置・参照先の実在）。traceconfig.json が無ければ
-      #   設定エラーで落ちる（紐づきの検査は省略できない。対象が無い範囲は traceconfig.json に none で宣言する / ADR-0056）
+      #   トレーサビリティ（被覆・@covers/@implements/@operation・配置・参照先の実在）。harness.config.json が無ければ
+      #   設定エラーで落ちる（紐づきの検査は省略できない。対象が無い範囲は harness.config.json に none で宣言する / ADR-0056）
       - name: Trace check
         shell: bash
         run: |
@@ -143,11 +145,13 @@ jobs:
           fi
           rc=0
           while IFS=$'\t' read -r name dir; do
-            if [ -f "$dir/traceconfig.json" ]; then
+            if [ -f "$dir/harness.config.json" ]; then
               echo "== unit $name ($dir)"
-              node "$HARNESS_ROOT/tools/trace-check/trace-check.mjs" --root "$dir" --config "$dir/traceconfig.json" < /dev/null || rc=1
+              node "$HARNESS_ROOT/tools/trace-check/trace-check.mjs" --root "$dir" --config "$dir/harness.config.json" < /dev/null || rc=1
             elif [ -d "$dir/docs" ]; then
-              echo "::error::unit $name ($dir) は docs を持つのに $dir/traceconfig.json が無い（紐づきの検査は省略できない。ADR-0056）"; rc=1
+              echo "::error::unit $name ($dir) は docs を持つのに $dir/harness.config.json が無い（紐づきの検査は省略できない。ADR-0056。traceconfig.json が残っているなら harness.config.json に改名する）"; rc=1
+            elif [ -f "$dir/traceconfig.json" ]; then
+              echo "::error::unit $name ($dir) に traceconfig.json がある。設定ファイルは harness.config.json に改名した（git mv で移す）"; rc=1
             else
               echo "unit $name ($dir): docs なし"
             fi
@@ -181,7 +185,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -uo pipefail
-          if [ ! -f traceconfig.json ]; then echo "traceconfig.json なし: git-lint をスキップ"; exit 0; fi
+          if [ ! -f harness.config.json ] && [ -f traceconfig.json ]; then echo "::error::traceconfig.json がある。設定ファイルは harness.config.json に改名した（git mv traceconfig.json harness.config.json で移す）"; exit 1; fi
+          if [ ! -f harness.config.json ]; then echo "harness.config.json なし: git-lint をスキップ"; exit 0; fi
           rc=0
           node "$HARNESS_ROOT/tools/git-lint/git-lint.mjs" branch --name "$HEAD_REF" || rc=1
           node "$HARNESS_ROOT/tools/git-lint/git-lint.mjs" message --range "$BASE_SHA..$HEAD_SHA" --branch "$HEAD_REF" || rc=1
@@ -201,8 +206,8 @@ jobs:
           {
             echo "## spec-gate: この PR で変わった検査の範囲と承認状態"
             echo
-            echo "### traceconfig.json"
-            d=$(git diff --no-color "$range" -- ':(glob)**/traceconfig.json' || true)
+            echo "### harness.config.json"
+            d=$(git diff --no-color "$range" -- ':(glob)**/harness.config.json' || true)
             if [ -n "$d" ]; then printf '```diff\n%s\n```\n' "$d"; else echo "変更なし"; fi
             echo
             echo "### docs の status / 契約の x-status"

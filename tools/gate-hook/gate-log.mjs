@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 const RECORD_KEYS = ["ts", "hook", "event", "session", "decision", "reason", "target", "uc", "round", "failures", "ms"];
 
 //  gate-hook が人間の承認を求める理由（集計の内訳の並び順）
-export const ASK_REASONS = ["traceconfig", "harness", "hook-settings", "workflow", "status-down", "status-up-gate", "actor-kind"];
+export const ASK_REASONS = ["config", "harness", "hook-settings", "workflow", "status-down", "status-up-gate", "actor-kind"];
 
 //  既定のログ置き場: <root>/.harness-gate/log.jsonl（stop-gate の state.json も同じ場所）
 export function defaultLogPath(root) {

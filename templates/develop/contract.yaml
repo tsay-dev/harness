@@ -76,7 +76,7 @@ operations:
         wire: { status: 403 }
     examples:                # fixed 後は必須。実値による成功例を少なくとも一つ、errors[] のコードごとに失敗例一つ
                              # を置く（spec-lint）。tools/contract-run が利用プロジェクトの契約アダプター
-                             # （traceconfig.json commands.contract_adapter）で全例を実行する。これらは契約自身のテスト。
+                             # （harness.config.json commands.contract_adapter）で全例を実行する。これらは契約自身のテスト。
                              # 二つの失敗条件が同時に成立する場合、先のコードを期待するその入力の例を追加し、
                              # 評価順序を実行検査にする。
                              # 失敗例は request が禁止するキー（additionalProperties: false / not:）を持ってよい。
