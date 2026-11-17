@@ -42,6 +42,12 @@
   "contract": {
     "none": "harness 自身は ADR だけを持ち、アプリのコードと仕様を持たない"
   },
+  "commands": {
+    "typecheck": { "none": "同梱ツールは型注釈の無い JavaScript で、型検査の道具を入れていない" },
+    "lint": { "none": "コードの lint の道具を入れていない" },
+    "test": "node --test tools/*/test/*.test.mjs bin/test/*.test.mjs && python3 tools/apm/test_projection.py",
+    "system": { "none": "harness 自身は画面を持たない" }
+  },
   "git": {},
   "rules": {},
   "conventions": [],

@@ -74,52 +74,69 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 **exit 2 で終了を阻止**し、失敗ステップの末尾出力を継続理由としてモデルに返す。
 モデルは失敗を直して、再度終了を試みる。
 
-### 実行順序
+### 実行する検査（verify と共通）
 
-| # | ステップ | 実行条件 | 失敗時 |
+検査の並びは `suite.mjs` の 1 か所にあり、Stop フック（`stop-gate.mjs`）と、CI・手元から呼ぶ `verify.mjs`（入口からは `harness verify`）が同じものを実行する。フックで通って CI で落ちる食い違いを作らないためである。
+
+| # | 検査 | 実行する level | 失敗時 |
 | --- | --- | --- | --- |
-| 1 | `spec-lint validate --docs <docs>` | 常に | 収集 |
-| 2 | `trace-check --root <root> --config <設定ファイル>` | 常に。`harness.config.json` が無ければ失敗（紐づきの検査は省略できない。ADR-0056）。JSON として読めなければ `config` の失敗 | 収集 |
-| 3 | `contract-run --root <root> --config <設定ファイル> --docs <docs>` | `harness.config.json` があれば常に。実行する実例があるのにアダプターが無い場合と skip した例は contract-run 自身が失敗にする | 収集 |
-| 4 | `commands.typecheck` → `commands.lint` → `commands.test` | 文字列のコマンドなら実行、`{ "none": "<理由>" }` なら理由を表示して skip | 最初の失敗で停止 |
-| 5 | `commands.system`（シナリオスイート — ブラウザ / シミュレーター / デバイス — 全体を一度） | ステップ 4 が成功し、コマンドが宣言されている（none なら理由を表示して skip） | 収集 |
+| 1 | `config-lint --config <設定ファイル>`（設定の形。ルートで 1 回。unit の設定も config-lint が読む） | lint 以上 | 収集 |
+| 2 | `spec-lint validate --docs <docs>` | lint 以上 | 収集 |
+| 3 | `trace-check --root <root> --config <設定ファイル>` | lint 以上 | 収集 |
+| 4 | `contract-run --root <root> --config <設定ファイル> --docs <docs>`。実行する実例があるのにアダプターが無い場合と skip した例は、contract-run 自身が失敗にする | fast 以上 | 収集 |
+| 5 | `commands.typecheck` → `commands.lint` → `commands.test` → `commands.extra` の各コマンド（書いた順） | fast 以上 | 最初の失敗で停止 |
+| 6 | `commands.system`（シナリオテスト全件。ブラウザ / シミュレーター / 実機） | full | 5 が通ったときだけ実行 |
 
-全失敗を一度に報告するためステップ 1–3 は常に実行する。型検査を通らないコードのテストはノイズなので
-ステップ 4 は早期停止する。ステップ 5 は最も高コストなので既定スイートの成功後のみ実行する。
-毎回の終了にはシナリオスイートが遅すぎる利用プロジェクトは `commands.system` を `{ "none": "<理由>" }` にして CI のみで実行する。
-skip 行がその選択と理由を可視化する。`--timeout` を超えるステップは `timeout:<step>` という失敗になる。
+`--level` で、どこまで実行するかを選ぶ（既定は `full`）。
+
+| level | 実行するもの | 使いどころの例 |
+| --- | --- | --- |
+| `lint` | 1〜3。読むだけで、利用プロジェクトのコマンドは実行しない | テストが遅く、ターンの終わりごとには回せないプロジェクトの Stop フック |
+| `fast` | 1〜5 | Stop フック、PR ごとの CI |
+| `full` | 1〜6 | マージ前の CI、手元での最終確認 |
+
+- level で実行しなかった検査は、`[verify] skip: …（--level lint では実行しない）` と表示する。黙って省かない。
+- 全失敗を一度に報告するため、1〜4 は（level が実行するものを）全部実行する。型検査を通らないコードのテストはノイズなので、5 は最初の失敗で止める。
+- `--timeout` を超えた検査は `timeout:<検査>` という失敗になる。超えたコマンドは、シェルの子として動くテストランナーごと（プロセスグループごと）止める。`--timeout 0` は制限なし。
+- `commands.extra` の形が誤っているときは、extra から先（`system` も）を実行しない。
+- 設定（`harness.config.json`）が無ければ失敗（紐づきの検査は省略できない。ADR-0056）。JSON として読めなければ `config` の失敗。
 
 **`commands` の `typecheck` / `lint` / `test` / `system` は宣言が必須。** それぞれ文字列のコマンドか `{ "none": "<理由>" }` で、
-欠落・理由の無い none・それ以外の型は、例外ではなく失敗の 1 項目（`commands.<k>`）になる。黙った skip を作らない。
-`harness.config.json` が `tests` を none でなく宣言しているなら（monorepo では unit のどれかが宣言しているなら）、`commands.test` は none にできない。
-**コマンドは `harness.config.json` の `commands` ブロックだけから取得し、推測してはならない。** `package.json` などから創作しない。
+欠落・理由の無い none・それ以外の型は、例外ではなく失敗の 1 項目（`commands.<k>`）になる。黙った skip を作らない。宣言の検査は、どの level でも行う。
+設定が `tests` を none でなく宣言しているなら、その設定の `commands.test` は none にできない。
+`commands.extra` は、4 つのほかに実行するコマンドを `{ "<名前>": "<コマンド>" }` で書く（省略できる）。`test` の後、`system` の前に、書いた順で実行する。
+**コマンドは設定の `commands` だけから取得し、推測してはならない。** `package.json` などから創作しない。
 同梱ツールはこのスクリプト自身のディレクトリから解決するため、`.harness/` から動く。
 
 ### monorepo（`git.units`）
 
-`harness.config.json` に `git.units`（`{ 単位名: ディレクトリ }`）があれば、ルートではステップ 1–3 を実行せず、unit ごとに実行する。
+設定に `git.units`（`{ 単位名: ディレクトリ }`）があれば、1 をルートで実行した後、2〜6 を unit ごとに実行する。
 
 | unit の状態 | 扱い |
 | --- | --- |
-| `<dir>/harness.config.json` がある | `spec-lint validate --docs <dir>/docs`、`trace-check --root <dir> --config <dir>/harness.config.json`、`contract-run --root <dir> --config <dir>/harness.config.json --docs <dir>/docs`。失敗名は `<step>:<unit>` |
-| docs も harness.config.json も無い | `docs なし` と表示するだけ |
-| docs を持つのに harness.config.json が無い | 失敗（`trace-check:<unit>`） |
+| `<dir>/harness.config.json` がある | 2〜4 を `<dir>/docs` と `<dir>/harness.config.json` で実行し、5〜6 は unit の設定の `commands` を `<dir>` で実行する。失敗の名前は `<検査>:<unit>` |
+| docs も設定も無い | `docs なし` と表示するだけ |
+| docs を持つのに設定が無い | 失敗（`trace-check:<unit>`） |
+| 古い名前（`traceconfig.json`）のファイルだけがある | 失敗（改名の案内付き） |
 
-ステップ 4–5 の `commands` はルートの `harness.config.json` のものを使う。CI（`.github/workflows/spec-gate.yml`）の spec-lint / trace-check も同じ規則で unit ごとに実行する。
+- unit の `commands` も、4 キーの宣言が必須。ある unit のコマンドが失敗しても、ほかの unit は検査する。
+- ルートの設定に `commands` があれば、unit の後にルートで実行する（リポジトリ全体に掛ける検査）。monorepo のルートでは、`commands` は無くてもよい。
+- `--unit <名前>`（複数可）で、検査する unit を絞れる。絞ったときは、ルートの `commands` は実行しない。宣言に無い名前は失敗。
 
 ### スキップ規則と収束
 
 - **変更なし**: `git rev-parse HEAD` + `git status --porcelain` + `git diff HEAD` に、未追跡ファイル
   （`git ls-files -o --exclude-standard`）の中身、`harness.config.json`（unit のものも。ignore されていても）、
-  使う harness ツール（`spec-lint.mjs`、`trace-check.mjs`、`contract-run.mjs`、`tools/_shared/*.mjs`）を加えたハッシュを取る
+  使う harness ツール（`config-lint.mjs`、`spec-lint.mjs`、`trace-check.mjs`、`contract-run.mjs`、`suite.mjs`、`tools/_shared/*.mjs`）、
+  `--level` と `--unit` の指定を加えたハッシュを取る
   （自身の状態ディレクトリは除外）。最終成功時の記録と同じなら `[stop-gate] 変更なし（最終合格 <ts>）` と
   表示して再実行せず終了を許可する。`--force` はこれを無効化する。
 - **異なるイベント**: `hook_event_name: "Stop"` 以外は許可し、`skip` / `wrong-event` と記録する。
 - **回数上限**: Stop hook の阻止でモデルが既に継続中なら、Claude Code は `stop_hook_active: true` を設定する。
   その状態でセッションが既に `--max-rounds` 回連続失敗したら、再度阻止せず**解除**する（exit 0）。
   解除したときは stdout に `{"systemMessage": "[stop-gate] 終端ゲートが通らないまま解放した…。失敗: …"}` だけを出し、
-  Claude Code が利用者に表示する。残る失敗は人間へ渡す。失敗集合が連続二回縮まらない場合（`non-decreasing`）も
-  同じく解除する。セッション ID の変更、成功、解除後に回数をリセットする。
+  Claude Code が利用者に表示する。残る失敗は人間へ渡す。前のラウンドから進んでいない場合（`non-decreasing`。直前に落ちた検査が今回もすべて落ちている、または落ちる検査の組が前のものへ戻った）も、上限を待たずに
+  同じく解除する（`--max-rounds` を 3 以上にしたときに働く。既定の 2 では、上限と同じ回で解除される）。セッション ID の変更、成功、解除後に回数をリセットする。
 - 状態（`last_pass` の指紋、セッションごとの回数と失敗履歴）はログ隣の `state.json` に置く
   （既定 `.harness-gate/state.json`）。gate-hook が `.harness-gate/` への Write / Edit を止める。利用プロジェクトの `.gitignore` に `.harness-gate/` を追加する。
 
@@ -127,7 +144,7 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 
 阻止時の stderr は、失敗ごとの末尾出力に続けて次を求める: 直せる失敗は直し、修正範囲を再検証してから終了する。
 人間ゲート待ちや後続の担当の成果物でしか直せない失敗は、未達として報告して終える。
-`harness.config.json` を緩めて（none にする、範囲を狭める）通さない。
+設定（`harness.config.json`）を緩めて（none にする、範囲を狭める）通さない。
 
 ### fail-open と fail-closed
 
@@ -142,6 +159,9 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 
 | 引数 | 意味 |
 | --- | --- |
+| `--level <lint\|fast\|full>` | どこまで実行するか（既定 `full`） |
+| `--unit <名前>` | monorepo で、検査する unit（複数可。省略すると全 unit） |
+| `--ignore-legacy-layout` | 旧レイアウト（`docs/specs/`）が残っていても検査を続ける（spec-lint へ渡す。移行中だけ） |
 | `--docs <dir>` | spec-lint に渡す docs ルート（既定 `docs`） |
 | `--config <path>` | trace 設定（既定: プロジェクト直下の `harness.config.json`） |
 | `--log <path>` | 拒否ログ（既定 `.harness-gate/log.jsonl`）。同じディレクトリに `state.json` を保持 |
@@ -149,6 +169,19 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 | `--timeout <sec>` | ステップごとのタイムアウト（既定 `300`）。設定の hook 自身の `timeout` は予想合計より大きくする |
 | `--tail <n>` | モデルへ返す各失敗ステップの出力行数（既定 `15`） |
 | `--force` | 最終成功時からツリーが未変更でも再実行 |
+
+## verify — CI と手元から同じ検査を実行する
+
+```bash
+node .harness/bin/harness.mjs verify [--level lint|fast|full] [--unit <名前>]... [--root <プロジェクトのルート>] [--timeout 300] [--tail 15] [--verbose]
+```
+
+Stop フックと同じ検査を、標準入力もラウンドの記録も使わずに 1 回実行する。状態もログも残さない。終了コードは、すべて通過で 0、失敗があれば 1、使い方の誤りで 2。
+失敗した検査の名前と出力の末尾は、標準エラー出力に出す。`--verbose` を付けると、実行した検査の出力を、通ったものも含めて全部表示する（spec-lint の警告や、違反の一覧の全体を CI のログに残す）。`--config` の相対パスは、実行したディレクトリから探す（Stop フックではプロジェクトのルートから）。止められたら（SIGINT / SIGTERM / SIGHUP / SIGQUIT）、実行中のコマンドをプロセスグループごと止め、残りを実行せずに同じシグナルで終わる。
+
+`harness verify --hook` は、Stop フックとして動く（`stop-gate.mjs` を直接呼ぶのと同じ）。
+
+CI では、再利用ワークフロー `.github/workflows/spec-gate.yml` が `harness verify --verbose` を実行する。既定の level は `lint`。テストまで CI で実行するなら、`with:` に `level: fast`（または `full`）と、依存を入れる `setup_command`（例: `npm ci`）を渡す。
 
 ## 導入（利用プロジェクト側）
 
@@ -173,7 +206,7 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.harness/tools/gate-hook/stop-gate.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.harness/bin/harness.mjs\" verify --hook",
             "timeout": 600
           }
         ]
@@ -183,7 +216,7 @@ skip 行がその選択と理由を可視化する。`--timeout` を超えるス
 }
 ```
 
-`Stop` 項目に `matcher` はなく、毎回の終了で発火する。各 hook は単独でも導入できる。
+`Stop` 項目に `matcher` はなく、毎回の終了で発火する。この例は、シナリオテストまで実行する（`--level` の既定は `full`）。ターンの終わりごとには重すぎるなら、`--level fast`（シナリオテストを除く）か `--level lint`（読むだけ）を付ける。フックで実行しなかった分は、CI の level で補う。フックも CI も低い level のままだと、その検査はどこでも実行されない。各 hook は単独でも導入できる。
 
 明示選択するこれらの hooks は利用プロジェクトの `.claude/settings.local.json` に置く。生成プロンプトディレクトリを修正したり、`settings.json` を規約ルーターにしたりしない。
 
@@ -259,8 +292,12 @@ echo $?   # 進行中 UC、REQs、契約がすべて揃っていなければ 2�
 
 # Stop ゲート
 echo '{"session_id":"manual","cwd":"/path/to/project","hook_event_name":"Stop","stop_hook_active":false}' \
-  | CLAUDE_PROJECT_DIR=/path/to/project node tools/gate-hook/stop-gate.mjs
+  | CLAUDE_PROJECT_DIR=/path/to/project node bin/harness.mjs verify --hook
 echo $?   # 宣言済み全検査の成功時は 0（skip は stdout に一覧化）。失敗は 2 とし末尾出力を stderr に表示
+
+# フックを通さずに、同じ検査を 1 回実行する（CI と同じ）
+node bin/harness.mjs verify --root /path/to/project --level fast
+echo $?   # 成功は 0、失敗は 1
 
 # 回帰テスト（一時ディレクトリのみ。既存のディスク内容には触れない）
 node --test 'tools/gate-hook/test/*.test.mjs'
