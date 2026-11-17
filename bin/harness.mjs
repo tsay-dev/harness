@@ -6,21 +6,7 @@
 //  ここは名前から同梱ツールを選んで引数をそのまま渡すだけで、検査の中身は持たない。
 //  各コマンドの引数と終了コードは、渡した先のツールのものがそのまま返る。
 //
-//  読むだけ（ファイルを書き換えない）:
-//    harness lint                 lint spec → lint refs → lint git branch を続けて実行する
-//    harness lint spec            仕様の文書の書式と状態の決まり            → spec-lint validate
-//    harness lint refs            仕様・コード・テストの ID の紐づき        → trace-check
-//    harness lint git branch      ブランチ名の書式                          → git-lint branch
-//    harness lint git message     コミットメッセージの書式                  → git-lint message
-//    harness lint git uc          コミットが指す UC が実装に入れる状態か    → spec-lint gate
-//  実行するもの:
-//    harness run cases            契約の実例を実装に当てて実行する          → contract-run
-//    harness verify               完了の判定（Stop フック）                 → stop-gate
-//    harness guard                書き込み前の関門（PreToolUse フック）     → gate-hook
-//  補助:
-//    harness next-id <種類>       次の空き ID を予約して出力する            → trace-check --next
-//    harness index                1 行 1 ID の索引を出力する                → trace-check --index
-//    harness convert <openapi>    OpenAPI を契約の書式へ変換する            → spec-lint convert
+//  コマンドの名前と行き先は、下の COMMANDS の表が正本（引数なしで呼ぶと一覧を表示する）。
 //
 //  使い方:
 //    node <harness のルート>/bin/harness.mjs <コマンド> [渡した先のツールの引数...]
@@ -29,7 +15,8 @@
 //  `harness lint`（まとめて実行）は、実行したもののうち最も大きい終了コード。
 //  環境変数 HARNESS_TOOLS_DIR は同梱ツールの探索先（<このファイルの場所>/../tools）を差し替える（テスト用）。
 
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -82,21 +69,37 @@ function match(argv) {
 	return null;
 }
 
+//  入口が止められたら子も止める。入口だけが消えて検査やテストが裏で動き続けないようにする
+const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
+
 function run(cmd, rest) {
-	const r = spawnSync(process.execPath, [join(TOOLS, cmd.script), ...cmd.prefix, ...rest], { stdio: "inherit" });
-	if (r.error) {
-		console.error(`harness: ${cmd.words.join(" ")} を起動できない: ${r.error.message}`);
-		return 2;
+	const script = join(TOOLS, cmd.script);
+	if (!existsSync(script)) {
+		console.error(`harness: ${cmd.words.join(" ")} の行き先 ${script} が無い（bin/ と tools/ は同じ checkout のまま置く）。`);
+		return Promise.resolve(2);
 	}
-	//  子がシグナルで止まったら、同じシグナルで自分も止まる（呼び出し側に止まり方を伝える）
-	if (r.signal) {
-		process.kill(process.pid, r.signal);
-		return 1;
-	}
-	return r.status ?? 1;
+	return new Promise((done) => {
+		const child = spawn(process.execPath, [script, ...cmd.prefix, ...rest], { stdio: "inherit" });
+		const forward = (sig) => child.kill(sig);
+		for (const s of SIGNALS) process.on(s, forward);
+		const finish = (code) => {
+			for (const s of SIGNALS) process.removeListener(s, forward);
+			done(code);
+		};
+		child.on("error", (e) => {
+			console.error(`harness: ${cmd.words.join(" ")} を起動できない: ${e.message}`);
+			finish(2);
+		});
+		child.on("exit", (status, signal) => {
+			for (const s of SIGNALS) process.removeListener(s, forward);
+			//  子がシグナルで止まったら、同じシグナルで自分も止まる（呼び出し側に止まり方を伝える）
+			if (signal) process.kill(process.pid, signal);
+			else done(status ?? 1);
+		});
+	});
 }
 
-function main() {
+async function main() {
 	const argv = process.argv.slice(2);
 	if (argv.length === 0 || (argv.length === 1 && ["-h", "--help", "help"].includes(argv[0]))) {
 		console.log(listing());
@@ -105,20 +108,25 @@ function main() {
 	if (sameWords(argv, ["lint"])) {
 		let worst = 0;
 		for (const words of LINT_ALL) {
-			console.log(`\n== harness ${words.join(" ")}`);
-			worst = Math.max(worst, run(find(words), []));
+			process.stdout.write(`\n== harness ${words.join(" ")}\n`);
+			worst = Math.max(worst, await run(find(words), []));
 		}
 		return worst;
 	}
 	const hit = match(argv);
 	if (!hit) {
-		//  途中まで合っているなら、その先の候補だけを示す
+		const names = [];
+		for (const a of argv) {
+			if (a.startsWith("-")) break;
+			names.push(a);
+		}
 		const next = COMMANDS.filter((c) => c.words.length > 1 && c.words[0] === argv[0]).map((c) => c.words.join(" "));
-		console.error(`harness: コマンド「${argv.filter((a) => !a.startsWith("-")).slice(0, 3).join(" ")}」は無い。`);
+		if (sameWords(names, ["lint"])) console.error("harness: lint をまとめて実行するときは引数を渡せない。lint spec --docs docs のように、検査を選んで渡す。");
+		else console.error(`harness: コマンド「${names.slice(0, 3).join(" ") || argv[0]}」は無い。`);
 		console.error(next.length ? `候補: ${next.join(" / ")}` : listing());
 		return 2;
 	}
 	return run(hit.cmd, hit.rest);
 }
 
-process.exitCode = main();
+process.exitCode = await main();

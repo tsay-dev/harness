@@ -90,7 +90,7 @@ applyTo: "**/crow3_*/app/classes/**"
 
 | 変更 | 最低限の確認 |
 | --- | --- |
-| manifest / パッケージ境界 | APM がパッケージを認識する。新規インストールに選択した依存だけが入り、tools / templates が同梱されない。 |
+| manifest / パッケージ境界 | APM がパッケージを認識する。新規インストールに選択した依存だけが入り、tools / bin / templates が同梱されない。 |
 | instruction | 有効な `applyTo`、関心事 1 つ、想定する書き手のアドレス、Claude 出力の `paths` が glob の意味を失わないこと。 |
 | skill | 呼び出しが動作する。行数上限内（`test_projection.py`）。オーケストレーションと実装を分離したままにする。ゲートと `active` / `fixed` / `phase` の遷移は orchestrator が保持する。参照が `.claude/` なしで動作する。`references/*.md` が全プロバイダーの出力にあり、それ自体には frontmatter を持たない。 |
 | agent | producer / judge が独立している。明示的な契約、有効な `x-model-tier`、モデルの段は `x-model-tier` だけで宣言し、プロバイダーのモデル名を書かない。develop の構成は、別コンテキストが正当化された 5 役に留める（`tools/apm/test_projection.py` が tier の集合を固定する）。 |

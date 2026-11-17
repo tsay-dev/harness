@@ -53,9 +53,9 @@ GitHub の例はこの構成が公開された版に対して有効。ref を固
 
 APM は中立拡張の `x-model-tier` を provider の model field に変換しない。install 後は、オーケストレーターが `apm_modules/` の元 source から tier を読み、上の対応表に従って起動時に適用する（Claude では opus / sonnet / haiku、Codex では JSON の 3 段、Cursor では同段の family）。Grok Build は per-launch の model 指定がないため親を継承し、要求段を保証できなければその制約を報告する。
 
-## tools / templates を別途用意する
+## tools / bin / templates を別途用意する
 
-APM packages は tools / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。入口の `bin/harness.mjs` は `../tools/` を相対パスで読むので、`bin/` も同じ checkout のまま置く。入口は名前から同梱ツールを選んで引数をそのまま渡すだけで、ツールのファイルを直接呼んでも動きは同じ（ADR-0063。対応は `bin/harness.mjs` の表が正本）。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。
+APM packages は tools / bin / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。入口の `bin/harness.mjs` は `../tools/` を相対パスで読むので、`bin/` も同じ checkout のまま置く。入口は名前から同梱ツールを選んで引数をそのまま渡すだけで、ツールのファイルを直接呼んでも検査の結果は同じ（ADR-0063。対応は `bin/harness.mjs` の表が正本）。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。
 
 ```bash
 # <release-tag> を実在する、package と整合するタグに置き換える
@@ -103,7 +103,7 @@ apm install --target codex /absolute/path/to/harness/packages/rules-next
 確認する項目:
 
 1. 各パッケージを単独で install でき、develop-core + rules-next の consumer にほかのスタックの葉が出ない。
-2. installed package に tools / templates が同梱されない。
+2. installed package に tools / bin / templates が同梱されない。
 3. Claude 出力の `paths` と Cursor 出力の `globs` が元の `applyTo` と同じ対象を表し、Cursor 出力が常駐指示にならない。
 4. どの target の install も `.claude/settings.json` を作らない。Codex / Grok の install が root `AGENTS.md` や全文の rules router を生成しない。Grok Build の `.grok/rules/` が常に読まれる設定になっていない。
 5. skill 本文のリンクが `apm_modules/` 内で解決し、`.claude/` がなくても到達できる。

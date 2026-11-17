@@ -1,9 +1,9 @@
 //  harness（入口）のテスト。入口は名前から同梱ツールを選んで引数を渡すだけなので、
 //  確かめるのは「どの名前がどのツールに、どの引数で届くか」と終了コードの受け渡し。
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,24 +14,32 @@ const REAL_TOOLS = join(HERE, "..", "..", "tools");
 const SCRIPTS = [...new Set([...readFileSync(ENTRY, "utf8").matchAll(/script: "([^"]+)"/g)].map((m) => m[1]))];
 
 //  呼ばれたら「自分のパスと引数」を 1 行で出し、FAKE_EXIT_<ツール名> の終了コードで終わる偽のツール
+const TEMP = [];
+after(() => TEMP.forEach((d) => rmSync(d, { recursive: true, force: true })));
+
 function fakeTools() {
 	const dir = mkdtempSync(join(tmpdir(), "harness-entry-"));
+	TEMP.push(dir);
 	for (const s of SCRIPTS) {
 		mkdirSync(dirname(join(dir, s)), { recursive: true });
 		const name = s.split("/").pop().replace(/\W/g, "_");
 		writeFileSync(
 			join(dir, s),
-			`console.log(JSON.stringify({ script: ${JSON.stringify(s)}, args: process.argv.slice(2) }));\n` +
+			`console.log(JSON.stringify({ script: ${JSON.stringify(s)}, args: process.argv.slice(2), cwd: process.cwd() }));\n` +
 				`process.exit(Number(process.env.FAKE_EXIT_${name} ?? 0));\n`,
 		);
 	}
 	return dir;
 }
 
+const CWD = realpathSync(mkdtempSync(join(tmpdir(), "harness-cwd-")));
+TEMP.push(CWD);
+
 function harness(args, env = {}) {
 	const r = spawnSync(process.execPath, [ENTRY, ...args], {
 		encoding: "utf8",
 		input: "",
+		cwd: CWD,
 		env: { ...process.env, HARNESS_TOOLS_DIR: fakeTools(), ...env },
 	});
 	const calls = r.stdout.split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
@@ -61,7 +69,7 @@ for (const [words, script, prefix] of ROUTES) {
 	test(`harness ${words.join(" ")} は ${script} に引数をそのまま渡す`, () => {
 		const r = harness([...words, "--x", "値 1"]);
 		assert.equal(r.status, 0, r.stderr);
-		assert.deepEqual(r.calls, [{ script, args: [...prefix, "--x", "値 1"] }]);
+		assert.deepEqual(r.calls, [{ script, args: [...prefix, "--x", "値 1"], cwd: CWD }]);
 	});
 }
 
@@ -82,9 +90,9 @@ test("harness lint は 3 つを順に実行し、1 つ失敗しても残りを�
 	const r = harness(["lint"], { FAKE_EXIT_spec_lint_mjs: "1" });
 	assert.equal(r.status, 1);
 	assert.deepEqual(r.calls, [
-		{ script: "spec-lint/spec-lint.mjs", args: ["validate"] },
-		{ script: "trace-check/trace-check.mjs", args: [] },
-		{ script: "git-lint/git-lint.mjs", args: ["branch"] },
+		{ script: "spec-lint/spec-lint.mjs", args: ["validate"], cwd: CWD },
+		{ script: "trace-check/trace-check.mjs", args: [], cwd: CWD },
+		{ script: "git-lint/git-lint.mjs", args: ["branch"], cwd: CWD },
 	]);
 });
 
@@ -93,8 +101,57 @@ test("無いコマンドは 2 で終わり、何も実行しない", () => {
 		const r = harness(args);
 		assert.equal(r.status, 2, args.join(" "));
 		assert.deepEqual(r.calls, []);
-		assert.match(r.stderr, /は無い/);
+		assert.match(r.stderr, /は無い|引数を渡せない/);
 	}
+	assert.match(harness(["lint", "--docs", "docs"]).stderr, /引数を渡せない/);
+	assert.doesNotMatch(harness(["lint", "--docs", "docs"]).stderr, /「lint docs」/);
+});
+
+test("差し替えなしでは、同梱の tools/ の実物が呼ばれる", () => {
+	const env = { ...process.env };
+	delete env.HARNESS_TOOLS_DIR;
+	const r = spawnSync(process.execPath, [ENTRY, "lint", "git", "branch", "--name", "feat/add-some-thing", "--root", join(HERE, "..", "..")], { encoding: "utf8", input: "", env });
+	assert.equal(r.status, 0, r.stderr);
+	assert.match(r.stdout, /\[git-lint\] ブランチ名 OK: feat\/add-some-thing/);
+});
+
+test("行き先のファイルが無ければ 2 で終わる", () => {
+	const r = harness(["verify"], { HARNESS_TOOLS_DIR: join(CWD, "無い場所") });
+	assert.equal(r.status, 2);
+	assert.match(r.stderr, /が無い/);
+});
+
+test("標準エラー出力は渡した先のものがそのまま出る（フックは理由を標準エラー出力で返す）", () => {
+	const dir = fakeTools();
+	writeFileSync(join(dir, "gate-hook/stop-gate.mjs"), `console.error("差し戻しの理由"); process.exit(2);\n`);
+	const r = harness(["verify"], { HARNESS_TOOLS_DIR: dir });
+	assert.equal(r.status, 2);
+	assert.equal(r.stderr, "差し戻しの理由\n");
+});
+
+test("渡した先がシグナルで止まったら、入口も同じシグナルで止まる", () => {
+	const dir = fakeTools();
+	writeFileSync(join(dir, "gate-hook/stop-gate.mjs"), `process.kill(process.pid, "SIGTERM"); setTimeout(() => {}, 5000);\n`);
+	const r = harness(["verify"], { HARNESS_TOOLS_DIR: dir });
+	assert.equal(r.signal, "SIGTERM");
+});
+
+test("入口だけを止めても、渡した先が動き続けない", { skip: process.platform === "win32" }, async () => {
+	const dir = fakeTools();
+	const started = join(dir, "started");
+	const marker = join(dir, "marker");
+	writeFileSync(
+		join(dir, "gate-hook/stop-gate.mjs"),
+		`import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(started)}, "");\nsetTimeout(() => writeFileSync(${JSON.stringify(marker)}, ""), 1500);\n`,
+	);
+	const child = spawn(process.execPath, [ENTRY, "verify"], { stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: dir } });
+	const ended = new Promise((res) => child.on("exit", (status, signal) => res(signal)));
+	for (let i = 0; i < 100 && !existsSync(started); i++) await new Promise((res) => setTimeout(res, 50));
+	assert.ok(existsSync(started), "渡した先が起動していない");
+	child.kill("SIGTERM");
+	assert.equal(await ended, "SIGTERM");
+	await new Promise((res) => setTimeout(res, 2000));
+	assert.ok(!existsSync(marker), "入口が止まった後も、渡した先が動いて目印を書いた");
 });
 
 test("標準入力は渡した先に届く（フックは標準入力の JSON を読む）", () => {
