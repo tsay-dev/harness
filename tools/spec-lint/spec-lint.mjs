@@ -979,9 +979,10 @@ function loadModel(docsDir) {
 		if (!a.supersedes) continue;
 		const old = adrById.get(a.supersedes);
 		if (!old) err(join(docsDir, "adr"), `${a.id} の supersedes "${a.supersedes}" が存在しない`);
-		//  置き換えた側が accepted になったら、置き換えられた側は superseded にする（現行の判断が 2 つ並ばないようにする）
-		else if (a.status === "accepted" && old.status !== "superseded")
-			err(join(docsDir, "adr"), `${a.id}（accepted）が ${old.id} を置き換えているのに、${old.id} の status が ${old.status}（superseded にする）`);
+		//  置き換えた側が承認されたら（accepted。後でさらに置き換えられて superseded になっていても同じ）、置き換えられた側は superseded にする
+		//  （現行の判断が 2 つ並ばないようにする）。置き換える側が proposed の間は、まだ置き換わっていない
+		else if (a.status !== "proposed" && old.status !== "superseded")
+			err(join(docsDir, "adr"), `${a.id}（${a.status}）が ${old.id} を置き換えているのに、${old.id} の status が ${old.status}（superseded にする）`);
 	}
 
 	//  単票

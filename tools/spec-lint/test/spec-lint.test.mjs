@@ -49,6 +49,18 @@ test("ADR: accepted の ADR が置き換えた ADR は superseded でなけれ�
 	assert.match(r.out, /ADR-0002（accepted）が ADR-0001 を置き換えているのに、ADR-0001 の status が accepted/);
 });
 
+test("ADR: 置き換えた側がさらに置き換えられて superseded になっていても、最初の ADR は superseded でなければ err", () => {
+	const r = validate({
+		hostFiles: {
+			"docs/adr/ADR-0001-first.md": adr("ADR-0001", "accepted"),
+			"docs/adr/ADR-0002-second.md": adr("ADR-0002", "superseded", "ADR-0001"),
+			"docs/adr/ADR-0003-third.md": adr("ADR-0003", "accepted", "ADR-0002"),
+		},
+	});
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /ADR-0002（superseded）が ADR-0001 を置き換えているのに、ADR-0001 の status が accepted/);
+});
+
 test("ADR: 置き換えられた側が superseded なら通る", () => {
 	const r = validate({ hostFiles: adrFiles("superseded", "accepted") });
 	assert.equal(r.status, 0, r.out);
