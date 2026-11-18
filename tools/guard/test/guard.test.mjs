@@ -444,6 +444,10 @@ test("guard: 概要の GOAL の行の削除と active からの降格は ask、p
 	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-02", "planned"), goal("GOAL-03", "draft")] }) })), /GOAL-01 の行/);
 	//  planned の行を消すのも、status によらず ask
 	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-01", "active"), goal("GOAL-03", "draft")] }) })), /GOAL-02 の行/);
+	//  行を消さずに HTML コメントへ入れる・表の外（2 つ目の表）へ動かすのも、検査の読み方からは消えるので ask
+	const row2 = base.split("\n").find((l) => /^\|\s*GOAL-02\s*\|/.test(l));
+	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: base.replace(row2, `<!--\n${row2}\n-->`) })), /GOAL-02 の行/);
+	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: base.replace(row2, "").replace(/\n## 全体の方針/, `\n| ID | 旧 |\n| --- | --- |\n${row2}\n\n## 全体の方針`) })), /GOAL-02 の行/);
 	//  active → draft
 	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-01", "draft"), goal("GOAL-02", "planned"), goal("GOAL-03", "draft")] }) })), /GOAL-01 の status を active → draft/);
 	//  同じ ID の行が 2 つになり、片方だけ active のままでも、active でなくなった行があれば降格（読み方は重複の行を落とす）

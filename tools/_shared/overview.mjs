@@ -28,7 +28,8 @@ const ROLE_SECTION = { kpis: "成功の定義", actors: "アクター", goals: "
 //  検査が意味を読む列（ひな形の列の見出しと同じ名前。ひな形との一致はテストで固定する）
 export const COL = { id: "ID", kind: "種別", sentence: "目指す状態", actor: "アクター", kpi: "KPI", status: "status", note: "備考", domain: "ドメイン" };
 //  方針の小節の本文が、ひな形の「（未記入: …）」のままなら未記入
-const UNFILLED_RE = /^（未記入/;
+//  未記入とみなす本文（ひな形の文のほか、半角の括弧、「未記入」「未定」「TODO」「TBD」で始まるもの）
+const UNFILLED_RE = /^[（(]?\s*(未記入|未定|TODO|TBD)/i;
 
 const sectionKey = (title) => title.split(/[\s（(]/)[0];
 const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, "");

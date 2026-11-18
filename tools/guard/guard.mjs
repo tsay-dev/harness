@@ -197,9 +197,11 @@ function overviewChange(abs, input) {
 	const a = readOverview(before ?? "");
 	const b = readOverview(after);
 	//  同じ ID の行が 2 つあっても、読み方の problems に落ちた行を含めて比べる（ID が 1 つでも無くなれば削除）
+	//  書き込みの後は、検査と同じ読み方（GOAL の節の表）に残った行だけを数える。HTML コメントや別の表へ動かした行は、消えたものとして扱う
 	const rowIds = (text) => new Set([...(text ?? "").matchAll(/^\|\s*(GOAL-\d+)\s*\|/gm)].map((m) => m[1]));
-	const idsAfter = rowIds(after);
-	for (const id of rowIds(before)) if (!idsAfter.has(id)) return { kind: "down", field: `GOAL の表の ${id} の行`, from: "あり", to: "削除" };
+	const idsAfter = new Set(b.goals.map((g) => g.id));
+	const idsBefore = new Set([...rowIds(before), ...a.goals.map((g) => g.id)]);
+	for (const id of idsBefore) if (!idsAfter.has(id)) return { kind: "down", field: `GOAL の表の ${id} の行`, from: "あり", to: "削除" };
 	const activeAfter = new Set(b.goals.filter((g) => g.status === "active").map((g) => g.id));
 	for (const g of a.goals) if (g.status === "active" && !activeAfter.has(g.id)) return { kind: "down", field: `${g.id} の status`, from: "active", to: b.goals.find((x) => x.id === g.id)?.status || "（読めない）" };
 	for (const h of overviewFormat().policies) if ((a.policies[h] ?? "") !== (b.policies[h] ?? "")) return { kind: "policy", field: `全体の方針の「${h}」`, from: null, to: null };
