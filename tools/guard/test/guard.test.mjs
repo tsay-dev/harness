@@ -156,7 +156,7 @@ test("guard: docs の status の降格は常に ask（status-down）し、何が
 	put(root, uc, doc("active", "phase: 実装\n"));
 	put(root, req, doc("active"));
 	put(root, contract, `openapi: 3.1.0\nx-uc: UC-001\nx-status: "fixed"\n`);
-	put(root, "docs/01-glossary.md", doc("living"));
+	put(root, "docs/00-overview.md", doc("living"));
 	put(root, "docs/01-glossary.md", doc("frozen"));
 
 	const edit = (file_path, old_string, new_string, extra = {}) =>
@@ -170,7 +170,7 @@ test("guard: docs の status の降格は常に ask（status-down）し、何が
 	//  契約: fixed → draft（引用符付きの x-status）
 	assert.match(askOf(edit(contract, 'x-status: "fixed"', "x-status: draft")), /contract\.yaml の x-status を fixed → draft/);
 	//  単一文書: living → draft、frozen → withdrawn
-	assert.match(askOf(edit("docs/01-glossary.md", "status: living", "status: draft")), /living → draft/);
+	assert.match(askOf(edit("docs/00-overview.md", "status: living", "status: draft")), /living → draft/);
 	assert.match(askOf(edit("docs/01-glossary.md", "status: frozen", "status: withdrawn")), /frozen → withdrawn/);
 	//  status 行を消すのも降格
 	assert.match(askOf(edit(req, "status: active\n", "")), /active → （なし）/);
@@ -209,14 +209,14 @@ test("guard: それ以外の昇格と新規作成は ask せず許可し、pass 
 	const dir = "docs/goals/GOAL-01-x/UC-001-y";
 	put(root, `${dir}/REQ-001.md`, doc("draft"));
 	put(root, "docs/goals/GOAL-01-x/GOAL.md", doc("draft"));
-	put(root, "docs/01-glossary.md", doc("draft"));
+	put(root, "docs/00-overview.md", doc("draft"));
 	put(root, `${dir}/UC.md`, doc("draft"));
 
 	const run = (tool_input) => runHook(root, { tool_input, cwd: root, session_id: "s9" }, ["--code", "src/**"]);
 	const passes = [
 		run({ file_path: `${dir}/REQ-001.md`, old_string: "status: draft", new_string: "status: active" }), //  REQ draft → active
 		run({ file_path: "docs/goals/GOAL-01-x/GOAL.md", old_string: "draft", new_string: "active", replace_all: true }), //  GOAL
-		run({ file_path: "docs/01-glossary.md", old_string: "status: draft", new_string: "status: living" }), //  単一文書 draft → living
+		run({ file_path: "docs/00-overview.md", old_string: "status: draft", new_string: "status: living" }), //  単一文書 draft → living
 		run({ file_path: `${dir}/REQ-002.md`, content: doc("draft") }), //  新規作成（draft）
 		run({ file_path: "docs/rules/BR-001.md", content: doc("active") }), //  新規作成（BR を active で）
 	];
@@ -239,7 +239,7 @@ test("guard: それ以外の昇格と新規作成は ask せず許可し、pass 
 	assert.ok(log.every((l) => l.decision === "pass" && l.reason === "status-up" && l.session === "s9"));
 	assert.deepEqual(
 		log.map((l) => l.target),
-		[`${dir}/REQ-001.md`, "docs/goals/GOAL-01-x/GOAL.md", "docs/01-glossary.md", `${dir}/REQ-002.md`, "docs/rules/BR-001.md"],
+		[`${dir}/REQ-001.md`, "docs/goals/GOAL-01-x/GOAL.md", "docs/00-overview.md", `${dir}/REQ-002.md`, "docs/rules/BR-001.md"],
 	);
 });
 
