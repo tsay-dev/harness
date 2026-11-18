@@ -24,16 +24,17 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsc
 | `apps/api/src/db/{schema/*.ts,client.ts}`、`drizzle.config.*`、`apps/api/migrations/*.sql` | [D1 / Drizzle](backend-database.instructions.md) |
 | `apps/api/src/features/<feature>/*.do.ts`、`*.schema.ts` | [リアルタイム](backend-realtime.instructions.md) |
 | R2 を使う repository とアップロードルート | [R2](backend-storage.instructions.md) |
-| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | [ブラウザルーティング](frontend-routing.instructions.md)、[データフロー](frontend-dataflow.instructions.md) |
+| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | 依存の `rules-hono-react-spa` のブラウザルーティング（`frontend-routing`）、データフロー（`frontend-dataflow`） |
 | `packages/shared/src/<feature>/schemas.ts` | [バックエンドの境界](backend-coding.instructions.md) |
 | テストとランナー設定 | [テストの接続](common-testing.instructions.md)、[バックエンド](backend-testing.instructions.md)、[システム](system-testing.instructions.md) |
 
 ## 規約
 
+lint で止める決まり（型の抜け道、default export、機能・層をまたぐ読み込みなど）は、依存の `rules-hono-react-spa` の一覧（`common-lint`）にあり、ここでは繰り返さない。
+
 - ブラウザと Worker のコンパイラー環境を分け、両方で厳格な型検査を有効にする。
-- 契約の不一致を隠す `any`、非 null アサーション、未検証キャスト、抑制コメントは禁止。信頼境界では `unknown` を絞り込み、矛盾は報告する。
-- 名前付き export を使う。ランタイムが要求する default export（Hono Worker の app、設定ファイル）だけが例外。
+- 信頼境界では `unknown` を絞り込み、契約との矛盾は型で隠さずに報告する。
 - React 機能の `index.ts` は意図的な公開 API。外部はそこから import し、機能内部は直接相互に import する。ほかの場所に再 export の連鎖を作らない。
 - `packages/shared/src/<feature>/schemas.ts` にはブラウザで安全な HTTP / WebSocket の Zod スキーマと推論型だけを置く。DB スキーマ、行、サービス実装、バインディングは置かない。
-- ブラウザコードはサーバーのランタイムモジュール、バインディング、DB スキーマ、秘密情報を import しない。Hono の `AppType` の `import type` だけが例外で、バンドルから消えること。
+- Hono の `AppType` は `import type` で読み、ブラウザのバンドルから消えること。
 - 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーとバインディング宣言は手編集せず再生成する。コメントとユーザー向け文言は `harness.config.json` の `policy.language`（未宣言なら日本語）。

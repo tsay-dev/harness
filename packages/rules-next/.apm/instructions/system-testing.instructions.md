@@ -24,8 +24,8 @@ test.fixme("UC-012 案件を登録する", async ({ page }) => { /* ... */ });
 ```
 
 - 各 `await` 行は `UC.md` の `## 主シナリオ` の番号付きステップ 1 つに、最後の `expect` は `成功時` の事後条件に対応する。シナリオにない遷移や assertion を足さない。
-- pending マーカーは `test.fixme(...)`。FE 配線の実装者が `test` に置き換えて Green にする。`test.fail` は使わない。
-- `@covers` は付けない。`page.waitForTimeout` は使わず、自動待機と web-first assertion に任せる。ファイル間でシナリオを連鎖させない。
+- pending マーカーは `test.fixme(...)`。FE 配線の実装者が `test` に置き換えて Green にする。
+- `@covers` は付けない。自動待機と web-first assertion に任せる（止める書き方は `common-lint`）。ファイル間でシナリオを連鎖させない。
 
 ## locator の優先順（探索せず導出する）
 
@@ -35,7 +35,7 @@ test.fixme("UC-012 案件を登録する", async ({ page }) => { /* ... */ });
 | --- | --- | --- |
 | 1 | `getByRole(role, { name })`、`getByLabel(text)` | 用語集（`docs/01-glossary.md`）の用語そのまま。role は control の種類（button、link、textbox、row）|
 | 2 | `getByTestId(id)` | 契約。operation `renameUser` を実行する control → `renameUser`、request field `name` の入力 → `renameUser.name` |
-| 禁止 | CSS selector、XPath、`nth()`、画面からコピーした文言の id | — |
+| 禁止 | 画面からコピーした文言の id（CSS selector・XPath・`nth()` は `common-lint`） | — |
 
 文言が一意なら 1、同名の control が 2 つあれば 2。外観が不一致なら外観側を動かし、実装に合わせてシナリオテストを変えない。
 

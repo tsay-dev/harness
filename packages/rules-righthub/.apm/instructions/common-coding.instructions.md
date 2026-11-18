@@ -24,16 +24,17 @@ Righthub は、利用プロジェクトが宣言した Xserver VPS 内で動く 
 | `prisma/schema.prisma`、`prisma/migrations/**`、`prisma.config.*`、`apps/api/src/db/client.ts` | [PostgreSQL / Prisma](backend-database.instructions.md) |
 | `apps/api/src/features/<feature>/*.socket.ts`、`*.schema.ts` | [リアルタイム](backend-realtime.instructions.md) |
 | ファイル保存を使う repository とアップロードルート | [ファイル保存](backend-storage.instructions.md) |
-| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | [ブラウザルーティング](frontend-routing.instructions.md)、[データフロー](frontend-dataflow.instructions.md) |
+| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | 依存の `rules-hono-react-spa` のブラウザルーティング（`frontend-routing`）、データフロー（`frontend-dataflow`） |
 | `packages/shared/src/<feature>/schemas.ts` | [バックエンドの境界](backend-coding.instructions.md) |
 | テストとランナー設定 | [テストの接続](common-testing.instructions.md)、[バックエンド](backend-testing.instructions.md)、[システム](system-testing.instructions.md) |
 
 ## 規約
 
+lint で止める決まり（型の抜け道、default export、機能・層をまたぐ読み込みなど）は、依存の `rules-hono-react-spa` の一覧（`common-lint`）にあり、ここでは繰り返さない。
+
 - ブラウザと Node.js のコンパイラー環境を分け、両方で厳格な型検査を有効にする。
-- 契約の不一致を隠す `any`、非 null アサーション、未検証キャスト、抑制コメントは禁止。信頼境界では `unknown` を絞り込み、矛盾は報告する。
-- 名前付き export を使う。ランタイムが要求する default export（設定ファイル）だけが例外。
+- 信頼境界では `unknown` を絞り込み、契約との矛盾は型で隠さずに報告する。
 - React 機能の `index.ts` は意図的な公開 API。外部はそこから import し、機能内部は直接相互に import する。ほかの場所に再 export の連鎖を作らない。
 - `packages/shared/src/<feature>/schemas.ts` にはブラウザで安全な HTTP / WebSocket の Zod スキーマと推論型だけを置く。DB スキーマ、行、サービス実装、接続設定は置かない。
-- ブラウザコードはサーバーのランタイムモジュール、接続設定、DB スキーマ、秘密情報を import しない。Hono の `AppType` の `import type` だけが例外で、バンドルから消えること。
+- Hono の `AppType` は `import type` で読み、ブラウザのバンドルから消えること。
 - 書式と import 順序は利用プロジェクトのフォーマッター / lint に従う。生成されたルートツリーは手編集せず再生成する。コメントとユーザー向け文言は `harness.config.json` の `policy.language`（未宣言なら日本語）。

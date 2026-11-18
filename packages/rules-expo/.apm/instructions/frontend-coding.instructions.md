@@ -12,7 +12,7 @@ applyTo: "**/*.tsx,**/*.ts,**/app.json,**/app.config.*,**/eas.json"
 - 条件付き描画は `&&` ではなく三項と明示的な `null`（`<View>` 直下に文字列、空文字、`0` を落とさない）。
 - style は `StyleSheet.create` に置き、JSX 内で object literal を作らない。影は iOS（`shadow*`）と Android（`elevation`）の両方を指定する。
 - platform 分岐は、値数個の差なら `Platform.select`、構造が違うか片方だけ native 依存なら `Foo.ios.tsx` / `Foo.android.tsx`。分けた場合は props 型を共有ファイルに置き、両方の export 名を一致させる。`Platform.OS === 'web'` 分岐はプロジェクトが Expo Web の出荷を決めた場合だけ書く。
-- safe area は `react-native-safe-area-context` から取得し、`react-native` の `SafeAreaView` を使わない。navigator が消費した辺は `edges` で除外し、inset を二重に足さない。
+- safe area は `react-native-safe-area-context` から取得する。navigator が消費した辺は `edges` で除外し、inset を二重に足さない。
 - 入力を含むすべての `ScrollView` に `keyboardShouldPersistTaps="handled"` を付ける。
 
 ## accessibility と testID（外観 / シナリオの共有契約）

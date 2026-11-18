@@ -10,7 +10,8 @@ SwiftUI を使うネイティブ iOS アプリに適用する。拡張子で読�
 ## 書式と型
 
 - 書式の正本はプロジェクトの format / lint コマンド。返却前に実行し、衝突したらツールの出力を優先する。
-- Green にするために `!`、`try!`、`as!`、理由のない `fatalError` を書かない。必要に見えたら型か契約の衝突なので、実装を止めて何と何が衝突しているかを報告し、契約を自分で書き換えない。例外は外部 API / システムが存在を文書で保証する場合だけで、理由をコメントに残す。
+- lint で止める決まり（強制アンラップ、レイヤーと Feature をまたぐ読み込み、新しい Combine）は [lint で止める項目](common-lint.instructions.md) にあり、ここでは繰り返さない。
+- 強制アンラップが必要に見えたら型か契約の衝突なので、実装を止めて何と何が衝突しているかを報告し、契約を自分で書き換えない。例外は外部 API / システムが存在を文書で保証する場合だけで、理由をコメントに残す。
 
 ## 配置（Feature-first）
 
@@ -22,11 +23,11 @@ Features/<Feature>/{Presentation,Domain,Data}/
 
 - `App/` に業務ロジック、画面、Repository 実装を置かない。
 - 1 つの Feature だけが使う型はその Feature 配下。「後で使うかも」で `Shared/` に昇格させない。
-- Feature の Domain は SwiftUI、`URLSession`、別 Feature の Presentation / Data を知らない。Feature 同士は互いの内部を import しない。`Shared/` への抽出でも収まらない結合は設計上の問題として報告する。
+- Feature をまたぐ結合のうち、`Shared/` への抽出でも収まらないものは設計上の問題として報告する。
 
 ## 並行処理
 
-- 新規コードに Combine を増やさない。非同期は `async/await` / `Task`。既存 Combine の移行方針が必要ならホストの `CLAUDE.md` または ADR に書く。
+- 非同期は `async/await` / `Task`。既存 Combine の移行方針が必要ならホストの `CLAUDE.md` または ADR に書く。
 - 画面状態を保持する ViewModel に `@MainActor` を付ける。UseCase / Repository には無差別に付けない。
 
 ## 秘密情報と依存
