@@ -23,8 +23,8 @@ UC・BR・NFR の `active`、概要の `living`、契約の `fixed` は、人が
   - `active` の `UC.md`・BR（ファイル名 `BR-nnn` か frontmatter の `id`）・NFR（同じく `NFR-nnn`）
   - `living` の概要（`<docs>/00-overview.md`）
   - `fixed` の契約（`.yaml`）
-  - 共有の語彙（`<docs>/_shared/components.yaml` と、設定の `docs.shared` が指すファイル）。その docs の仕様の木に `fixed` の契約が 1 つでもあるときだけ。足すだけ・新しく作る書き込みも含む。どの契約がどの語彙を参照するかは解決しない。
-- docs の判定（status の降格・昇格、`approved-edit`、概要、`DEFERRED.md` など）は、`--docs` のフォルダと、monorepo ではルートの `harness.config.json` の `git.units` に宣言した各 unit の docs に、同じように当てる。unit の一覧と設定の読み方は `harness verify` と同じ `tools/_shared/suite.mjs`（`unitsOf`・`readConfig`）で、unit の docs は `<unit のディレクトリ>/<--docs>`、その設定は `<unit のディレクトリ>/harness.config.json`。unit の設定が無い・読めない、ルートの設定が読めないなど、どの docs への書き込みかを決められないときは fail-closed で人に回す（理由 `status-down`）。
+  - 共有の語彙（`<docs>/_shared/components.yaml` と、その docs の設定の `docs.shared` が指すファイル。`docs.shared` が docs の外を指していても判定する）。その docs の仕様の木に `fixed` の契約が 1 つでもあるときだけ。足すだけ・新しく作る書き込みも含む。どの契約がどの語彙を参照するかは解決しない。
+- docs の判定（status の降格・昇格、`approved-edit`、概要、`DEFERRED.md` など）は、`--docs` のフォルダと、monorepo ではルートの `harness.config.json` の `git.units` に宣言した各 unit の docs に、同じように当てる。unit の一覧と設定の読み方は `harness verify` と同じ `tools/_shared/suite.mjs`（`unitsOf`・`unitDocsOf`・`readConfig`）で、unit の docs は verify と同じく `<unit のディレクトリ>/docs` に固定し（`--docs` はルートの docs だけに効く）、unit の設定は `<unit のディレクトリ>/harness.config.json` から読む。unit の設定が無い・読めない、ルートの設定が読めないなど、どの docs への書き込みかを決められないときは fail-closed で人に回す（理由 `status-down`）。
 - 次の書き込みは ask にしない。開発が回らなくなるため。
   - 同じ書き込みで status を下げる書き込み。既存の降格（`status-down`）として ask になる。
   - `UC.md` の `phase:` だけを変える書き込み。phase は orchestrator が進める工程台帳で、本文ではない。

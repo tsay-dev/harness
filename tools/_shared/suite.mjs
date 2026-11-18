@@ -73,6 +73,10 @@ export function unitsOf(cfg) {
 	return isMap(u) && Object.keys(u).length > 0 ? u : null;
 }
 
+//  monorepo の unit の docs のフォルダ（絶対パス）。<unit のディレクトリ>/docs に固定する（--docs はルートの docs だけに効く）。
+//  verify（検査の並び）と guard が同じものを使う（unit ごとに別の場所を見ないように）
+export const unitDocsOf = (unitRoot) => join(unitRoot, "docs");
+
 const isNone = (v) => isMap(v) && "none" in v;
 
 //  coverage が none でなく宣言されているか
@@ -361,7 +365,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 			continue;
 		}
 		const unitRoot = resolve(root, dir);
-		const unitDocs = join(unitRoot, "docs");
+		const unitDocs = unitDocsOf(unitRoot);
 		const unitCfgPath = join(unitRoot, CONFIG_FILE);
 		if (!existsSync(unitCfgPath)) {
 			if (existsSync(unitDocs))

@@ -21,8 +21,10 @@
 //        .claude/settings*.json と .codex / .cursor / .grok / .agents 直下の設定（プロジェクト外のユーザー設定を含む。hook-settings）、
 //        .github/workflows/**（workflow）。パスは大文字小文字を無視して比べる。
 //      書き換えれば検査を外せるため。
-//    - docs 配下 → 許可。docs は --docs のフォルダと、monorepo ではルートの設定の git.units の各 unit の <unit>/<--docs>
-//      （unit の決め方は verify と同じ tools/_shared/suite.mjs。unit の設定 <unit>/harness.config.json が無い・読めないとき、
+//    - 共有の語彙（<docs>/_shared/components.yaml と、各 docs の設定の docs.shared。docs の外でも）を変える（足すだけでも）→
+//        その docs の木に fixed の契約が 1 つでもあれば ask（approved-edit。ADR-0078）。fixed の契約が無ければ下の docs の判定へ
+//    - docs 配下 → 許可。docs は --docs のフォルダと、monorepo ではルートの設定の git.units の各 unit の <unit>/docs
+//      （unit の決め方は verify と同じ tools/_shared/suite.mjs の unitsOf・unitDocsOf。unit の設定 <unit>/harness.config.json が無い・読めないとき、
 //      ルートの設定が読めないときは、どの docs かを決められないので ask（status-down））。
 //      ただし frontmatter の status: / 契約の x-status: が変わる書き込みは次のとおり:
 //        降格（active → draft / withdrawn、fixed → draft、living / frozen → draft / withdrawn）→ ask（status-down）
@@ -31,8 +33,6 @@
 //        保留の一覧（docs/verification/DEFERRED.md）を新しく作る・frozen_at を変える・行を足す → ask（deferred）。一覧は凍結済み（ADR-0068）
 //        active の UC.md・BR・NFR、living の概要、fixed の契約の本文（status / x-status 以外の行）を変える → ask（approved-edit。ADR-0078）。
 //          UC.md の phase だけの変更と、active の UC.md で draft の REQ の小節を足す・直すだけの変更は除く。判定に迷う形は ask
-//        共有の語彙（<docs>/_shared/components.yaml と docs.shared）を変える（足すだけでも）→ その docs の木に fixed の契約が
-//          1 つでもあれば ask（approved-edit。ADR-0078）。fixed の契約が無ければ通す
 //        それ以外の昇格と新規作成 → 許可し pass / status-up と記録
 //      status が変わらない書き込みは記録せずに許可。SSOT を書く行為はゲートの前提なので止めない。
 //    - .claude 等のプロバイダー出力・--code 非マッチ・--exclude マッチ → 許可（exit 0）。
@@ -69,7 +69,7 @@ import { CONFIG_FILE, readHostConfig } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
 import { actorKindsOf, overviewFormat, overviewPathOf, readOverview } from "../_shared/overview.mjs";
 import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
-import { readConfig, unitsOf } from "../_shared/suite.mjs";
+import { readConfig, unitDocsOf, unitsOf } from "../_shared/suite.mjs";
 import { readStdin, writeAllSync } from "../_shared/stdio.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
@@ -299,17 +299,20 @@ function approvedEdit(abs, rel, input, overviewLower) {
 	return null;
 }
 
+//  共有の語彙（契約の $ref 先）のファイル（絶対パス）。<docs>/_shared/components.yaml と、その docs の設定の docs.shared（docs の外を指してもよい）
+function sharedVocabFiles(area) {
+	const files = [join(resolve(area.root, area.docsDir), "_shared", "components.yaml")];
+	const declared = area.cfg?.docs?.shared;
+	if (typeof declared === "string" && declared.trim()) files.push(resolve(area.hostRoot, declared));
+	return files;
+}
+
 //  共有の語彙（契約の $ref 先）を変える書き込み（ADR-0078）。その docs の木に fixed の契約が 1 つでもあれば、人に回す。
 //  語彙を変えれば、fixed の契約の中身（参照先のエラーコードや型）が、契約の本文を書き換えずに変わるため。
 //  参照の解決はしない（どの契約がどの語彙を使うかは見ず、fixed の契約があるかだけを見る）。戻り: 人に回す理由の文 | null
-function sharedVocabEdit(abs, rel, input, where) {
-	const docsAbs = resolve(where.root, where.docsDir);
-	const files = [join(docsAbs, "_shared", "components.yaml")];
-	const declared = where.cfg?.docs?.shared;
-	if (typeof declared === "string" && declared.trim()) files.push(resolve(where.hostRoot, declared));
-	const lowerAbs = abs.toLowerCase();
-	if (!files.some((f) => f.toLowerCase() === lowerAbs)) return null;
-	const tree = goalsRootOf({ docsDir: docsAbs, hostRoot: where.hostRoot, cfg: where.cfg });
+function sharedVocabEdit(abs, input, area) {
+	const docsAbs = resolve(area.root, area.docsDir);
+	const tree = goalsRootOf({ docsDir: docsAbs, hostRoot: area.hostRoot, cfg: area.cfg });
 	if (tree.error) throw new Error(tree.error);
 	const fixed = allUcDirs(tree.root ?? join(docsAbs, "goals"))
 		.map(({ ucDir }) => join(ucDir, "contract.yaml"))
@@ -323,36 +326,47 @@ function sharedVocabEdit(abs, rel, input, where) {
 	return before === null ? `${what}を新しく作る` : `${what}を変える（足すだけでも）`;
 }
 
-//  書き込み先を含む docs のフォルダを決める。戻り: null（どの docs の外）| { root, docsDir, hostRoot, cfg, unit, error }
+//  判定する docs の一覧。戻り: { areas: [{ root, docsDir, hostRoot, cfg, unit, error }], error }
 //    docsDir   ルートからの相対パス（/ 区切り）。hostRoot  その docs の設定を置くフォルダ。cfg  その設定（無ければ null）
-//    error     どの docs か・その設定を決められない理由（fail-closed で人に回す）
-//  monorepo の unit は、ルートの設定の git.units から決める（verify と同じ tools/_shared/suite.mjs の unitsOf・readConfig）。
-//  unit の docs は <unit のディレクトリ>/<--docs>、設定は <unit のディレクトリ>/harness.config.json（verify が unit ごとに読むものと同じ）
-function docsRootFor(root, docsOpt, lower) {
+//    error     その docs の設定を決められない理由（fail-closed で人に回す）。最上位の error はルートの設定が読めないこと
+//  ルートの docs は --docs。monorepo の unit は、ルートの設定の git.units から決め、docs は <unit のディレクトリ>/docs、
+//  設定は <unit のディレクトリ>/harness.config.json（verify と同じ tools/_shared/suite.mjs の unitsOf・unitDocsOf・readConfig）
+function docsAreas(root, docsOpt) {
 	const docs = docsOpt.replace(/\/+$/, "");
+	const loaded = readConfig(join(root, CONFIG_FILE));
+	const areas = [];
+	for (const [name, dir] of Object.entries(unitsOf(loaded.cfg) ?? {})) {
+		if (typeof dir !== "string" || !dir.trim()) {
+			areas.push({ root, docsDir: null, hostRoot: root, cfg: null, unit: name, error: `git.units.${name} の値がディレクトリの文字列でない（実際: ${JSON.stringify(dir)}）` });
+			continue;
+		}
+		const unitRoot = resolve(root, dir);
+		const u = readConfig(join(unitRoot, CONFIG_FILE));
+		const error = u.missing ? `unit ${name}（${dir}）に ${CONFIG_FILE} が無い` : (u.error ?? null);
+		areas.push({ root, docsDir: relative(root, unitDocsOf(unitRoot)).split(sep).join("/"), hostRoot: unitRoot, cfg: u.cfg ?? null, unit: name, error });
+	}
+	areas.push({ root, docsDir: docs, hostRoot: root, cfg: loaded.cfg ?? null, unit: null, error: null });
+	return { areas, error: loaded.error ? `${loaded.error}。monorepo の unit の一覧（git.units）を読めない` : null };
+}
+
+//  書き込み先を含む docs を決める。戻り: null（どの docs の外）| area（error 付きなら fail-closed）
+function docsRootFor(found, lower) {
 	const under = (d) => {
 		const l = d.toLowerCase();
 		return lower === l || lower.startsWith(l + "/");
 	};
-	//  unit の一覧を読めないとき、unit の docs かもしれない書き込み（--docs のフォルダ名をパスの途中に含む）は人に回す
-	const docsName = basename(docs).toLowerCase();
-	const mayBeDocs = under(docs) || lower.split("/").slice(0, -1).includes(docsName);
-	const loaded = readConfig(join(root, CONFIG_FILE));
-	if (loaded.error) return mayBeDocs ? { root, docsDir: docs, hostRoot: root, cfg: null, unit: null, error: `${loaded.error}。monorepo の unit の一覧（git.units）を読めない` } : null;
-	const units = unitsOf(loaded.cfg);
-	for (const [name, dir] of Object.entries(units ?? {})) {
-		if (typeof dir !== "string" || !dir.trim()) {
-			if (mayBeDocs) return { root, docsDir: docs, hostRoot: root, cfg: null, unit: name, error: `git.units.${name} の値がディレクトリの文字列でない（実際: ${JSON.stringify(dir)}）` };
+	const rootArea = found.areas[found.areas.length - 1];
+	//  unit の一覧を読めない・unit のディレクトリが分からないとき、unit の docs かもしれない書き込み（パスの途中に docs を含む）は人に回す
+	const mayBeDocs = under(rootArea.docsDir) || lower.split("/").slice(0, -1).some((d) => d === "docs" || d === basename(rootArea.docsDir).toLowerCase());
+	if (found.error) return mayBeDocs ? { ...rootArea, error: found.error } : null;
+	for (const a of found.areas) {
+		if (a.docsDir === null) {
+			if (mayBeDocs) return a;
 			continue;
 		}
-		const unitDocs = relative(root, resolve(root, dir, docs)).split(sep).join("/");
-		if (!under(unitDocs)) continue;
-		const unitRoot = resolve(root, dir);
-		const u = readConfig(join(unitRoot, CONFIG_FILE));
-		const error = u.missing ? `unit ${name}（${dir}）に ${CONFIG_FILE} が無い` : (u.error ?? null);
-		return { root, docsDir: unitDocs, hostRoot: unitRoot, cfg: u.cfg ?? null, unit: name, error };
+		if (under(a.docsDir)) return a;
 	}
-	return under(docs) ? { root, docsDir: docs, hostRoot: root, cfg: loaded.cfg ?? null, unit: null, error: null } : null;
+	return null;
 }
 
 //  docs への書き込みの status の変化を分類する。戻り: null（変化なし・判定不能）| { kind, from, to, field }
@@ -547,7 +561,25 @@ function main() {
 		//  SSOT は常に通す（ゲートを通すための行為を塞がない）。ただし status の変更は義務の増減なので扱いを分ける。
 		//  monorepo では unit ごとの docs にも同じ判定を当てる
 		const docsDir = opts.docs.replace(/\/+$/, "");
-		const where = docsRootFor(root, opts.docs, lower);
+		const areas = docsAreas(root, opts.docs);
+		//  共有の語彙は、設定の docs.shared が docs の外を指していても判定する（どの docs の語彙かは、その docs の設定で決まる）
+		const vocabArea = areas.areas.find((a) => !a.error && a.docsDir !== null && sharedVocabFiles(a).some((f) => f.toLowerCase() === abs.toLowerCase()));
+		if (vocabArea) {
+			ctx.target = rel;
+			let vocab;
+			try {
+				vocab = sharedVocabEdit(abs, input, vocabArea);
+			} catch (e) {
+				vocab = `共有の語彙への書き込みを判定できない（${e?.message ?? e}）`;
+			}
+			if (vocab)
+				ask(
+					"approved-edit",
+					`${rel}: ${vocab}。承認済みの契約が参照する語彙を書き換えるため、人間の承認で行う（ADR-0078）。差分を確認してから許可する`,
+					ctx,
+				);
+		}
+		const where = docsRootFor(areas, lower);
 		if (where) {
 			ctx.target = rel;
 			if (where.error)
@@ -564,7 +596,7 @@ function main() {
 				const overviewLower = overviewRel(root, where.docsDir).toLowerCase();
 				const isOverview = lower === overviewLower;
 				change = classifyStatusChange(abs, rel, input);
-				edited = approvedEdit(abs, rel, input, overviewLower) ?? sharedVocabEdit(abs, rel, input, where);
+				edited = approvedEdit(abs, rel, input, overviewLower);
 				if (isOverview) {
 					downgraded = actorDowngrades(abs, input);
 					const ov = overviewChange(abs, input);
@@ -605,7 +637,7 @@ function main() {
 			if (edited)
 				ask(
 					"approved-edit",
-					`${rel}: ${edited}。人が承認した後の文書（または承認済みの契約が参照する語彙）を書き換えるため、人間の承認で行う（ADR-0078）。差分を確認してから許可する`,
+					`${rel}: ${edited}。人が承認した後の文書を書き換えるため、人間の承認で行う（ADR-0078）。差分を確認してから許可する`,
 					ctx,
 				);
 			if (!change) process.exit(0); //  status が変わらない docs の書き込みは記録しない

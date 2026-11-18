@@ -626,3 +626,41 @@ test("guard: UC と REQ を同じ書き込みで active にすれば、人に回
 	assert.match(askOf(run(ucDoc("active", "active"))), /REQ-001（draft）の小節を変える/);
 	assert.deepEqual(readLog(root).map((l) => l.reason), ["status-up-gate", "approved-edit"]);
 });
+
+test("guard: 設定の docs.shared が docs の外を指しても、その語彙への書き込みを判定する（ルートと unit の設定のどちらでも）", (t) => {
+	//  monorepo でないホスト
+	const root = makeRoot(t);
+	put(root, "harness.config.json", JSON.stringify({ docs: { shared: "shared/components.yaml" } }));
+	put(root, "docs/goals/GOAL-01-x/UC-001-y/contract.yaml", "x-uc: UC-001\nx-status: draft\n");
+	put(root, "shared/components.yaml", "errorCodes: {}\n");
+	const run = (r, file_path, content) => runHook(r, { tool_input: { file_path, content }, cwd: r }, ["--code", "src/**"]);
+	assert.equal(run(root, "shared/components.yaml", "errorCodes:\n  A: a\n").stdout, ""); //  fixed の契約が無い間は通す
+	put(root, "docs/goals/GOAL-01-x/UC-001-y/contract.yaml", "x-uc: UC-001\nx-status: fixed\n");
+	assert.match(askOf(run(root, "shared/components.yaml", "errorCodes:\n  A: a\n")), /共有の語彙を変える/);
+
+	//  monorepo の unit の設定が、unit の docs の外の語彙を指す
+	const mono = makeRoot(t);
+	put(mono, "harness.config.json", JSON.stringify({ git: { units: { "app-a": "apps/a" } } }));
+	put(mono, "apps/a/harness.config.json", JSON.stringify({ docs: { shared: "contracts/components.yaml" } }));
+	put(mono, "apps/a/docs/goals/GOAL-01-x/UC-001-y/contract.yaml", "x-uc: UC-001\nx-status: fixed\n");
+	put(mono, "apps/a/contracts/components.yaml", "errorCodes: {}\n");
+	assert.match(askOf(run(mono, "apps/a/contracts/components.yaml", "errorCodes:\n  A: a\n")), /共有の語彙を変える/);
+	assert.deepEqual([...readLog(root), ...readLog(mono)].map((l) => l.reason), ["approved-edit", "approved-edit"]);
+});
+
+test("guard: unit の docs は verify と同じ <unit>/docs に固定する（--docs はルートの docs だけに効く）", async (t) => {
+	const { unitDocsOf } = await import("../../_shared/suite.mjs");
+	assert.equal(unitDocsOf("/x/apps/a"), join("/x/apps/a", "docs"));
+	const root = makeRoot(t);
+	put(root, "harness.config.json", JSON.stringify({ git: { units: { "app-a": "apps/a" } } }));
+	put(root, "apps/a/harness.config.json", "{}");
+	put(root, "apps/a/docs/rules/BR-001.md", doc("active"));
+	put(root, "spec/rules/BR-001.md", doc("active"));
+	const run = (file_path) => runHook(root, { tool_input: { file_path, content: doc("draft") }, cwd: root }, ["--code", "src/**", "--docs", "spec"]);
+	assert.match(askOf(run("apps/a/docs/rules/BR-001.md")), /active → draft/); //  --docs spec でも unit は apps/a/docs
+	assert.match(askOf(run("spec/rules/BR-001.md")), /active → draft/); //  ルートの docs は --docs
+	put(root, "apps/a/spec/rules/BR-001.md", doc("active"));
+	const r = run("apps/a/spec/rules/BR-001.md"); //  unit の <--docs> は docs として読まない
+	assert.equal(r.status, 0, r.stderr);
+	assert.equal(r.stdout, "");
+});
