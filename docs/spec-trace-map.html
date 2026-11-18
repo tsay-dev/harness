@@ -323,7 +323,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、frontmatter の曖昧な書き方、閉じた語彙（status・phase・pattern・transport・direction・アクターの種別）、UC ディレクトリの余分な md、contract.yaml の無い active な UC、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
         <tr><td>spec-lint gate</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
         <tr><td>trace-check</td><td>下の C1–C26（C5・C14・C19・C21・C23・C27 は欠番）。docs 同士、docs とテスト、層の向き、ID の衝突、宣言と義務の矛盾。読む注釈はテストの <code>@covers</code> / <code>@scenario</code> だけ。紐づきの宣言が省略されていれば設定エラーで、対象が無い範囲は理由付きの none として報告に出す（baseline は無い）</td><td>本番コードの注釈（読まない。ADR-0070）、テストが文の意味を確かめているか</td></tr>
-        <tr><td>exec-check</td><td>テストの入口が本番の組み立てを呼んでいるか（entry）。テストの実行の記録（lcov）から、どのテストからも実行されないソースのファイルと名前のある関数（coverage）。アプリが出した入口の一覧と契約の inbound の操作の突き合わせ（entries。契約に無い入口、入口の無い fixed の操作）</td><td>実行されたコードが正しい結果を確かめられたか、まだ呼ばれている関数の中の枝、一覧を出すコマンドが載せ忘れた入口、名前の無い関数の中だけにある処理</td></tr>
+        <tr><td>exec-check</td><td>テストの入口が本番の組み立てを呼んでいるか（entry）。テストの実行の記録（lcov）から、どのテストからも実行されないソースのファイルと名前のある関数（coverage）。アプリが出した入口の一覧と、fixed の契約の inbound の操作の突き合わせ（entries。契約に無い入口、契約が fixed でない入口、入口の無い fixed の操作）</td><td>実行されたコードが正しい結果を確かめられたか、まだ呼ばれている関数の中の枝、一覧を出すコマンドが載せ忘れた入口、名前の無い関数の中だけにある処理</td></tr>
         <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。実行する実例があるのにアダプターが無い場合と skip は失敗</td></tr>
         <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
         <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか。harness.config.json・検査器・hook の設定・workflow への書き込みと、status の降格、UC の active・契約の fixed への昇格は人間に承認を求める</td><td>Bash による書き込み、Claude Code 以外のプロバイダー、monorepo の unit の docs の status</td></tr>
@@ -393,10 +393,10 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>V1・V2</td><td>実行の記録（lcov）が無い・古い・読めない、範囲に入るソースが記録に載っていない</td><td><span class="tag anno">テスト → 本番コード</span></td></tr>
         <tr><td>V3・V6</td><td>どのテストからも 1 行も実行されなかったファイル、1 回も呼ばれなかった名前のある関数がある</td><td><span class="tag anno">テスト → 本番コード</span></td></tr>
         <tr><td>V4</td><td><code>coverage.not_run</code> に認めたファイル・関数（<code>&lt;ファイル&gt;#&lt;関数の名前&gt;</code>）が実行されている、理由が無い、記録に無い</td><td><span class="tag anno">認めたもの → 実行の記録</span></td></tr>
-        <tr><td>V5・V7</td><td>本番の組み立てがテストから呼ばれていない。記録に関数ごとの情報が無い（使わないなら <code>coverage.functions</code> を理由付きの none にする）</td><td><span class="tag anno">テスト → 本番コード</span></td></tr>
-        <tr><td>E1</td><td>アプリが出した一覧の入口が、撤回されていない契約の inbound の操作のどれにも合わない（契約に無い入口。認める宣言の手段は無く、生存確認や配信の入口も契約に書く）</td><td><span class="tag anno">入口 → 契約の操作</span></td></tr>
+        <tr><td>V5・V7</td><td>本番の組み立てがテストから呼ばれていない。記録に関数ごとの情報（FN / FNDA）が無い（使わないなら <code>coverage.functions</code> を理由付きの none にする。<code>FNF:0</code> だけの記録は、関数ごとの情報がある記録に数えない）</td><td><span class="tag anno">テスト → 本番コード</span></td></tr>
+        <tr><td>E1</td><td>アプリが出した一覧の入口が、撤回されていない UC の fixed の契約の、inbound の操作のどれにも合わない（契約に無い入口と、合う操作が fixed でない契約にしか無い入口。認める宣言の手段は無く、生存確認や配信の入口も契約に書く）</td><td><span class="tag anno">入口 → 契約の操作</span></td></tr>
         <tr><td>E2</td><td>fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い</td><td><span class="tag anno">契約の操作 → 入口</span></td></tr>
-        <tr><td>E4</td><td>一覧を読めない（<code>commands.list_entries</code> が未宣言、none にできないのに none、inbound の操作があるのに 0 行、JSON でない行、同じ入口の重複）。廃止した設定のキー <code>entries</code> が残っている。E3 は欠番</td><td><span class="tag anno">入口の一覧</span></td></tr>
+        <tr><td>E4</td><td>一覧を読めない（<code>commands.list_entries</code> が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに 0 行、JSON でない行、同じ入口の重複、書式に無い形を含むパス。パラメーターは <code>:name</code> か <code>{name}</code>、何でも受ける部分は <code>*</code> だけを読む）。廃止した設定のキー <code>entries</code> が残っている。E3 は欠番</td><td><span class="tag anno">入口の一覧</span></td></tr>
       </tbody>
     </table>
   </div>

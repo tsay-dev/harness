@@ -24,6 +24,7 @@
 //    "commands": { "list_entries": "node scripts/list-entries.mjs" }   アプリの入口の一覧を 1 行 1 件の JSON で標準出力に出すコマンド
 //  entry と coverage は { "none": "<理由>" } と書ける。省略したものは「未宣言」と表示する（確かめていないことを見えるままにする）。
 //  commands.list_entries は、コマンドか { "none": "<理由>" } を必ず書く（none は、撤回されていない契約に inbound の操作が無い間だけ通る）。
+//  active な REQ と source があるプロジェクトでは、coverage の none・省略・形の誤りを trace-check の C26 が違反にする。
 //
 //  検査項目:
 //    entry（harness lint entry）
@@ -41,14 +42,17 @@
 //          あれば、compose の名前の関数が 1 回以上呼ばれていることまで確かめる
 //      V6  範囲に入るソースの名前のある関数は、1 回以上呼ばれている（not_run に書いた関数と、V3 で違反になるファイルを除く）。
 //          名前の無い関数（記録の名前が ( や < で始まるものと anonymous_<数字>。無名のコールバックなど）は対象にしない
-//      V7  記録に関数ごとの情報（FN / FNDA）がある。出さない道具を使うなら coverage.functions を { "none": "<理由>" } にする
+//      V7  記録に関数ごとの情報（FN / FNDA）がある。出さない道具を使うなら coverage.functions を { "none": "<理由>" } にする。
+//          「FNF:0」は、そのファイルが関数を持たないことの印にだけ使う（FN / FNDA の代わりには数えない）
 //    entries（harness lint entries）
-//      E1  一覧にある入口が、撤回されていない契約の inbound の操作のどれにも合わない（契約に無い入口）。
-//          契約の外の入口を認める宣言の口は無い。生存確認や静的なファイルの配信も、契約の操作として書く
+//      E1  一覧にある入口が、撤回されていない UC の fixed の契約の、inbound の操作のどれにも合わない。
+//          合う操作が 1 つも無い入口（契約に無い入口）と、合う操作が fixed でない契約にしか無い入口の 2 通りを、文を分けて報告する。
+//          契約の外の入口を認める宣言は無い。生存確認や静的なファイルの配信も、契約の操作として書く
 //      E2  fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い
-//      E4  一覧を読めない: commands.list_entries が未宣言、none にできないのに none、inbound の操作があるのに 0 行、JSON でない行、
-//          項目の欠落や知らない項目、同じ入口の重複。廃止した設定のキー entries が残っている
-//      （E3 は欠番。契約に書かない入口の宣言 entries.outside_contract の検査だったが、宣言の口ごと無くした）
+//      E4  一覧を読めない: commands.list_entries が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに 0 行、
+//          JSON でない行、項目の欠落や知らない項目、同じ入口の重複、決まった書式に無い形を含むパス（パラメーターは :name と {name}、
+//          何でも受ける部分は * だけ）。廃止した設定のキー entries が残っている
+//      （E3 は欠番。契約に書かない入口の宣言 entries.outside_contract の検査だったが、その宣言を廃止した）
 //  確かめるのは「1 回も実行されなかったファイル・関数が無いこと」まで。行ごとの割合のしきい値は持たない。
 //
 //  使い方:
@@ -196,7 +200,8 @@ function sourceFiles(cfg, root) {
 //  ---- 実行の記録（lcov） -------------------------------------------------------
 
 //  戻り: { files: Map<root からの相対パス, { lines: 実行する行の数, hit: 実行された行の数, fns: Map<関数の名前, 実行回数>,
-//         fnInfo: 関数の情報（FN / FNDA / FNF）が 1 行でもあったか }>, outside: root の外を指していた SF の例 }
+//         fnInfo: 関数の情報（FN / FNDA）が 1 行でもあったか, noFns: 「FNF:0」（関数を持たないファイルの印）があったか }>,
+//         outside: root の外を指していた SF の例 }
 //  記録のパスは、絶対パスか、テストを実行したディレクトリ（root）からの相対パス。git の最上位からの相対パスも受ける。
 //  行ごとの記録（DA）が無いファイルは、行の数の要約（LF / LH）を使う。
 function parseLcov(text, root) {
@@ -247,7 +252,7 @@ function parseLcov(text, root) {
 				continue;
 			}
 			const key = posixPath(rel);
-			if (!files.has(key)) files.set(key, { lines: 0, hit: 0, fns: new Map(), fnInfo: false });
+			if (!files.has(key)) files.set(key, { lines: 0, hit: 0, fns: new Map(), fnInfo: false, noFns: false });
 			cur = files.get(key);
 			summary = { lf: 0, lh: 0 };
 		} else if (cur === null) continue;
@@ -270,8 +275,9 @@ function parseLcov(text, root) {
 			cur.fnInfo = true;
 			fnDecls.push(line.slice(3));
 		}
-		//  関数を 1 つも持たないファイルにも、関数の情報を出す道具は「FNF:0」を書く。関数の情報が無いファイルと区別する印にする
-		else if (line.startsWith("FNF:")) cur.fnInfo = true;
+		//  関数を 1 つも持たないファイルにも、関数の情報を出す道具は「FNF:0」を書く。関数の情報が落ちたファイルと見分ける印にだけ使い、
+		//  「記録に関数の情報がある」ことの根拠には数えない（FNF:0 だけの記録を、関数の単位まで確かめたことにしない）
+		else if (/^FNF:0+$/.test(line)) cur.noFns = true;
 		else if (line === "end_of_record") close();
 	}
 	close();
@@ -285,7 +291,7 @@ const isUnnamed = (name) => /^[(<]|^anonymous_\d+$/.test(name);
 function checkCoverage(cfg, root, since, entry) {
 	const errs = [];
 	const cov = cfg.coverage;
-	if (!isMap(cov)) return { errs: ['V1  coverage は { "report", "not_run" } か { "none": "<理由>" } で書く'] };
+	if (!isMap(cov)) return { errs: [`V1  coverage は { "report", "not_run" } か { "none": "<理由>" } で書く（実際: ${JSON.stringify(cov)}）`] };
 	for (const k of Object.keys(cov)) if (!["report", "not_run", "scope", "functions"].includes(k)) errs.push(`V1  coverage に知らないキー「${k}」がある（report・scope・not_run・functions だけ）`);
 	//  関数の単位の検査（V6・V7）は、省略すると使う。使わないなら、理由を書いて宣言する（黙って粗い検査に落とさない）
 	const fnOff = cov.functions !== undefined;
@@ -350,7 +356,7 @@ function checkCoverage(cfg, root, since, entry) {
 	}
 	//  関数の単位（V6・V7）。1 行も実行されなかったファイル（V3）と、ファイルごと認めたもの（not_run）の中の関数は、重ねて数えない
 	const uncalled = [];
-	const noFnInfo = []; //  行の情報はあるのに、関数の情報が 1 行も無いファイル
+	const noFnInfo = []; //  行の情報はあるのに、関数の情報（FN / FNDA）も、関数を持たない印（FNF:0）も無いファイル
 	let namedFns = 0;
 	const anyFnInfo = sources.some((f) => report.get(f)?.fnInfo);
 	//  none にできるのは、記録に関数の情報が 1 つも無いときだけ（出せる道具を使っているのに、粗い検査に落とさない）
@@ -360,7 +366,7 @@ function checkCoverage(cfg, root, since, entry) {
 		for (const f of sources) {
 			const r = report.get(f);
 			if (!r) continue;
-			if (anyFnInfo && !r.fnInfo && r.lines > 0 && !notRun.has(f)) noFnInfo.push(f);
+			if (anyFnInfo && !r.fnInfo && !r.noFns && r.lines > 0 && !notRun.has(f)) noFnInfo.push(f);
 			if (notRun.has(f) || (r.lines > 0 && r.hit === 0)) continue;
 			for (const [name, count] of r.fns) {
 				if (isUnnamed(name)) continue;
@@ -399,9 +405,9 @@ function checkCoverage(cfg, root, since, entry) {
 		errs.push(`V1  実行の記録に、行の情報（DA、または LF / LH）を持つソースが 1 つも無い: ${cov.report}（行ごとの記録を書き出す設定にする）`);
 	//  関数の情報を出さない記録を、関数の単位まで確かめたことにしない
 	if (noFnInfo.length)
-		errs.push(`V7  実行の記録の中で、関数ごとの情報（FN / FNDA / FNF）が 1 行も無いソースが ${noFnInfo.length} 件ある（ほかのファイルにはある。記録をまとめるときに落ちていないか、道具の設定を確かめる。関数を持たないファイルにも「FNF:0」を出す設定にする）:${list(noFnInfo)}`);
+		errs.push(`V7  実行の記録の中で、関数ごとの情報（FN / FNDA）も、関数を持たないことを示す「FNF:0」も無いソースが ${noFnInfo.length} 件ある（ほかのファイルには FN / FNDA がある。記録をまとめるときに関数の情報が落ちていないか、記録を出す道具の設定を確かめる）:${list(noFnInfo)}`);
 	if (!fnOff && !anyFnInfo && withLines > 0)
-		errs.push(`V7  実行の記録に、関数ごとの情報（FN / FNDA）が 1 つも無い: ${cov.report}（関数ごとの記録を書き出す設定にする。出せない道具なら、coverage.functions を { "none": "<理由>" } にして、関数の単位では確かめないことを宣言する）`);
+		errs.push(`V7  実行の記録に、関数ごとの情報（FN / FNDA）が 1 つも無い: ${cov.report}（関数ごとの記録を書き出す設定にする。「FNF:0」だけの記録は、関数の情報がある記録に数えない。出せない道具なら、coverage.functions を { "none": "<理由>" } にして、関数の単位では確かめないことを宣言する）`);
 	const outside = allSources.length - sources.length;
 	return {
 		errs,
@@ -419,24 +425,38 @@ function checkCoverage(cfg, root, since, entry) {
 const NAMED_KINDS = ["deeplink", "push", "stream", "sdk", "local-store", "device", "internal"];
 const ENTRY_KINDS = ["http", ...NAMED_KINDS];
 
-//  パスのパラメーターの書き方の違いをならす: ?・# 以降と末尾の / を除き、${…} :x（:x{正規表現} と :x? を含む）[x] {x} を同じものとみなす
-const PARAM_RE = /\$\{[^}]*\}|:[A-Za-z_]\w*(?:\{[^}]*\})?\??|\[[^\]]*\]|\{[^}]*\}/g;
-const normPath = (path) =>
-	"/" +
-	path
-		.replace(/[?#].*$/, "")
-		.replace(PARAM_RE, "{}")
-		.split("/")
-		.filter(Boolean)
-		//  * と ** は「何でも受ける登録」で、パラメーター 1 つとは別のもの。契約の {id} には合わせない（契約の側も * と書いていれば合う）
-		.map((seg) => (seg === "**" ? "*" : seg))
-		.join("/");
+//  パスの書式（harness が決める。特定の枠組みの書き方には寄せない）。/ で区切った区分ごとに、次の 3 つだけを読む:
+//    パラメーター    :name か {name} の素の形（名前は英字か _ で始まる英数字と _）。2 つは同じものとみなし、名前は比べない
+//    何でも受ける部分  * （** も同じ）。パラメーター 1 つとは別のもの。契約の {id} には合わせない（契約の側も * と書いていれば合う）
+//    固定の文字列    下の PATTERN_CHARS を 1 つも含まない区分
+//  それ以外の形（[...slug]、{*splat}、:rest{.+}、{path:path}、:id?、${id}、? や # の付いたパスなど）は、何を受けるのかを決められないので
+//  読まない（null を返す）。パラメーター 1 つとみなすと、契約より広い入口が契約の {id} に合ったことになる。末尾の / は無視する
+const PARAM_SEG = /^(?::[A-Za-z_]\w*|\{[A-Za-z_]\w*\})$/;
+const PATTERN_CHARS = /[:*?#{}[\]()<>$|\\]/;
+const normPath = (path) => {
+	const segs = [];
+	for (const seg of path.split("/").filter(Boolean)) {
+		if (seg === "*" || seg === "**") segs.push("*");
+		else if (PARAM_SEG.test(seg)) segs.push("{}");
+		else if (PATTERN_CHARS.test(seg)) return null;
+		else segs.push(seg);
+	}
+	return "/" + segs.join("/");
+};
+//  deeplink の名前の中のパラメーター（:name と {name} の素の形だけを同じものとみなす）
+const NAME_PARAM_RE = /:[A-Za-z_]\w*|\{[A-Za-z_]\w*\}/g;
 
-//  入口の同一性（突き合わせに使う鍵）と、表示の書き方。http は「METHOD パス」、それ以外は「種類 名前」
-const httpEntry = (method, path) => ({ key: `http ${method.toUpperCase()} ${normPath(path)}`, label: `${method.toUpperCase()} ${path}` });
-const namedEntry = (kind, name) => ({ key: `${kind} ${kind === "deeplink" ? name.replace(PARAM_RE, "{}") : name}`, label: `${kind} ${name}` });
+//  入口の同一性（突き合わせに使う鍵）と、表示の書き方。http は「METHOD パス」、それ以外は「種類 名前」。
+//  書式に無い形のパスは readable: false（鍵はパスそのまま。書式どおりの一覧の入口とは合わない）
+const httpEntry = (method, path) => {
+	const norm = normPath(path);
+	return { key: `http ${method.toUpperCase()} ${norm ?? `(読めない形) ${path}`}`, label: `${method.toUpperCase()} ${path}`, readable: norm !== null };
+};
+const namedEntry = (kind, name) => ({ key: `${kind} ${kind === "deeplink" ? name.replace(NAME_PARAM_RE, "{}") : name}`, label: `${kind} ${name}`, readable: true });
+const PATH_FORM = "パラメーターは :name か {name}、何でも受ける部分は * と書く。それ以外の形（[...slug]、{*splat}、:rest{.+}、:id? など）と、? や # を含むパスは読まない";
 
-//  撤回されていない UC の契約の inbound の操作: [{ id: "UC-nnn#操作名", key, label, fixedOwned }]
+//  撤回されていない UC の契約の inbound の操作: [{ id: "UC-nnn#操作名", key, label, readable, status, fixed, fixedOwned }]
+//  status は契約の x-status（無ければ null）。入口の突き合わせ先（E1）にするのは fixed の契約の操作だけ（draft の契約は、人が承認していない）
 //  契約の読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。構文の誤りは spec-lint が報告し、ここは読めた分だけ使う
 function inboundOperations(cfg, root) {
 	const goals = isMap(cfg.docs) && isText(cfg.docs.goals_dir) ? resolve(root, cfg.docs.goals_dir) : null;
@@ -458,7 +478,8 @@ function inboundOperations(cfg, root) {
 				if (op.transport === "http") {
 					if (isMap(op.wire) && isText(String(op.wire.method ?? "")) && isText(op.wire.path)) e = httpEntry(String(op.wire.method), op.wire.path);
 				} else if (NAMED_KINDS.includes(op.transport)) e = namedEntry(op.transport, isText(op.entry) ? op.entry.trim() : name);
-				if (e) out.push({ id: `${uc.id ?? "?"}#${name}`, ...e, fixedOwned: doc["x-status"] === "fixed" && op.owned === true });
+				const status = typeof doc["x-status"] === "string" ? doc["x-status"] : null;
+				if (e) out.push({ id: `${uc.id ?? "?"}#${name}`, ...e, status, fixed: status === "fixed", fixedOwned: status === "fixed" && op.owned === true });
 			}
 		}
 	return out;
@@ -499,6 +520,10 @@ function parseEntryList(text) {
 				return;
 			}
 			e = namedEntry(v.kind, v.name.trim());
+		}
+		if (!e.readable) {
+			errs.push(`E4  ${at}: path に、決まった書式に無い形がある: ${v.path}（${PATH_FORM}。一覧を出すコマンドが、この書式に直して出す）`);
+			return;
 		}
 		if (seen.has(e.key)) errs.push(`E4  ${at}: 同じ入口が ${seen.get(e.key)} 行目にもある: ${e.label}`);
 		else {
@@ -545,20 +570,34 @@ function checkEntries(cfg, root, opts) {
 		const parsed = parseEntryList(text);
 		errs.push(...parsed.errs);
 		listed = parsed.entries;
-		//  inbound の操作があるのに一覧が空なら、一覧を出すコマンドが入口を出せていない（none を認めない条件とそろえる）
-		if (!text.trim() && ops.length)
-			errs.push(`E4  入口の一覧が 0 行（撤回されていない契約に inbound の操作が ${ops.length} 件ある。例: ${ops[0].id}）。commands.list_entries のコマンドが、入口を標準出力に出しているかを確かめる`);
+		//  fixed の契約に inbound の操作があるのに一覧が空なら、一覧を出すコマンドが入口を出せていない。
+		//  fixed でない契約の操作しか無い間は、入口をまだ置けない（E1）ので、0 行が正しい
+		const fixedOps = ops.filter((o) => o.fixed);
+		if (!text.trim() && fixedOps.length)
+			errs.push(`E4  入口の一覧が 0 行（撤回されていない UC の fixed の契約に inbound の操作が ${fixedOps.length} 件ある。例: ${fixedOps[0].id}）。commands.list_entries のコマンドが、入口を標準出力に出しているかを確かめる`);
 	}
 
 	if (listed !== null) {
-		const opKeys = new Map(); //  鍵 -> 操作の ID（表示用）
-		for (const o of ops) if (!opKeys.has(o.key)) opKeys.set(o.key, o.id);
+		//  突き合わせ先は fixed の契約の操作だけ。fixed でない契約の操作は、「合う操作はあるが承認されていない」と伝えるためにだけ引く
+		const fixedKeys = new Set(ops.filter((o) => o.fixed).map((o) => o.key));
+		const pending = new Map(); //  鍵 -> fixed でない契約の操作（最初の 1 件）
+		for (const o of ops) if (!o.fixed && !pending.has(o.key)) pending.set(o.key, o);
 		const listedKeys = new Set(listed.map((e) => e.key));
-		for (const e of listed)
-			if (!opKeys.has(e.key))
-				errs.push(`E1  契約に無い入口: ${e.label}（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く）`);
+		for (const e of listed) {
+			if (fixedKeys.has(e.key)) continue;
+			const p = pending.get(e.key);
+			if (p)
+				errs.push(
+					`E1  契約が fixed でない入口: ${e.label}（合う操作 ${p.id} はあるが、${p.status === null ? "その契約に x-status が無い" : `その契約の x-status が ${p.status}`}。fixed でない契約の操作は、入口の突き合わせ先に数えない。人間の承認を得て契約を fixed にするまで、入口を置かない）`,
+				);
+			else errs.push(`E1  契約に無い入口: ${e.label}（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く）`);
+		}
 		for (const o of ops)
-			if (o.fixedOwned && !listedKeys.has(o.key)) errs.push(`E2  ${o.id}（fixed、owned かつ inbound）に合う入口が、一覧に無い: ${o.label}（入口を実装するか、一覧を出すコマンドが載せているかを確かめる）`);
+			if (o.fixedOwned && !listedKeys.has(o.key))
+				errs.push(
+					`E2  ${o.id}（fixed、owned かつ inbound）に合う入口が、一覧に無い: ${o.label}（入口を実装するか、一覧を出すコマンドが載せているかを確かめる）` +
+						(o.readable ? "" : `。契約の wire.path が、突き合わせの書式に無い形を含むので、どの入口とも合わない（${PATH_FORM}）`),
+				);
 	}
 	for (const e of errs) console.log(`  err  ${e}`);
 	if (errs.length) {
@@ -566,7 +605,7 @@ function checkEntries(cfg, root, opts) {
 		return 1;
 	}
 	if (listed !== null)
-		console.log(`${TAG} OK: 入口 ${listed.length} 件（すべて契約の inbound の操作に合う）、契約の inbound の操作 ${ops.length} 件`);
+		console.log(`${TAG} OK: 入口 ${listed.length} 件（すべて fixed の契約の inbound の操作に合う）、fixed の契約の inbound の操作 ${ops.filter((o) => o.fixed).length} 件`);
 	return 0;
 }
 
@@ -606,7 +645,7 @@ function main() {
 	}
 	const { errs, summary, outside } = checkCoverage(cfg, root, opts.since, entry);
 	if (outside) console.log(`  ${outside}`);
-	if (isNone(cfg.coverage.functions) && !/[\r\n\u0000-\u001f]/.test(cfg.coverage.functions.none))
+	if (isMap(cfg.coverage) && isNone(cfg.coverage.functions) && !/[\r\n\u0000-\u001f]/.test(cfg.coverage.functions.none))
 		console.log(`  coverage.functions = none（${cfg.coverage.functions.none.trim()}）: 呼ばれなかった関数が無いかを確かめていない（ファイルの単位まで）`);
 	if (isMap(cfg.coverage) && Array.isArray(cfg.coverage.not_run))
 		for (const x of cfg.coverage.not_run) if (isMap(x) && isText(x.path) && isText(x.reason) && !/[\r\n\u0000-\u001f]/.test(x.reason + x.path)) console.log(`  実行されないことを認めたもの: ${x.path.trim()}（${x.reason.trim()}）`);

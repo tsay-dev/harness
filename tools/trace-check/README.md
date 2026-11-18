@@ -91,7 +91,7 @@ active な文書・fixed な契約は「義務」を生む。義務がある範�
 | 義務を生むもの | none にできないキー |
 | --- | --- |
 | active な REQ | `source`、`tests`、`tests.pending_pattern` |
-| active な REQ があり、`source` を宣言している | `coverage`（none も省略も違反。実装と仕様の対応を確かめる検査が、実行の記録のほかに無い） |
+| active な REQ があり、`source` を宣言している | `coverage`（none も省略も違反。記録のファイル `report` を指していない形（`{}`、`null`、文字列）も違反。実装と仕様の対応を確かめる検査が、実行の記録のほかに無い） |
 | 人間がアクターの active な UC | `tests`、`tests.system`、`tests.system.pending_pattern` |
 | active な UC | `docs.glossary` |
 | fixed 契約に owned かつ inbound の操作 | `source`（入口の一覧 `commands.list_entries` を none にできないことは、exec-check の E4 が見る） |

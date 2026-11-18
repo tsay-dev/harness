@@ -1143,13 +1143,26 @@ function runChecks(cfg, { asActive = false } = {}) {
 	};
 	oblige(activeReqs.length, "active な REQ がある", ["source", "tests", "tests.pending_pattern"]);
 	//  実装との対応は、実行の記録でしか確かめていない（ADR-0070）。要件とソースがあるのに記録を宣言しなければ、その検査が 0 になる。
-	//  coverage は exec-check が読むキーだが、「要件があるのに確かめていない」ことは義務としてここで止める（省略も none と同じに扱う）
-	if (activeReqs.length && srcSec && (cfg.coverage === undefined || isNone(cfg.coverage)))
-		fail(
-			"C26",
-			`coverage は${cfg.coverage === undefined ? "省略できない" : " none にできない"}（active な REQ があり、source を宣言している）。テストのコマンドが書き出す実行の記録を { "report": "<lcov のファイル>", "not_run": [] } で宣言する（tools/exec-check/README.md。実装と仕様の対応を、実行の記録で確かめる）` +
-				(isNone(cfg.coverage) ? `（none の理由: ${cfg.coverage.none}）` : ""),
-		);
+	//  coverage は exec-check が読むキーだが、「要件があるのに確かめていない」ことは義務としてここで止める（省略も none と同じに扱う）。
+	//  記録のファイルを指していない宣言（null、文字列、{}、report の無いオブジェクト）も、確かめる記録が決まらないので同じに扱う。
+	//  report より先の中身（not_run、scope、functions）は exec-check が読む
+	if (activeReqs.length && srcSec) {
+		const cov = cfg.coverage;
+		const what =
+			cov === undefined
+				? "は省略できない"
+				: isNone(cov)
+					? "は none にできない"
+					: !isMap(cov) || typeof cov.report !== "string" || cov.report.trim() === ""
+						? `が、実行の記録のファイル（report）を指していない（実際: ${JSON.stringify(cov)}）`
+						: null;
+		if (what !== null)
+			fail(
+				"C26",
+				`coverage ${what}（active な REQ があり、source を宣言している）。テストのコマンドが書き出す実行の記録を { "report": "<lcov のファイル>", "not_run": [] } で宣言する（tools/exec-check/README.md。実装と仕様の対応を、実行の記録で確かめる）` +
+					(isNone(cov) ? `（none の理由: ${cov.none}）` : ""),
+			);
+	}
 	oblige(humanUcs.length, "人間がアクターの active な UC がある", ["tests", "tests.system", "tests.system.pending_pattern"]);
 	oblige(activeUcs.length, "active な UC がある", ["docs.glossary"]);
 	oblige(fixedOwned.some((o) => o.direction === "inbound"), "fixed 契約に owned かつ inbound の操作がある", ["source"]);

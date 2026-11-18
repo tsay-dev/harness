@@ -130,7 +130,12 @@ const BAD_COV = [
 	["V6", "呼ばれなかった関数", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:9,left\nFNDA:0,left") }, /1 回も呼ばれなかった関数が 1 件ある[^]*src\/a\.ts#left/],
 	["V7", "記録に関数ごとの情報が無い", { lcov: LCOV.replace(/^FN.*\n/gm, "") }, /関数ごとの情報（FN \/ FNDA）が 1 つも無い: coverage\/lcov\.info[^]*coverage\.functions を \{ "none": "<理由>" \}/],
 	["V7", "記録に関数の情報があるのに functions を none にしている", { cfg: change((c) => (c.coverage.functions = { none: "出せないと思っていた" })) }, /coverage\.functions を none にできない（実行の記録 coverage\/lcov\.info に、関数ごとの情報 FN \/ FNDA がある）[^]*（none の理由: 出せないと思っていた）/],
-	["V7", "一部のファイルにだけ関数の情報が無い", { lcov: LCOV.replace("SF:src/compose.ts\nFNF:0\n", "SF:src/compose.ts\n") }, /関数ごとの情報（FN \/ FNDA \/ FNF）が 1 行も無いソースが 1 件ある[^]*src\/compose\.ts/],
+	["V7", "一部のファイルにだけ関数の情報が無い", { lcov: LCOV.replace("SF:src/compose.ts\nFNF:0\n", "SF:src/compose.ts\n") }, /関数ごとの情報（FN \/ FNDA）も、関数を持たないことを示す「FNF:0」も無いソースが 1 件ある[^]*src\/compose\.ts/],
+	["V7", "関数の数（FNF:1）はあるのに、FN / FNDA が落ちているファイル", { lcov: LCOV.replace("SF:src/compose.ts\nFNF:0\n", "SF:src/compose.ts\nFNF:1\n") }, /「FNF:0」も無いソースが 1 件ある[^]*src\/compose\.ts/],
+	["V7", "全ファイルが FNF:0 だけの記録（FN / FNDA が 1 つも無い）", { lcov: LCOV.replace(/^FN:.*\n|^FNDA:.*\n/gm, "").replace(/^FNF:\d+$/gm, "FNF:0") }, /関数ごとの情報（FN \/ FNDA）が 1 つも無い: coverage\/lcov\.info[^]*「FNF:0」だけの記録は、関数の情報がある記録に数えない/],
+	["V1", "coverage が null（例外で止まらず、文のある違反になる）", { cfg: change((c) => (c.coverage = null)) }, /coverage は \{ "report", "not_run" \} か \{ "none": "<理由>" \} で書く（実際: null）/],
+	["V1", "coverage が文字列", { cfg: change((c) => (c.coverage = "coverage/lcov.info")) }, /coverage は \{ "report", "not_run" \} か \{ "none": "<理由>" \} で書く（実際: "coverage\/lcov\.info"）/],
+	["V1", "coverage が空のオブジェクト", { cfg: change((c) => (c.coverage = {})) }, /coverage\.report が無い/],
 	["V6", "同じ名前の関数がどれも呼ばれていない（1 件として数える）", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,twice\nFN:9,twice\nFNDA:0,twice\nFNDA:0,twice") }, /1 回も呼ばれなかった関数が 1 件ある[^]*src\/a\.ts#twice/],
 	["V6", "名前にカンマを含む関数（FN の名前を最後のカンマで切らない）", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,pair(int, int)\nFNDA:0,pair(int, int)") }, /src\/a\.ts#pair\(int, int\)\n/],
 	["V6", "開始行と終了行を持つ FN（FN:<開始行>,<終了行>,<名前>）", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,8,ranged\nFNDA:0,ranged\nFN:9,12,noCount") }, /1 回も呼ばれなかった関数が 2 件ある[^]*src\/a\.ts#ranged\n\s+src\/a\.ts#noCount/],
@@ -174,6 +179,15 @@ test("coverage V6: 呼ばれなかった関数は、coverage.not_run に <ファ
 	assert.match(r.stdout, /確かめた名前のある関数 2 件、実行されないことを認めたもの 2 件/);
 	//  (anonymous_0)・anonymous_7・<anonymous> は 1 回も呼ばれていないが、名前で指せないので違反にしない（基本の記録がその形）
 	assert.doesNotMatch(run(project(), "coverage").stdout, /anonymous/);
+});
+
+test("coverage V7: FNF:0 だけの記録は、functions を none にすれば通る（関数の単位では確かめていないと表示する）。none の文は記録の中身と食い違わない", () => {
+	const fnfOnly = LCOV.replace(/^FN:.*\n|^FNDA:.*\n/gm, "").replace(/^FNF:\d+$/gm, "FNF:0");
+	const r = run(project({ lcov: fnfOnly, cfg: change((c) => (c.coverage.functions = { none: "記録を出す道具が関数の情報を出さない" })) }), "coverage");
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.match(r.stdout, /coverage\.functions = none（記録を出す道具が関数の情報を出さない）: 呼ばれなかった関数が無いかを確かめていない/);
+	assert.match(r.stdout, /関数の単位では確かめていない/);
+	assert.doesNotMatch(r.stdout, /FN \/ FNDA がある|確かめた名前のある関数/);
 });
 
 test("coverage V6: 同じ名前の関数が 1 つのファイルに複数あれば、どれか 1 つが呼ばれていれば通る。1 行も実行されなかったファイルの関数は V3 だけで報告する", () => {
@@ -290,10 +304,37 @@ const entries = ({ cfg = entriesCfg(), list = LIST, files = {} } = {}) => {
 test("entries: 一覧の入口がすべて契約の inbound の操作に合い、fixed の操作の入口が一覧にあれば通る（パラメーターの書き方・method の大小・末尾の / の違いは同じに扱う）", () => {
 	const r = entries();
 	assert.equal(r.status, 0, r.stdout + r.stderr);
-	assert.match(r.stdout, /OK: 入口 5 件（すべて契約の inbound の操作に合う）、契約の inbound の操作 6 件/);
-	//  draft の契約の操作の入口は、あっても無くてもよい（あれば契約にある入口として通る）
-	assert.equal(entries({ list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}` }).status, 0);
+	assert.match(r.stdout, /OK: 入口 5 件（すべて fixed の契約の inbound の操作に合う）、fixed の契約の inbound の操作 5 件/);
 });
+
+test("entries: 契約が draft の間は、入口が無いのが正しい（draft の契約の操作しか無ければ、一覧が 0 行でも通る）", () => {
+	const draftOnly = { [`${G}/UC-001-members/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null };
+	const r = entries({ files: draftOnly, list: "" });
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.match(r.stdout, /OK: 入口 0 件（すべて fixed の契約の inbound の操作に合う）、fixed の契約の inbound の操作 0 件/);
+	//  同じ状態で入口を置くと、契約を fixed にするまで違反
+	const early = entries({ files: draftOnly, list: line({ kind: "http", method: "GET", path: "/api/members/export" }) });
+	assert.equal(early.status, 1);
+	assert.match(early.stdout, /err  E1  契約が fixed でない入口: GET \/api\/members\/export/);
+});
+
+test("entries: fixed の契約で owned が false の inbound の操作（外部からの通知など）に合う入口は通る", () => {
+	const hook = { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/*" }), op("receiveHook", { owned: false, method: "POST", path: "/hooks/pay" })]) };
+	const r = entries({ files: hook, list: `${LIST}\n${line({ kind: "http", method: "POST", path: "/hooks/pay" })}` });
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+//  一覧のパスの書式に無い形。パラメーター 1 つとみなすと、契約より広い入口が契約の {accountId} に合ったことになる
+const BAD_PATH_FORMS = ["/api/members/[...slug]", "/api/members/[id]", "/api/members/{*splat}", "/api/members/:rest{.+}", "/api/members/{path:path}", "/api/members/:id?", "/api/members/${id}", "/api/members/<int:id>", "/api/members/:id(\\d+)", "/api/members/:id.json", "/api/members/x*", "/api/members/:id?x=1", "/api/members/:id#top"];
+for (const path of BAD_PATH_FORMS) {
+	test(`entries E4: 一覧のパスが書式に無い形（${path}）は、契約のパラメーターに合わせず、読めない行として違反`, () => {
+		const r = entries({ list: LIST.replace("/api/members/:accountId", path.replace(/\\/g, "\\\\")) });
+		assert.equal(r.status, 1, r.stdout + r.stderr);
+		assert.ok(r.stdout.includes(`err  E4  一覧の 1 行目: path に、決まった書式に無い形がある: ${path}（パラメーターは :name か {name}、何でも受ける部分は * と書く`), r.stdout);
+		//  読めない行は入口として数えないので、契約の操作の入口は無いままになる
+		assert.match(r.stdout, /err  E2  UC-001#getMember/);
+	});
+}
 
 test("entries: 契約の側も * と書いていれば、* の入口はそれとだけ合う。inbound の操作が無ければ、一覧が 0 行でも通る", () => {
 	const star = { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("serveFiles", { path: "/files/*" })]), [`${G}/UC-002-draft/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null };
@@ -326,7 +367,10 @@ const BAD_ENTRIES = [
 	["E2", "fixed の操作の入口が一覧に無い", { list: LIST.split("\n").slice(1).join("\n") }, /UC-001#getMember（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/api\/members\/\{accountId\}/],
 	["E2", "fixed の push の操作の入口が一覧に無い", { list: LIST.replace("notice.updated", "notice.created") }, /UC-001#receiveNotice（fixed、owned かつ inbound）に合う入口が、一覧に無い: push notice\.updated/],
 	["E2", "契約が * なのに、一覧の入口がパラメーター", { list: LIST.replace("/assets/*", "/assets/:name") }, /UC-004#serveAssets（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/assets\/\*/],
-	["E4", "inbound の操作があるのに一覧が 0 行", { list: "", files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "draft", [op("getMember", { path: "/api/members/{accountId}" })]), [`${G}/UC-004-operate/contract.yaml`]: null } }, /入口の一覧が 0 行（撤回されていない契約に inbound の操作が 2 件ある。例: UC-001#getMember）/],
+	["E4", "fixed の契約に inbound の操作があるのに一覧が 0 行", { list: "", files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("receiveHook", { owned: false, method: "POST", path: "/hooks/pay" })]), [`${G}/UC-004-operate/contract.yaml`]: null } }, /入口の一覧が 0 行（撤回されていない UC の fixed の契約に inbound の操作が 1 件ある。例: UC-001#receiveHook）/],
+	["E1", "draft の契約の操作にしか合わない入口（人が承認していない契約では、入口を通さない）", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}` }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約の x-status が draft。fixed でない契約の操作は、入口の突き合わせ先に数えない/],
+	["E1", "x-status の無い契約の操作にしか合わない入口", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}`, files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("exportMembers", { path: "/api/members/export" })]).replace("x-status: draft\n", "") } }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約に x-status が無い。/],
+	["E2", "契約の wire.path が書式に無い形（どの入口とも合わない）", { files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("getMember", { path: "/api/members/{accountId:int}" }), op("createMember", { method: "POST", path: "/api/members" }), op("receiveNotice", { transport: "push", entry: "notice.updated" })]) } }, /UC-001#getMember（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/api\/members\/\{accountId:int\}[^]*契約の wire\.path が、突き合わせの書式に無い形を含む/],
 	["E1", "何でも受ける登録（*）は、契約のパラメーターの入口とは数えない", { list: LIST.replace("/api/members/:accountId", "/api/members/*") }, /契約に無い入口: GET \/api\/members\/\*/],
 	["E4", "JSON でない行", { list: `${LIST}\nGET /api/x` }, /一覧の 6 行目が JSON でない: GET \/api\/x/],
 	["E4", "kind が無い", { list: `${LIST}\n${line({ method: "GET", path: "/x" })}` }, /一覧の 6 行目: kind が無いか、知らない種類/],

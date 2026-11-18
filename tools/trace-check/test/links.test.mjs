@@ -138,6 +138,11 @@ test("C26: 義務がある範囲の none、一致 0 件、active な UC があ�
 	assert.match(cov, /\[C26\] coverage は none にできない（active な REQ があり、source を宣言している）。テストのコマンドが書き出す実行の記録を \{ "report": "<lcov のファイル>", "not_run": \[\] \} で宣言する.*（none の理由: 記録はまだ取っていない）/);
 	const omitted = run(project(t, { configure: (cfg) => delete cfg.coverage }), "--only", "C26").stdout;
 	assert.match(omitted, /\[C26\] coverage は省略できない（active な REQ があり、source を宣言している）/);
+	//  記録のファイルを指していない宣言（{}、null、文字列、report の無いオブジェクト）も、義務がある間は通さない
+	for (const [bad, shown] of [[{}, "{}"], [null, "null"], ["coverage/lcov.info", '"coverage/lcov.info"'], [{ not_run: [] }, '{"not_run":[]}'], [{ report: " " }, '{"report":" "}']]) {
+		const out = run(project(t, { configure: (cfg) => (cfg.coverage = bad) }), "--only", "C26").stdout;
+		assert.ok(out.includes(`[C26] coverage が、実行の記録のファイル（report）を指していない（実際: ${shown}）（active な REQ があり、source を宣言している）`), out);
+	}
 	const missing = run(project(t, { files: { "docs/rules/.gitkeep": null } }), "--only", "C26").stdout;
 	assert.match(missing, /\[C26\] docs\.rules_dir の docs\/rules が無い（active な UC がある）。作る（ディレクトリなら \.gitkeep を置く）\n/);
 	//  active な UC が無い間は「未作成」と出すだけ（新規プロジェクトの最初のターン）

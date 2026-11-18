@@ -19,6 +19,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 - 単一コマンドで実行でき、終了コードで Red / Green が決まる。未導入なら先に導入する。選択、設定、コマンドはプロジェクトの `CLAUDE.md` に記録し、`harness.config.json` に `commands.test`、`commands.system` を宣言する。
 - フォルダーで分離し、`tests/integration` と `e2e` / `.maestro` を `testPathIgnorePatterns` に入れる。simulator も server もないマシンで既定スイートが Green になること。
 - 外部環境を起動しない契約適合テストは既定スイートに属し、結合スイートへ移さない。
+- アプリが DB の制約で規則を守る場合（`enforced_at` が DB の BR）、そのテスト（`@covers BR-nnn`。規則に反する行を実 DB に直接入れて断られる）は結合スイートに置き、結合スイートのコマンドを `harness.config.json` の `commands.extra` に宣言して、完了の判定が実行するようにする。
 
 ## 操作 → 入口（実装を読まずに導出）
 
