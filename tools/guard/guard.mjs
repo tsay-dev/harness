@@ -60,6 +60,7 @@ import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { appendLog, defaultLogPath } from "../_shared/gate-log.mjs";
 import { CONFIG_FILE, readHostConfig } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { actorKindsOf, overviewFormat, overviewPathOf, readOverview } from "../_shared/overview.mjs";
 import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
@@ -153,15 +154,9 @@ const statusOf = (rel, text) => {
 	return v || null;
 };
 
-//  アクター表の種別（ACT-nn -> 種別）。人間でないと数えるのは「システム」で始まる種別だけ（lint refs C15 / C26）
-function actorKinds(text) {
-	const kinds = {};
-	for (const line of (text ?? "").split(/\r?\n/)) {
-		const cells = line.split("|").map((c) => c.trim());
-		if (cells.length >= 4 && /^ACT-\d+$/.test(cells[1])) kinds[cells[1]] = cells[3];
-	}
-	return kinds;
-}
+//  概要のアクター表の種別（ACT-nn -> 種別）。人間でないと数えるのは「システム」で始まる種別だけ（lint refs C15 / C26）。
+//  読み方は tools/_shared/overview.mjs（lint spec・lint refs と同じ）
+const actorKinds = (text) => actorKindsOf(readOverview(text ?? ""));
 
 //  人間のアクターを消す・システムに変える書き込み（シナリオテストの義務を減らす）。戻り: 変わる ACT の一覧
 function actorDowngrades(abs, input) {
@@ -185,11 +180,34 @@ function ucActorChange(abs, rel, input) {
 	return a.status === "active" && (a.actor ?? "") !== (b.actor ?? "") ? [a.actor ?? "（なし）", b.actor ?? "（なし）"] : null;
 }
 
-//  アクター表のパス（harness.config.json の docs.actors。無ければテンプレートの既定）
-function actorsPath(root, docsDir) {
-	const cfg = readHostConfig(root);
-	if (typeof cfg?.docs?.actors === "string") return cfg.docs.actors.replace(/^\.\//, "");
-	return `${docsDir}/02-actors.md`;
+//  概要のパス（<docs>/00-overview.md に固定。ADR-0076）。lint spec・lint refs と同じ決め方
+function overviewRel(root, docsDir) {
+	return relative(root, overviewPathOf({ docsDir: resolve(root, docsDir) }).file).split(sep).join("/");
+}
+
+//  概要への書き込みのうち、人に回すもの（ADR-0076）。戻り: { kind: "down" | "policy" | "up", field, from, to } | null
+//    down    GOAL の表から行が消える（status によらず）か、active の行が active でなくなる
+//    policy  全体の方針の小節の本文が変わる（UC の並行性・外部依存の行を省けるかが変わる）
+//    up      ファイルの status が変わらない書き込みで、行が active になる（記録して通す）
+function overviewChange(abs, input) {
+	const exists = existsSync(abs) && statSync(abs).isFile();
+	const before = exists ? readFileSync(abs, "utf8") : null;
+	const after = afterContent(input, before);
+	if (after === undefined) return null;
+	const a = readOverview(before ?? "");
+	const b = readOverview(after);
+	//  同じ ID の行が 2 つあっても、読み方の problems に落ちた行を含めて比べる（ID が 1 つでも無くなれば削除）
+	const rowIds = (text) => new Set([...(text ?? "").matchAll(/^\|\s*(GOAL-\d+)\s*\|/gm)].map((m) => m[1]));
+	const idsAfter = rowIds(after);
+	for (const id of rowIds(before)) if (!idsAfter.has(id)) return { kind: "down", field: `GOAL の表の ${id} の行`, from: "あり", to: "削除" };
+	const activeAfter = new Set(b.goals.filter((g) => g.status === "active").map((g) => g.id));
+	for (const g of a.goals) if (g.status === "active" && !activeAfter.has(g.id)) return { kind: "down", field: `${g.id} の status`, from: "active", to: b.goals.find((x) => x.id === g.id)?.status || "（読めない）" };
+	for (const h of overviewFormat().policies) if ((a.policies[h] ?? "") !== (b.policies[h] ?? "")) return { kind: "policy", field: `全体の方針の「${h}」`, from: null, to: null };
+	if ((a.status ?? null) === (b.status ?? null)) {
+		const activeBefore = new Set(a.goals.filter((g) => g.status === "active").map((g) => g.id));
+		for (const g of b.goals) if (g.status === "active" && !activeBefore.has(g.id)) return { kind: "up", field: `${g.id} の status`, from: a.goals.find((x) => x.id === g.id)?.status ?? null, to: "active", isNew: !exists };
+	}
+	return null;
 }
 
 //  保留の一覧（DEFERRED.md）への書き込みのうち、凍結（ADR-0068）を外すもの。戻り: 理由の文 | null
@@ -406,9 +424,16 @@ function main() {
 			ctx.target = rel;
 			let change;
 			let downgraded = [];
+			let policy = null;
 			try {
+				const isOverview = lower === overviewRel(root, docsDir).toLowerCase();
 				change = classifyStatusChange(abs, rel, input);
-				if (lower === actorsPath(root, docsDir).toLowerCase()) downgraded = actorDowngrades(abs, input);
+				if (isOverview) {
+					downgraded = actorDowngrades(abs, input);
+					const ov = overviewChange(abs, input);
+					if (ov?.kind === "policy") policy = ov;
+					else if (ov && (!change || ov.kind === "down")) change = { ...ov, isNew: ov.isNew ?? false };
+				}
 				const actor = ucActorChange(abs, rel, input);
 				if (actor) downgraded = [`${rel} の actor ${actor[0]} → ${actor[1]}`];
 			} catch (e) {
@@ -419,6 +444,12 @@ function main() {
 				ask(
 					"actor-kind",
 					`${rel} で人間のアクター（${downgraded.join(", ")}）を削除するかシステムに変える。シナリオテスト（C15）の義務が減るため、人間の承認で行う（ADR-0057）`,
+					ctx,
+				);
+			if (policy)
+				ask(
+					"overview-policy",
+					`${rel} の${policy.field}を変える。全体の方針の変更は、UC の並行性・外部依存の行を省けるか（省いた行が何を意味するか）を、すべての UC について一度に変えるため、人間の承認で行う（ADR-0076）。差分を確認してから許可する`,
 					ctx,
 				);
 			if (!change) process.exit(0); //  status が変わらない docs の書き込みは記録しない
