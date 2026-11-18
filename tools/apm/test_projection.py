@@ -95,6 +95,7 @@ if (!paths.every(path => matchesAny(path, patterns))) process.exit(1);
             'packages/develop-core/.apm/instructions/*.instructions.md': 125,
             'packages/rules-cloudflare-hono-react/.apm/instructions/*.instructions.md': 40,
             'packages/rules-righthub/.apm/instructions/*.instructions.md': 40,
+            'packages/rules-hono-react-spa/.apm/instructions/*.instructions.md': 40,
             'packages/rules-next/.apm/instructions/*.instructions.md': 50,
             'packages/rules-expo/.apm/instructions/*.instructions.md': 60,
             'packages/rules-swiftui/.apm/instructions/*.instructions.md': 60,

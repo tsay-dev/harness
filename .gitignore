@@ -13,16 +13,6 @@ Icon?
 # ログ・一時ファイル
 *.log
 
-# Cursor 向けの生成物
-.cursor/
-
-# Grok Build 向けの生成物（config.toml 等は対象外）
-.grok/agents/
-
-# Codex 向けの生成物（ホストの .codex/config.toml は対象外）
-.agents/
-.codex/agents/
-
 # harness next-id の採番予約とロック（一時状態。番号は使われた時点で台帳から落ちる）
 .trace-reservations.json
 .trace-next.lock

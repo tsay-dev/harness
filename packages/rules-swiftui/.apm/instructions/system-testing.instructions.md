@@ -44,7 +44,7 @@ final class UC012RegisterProjectTests: XCTestCase {
 | --- | --- | --- |
 | 1 | `app.buttons["<label>"]`、`app.staticTexts["<text>"]`、`app.textFields["<label>"]` | 用語集の語（`docs/01-glossary.md`）そのもの。要素型はコントロールの種類から決める |
 | 2 | `accessibilityIdentifier` による `app.buttons["<id>"]`、`app.otherElements["<id>"]` | 契約: operation → `"createProject"`、request フィールド → `"createProject.title"`（[表示レイヤー](frontend-coding.instructions.md)が出力する） |
-| 禁止 | 要素の添字、座標、View / 画面の型名、表示文字列をコピーした識別子 | — |
+| 禁止 | View / 画面の型名、表示文字列をコピーした識別子（要素の添字と座標は `common-lint`） | — |
 
 外観が一致しなければ外観側を修正する（ADR-0037）。シナリオテストを実装に追従させない。
 

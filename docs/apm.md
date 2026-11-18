@@ -37,7 +37,7 @@ apm install --target codex tsay-dev/harness/packages/develop-core
 apm install --target codex tsay-dev/harness/packages/rules-next
 ```
 
-スタックは `rules-next` を `rules-cloudflare-hono-react`、`rules-righthub`、`rules-expo`、`rules-swiftui`、`rules-crow` に替える。各スタックの配置と規約はそのパッケージの葉が正本で、ここには再掲しない。
+スタックは `rules-next` を `rules-cloudflare-hono-react`、`rules-righthub`、`rules-expo`、`rules-swiftui`、`rules-crow` に替える。各スタックの配置と規約はそのパッケージの葉が正本で、ここには再掲しない。`rules-cloudflare-hono-react` と `rules-righthub` は、共通の規約 `rules-hono-react-spa` を `apm.yml` の依存（`../rules-hono-react-spa`）で引き込む。利用プロジェクトは引き込まれる側を書かない。APM 0.30.0 では、相対パスの依存は依存元と同じリポジトリの同じ ref から解決され、`apm_modules/<owner>/<repo>/packages/rules-hono-react-spa/` に置かれ、`apm.lock.yaml` に `depth: 2` で記録される（2026-11-18 に確認）。
 
 GitHub の例はこの構成が公開された版に対して有効。ref を固定するなら `tsay-dev/harness/packages/rules-next#<release-tag>` と書き、実在する公開タグに置き換える。依存を変えたら `apm.lock.yaml` と manifest の変更を保存し、CI では `apm install --frozen` を使う。更新は `apm update` で計画を確認して行う。
 

@@ -12,7 +12,7 @@ Next.js（App Router）の UI 表層が対象。対象外なら破棄する。�
 - 既定は Server Component。`"use client"` は `useState` / `useEffect` / browser API / event handler が必要な最小の末端だけに置き、page の根や大きな枝に置かない。
 - `page.tsx` / `layout.tsx` は読み取り配線（`params` / `searchParams` の境界検証 → 既存ユースケース呼び出し → view props への写像）に閉じ、JSX 本体と styling は表示用コンポーネントへ渡す。infrastructure や domain を直接書かない。
 - 不正な入力は `notFound()` などの到達可能な UI で扱う。取得結果の空 / エラー / 権限なしは view props で表す。segment の枠で待つ処理は `loading.tsx` に置き、初回 suspense を `loading` prop と二重に持たない。
-- `"use client"` モジュールが import できるのは、他の Client Component、クライアント内に閉じる UI utility、Server Actions、公開設定値（`NEXT_PUBLIC_`）だけ。ユースケース、infrastructure、サーバーを前提とする domain を import しない。
+- `"use client"` モジュールが読み込むのは、他の Client Component、クライアント内に閉じる UI utility、Server Actions、公開設定値（`NEXT_PUBLIC_`）だけ（止める読み込みは `common-lint`）。
 - 同一アプリ内の更新は Server Action を呼ぶ。Action / Route Handler の本体は backend 側の logic 担当が書き、frontend 側の logic 担当は呼び出しと props の受け渡しに留める。Client が公開 HTTP API を直接叩いて更新しない。
 
 ## 文言と識別子は導出して出力する

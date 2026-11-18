@@ -8,7 +8,7 @@
 ## 束の組み立て
 
 1. `apm_modules/` のインストール済み `develop-core`の `.apm/instructions/*.instructions.md` を列挙します。フレームワークが不明でも共通の末端ファイルは必ず届けます。
-2. 明示的にインストールされた `rules-*` パッケージだけから `.apm/instructions/*.instructions.md` を列挙します。未選択のスタックを外部チェックアウトで探しません。
+2. 明示的にインストールされた `rules-*` パッケージと、それが `apm.yml` の依存で引き込む `rules-*` パッケージ（`apm.lock.yaml` で `resolved_by` を持つもの）だけから `.apm/instructions/*.instructions.md` を列挙します。未選択のスタックを外部チェックアウトで探しません。
 3. 各末端ファイルの frontmatter `applyTo:`（カンマ区切り glob）だけを読みます。
 4. 作成者ごとに、今回の起動でその作成者が作成・編集するパスを列挙し、`applyTo:` が一致する末端ファイルを**すべて**渡します。
 
