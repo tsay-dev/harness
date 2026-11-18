@@ -396,7 +396,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>V5・V7</td><td>本番の組み立てがテストから呼ばれていない。記録に関数ごとの情報（FN / FNDA）が無い（使わないなら <code>coverage.functions</code> を理由付きの none にする。<code>FNF:0</code> だけの記録は、関数ごとの情報がある記録に数えない）</td><td><span class="tag anno">テスト → 本番コード</span></td></tr>
         <tr><td>E1</td><td>アプリが出した一覧の入口が、撤回されていない UC の fixed の契約の、inbound の操作のどれにも合わない（契約に無い入口と、合う操作が fixed でない契約にしか無い入口。認める宣言の手段は無く、生存確認や配信の入口も契約に書く）</td><td><span class="tag anno">入口 → 契約の操作</span></td></tr>
         <tr><td>E2</td><td>fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い</td><td><span class="tag anno">契約の操作 → 入口</span></td></tr>
-        <tr><td>E4</td><td>一覧を読めない（<code>commands.list_entries</code> が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに 0 行、JSON でない行、同じ入口の重複、書式に無い形を含むパス。パラメーターは <code>:name</code> か <code>{name}</code>、何でも受ける部分は <code>*</code> だけを読む）。廃止した設定のキー <code>entries</code> が残っている。E3 は欠番</td><td><span class="tag anno">入口の一覧</span></td></tr>
+        <tr><td>E4</td><td>一覧か、契約の <code>wire.path</code> を読めない（<code>commands.list_entries</code> が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに 0 行、JSON でない行、同じ入口の重複、書式に無い形を含むパス。パラメーターは <code>:name</code> か <code>{name}</code>、何でも受ける部分は <code>*</code> だけを読む）。廃止した設定のキー <code>entries</code> が残っている。E3 は欠番</td><td><span class="tag anno">入口の一覧</span></td></tr>
       </tbody>
     </table>
   </div>

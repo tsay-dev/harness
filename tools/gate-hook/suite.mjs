@@ -10,7 +10,7 @@
 //      3. trace-check                  仕様・コード・テストの ID の紐づき
 //         exec-check entry             テストの入口が、本番と同じ組み立てを呼んでいるか
 //         exec-check entries           commands.list_entries がコマンドでないとき（未宣言・none・形の誤り）は、ここで読むだけの判定をする
-//                                      （none にできるのは、撤回されていない契約に inbound の操作が無い間だけ）
+//                                      （none にできるのは、撤回されていない UC の fixed の契約に inbound の操作が無い間だけ）
 //      commands の宣言の検査（typecheck / lint / test / system は、コマンドか理由付きの none が必須）
 //    level fast 以上
 //      4. commands.list_entries → exec-check entries
@@ -281,7 +281,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 			//  コマンドの後ろに改行を置く（末尾が「# コメント」でも、閉じ括弧とリダイレクトがコメントに飲まれない）。
 			//  「a | b」の左側の失敗を見逃さないよう、シェルが対応していれば pipefail を付ける（対応していないシェルで
 			//  set -o pipefail をそのまま実行すると、シェルごと止まるので、先にサブシェルで試す）。
-			//  対応していないシェル（古い dash など）では、左側の失敗は終了コードに出ない。空や途中までの一覧は、E2・E4 が見る
+			//  対応していないシェル（古い dash など）では、左側の失敗は終了コードに出ない。fixed の契約に inbound の操作があれば、空の一覧は E4、途中までの一覧は E2 が見る（無い間は、空の一覧も通る）
 			const wrapped = posix
 				? `(set -o pipefail) 2>/dev/null && set -o pipefail\n(\n${listCmd}\n) > ${q(listFile)}`
 				: `(${listCmd}) > ${q(listFile)}`;

@@ -593,3 +593,77 @@ test("撤回済みの REQ に撤回の理由（note）が無ければ warn", () 
 	assert.match(r.out, /warn .*REQ-900: withdrawn なのに撤回の理由（- note:）が無い/);
 	assert.doesNotMatch(validate({ hostFiles: shortUc("withdrawn", "withdrawn") }).out, /撤回の理由/);
 });
+
+//  ---- 呼ばれる側の http の操作の wire.path（入口の一覧と同じ読み方。tools/_shared/entry-path.mjs） ----
+
+const httpContract = ({ status = "draft", direction = "inbound", path }) => `x-uc: UC-001
+x-status: ${status}
+x-spec: ./UC.md
+x-updated: 2026-09-01
+
+operations:
+  doThing:
+    transport: http
+    direction: ${direction}
+    owned: true
+    auth: none
+    summary: ものを作る
+    wire:
+      method: POST
+      path: ${path}
+      success: 200
+    errors: []
+`;
+
+const UNREADABLE_WIRE_PATHS = ["/v1/items/{id}:cancel", "/files/{name}.json", "/@{user}", "/hooks/:id?", "/a/[...slug]", "/a/{*splat}", "/a/:rest{.+}", "/a/{path:path}", "/a/x*"];
+for (const path of UNREADABLE_WIRE_PATHS) {
+	test(`契約: inbound の http の操作の wire.path が書式に無い形（${path}）なら、draft の段階から err`, () => {
+		const r = validate({ contract: httpContract({ path: JSON.stringify(path) }) });
+		assert.equal(r.status, 1, r.out);
+		assert.ok(r.out.includes(`operations.doThing: wire.path が、入口の一覧と突き合わせる書式に無い形を含む: ${path}（パラメーターは、/ で区切った区分の全体を :name か {name} と書く`), r.out);
+	});
+}
+
+test("契約: 書式どおりの wire.path（{id}、:id、名前に - を含むパラメーター、*、固定の文字列）は通る。outbound の操作のパスは検査しない", () => {
+	for (const path of ["/things", "/things/{id}", "/things/:id", "/things/{thing-id}/parts/{part_id}", "/assets/*", "/api/v1.0/a-b/c_d/~e", "/"]) {
+		const r = validate({ contract: httpContract({ path: JSON.stringify(path) }) });
+		assert.equal(r.status, 0, `${path}\n${r.out}`);
+	}
+	//  外の API を呼ぶ側のパスは、相手の書き方のまま写す（入口の一覧とは突き合わせない）
+	const out = validate({ contract: httpContract({ direction: "outbound", path: '"/v1/items/{id}:cancel"' }) });
+	assert.equal(out.status, 0, out.out);
+});
+
+test("convert: OpenAPI から inbound で写したパスも、同じ検査に掛かる（書式に無い形は validate で err）", () => {
+	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
+	try {
+		writeMinimalDocs(root);
+		const openapi = `openapi: 3.0.0
+info: { title: t, version: "1" }
+paths:
+  /files/{name}.json:
+    get:
+      operationId: getFile
+      summary: ファイルを返す
+      security: []
+      parameters:
+        - { name: name, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { type: object, properties: { id: { type: integer } } }
+`;
+		writeFileSync(join(root, "openapi.yaml"), openapi);
+		const out = join(root, "docs/goals/GOAL-01-a/UC-001-b/contract.yaml");
+		const c = runNode(SPEC_LINT, ["convert", join(root, "openapi.yaml"), "--uc", "UC-001", "--direction", "inbound", "--out", out], { cwd: root });
+		assert.equal(c.status, 0, c.stdout + c.stderr);
+		assert.match(readFileSync(out, "utf8"), /path: "?\/files\/\{name\}\.json"?/);
+		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		assert.equal(r.status, 1, r.stdout + r.stderr);
+		assert.match(r.stdout + r.stderr, /operations\.getFile: wire\.path が、入口の一覧と突き合わせる書式に無い形を含む: \/files\/\{name\}\.json/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

@@ -35,7 +35,7 @@ SwiftUI の iOS アプリで、harness のひな形 `harness.config.json` から
 }
 ```
 
-- `commands` の例は `list_entries` だけを示す（ほかのキーはひな形に続けて書く）。アプリが呼ぶ側の操作（outbound）しか契約に無い間は none でよい。deeplink / push を inbound の操作として契約に書くと none は通らない。そのときは、受信を登録している 1 か所（URL の対応表、通知の種別の enum）から `{"kind":"deeplink","name":"<契約の entry>"}` / `{"kind":"push","name":"<契約の entry>"}` を 1 行ずつ出すコマンドにする。
+- `commands` の例は `list_entries` だけを示す（ほかのキーはひな形に続けて書く）。アプリが呼ぶ側の操作（outbound）しか契約に無い間は none でよい。deeplink / push を inbound の操作に持つ契約を fixed にすると、none は通らない。そのときは、受信を登録している 1 か所（URL の対応表、通知の種別の enum）から `{"kind":"deeplink","name":"<契約の entry>"}` / `{"kind":"push","name":"<契約の entry>"}` を 1 行ずつ出すコマンドにする。
 - 実行の記録（`coverage`）は、`xcodebuild` の計測結果を lcov（関数ごとの `FN` / `FNDA` を含む）に変換して書き出す。確かめる範囲は Domain の `<Operation>UseCase`（[共通のテスト規則](common-testing.instructions.md)の主戦場。`coverage.scope` に `Features/*/Domain/**`）。Presentation は UI テストで確かめるので、範囲の外に置く。
 - テストの印は XCTest の `func test…(` と、Swift Testing の `@Test … func …(`（属性と `func` を 1 行に書く）。`@covers` は本体の先頭行に置くので `after`。
 - 保留は `XCTSkip` と Swift Testing の `.disabled`。本体の `throw XCTSkip` はテストの窓の外なので、そのファイルの全テストが保留とみなされる。

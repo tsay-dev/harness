@@ -29,7 +29,7 @@ Expo（expo-router）のアプリで、harness のひな形 `harness.config.json
 }
 ```
 
-- `commands` の例は `list_entries` だけを示す（ほかのキーはひな形に続けて書く）。アプリが呼ぶ側の操作（outbound）しか契約に無い間は none でよい。deeplink / push を inbound の操作として契約に書くと none は通らない。そのときは、受信を登録している 1 か所（deeplink の対応表、通知の種別の一覧）から `{"kind":"deeplink","name":"<契約の entry>"}` / `{"kind":"push","name":"<契約の entry>"}` を 1 行ずつ出すスクリプトにする。
+- `commands` の例は `list_entries` だけを示す（ほかのキーはひな形に続けて書く）。アプリが呼ぶ側の操作（outbound）しか契約に無い間は none でよい。deeplink / push を inbound の操作に持つ契約を fixed にすると、none は通らない。そのときは、受信を登録している 1 か所（deeplink の対応表、通知の種別の一覧）から `{"kind":"deeplink","name":"<契約の entry>"}` / `{"kind":"push","name":"<契約の entry>"}` を 1 行ずつ出すスクリプトにする。
 - 実行の記録（`coverage`）で確かめる範囲は、契約の操作と同名の関数を export する module（[テストの接続](common-testing.instructions.md)の操作 → 入口。例では `coverage.scope` に `src/features/*/api/**`）。route、コンポーネント、hook、store は Maestro のシナリオで確かめるので、範囲の外に置く。
 - `@covers` はテスト本体の先頭行に置くので `after`。
 - シナリオ flow は YAML なので `#` を行コメントとして読む `comment_pattern` を置く。テストの印は flow の最上位の `name:` で、`# @scenario` はその直上の行（[システムテスト](system-testing.instructions.md)）。`pending` tag の flow は保留で、被覆に数えない。

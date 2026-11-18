@@ -10,6 +10,7 @@ harness の検査ツールが共有する、依存なしの Node モジュール
 | `frontmatter.mjs` | frontmatter のパーサー。曖昧な書き方（先頭が空白の行、キーの重複、区切りもどき、閉じ忘れ、`キー: 値` でない行）を `problems` として返し、spec-lint が違反にする | spec-lint / trace-check / gate-hook |
 | `config.mjs` | 設定ファイルの名前（`harness.config.json`）、古い名前（`traceconfig.json`）のファイルだけが残っているときの案内、ひな形に値を置けない任意の最上位キーの一覧。古い名前のファイルは読まない（ADR-0064） | trace-check / spec-lint / git-lint / contract-run / gate-hook / stop-gate / config-lint |
 | `reqs.mjs` | `UC.md` の「要件」の節に書かれた REQ の読み方（ADR-0067）。小節から、検査ツールが読む形の REQ の文書を組み立てる。REQ の文書を小節に直す変換（移行のスクリプトが使う） | spec-lint / trace-check / gate-hook / docs-migrate |
+| `entry-path.mjs` | 入口のパスの書式の読み方（パラメーターは区分の全体が `:name` か `{name}`、何でも受ける部分は `*`）と、deeplink の名前の読み方。入口の一覧と契約の `wire.path` を同じ読み方で読む（ADR-0070） | exec-check / spec-lint |
 | `glob.mjs` | 最小の glob（`**` `*` `?`、先頭の `!` で除外）。固定パスはそのファイルか配下を指す。パスはリポジトリ直下からの相対パス（区切りは `/`） | trace-check / gate-hook |
 
 - 各ツールは `../_shared/` を相対パスで import する。ツールのディレクトリだけを写す配置では、`_shared/` も一緒に写す。

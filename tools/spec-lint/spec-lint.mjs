@@ -45,6 +45,7 @@ import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mj
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { ENTRY_PATH_FORM, normEntryPath } from "../_shared/entry-path.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -646,6 +647,10 @@ function validateContract(file, text, dirId, xKeys, shared) {
 				for (const k of ["method", "path", "success"])
 					if (wire[k] === undefined || wire[k] === null)
 						err(fieldAt("wire"), `${label}: wire.${k} が無い`);
+				//  呼ばれる側の操作のパスは、アプリが出す入口の一覧と突き合わせる（exec-check entries）。一覧と同じ読み方で読めない形は、
+				//  どの入口とも合わない。fixed にした後で分かると、直すのに降格と再承認が要るので、draft の段階から止める
+				if (direction === "inbound" && typeof wire["path"] === "string" && normEntryPath(wire["path"]) === null)
+					err(at(lineOf(wire, "path") || lineOf(op, "wire")), `${label}: wire.path が、入口の一覧と突き合わせる書式に無い形を含む: ${wire["path"]}（${ENTRY_PATH_FORM}。区分の一部だけがパラメーターの形は、区分の全体をパラメーターにして書き直す。例: /files/{name}.json → /files/{name}、/items/{id}:cancel → /items/{id}/cancel）`);
 			}
 		} else if (wire !== undefined) {
 			err(fieldAt("wire"), `${label}: transport が ${transport} なのに wire がある（wire は http 専用）`);
