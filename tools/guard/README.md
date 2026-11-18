@@ -36,7 +36,9 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 | `.claude/settings*.json` と、`.codex/` `.cursor/` `.grok/` `.agents/` 直下の `*.json` / `*.toml`（hook の設定。プロジェクト外のユーザー設定 `~/.claude/settings.json` なども） | 人間の承認を求める | あり（`ask` / `hook-settings`） |
 | `.github/workflows/**` | 人間の承認を求める | あり（`ask` / `workflow`） |
 | `docs/` 配下で status の降格（`active` / `fixed` / `living` / `frozen` から、それ以外の値・status 行の削除・引用符を付けた値などの語彙の外の値へ）と、判定中の例外 | 人間の承認を求める。検査の義務を減らすため。契約の `x-status` は共有の厳格 YAML パーサーで読む（他のツールと同じ値） | あり（`ask` / `status-down`） |
-| アクター表（harness.config.json の `docs.actors`、無ければ `docs/02-actors.md`）で人間のアクターを削除する、種別を「システム」に変える、または active な `UC.md` の `actor:` を変える | 人間の承認を求める。シナリオテスト（C15）の義務を減らすため | あり（`ask` / `actor-kind`） |
+| 概要（`<docs>/00-overview.md`）のアクター表で人間のアクターを削除する、種別を「システム」に変える、または active な `UC.md` の `actor:` を変える | 人間の承認を求める。シナリオテスト（C15）の義務を減らすため | あり（`ask` / `actor-kind`） |
+| 概要の GOAL の表から行を消す（status によらず）、active の行を active でなくする | 人間の承認を求める。降格と同じく検査の義務を減らすため（ADR-0076） | あり（`ask` / `status-down`） |
+| 概要の全体の方針の小節の本文を変える（未記入→記入、記入→別の文、記入→未記入。概要の status によらず） | 人間の承認を求める。UC の並行性・外部依存の行を省けるかを、すべての UC について一度に変えるため（ADR-0076） | あり（`ask` / `overview-policy`） |
 | `verification/DEFERRED.md`（保留の一覧。`--docs` の場所によらず、monorepo の unit 配下も含む）を新しく作る、`frozen_at` を変える、行を足す（行を消すだけの書き込みは対象外）と、判定中の例外 | 人間の承認を求める。一覧は凍結済みで、足せば未決を持ち越せるため（ADR-0068） | あり（`ask` / `deferred`） |
 | `docs/` 配下で `UC.md` の `active`、契約の `fixed` への昇格（新規作成で書く場合も） | 人間の承認を求める。実装着手ゲートを開ける人間ゲートを agent が自力で開けないため | あり（`ask` / `status-up-gate`） |
 | `docs/` 配下でそれ以外の昇格（REQ / BR / NFR / GOAL の `draft` → `active`、単一文書の `draft` → `living` / `frozen`）と、status を持つ新規作成 | 許可 | あり（`pass` / `status-up`） |

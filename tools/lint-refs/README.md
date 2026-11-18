@@ -56,7 +56,7 @@ none が通るのは、それを求める active な文書・fixed な契約が�
 | `nfr_pattern` | 任意（既定 `@covers\s+(NFR-\d{3})(?!\d)`） | NFR を検証するテストの注釈 | C11 / C20 |
 | `comment_pattern` | 任意（既定 `^\s*(?:\/\/|\/\*|\*|#|--|@|<!--)`） | コメント行の印。各セクションで上書きできる | 注釈を数えるすべて |
 | `docs.goals_dir` / `rules_dir` / `nfr_dir` / `adr_dir` | 必須 / 不可 | docs の木と横断文書の場所 | 全体 |
-| `docs.actors` / `docs.vision` | 必須 / 可 | アクター表、KPI 表 | C15 / C18 |
+| `docs.overview` | 必須 / 可 | 1 枚の概要（GOAL の表、アクター表、KPI 表）。書けるのは `<docs>/00-overview.md`（docs は `docs.goals_dir` の親）か none だけ（ADR-0076） | C8 / C9 / C12 / C15 / C18 |
 | `docs.glossary` | 必須 / 可 | 用語集 | C25 |
 | `docs.shared` | 必須 / 可 | 共有語彙（`errorCodes`） | C7 / C24 |
 | `source` | 必須 / 可 | 本番コード。子: `dirs`・`extensions`（必須）、`comment_pattern`（任意）。注釈は読まない。用語集の識別子を探す範囲（C25）と層の拡張子（C6）に使い、lint coverage の実行の記録の検査も同じ範囲を読む | C6 / C25 |
@@ -91,8 +91,9 @@ active な文書・fixed な契約は「義務」を生む。義務がある範�
 | fixed 契約の owned の操作に `errors` | `contract` |
 | 撤回されていない契約に `errors` | `contract`、`docs.shared` |
 | `enforced_at` が database の active な BR | `schema`、`tests`、`tests.pending_pattern` |
-| active な GOAL / UC が `ACT-nn` を持つ | `docs.actors` |
-| active な GOAL が `KPI-nn` を持つ | `docs.vision` |
+| active な GOAL / UC が `ACT-nn` を持つ | `docs.overview` |
+| active な GOAL が `KPI-nn` を持つ | `docs.overview` |
+| GOAL のフォルダ（UC）がある | `docs.overview` |
 
 - 義務がある `tests`（`test_pattern`）、`tests.system`（`system.test_pattern`）の一致 0 件も違反（範囲か印の正規表現の書き損じ）。
 - 宣言した**固定パス**（glob を含まないパス）が無いとき: active な UC があるか、そのキーに義務があれば違反
@@ -160,15 +161,15 @@ C5・C14・C19・C21・C23・C27 は欠番。実装とスキーマの注釈（`@
 | C6 | 層が禁止された層を import する（設定の `layering`。`layer_pattern` が層のパス階層を指定し、`{layer}` = `root` 配下の第一階層、`*/{layer}` = 第二階層、例: `Features/<name>/Domain`）。C6 は `import_patterns` だけを見る。同じモジュールに層があり互いに import しない言語（単一モジュール Swift アプリ）では一致対象がなく、正常な C6 は沈黙であり証明ではない。代わりにプラットフォーム linter で方向を保証し、`layering` は省略する | R-702 |
 | C7 | 実装のエラーコード（`contract.error_source` の `error_code_pattern` の一致）が `docs.shared` の `errorCodes` の部分集合ではない | R-703 |
 | C8 | `active` GOAL を実現する UC がない | — |
-| C9 | 配置と frontmatter が不一致: ディレクトリ接頭辞 ≠ `id`、`GOAL.md` / `UC.md` 欠落、`REQ-nnn.md` が残っている（REQ は `UC.md` の「要件」の節に書く。ADR-0067）、「要件」の節の書き方の誤り（節の外の `### REQ-nnn`、節が 2 つ、書けない項目）、UC の `goal:` ≠ そのディレクトリ。goals 配下で検査の対象にならない文書（`_shared` 以外の `_` ディレクトリ、`id` を持つのに配置に無い md）も違反 | R-1006 / R-1007 |
+| C9 | GOAL のフォルダと概要の GOAL の行の対応（行が無い、行が `planned`、同じ GOAL のフォルダが 2 つ、`docs.overview` が none）、概要へ移した古い文書（`00-vision.md`・`02-actors.md`・`goals-backlog.md`・`GOAL.md`。frontmatter の id でも見つける）の残り、概要の表の読めない行。配置と frontmatter が不一致: ディレクトリ接頭辞 ≠ `id`、`UC.md` 欠落、`REQ-nnn.md` が残っている（REQ は `UC.md` の「要件」の節に書く。ADR-0067）、「要件」の節の書き方の誤り（節の外の `### REQ-nnn`、節が 2 つ、書けない項目）、UC の `goal:` ≠ そのディレクトリ。goals 配下で検査の対象にならない文書（`_shared` 以外の `_` ディレクトリ、`id` を持つのに配置に無い md）も違反 | R-1006 / R-1007 |
 | C10 | 宣言された分割クラスに保留でないテストがない、または `active` REQ がクラスを一つも宣言しない（下限） | R-1101 / R-1104 |
 | C11 | テストがクラスを指定しない、または未宣言のクラスを指定する（生成テストの上限）。`tests.test_pattern` に一致する `tests.dirs` の全テストに窓の `@covers`（REQ のクラス、NFR、BR のどれか）を求め、REQ の `@covers` が 2 つ以上のテストと、どのテストにも属さない `@covers`、シナリオテストに書かれた `@covers BR-nnn` も違反。仕様を持たないテスト（技術部品の自己検査）は `tests.dirs` の外に置く（ADR-0055） | R-1102 / R-1103 |
 | C12 | 同じ ID が複数ファイルで定義される（採番衝突） | R-204 |
 | C13 | `enforced_at` が DB を指定する `active` BR に、保留でないテストの `@covers BR-nnn` がない（規則に反する行を DB に直接入れて断られることを確かめるテスト） | R-704 |
-| C15 | 人間アクターの `active` UC（`docs.actors` 表の `種別` が `システム` で始まるもの以外。表にないアクターも人間と数える）に、保留でない `@scenario UC-nnn` のシナリオテスト（`tests.system`）がない。`@scenario` が存在しない・撤回済みの UC を指す場合、`tests.system.test_pattern` に一致する `@scenario` の無いテスト、どのテストにも属さない `@scenario` も違反。「UC ごとに一つ、成功経路のみ」は reviewer が確認する | R-1106 / R-1107 |
+| C15 | 人間アクターの `active` UC（`docs.overview` のアクター表の `種別` が `システム` で始まるもの以外。表にないアクターも人間と数える）に、保留でない `@scenario UC-nnn` のシナリオテスト（`tests.system`）がない。`@scenario` が存在しない・撤回済みの UC を指す場合、`tests.system.test_pattern` に一致する `@scenario` の無いテスト、どのテストにも属さない `@scenario` も違反。「UC ごとに一つ、成功経路のみ」は reviewer が確認する | R-1106 / R-1107 |
 | C16 | `active` UC / REQ の本文（frontmatter の `br:` を含む）が、定義されていない、`draft` の、または撤回済みの BR を参照する（C4 の逆方向。ADR-0052） | R-203 |
 | C17 | `active` UC の「## 状態 × イベント表」「## 例外系の走査」の節と、その UC に属する REQ が 1 対 1 に対応しない: 表が未定義・撤回済みの REQ や別の UC の REQ を指す、REQ（`withdrawn` を除く）が表のどのセルからも導出されていない、または `active` / `draft` の REQ が 1 件も無い | R-404 |
-| C18 | `active` GOAL の `actor` / `origin`、`active` UC の `actor` が、`docs.actors` の表（`ACT-nn`）または `docs.vision` の KPI 表（先頭セルが `KPI-nn` の行）に無い | R-203 |
+| C18 | `active` GOAL の `actor` / `origin`、`active` UC の `actor` が、`docs.overview` のアクター表（`ACT-nn`）または KPI の表（`ID` の列が `KPI-nn` の行）に無い | R-203 |
 | C20 | `active` NFR が、保留でないテスト（`tests` と `tests.system`）の `@covers NFR-nnn`（`nfr_pattern`）も、条件を満たす `measured_by` も持たない。`measured_by` はリポジトリ内のファイル（URL・絶対パス・リポジトリ外・ディレクトリは違反）で、`docs.*` で宣言した文書（4 つのディレクトリ、`verification_global` / `verification_deferred`、`shared`、`actors`、`vision`、`glossary` など）の外にあり、中にその NFR の ID が現れること（検証しない範囲の置き場である `GLOBAL.md` は計測の所在にならない）。テストが存在しない・撤回済みの NFR を `@covers` する場合と、どのシナリオテストにも属さない `@covers` も違反（ADR-0054） | R-104 |
 | C22 | `active` BR に、`br:` に持つ `active` REQ も、保留でないテストの `@covers BR-nnn` も無い（規則を確かめるテストに辿れない） | R-105 |
 | C24 | 撤回されていない契約が 1 件以上あるとき、`docs.shared` の `errorCodes` のコードが、どの契約の `errors` でも使われていない（C7 の逆方向） | R-703 |

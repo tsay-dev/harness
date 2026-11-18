@@ -13,28 +13,26 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-101 (MUST)** 事実の本文はリポジトリ内のちょうど 1 箇所にあり、ほかは ID またはパスで参照します。
 - **R-102 (MUST)** 機械可読にできる事実（型、スキーマ、制約、定数、設定）の SSOT を文書にしません。文書は存在と意図だけを持ち、値と構造はコード、DB、契約に置きます。
 - **R-103 (MUST)** 参照は下流 → 上流の一方向です。上流文書は下流を列挙せず、逆引きは `harness lint refs` が導出します。
-- **R-104 (MUST)** 検証手段（テスト、検査、計測）のない文を要件やルールにしません。検証できなければ方針として vision か ADR の Context に置きます。
+- **R-104 (MUST)** 検証手段（テスト、検査、計測）のない文を要件やルールにしません。検証できなければ方針として概要（`00-overview.md`）か ADR の Context に置きます。
 - **R-105 (SHOULD)** 同じ文が 2 つの UC に現れたら BR へ抽出します。active な BR は、少なくとも 1 つの active な REQ の `br:` から参照します（C22。規則を REQ のテストで検証する）。
 
 ## 2. ID の文法
 
 - **R-201 (MUST)** ID は不変、内容は変更可能です。廃止は `status: withdrawn` であり削除ではありません。撤回した文書は、frontmatter（必須の項目は撤回済みでも全部要る）・題・撤回の理由（REQ は `- note:`、ほかは本文の 1 文。決定の記録があれば番号を添える）と、REQ・NFR・GOAL なら元の要件文の 1 文だけの短い形にします。効いていた頃の節（検証方針、状態 × イベント表、例外系の走査など）は残しません（経緯は git と ADR が持つ）。
 - **R-202 (MUST)** `GOAL-nn` / `UC-nnn` / `REQ-nnn` / `BR-nnn` / `NFR-nnn` / `ADR-nnnn` / `ACT-nn` / `KPI-nn`。番号は再利用しません。桁幅は `harness.config.json` で変えます。
-- **R-203 (MUST)** 1 ID に 1 ファイル、frontmatter の `id:` に宣言します（例外は `goals-backlog.md` の `###` 見出しと ACT / KPI 表だけ）。本文に現れるほかの ID は参照で、参照先の定義は C16（BR）・C17（REQ）・C18（ACT・KPI）が検査します。
+- **R-203 (MUST)** 1 ID に 1 ファイル、frontmatter の `id:` に宣言します（例外は概要の GOAL・ACT・KPI の表の行だけ）。本文に現れるほかの ID は参照で、参照先の定義は C16（BR）・C17（REQ）・C18（ACT・KPI）が検査します。
 - **R-204 (MUST)** 採番は `node "${HARNESS_ROOT}/bin/harness.mjs" next-id <goal|uc|req|br|nfr|adr>`（原子的な予約。`--reserve N` で連番、`next-id req` は UC 表が予約した ID も数える）。二重定義は C12 が検出します。
 - **R-205 (MUST)** 数値部は固定幅のゼロ埋めです。番号に所属や分類を埋め込みません（所属は frontmatter、R-1007）。
 
 ## 3. 各文書に書いてよいもの
 
-- **R-301 (MUST)** GOAL は What（アクターが目指す達成後の状態・成果）を定義します。操作、機能の利用、実装手段を目的に置き換えません。手段を別のものに替えても同じ達成状態を指す文にします。未着手の backlog にも適用します。
+- **R-301 (MUST)** GOAL は What（アクターが目指す達成後の状態・成果）を定義します。操作、機能の利用、実装手段を目的に置き換えません。手段を別のものに替えても同じ達成状態を指す文にします。未着手（`planned`）の行にも適用します。
 - **R-302 (MUST)** UC は GOAL に至る How（アクターとシステムの観測可能なやり取りによる達成手段）を定義します。成功時の事後条件が `goal:` の状態の実現にどう寄与するかを示します。ここでの How は利用・業務のシナリオであり、アルゴリズム、技術選定、画面構造などの実装設計ではありません。意味の適合は文書とレビューによる説得的統制です（R-301 ともに R-901）。
 
 | 文書 | 書くもの (MUST) | 書かないもの (MUST NOT) |
 | --- | --- | --- |
-| `00-vision.md` | 課題、対象者、計測可能な成功指標（KPI）、対象外 | 機能一覧、画面、技術選定 |
+| `00-overview.md` | 課題、計測可能な成功指標（KPI の表）、actor の閉じた集合（`ACT-nn`、システム actor を含む。種別は「人間」か「システム」で始め、「システム」で始まる actor だけが人間でない。lint spec / C15）、GOAL の表（R-301 の達成状態を actor の言葉で 1 文、actor、KPI、status、備考。任意で domain）、全体の方針（並行性・外部依存に共通する決めごと）、対象外 | 機能一覧、画面、技術選定、達成手段、配下 UC の一覧（R-103） |
 | `01-glossary.md` | 用語、1 文の定義、コード識別子（active な仕様が使う語はコードに存在すること。C25）、禁止同義語 | クラス設計、テーブル定義 |
-| `02-actors.md` | actor の閉じた集合（`ACT-nn`、システム actor を含む。種別は「人間」か「システム」で始め、「システム」で始まる actor だけが人間でない。lint spec / C15） | goal を実現する UC（R-103） |
-| `GOAL.md` / `goals-backlog.md` | R-301 の達成状態を actor の言葉で 1 文、`actor`、`origin`（KPI）、`domain`（R-1009。backlog の書式はテンプレート） | 達成手段、操作手順、配下 UC の一覧 |
 | `UC.md` | R-302 のシナリオ、状態 × イベント表、事前・事後条件、BR の**参照** | 実装設計、BR 本文、REQ 本文、導出 REQ の一覧、契約のエラー評価順序（R-1207） |
 | `UC.md` の「要件」の節の `### REQ-nnn` | 項目（`pattern`、`br`、`status`）、EARS 1 文、検証方針 | 実装手段、UI 詳細、テストケースの内容 |
 | `BR-nnn.md` | ルールの存在、意図、`enforced_at` | 参照元、機械可読にできる値（R-102）、契約のエラー評価順序（R-1207） |
@@ -54,7 +52,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 ## 5. ユースケース
 
 - **R-501 (MUST)** 状態 × イベント表のすべてのセルを埋め、不可能なセルには `不可` と理由を書きます（lint spec）。
-- **R-502 (MUST)** 主シナリオの各ステップを権限、不変条件違反、並行性、外部依存の 4 分類で走査します（lint spec）。
+- **R-502 (MUST)** 主シナリオの各ステップを権限、不変条件違反、並行性、外部依存の 4 分類で走査します（lint spec）。並行性と外部依存の行は、概要の全体の方針の 3 つの小節が埋まり概要が `living` のときだけ省けて、省いた行は方針どおりと読みます。方針と違う振る舞いは、導出の欄に「方針の例外（<小節の見出し>）: <代わりに許すこと>。理由: <理由>」と REQ を書きます。
 - **R-503 (SHOULD)** UC は「一度の着席で完了する価値の単位」です。login / logout に細分化しません。
 
 ## 6. 検証
@@ -85,15 +83,15 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 ## 10. ファイル粒度と配置
 
-- **R-1001 (MUST)** GOAL / UC / BR / NFR / ADR は 1 ID に 1 ファイルです。REQ は、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節（`### REQ-nnn`）として書きます。ファイル名は ID（ノードファイルは `GOAL.md` と `UC.md`、ADR は `ADR-nnnn-<slug>.md`）。
+- **R-1001 (MUST)** UC / BR / NFR / ADR は 1 ID に 1 ファイルです。GOAL は概要（`00-overview.md`）の GOAL の表の 1 行で、status は `planned`（未着手）| `draft` | `active` | `withdrawn` です（ADR-0076）。REQ は、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節（`### REQ-nnn`）として書きます。ファイル名は ID（ノードファイルは `UC.md`、ADR は `ADR-nnnn-<slug>.md`）。
 - **R-1002 (MUST)** REQ の検証方針は、その REQ の小節の中の `#### 検証方針` に置きます（C2）。プロジェクト全体の除外だけを `docs/verification/GLOBAL.md` に置きます。
 - **R-1003 (MUST)** 索引は生成し、コミットしません（`harness index`）。
 - **R-1004 (MUST)** ディレクトリ全体の読み取りを既定にせず、参照（UC の `goal:`、REQ の `br:`）から読むものを決めます。
 - **R-1005 (SHOULD)** 1 ファイルはおおむね 100 行以下です。超えたら分割するか、値を機械可読にします。
 - **R-1006 (MUST)** GOAL → UC → REQ は木なので、`docs/goals/<GOAL-nn-slug>/<UC-nnn-slug>/` に `UC.md`（REQ は `UC.md` の「要件」の節に小節として書く。ADR-0067）と `contract.yaml` を置き、横断領域（BR / NFR / ADR / glossary / `_shared`）は `docs/` 直下に集約します。
 - **R-1007 (MUST)** 所属の SSOT は frontmatter で、ディレクトリは配置です。一致は C9 が検査し、再構成時は先に frontmatter を更新します。
-- **R-1008 (SHOULD)** 未着手 goal は `docs/goals-backlog.md` に置き、着手時にディレクトリへ昇格します。
-- **R-1009 (MUST)** vision に複数ドメインがあれば、各 goal は `domain:`（backlog は `- **ドメイン**:` 行）で所属を宣言し、許容値の閉じた集合は `00-vision.md` が持ちます。
+- **R-1008 (SHOULD)** 未着手 goal は概要の GOAL の表に `planned` の行で置き、着手したら行を `draft` にして `docs/goals/<GOAL-nn-slug>/` を切ります（`planned` の行にはフォルダを置かない）。
+- **R-1009 (MUST)** 概要の課題が複数ドメインにわたるなら、GOAL の表に任意の列「ドメイン」を足して各行の所属を宣言し、許容値の閉じた集合は概要が持ちます。
 - **R-1010 (MUST)** 利用プロジェクトの作業指針（`docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md`）は地図です。構成、層の向き、命名規則、`harness.config.json` に置けない逸脱、正本へのリンクだけを持ち、コード・設定・テストに正本がある事実（部品の振る舞い、環境変数、フェイクの使い方）と人の運用手順（README へ）を写しません。150 行以下（lint spec）。REQ を持たない技術部品の振る舞いの正本は、その単位の doc comment です（ADR-0051）。
 
 ## 11. 分割クラス（テスト生成の下限と上限）

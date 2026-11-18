@@ -16,6 +16,7 @@
 import { existsSync, mkdirSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { splitUc } from "../_shared/reqs.mjs";
+import { specDirs } from "../_shared/spec-tree.mjs";
 import { DOC_PATHS, collectDefinitions, lookup, openProject, p, read, usage, useCommandName, walk } from "../_shared/refs.mjs";
 
 const NAME = "next-id";
@@ -62,10 +63,13 @@ function withLock(root, fn) {
 
 function usedNumbers(cfg, kind, prefix) {
 	const nums = new Set(Object.keys(collectDefinitions(cfg)).filter((i) => i.startsWith(prefix)).map((i) => Number(i.split("-")[1])));
-	//  backlog の ### 見出し定義も採番対象（R-203 の例外）
-	const backlog = typeof lookup(cfg, "docs.goals_backlog") === "string" ? p(cfg, "docs.goals_backlog") : null;
-	if (kind === "goal" && backlog && existsSync(backlog))
-		for (const x of read(backlog).matchAll(/^###\s+GOAL-(\d+)/gm)) nums.add(Number(x[1]));
+	//  GOAL の番号は概要の GOAL の表の行（collectDefinitions。planned・withdrawn も含む）と、GOAL のフォルダの名前から数える
+	//  （行を消し忘れたフォルダの番号も使い回さない。ADR-0076）
+	if (kind === "goal")
+		for (const d of specDirs(p(cfg, "docs.goals_dir")).dirs) {
+			const m = /^GOAL-(\d+)/.exec(basename(d));
+			if (m) nums.add(Number(m[1]));
+		}
 	//  UC.md の状態 × イベント表が予約した REQ ID は、ファイルがまだ無くても使用済み
 	if (kind === "req")
 		for (const f of walk(p(cfg, "docs.goals_dir"), [".md"]))
@@ -134,6 +138,8 @@ function main() {
 	if (!KINDS.includes(opts.kind.toLowerCase())) usage(`種類は ${KINDS.join("|")} のいずれか`);
 	if (!Number.isInteger(opts.reserve) || opts.reserve < 1) usage("--reserve: 1 以上の整数");
 	if (DOC_PATHS.some((k) => typeof lookup(cfg, k) !== "string")) return declError();
+	//  GOAL の ID は概要の行で定義するので、概要が無ければ採番の根拠が無い
+	if (opts.kind.toLowerCase() === "goal" && typeof lookup(cfg, "docs.overview") !== "string") usage("goal の採番には docs.overview（<docs>/00-overview.md）の宣言が要る（GOAL の ID は概要の GOAL の表の行で定義する / ADR-0076）");
 	console.log(nextIds(cfg, opts.kind, opts.reserve).join("\n"));
 	return 0;
 }

@@ -3,12 +3,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
+import { foldOverview } from "../../_shared/test/fold-overview.mjs";
 import { toolOf, fm, U, project, br, UC_WITH_BR } from "../../_shared/test/refs-linked-fixture.mjs";
 
 const run = (root, ...args) => {
 	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
+	foldOverview(root); //  入力の 00-vision.md・02-actors.md・GOAL.md を 00-overview.md に畳む（ADR-0076）
 	return spawnSync("node", [toolOf("lint-refs"), "--root", root, ...args], { encoding: "utf8" });
 };
 
@@ -334,10 +337,10 @@ test("テンプレートの既定の印: テストのデータの skip: true は
 	assert.doesNotMatch(w, /どのテストにも属さない/);
 });
 
-test("設定エラー（exit 2）: docs.actors / vision がディレクトリ", (t) => {
-	const r = run(project(t, { configure: (cfg) => (cfg.docs.vision = "docs/adr") }));
+test("設定エラー（exit 2）: docs.overview は <docs>/00-overview.md か none だけ（ADR-0076）", (t) => {
+	const r = run(project(t, { configure: (cfg) => (cfg.docs.overview = "docs/adr/overview.md") }));
 	assert.equal(r.status, 2, r.stdout + r.stderr);
-	assert.match(r.stderr, /docs\.vision はファイルにする/);
+	assert.match(r.stderr, /docs\.overview は docs\/00-overview\.md（docs のフォルダ直下の 00-overview\.md）か、理由付きの none にする/);
 });
 
 //  ---- 最終の再検証で見つかった退行の回帰（改行した呼び出しの頭をつなげてから印を当てる） ----
@@ -356,8 +359,14 @@ test("改行したテストの { skip: true } と { todo: true } は保留、本
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
-test("設定エラー（exit 2）: docs.actors がディレクトリでもクラッシュしない", (t) => {
-	const r = run(project(t, { configure: (cfg) => (cfg.docs.actors = "docs/rules") }));
+test("設定エラー（exit 2）: 廃止した docs.vision・docs.actors・docs.goals_backlog が残っていれば、移し方を案内する（ADR-0076）", (t) => {
+	const root = project(t);
+	foldOverview(root);
+	const file = join(root, "harness.config.json");
+	const cfg = JSON.parse(readFileSync(file, "utf8"));
+	cfg.docs.goals_backlog = "docs/goals-backlog.md";
+	writeFileSync(file, JSON.stringify(cfg, null, 2));
+	const r = run(root);
 	assert.equal(r.status, 2, r.stdout + r.stderr);
-	assert.match(r.stderr, /docs\.actors はファイルにする/);
+	assert.match(r.stderr, /docs\.goals_backlog は廃止した（ADR-0076）。.*harness migrate overview/);
 });

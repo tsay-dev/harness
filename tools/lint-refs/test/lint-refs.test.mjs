@@ -6,10 +6,12 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
+import { foldOverview } from "../../_shared/test/fold-overview.mjs";
 import { toolOf, TEMPLATE, NONE, makeRefRoot } from "../../_shared/test/refs-docs-fixture.mjs";
 
 function run(root, ...args) {
 	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
+	foldOverview(root); //  入力の 00-vision.md・02-actors.md・GOAL.md を 00-overview.md に畳む（ADR-0076）
 	return spawnSync("node", [toolOf("lint-refs"), "--root", root, ...args], { encoding: "utf8" });
 }
 
@@ -93,18 +95,23 @@ test("C18: active な GOAL / UC の actor と GOAL の origin が表に無けれ
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root, "--only", "C18");
 	assert.equal(r.status, 1, r.stdout + r.stderr);
-	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09 が docs\/02-actors\.md に無い/);
-	assert.match(r.stdout, /\[C18\] GOAL-01 の origin KPI-02 が docs\/00-vision\.md に無い/);
-	assert.match(r.stdout, /\[C18\] UC-001 の actor ACT-08 が docs\/02-actors\.md に無い/);
+	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09 が docs\/00-overview\.md のアクター表に無い/);
+	assert.match(r.stdout, /\[C18\] GOAL-01 の origin KPI-02 が docs\/00-overview\.md の KPI の表（成功の定義）に無い/);
+	assert.match(r.stdout, /\[C18\] UC-001 の actor ACT-08 が docs\/00-overview\.md のアクター表に無い/);
 	for (const id of ["KPI-01", "ACT-01", "ACT-06", "ACT-07", "KPI-07"]) assert.doesNotMatch(r.stdout, new RegExp(`\\[C18\\].*${id}`));
 });
 
-test("C18: docs.vision が none なら origin を判定しない", (t) => {
-	const root = makeRefRoot({ vision: false });
+test("C18 / C9: docs.overview が none なら表との突き合わせはせず、GOAL のフォルダは C9 が違反にする（ADR-0076）", (t) => {
+	const root = makeRefRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const r = run(root, "--only", "C18");
-	assert.doesNotMatch(r.stdout, /origin/);
-	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09/);
+	foldOverview(root);
+	const file = join(root, "harness.config.json");
+	const cfg = JSON.parse(readFileSync(file, "utf8"));
+	cfg.docs.overview = { none: "概要を持たない" };
+	writeFileSync(file, JSON.stringify(cfg, null, 2));
+	const r = run(root, "--only", "C9,C18");
+	assert.doesNotMatch(r.stdout, /\[C18\]/);
+	assert.match(r.stdout, /\[C9\] docs\/goals\/GOAL-01-register: GOAL のフォルダがあるのに docs\.overview が none/);
 });
 
 //  設定エラー用: source を宣言したプロジェクト
@@ -329,4 +336,41 @@ test("C12: REQ の ID が 2 つの UC の「要件」の節に重複していれ
 	const r = run(root, "--only", "C12");
 	assert.equal(r.status, 1, r.stdout + r.stderr);
 	assert.match(r.stdout, /\[C12\].*REQ-001/);
+});
+
+//  ---- 1 枚の概要（ADR-0076） ----
+
+test("C9 / C12 / C8: 概要の行とフォルダの対応。残った GOAL.md は 1 度だけ報告し、同じ ID の行は C12、planned は C8 に数えない", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	foldOverview(root);
+	const w = (root, rel, text) => {
+		mkdirSync(dirname(join(root, rel)), { recursive: true });
+		writeFileSync(join(root, rel), text);
+	};
+	const ov = join(root, "docs/00-overview.md");
+	const text = readFileSync(ov, "utf8");
+	writeFileSync(ov, text.replace(/(\| GOAL-02 [^\n]*\n)/, "$1| GOAL-03 | 未着手の状態 | ACT-01 | KPI-01 | planned | |\n| GOAL-04 | 撤回した状態 | ACT-01 | KPI-01 | withdrawn | 撤回した |\n| GOAL-04 | 2 つ目の行 | ACT-01 | KPI-01 | planned | |\n"));
+	w(root, "docs/goals/GOAL-03-planned/UC-009-x/UC.md", "---\nid: UC-009\ntitle: t\nactor: ACT-01\ngoal: GOAL-03\nstatus: draft\nphase: 定義\n---\n\n# UC-009\n");
+	w(root, "docs/goals/GOAL-01-register/GOAL.md", "---\nid: GOAL-01\nstatus: active\n---\n\n# GOAL-01\n");
+	w(root, "docs/goals/GOAL-07-norow/.gitkeep", "");
+	const r = run(root, "--only", "C8,C9,C12");
+	assert.match(r.stdout, /\[C9\] docs\/goals\/GOAL-03-planned: GOAL-03 は概要で planned（未着手）なのにフォルダがある/);
+	assert.match(r.stdout, /\[C9\] docs\/goals\/GOAL-07-norow: GOAL-07 の行が概要（docs\/00-overview\.md）の GOAL の表に無い/);
+	assert.equal(r.stdout.match(/GOAL-01-register\/GOAL\.md/g)?.length, 1, r.stdout);
+	assert.match(r.stdout, /\[C9\] docs\/goals\/GOAL-01-register\/GOAL\.md: GOAL\.md の文書は置かない.*harness migrate overview/);
+	assert.match(r.stdout, /\[C9\] docs\/00-overview\.md:\d+: GOAL-04 の行が 2 つある/);
+	assert.match(r.stdout, /\[C12\] GOAL-04 が複数箇所で定義されている/);
+	assert.doesNotMatch(r.stdout, /\[C8\] GOAL-03/);
+});
+
+test("--as-active: draft の行は active とみなし、planned の行は planned のまま（C8 に数えない）", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	foldOverview(root);
+	const ov = join(root, "docs/00-overview.md");
+	writeFileSync(ov, readFileSync(ov, "utf8").replace(/(\| GOAL-02 [^\n]*\n)/, "$1| GOAL-03 | 未着手の状態 | ACT-01 | KPI-01 | planned | |\n"));
+	const r = run(root, "--only", "C8", "--as-active");
+	assert.match(r.stdout, /\[C8\] GOAL-02 \(active\) を実現する UC が存在しない/);
+	assert.doesNotMatch(r.stdout, /GOAL-03/);
 });

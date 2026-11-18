@@ -11,7 +11,6 @@
   "covers_pattern": "@covers\\s+(REQ-\\d{3})(?:#([\\w-]+))?",
   "docs": {
     "goals_dir": "docs/goals",
-    "goals_backlog": "docs/goals-backlog.md",
     "rules_dir": "docs/rules",
     "nfr_dir": "docs/nfr",
     "adr_dir": "docs/adr",
@@ -19,10 +18,7 @@
     "shared": {
       "none": "harness 自身は ADR だけを持ち、アプリのコードと仕様を持たない"
     },
-    "actors": {
-      "none": "harness 自身は ADR だけを持ち、アプリのコードと仕様を持たない"
-    },
-    "vision": {
+    "overview": {
       "none": "harness 自身は ADR だけを持ち、アプリのコードと仕様を持たない"
     },
     "glossary": {

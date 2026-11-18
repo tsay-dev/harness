@@ -8,6 +8,7 @@ import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { foldReqFiles } from "./fold-reqs.mjs";
+import { foldOverview } from "./fold-overview.mjs";
 
 const TOOLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const LINT_SPEC = join(TOOLS_DIR, "lint-spec", "lint-spec.mjs");
@@ -214,6 +215,7 @@ ${deferredRows.join("\n")}
 //  node <script> <args...> を同期実行し、終了コードと出力を返す
 export function runNode(script, args = [], { cwd = process.cwd(), stdin = "" } = {}) {
 	foldReqFiles(cwd); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
+	foldOverview(cwd); //  入力の GOAL.md などを 00-overview.md に畳む（ADR-0076）
 	const r = spawnSync(process.execPath, [script, ...args], { cwd, input: stdin, encoding: "utf8" });
 	return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

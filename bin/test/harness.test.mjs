@@ -31,6 +31,7 @@ const ROUTES = [
 	[["next-id"], "next-id/next-id.mjs"],
 	[["index"], "index/index.mjs"],
 	[["migrate", "reqs"], "migrate-reqs/migrate-reqs.mjs"],
+	[["migrate", "overview"], "migrate-overview/migrate-overview.mjs"],
 	[["convert"], "convert/convert.mjs"],
 ];
 const SCRIPTS = ROUTES.map(([, script]) => script);

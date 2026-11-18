@@ -7,8 +7,8 @@
 //  設定の宣言、仕様の木、注釈の読み方は tools/_shared/refs.mjs（next-id・index と同じ読み方）。
 //
 //  前提の構成（rules/develop/docs.md §10–11）:
-//    docs/goals/<GOAL-nn-slug>/GOAL.md
-//                             └ <UC-nnn-slug>/UC.md（REQ は「要件」の節の小節）+ contract.yaml（縦は互いに素）
+//    docs/00-overview.md（GOAL の ID は GOAL の表の行。アクター表と KPI の表もここ。ADR-0076）
+//    docs/goals/<GOAL-nn-slug>/<UC-nnn-slug>/UC.md（REQ は「要件」の節の小節）+ contract.yaml（縦は互いに素）
 //    docs/rules/BR-*.md  docs/nfr/NFR-*.md  docs/adr/ADR-*.md（横は中央）
 //    所属の SSOT は frontmatter。パスは配置であり、両者の整合を C9 が検査する。
 //    各 REQ の「## 検証方針」は分割クラス `#name` を宣言する（下限 C10 / 上限 C11）。
@@ -34,7 +34,8 @@
 //    C6   レイヤの依存方向が内向きに保たれているか（harness.config.json の layering。紐づきではないので省略できる）
 //    C7   実装のエラーコード ⊆ 契約語彙（docs.shared の errorCodes）か
 //    C8   すべての active な GOAL が 1 件以上の UC から参照されているか
-//    C9   パス整合: GOAL / UC ディレクトリ名と frontmatter id・goal の一致、ノード定義ファイルの存在、REQ のファイル名 = id、
+//    C9   パス整合: GOAL のフォルダと概要の GOAL の行の対応（行が無い・planned の行のフォルダ・同じ GOAL のフォルダが 2 つ）、
+//         概要へ移した古い文書（00-vision.md・02-actors.md・goals-backlog.md・GOAL.md）の残り、UC ディレクトリ名と frontmatter id・goal の一致、ノード定義ファイルの存在、
 //         REQ が自身の uc の直下にあること、goals 配下で検査の対象にならない文書（_shared 以外の _ ディレクトリ、id を持つ配置外の md）
 //    C10  active な REQ の宣言された全分割クラスに、保留でないテストが 1 件以上あるか
 //    C11  tests の全テスト（test_pattern）が窓に @covers を持ち（REQ の @covers は 1 つだけ）、宣言済みクラスを指しているか。どのテストにも属さない @covers も違反
@@ -44,7 +45,7 @@
 //         tests.system の全テストが窓に @scenario を持ち、未定義・撤回済みの UC を指さないか（ADR-0035）
 //    C16  active な UC / REQ が参照する BR が定義されていて active か（C4 の逆方向）
 //    C17  active な UC の「状態 × イベント表」「例外系の走査」に現れる REQ と、その UC に属する REQ が 1 対 1 に対応し、1 件以上あるか（R-404）
-//    C18  active な GOAL の actor / origin と active な UC の actor が、docs.actors と docs.vision の表に定義されているか（ADR-0052）
+//    C18  active な GOAL の actor / origin と active な UC の actor が、docs.overview のアクター表と KPI の表に定義されているか（ADR-0052 / ADR-0076）
 //    C20  active な NFR が、保留でないテストの @covers NFR-nnn か measured_by（docs.* で宣言した文書の外のファイルで、中に ID が現れる）を持つか（ADR-0054）
 //    C22  active な BR が、active な REQ の br: から参照されているか、保留でないテストから @covers BR-nnn されているか（規則を確かめるテストに辿れること）
 //    C24  撤回されていない契約があるとき、共有語彙（docs.shared）の全エラーコードがどれかの契約の errors で使われているか（C7 の逆方向）
@@ -104,7 +105,7 @@ import {
 	textOf,
 	usage,
 	useCommandName,
-	visionKpis,
+	overviewKpis,
 } from "../_shared/refs.mjs";
 
 const NAME = "lint refs";
@@ -125,7 +126,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 	const brs = Object.fromEntries(Object.entries(brDocs).map(([id, d]) => [id, d.status]));
 	const nfrDocs = loadDocs(p(cfg, "docs.nfr_dir"), asActive);
 	const contracts = readContracts(corpus);
-	for (const k of ["docs.actors", "docs.vision", "docs.glossary", "docs.shared"]) {
+	for (const k of ["docs.overview", "docs.glossary", "docs.shared"]) {
 		const v = lookup(cfg, k);
 		if (typeof v === "string" && existsSync(join(cfg._root, v)) && !statSync(join(cfg._root, v)).isFile()) configError(`${k} はファイルにする（実際: ${v} はディレクトリ）`);
 	}
@@ -287,9 +288,10 @@ function runChecks(cfg, { asActive = false } = {}) {
 	}
 
 	//  C18: active な GOAL の actor / origin と UC の actor は、アクター表と vision の KPI 表に定義されている
-	//  （docs.actors / docs.vision が none のときは参照の有無を C26 が見る）
-	const actors = declared(cfg.docs.actors) ? new Set(Object.keys(kinds)) : null;
-	const kpis = declared(cfg.docs.vision) ? visionKpis(cfg) : null;
+	//  （docs.overview が none のときは参照の有無を C26 が見る）
+	const ovRel = declared(cfg.docs.overview) ? cfg.docs.overview : null;
+	const actors = ovRel ? new Set(Object.keys(kinds)) : null;
+	const kpis = ovRel ? overviewKpis(cfg) : null;
 	let actorRefs = 0;
 	let kpiRefs = 0;
 	for (const goal of Object.keys(corpus.goals).sort()) {
@@ -297,12 +299,12 @@ function runChecks(cfg, { asActive = false } = {}) {
 		if (g.status !== "active") continue;
 		actorRefs += values(g.actor).length;
 		kpiRefs += values(g.origin).length;
-		if (actors) for (const a of values(g.actor)) if (!actors.has(a)) fail("C18", `${goal} の actor ${a} が ${cfg.docs.actors} に無い`);
-		if (kpis) for (const k of values(g.origin)) if (!kpis.has(k)) fail("C18", `${goal} の origin ${k} が ${cfg.docs.vision} に無い`);
+		if (actors) for (const a of values(g.actor)) if (!actors.has(a)) fail("C18", `${goal} の actor ${a} が ${ovRel} のアクター表に無い`);
+		if (kpis) for (const k of values(g.origin)) if (!kpis.has(k)) fail("C18", `${goal} の origin ${k} が ${ovRel} の KPI の表（成功の定義）に無い`);
 	}
 	for (const uid of activeUcs) {
 		actorRefs += values(corpus.ucs[uid].actor).length;
-		if (actors) for (const a of values(corpus.ucs[uid].actor)) if (!actors.has(a)) fail("C18", `${uid} の actor ${a} が ${cfg.docs.actors} に無い`);
+		if (actors) for (const a of values(corpus.ucs[uid].actor)) if (!actors.has(a)) fail("C18", `${uid} の actor ${a} が ${ovRel} のアクター表に無い`);
 	}
 
 	//  C20: active な NFR は検証の所在（保留でないテストの @covers NFR-nnn か、measured_by）を持つ。
@@ -422,8 +424,10 @@ function runChecks(cfg, { asActive = false } = {}) {
 	oblige(fixedOwned.some((o) => o.codes.length), "fixed 契約の owned の操作に errors がある", ["contract"]);
 	oblige(liveContracts.some((c) => c.codes.length), "撤回されていない契約に errors がある", ["contract", "docs.shared"]);
 	oblige(dbBrs.length, "enforced_at が database の active な BR がある", ["schema", "tests", "tests.pending_pattern"]);
-	oblige(actorRefs, "active な GOAL / UC が ACT-nn を持つ", ["docs.actors"]);
-	oblige(kpiRefs, "active な GOAL が KPI-nn を持つ", ["docs.vision"]);
+	oblige(actorRefs, "active な GOAL / UC が ACT-nn を持つ", ["docs.overview"]);
+	oblige(kpiRefs, "active な GOAL が KPI-nn を持つ", ["docs.overview"]);
+	//  GOAL のフォルダは概要の行が定義する。フォルダがあるのに none なら C9 が違反にするので、ここでは義務として名前を出す
+	oblige(Object.keys(corpus.ucs).length, "GOAL のフォルダ（UC）がある", ["docs.overview"]);
 	for (const [key, reason] of obligations) {
 		const v = lookup(cfg, key);
 		if (isNone(v)) fail("C26", `${key} は none にできない（${reason}）。宣言する（none の理由: ${v.none}）`);
@@ -438,7 +442,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 	const addPaths = (key, v) => {
 		for (const x of [].concat(v ?? [])) if (typeof x === "string" && !x.startsWith("!") && !isGlob(x)) fixedPaths.push([key, x]);
 	};
-	for (const k of [...DOC_PATHS, "docs.actors", "docs.vision", "docs.glossary", "docs.shared"]) if (!isNone(lookup(cfg, k))) addPaths(k, lookup(cfg, k));
+	for (const k of [...DOC_PATHS, "docs.overview", "docs.glossary", "docs.shared"]) if (!isNone(lookup(cfg, k))) addPaths(k, lookup(cfg, k));
 	if (srcSec) addPaths("source.dirs", srcSec.dirs);
 	if (testSec) addPaths("tests.dirs", testSec.dirs);
 	if (sysSec) addPaths("tests.system.dirs", sysSec.dirs);
@@ -468,7 +472,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 	if (asActive) lines.push("  --as-active: draft の文書を active とみなして判定した");
 	for (const goal of Object.keys(corpus.goals).sort()) {
 		const g = corpus.goals[goal];
-		lines.push("-".repeat(68), ` ${goal} (${basename(g.dir)}/)`);
+		lines.push("-".repeat(68), ` ${goal} [${g.status}] (${g.dir ? `${basename(g.dir)}/` : "フォルダなし"})`);
 		for (const uid of Object.keys(corpus.ucs).sort().filter((u) => corpus.ucs[u].goalDir === g.dir)) {
 			const u = corpus.ucs[uid];
 			lines.push(`  ${uid} (${basename(u.dir)}/)${u.phase ? `  [${u.phase}]` : ""}${system ? `  scenario:${scenarios[uid]?.live.join(", ") || "-"}` : ""}`);

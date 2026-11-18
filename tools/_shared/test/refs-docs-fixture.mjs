@@ -12,14 +12,13 @@ export const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "ha
 //  検査の対象外にする範囲は、キーを消さずに理由付きの none で宣言する（ADR-0056）
 export const NONE = { none: "このテストでは扱わない" };
 
-//  C16–C18 用: BR / REQ / vision を持つ docs。draft と withdrawn、HTML コメント、プレースホルダーは判定の外に置く
-export function makeRefRoot({ vision = true } = {}) {
+//  C16–C18 用: BR / REQ / KPI の表を持つ docs（GOAL.md・00-vision.md・02-actors.md は実行の前に 00-overview.md に畳む）。draft と withdrawn、HTML コメント、プレースホルダーは判定の外に置く
+export function makeRefRoot() {
 	const root = mkdtempSync(join(tmpdir(), "harness lint-refs refs "));
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	for (const k of ["_comment", "layering"]) delete cfg[k];
 	for (const k of ["contract", "schema", "source"]) cfg[k] = NONE;
 	cfg.tests.system = NONE;
-	if (!vision) cfg.docs.vision = NONE;
 	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
 
 	const w = (rel, text) => {

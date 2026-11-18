@@ -3,11 +3,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
+import { foldOverview } from "../../_shared/test/fold-overview.mjs";
 import { toolOf, U, project, br, UC_WITH_BR } from "../../_shared/test/refs-linked-fixture.mjs";
 
 //  lint refs と同じ読み方を使う、ほかのコマンド（index）を実行する
 const runTool = (command, root, ...args) => {
 	foldReqFiles(root);
+	foldOverview(root); //  入力の 00-vision.md・02-actors.md・GOAL.md を 00-overview.md に畳む（ADR-0076）
 	return spawnSync("node", [toolOf(command), ...args, "--root", root], { encoding: "utf8" });
 };
 

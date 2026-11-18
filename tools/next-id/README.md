@@ -12,7 +12,7 @@ harness next-id <goal|uc|req|br|nfr|adr> [--reserve N] [--root .] [--config harn
 - 次の空き ID を N 個（既定 1）、一行ずつ出す。
 - 原子的: mkdir ロックで `.trace-reservations.json` に番号を予約するため、並行する Tasks がすべて呼んでも同じ番号を受け取らない。
   予約は、ID が定義された時点で消える。1 日たっても使われない予約は落とす。`.trace-reservations.json` と `.trace-next.lock` はコミットしない。
-- `req` は、UC.md の表が予約する ID も、ファイル作成前から使用済みと数える。`goal` は、`docs.goals_backlog` の `### GOAL-nn` の見出しも数える。
+- `req` は、UC.md の表が予約する ID も、ファイル作成前から使用済みと数える。`goal` は、概要（`docs.overview`）の GOAL の表のすべての行（`planned`・`withdrawn` を含む）と、GOAL のフォルダの名前の番号を数える（`docs.overview` が none なら使い方の誤り）。
 - 要るのは `docs.goals_dir`・`docs.rules_dir`・`docs.nfr_dir`・`docs.adr_dir` の宣言だけ（ほかの宣言が足りなくても採番はできる）。
 
 終了コード: `0` = 出力した / `2` = 使用法・設定エラー。

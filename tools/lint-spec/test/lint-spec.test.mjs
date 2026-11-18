@@ -254,12 +254,13 @@ test("docs/goals が無ければ設定エラー（exit 2）、アクターの種
 		assert.equal(r.status, 2, r.stdout + r.stderr);
 		assert.match(r.stderr, /docs\/goals が無い/);
 		writeMinimalDocs(root);
-		const actors = (kind) =>
-			`---\nid: ACTORS\nstatus: living\n---\n\n# アクター\n\n## アクター一覧（この表は閉じている）\n\n| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | ${kind} | 登録する |\n`;
-		writeFileSync(join(root, "docs/02-actors.md"), actors("利用者（人間）"));
+		const ov = join(root, "docs/00-overview.md");
+		const actors = (kind) => readFileSync(ov, "utf8").replace(/(## アクター[^\n]*\n\n\| ID[^\n]*\n\| ---[^\n]*\n)(\| ACT-01 [^\n]*\n)?/, `$1| ACT-01 | 利用者 | ${kind} | 登録する |\n`);
+		runNode(LINT_SPEC, [], { cwd: root }); //  入力の GOAL.md を概要に畳む
+		writeFileSync(ov, actors("利用者（人間）"));
 		const bad = runNode(LINT_SPEC, [], { cwd: root });
 		assert.match(bad.stdout + bad.stderr, /ACT-01: 種別は 人間 \/ システム のどちらかで始める/);
-		writeFileSync(join(root, "docs/02-actors.md"), actors("人間 / 認証済"));
+		writeFileSync(ov, actors("人間 / 認証済"));
 		const good = runNode(LINT_SPEC, [], { cwd: root });
 		assert.doesNotMatch(good.stdout + good.stderr, /種別は/);
 	} finally {
@@ -589,4 +590,91 @@ test("根: docs の隣の設定が docs.goals_dir を別の場所に宣言して
 test("フォルダの数え方: ゴールの直下の _ で始まるフォルダも読まない（goals の直下と同じ決まり。lint refs が配置の違反にする）", () => {
 	const r = validate({ hostFiles: { "docs/goals/GOAL-01-a/_draft/UC.md": "---\nid: UC-900\nstatus: active\n---\n", "docs/goals/GOAL-01-a/_draft/contract.yaml": "x-uc: UC-900\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n" } });
 	assert.equal(r.status, 0, r.out);
+});
+
+//  ---- 1 枚の概要（00-overview.md。ADR-0076） ----
+
+//  最小の docs を書き、入力の GOAL.md を概要に畳んでから、概要を書き換える
+function overviewRoot() {
+	const root = mkdtempSync(join(tmpdir(), "lint-spec-overview-"));
+	writeMinimalDocs(root);
+	runNode(LINT_SPEC, [], { cwd: root });
+	return root;
+}
+const OV = "docs/00-overview.md";
+const UCF = "docs/goals/GOAL-01-a/UC-001-b/UC.md";
+const edit = (root, rel, fn) => writeFileSync(join(root, rel), fn(readFileSync(join(root, rel), "utf8")));
+const lint = (root) => {
+	const r = runNode(LINT_SPEC, [], { cwd: root });
+	return { status: r.status, out: r.stdout + r.stderr };
+};
+const POLICY_FILLED = (t) =>
+	t.replace(/（未記入: [^\n]*）/g, "同じ対象に先に届いた要求を通し、後の要求には競合を返す。").replace(/^status: draft$/m, "status: living");
+
+test("lint spec 概要: GOAL のフォルダと行の対応（行なし・planned・フォルダなしの draft・フォルダありの withdrawn）", () => {
+	const root = overviewRoot();
+	try {
+		assert.equal(lint(root).status, 0, lint(root).out);
+		const row = (id, status) => `| ${id} | 状態 | ACT-01 | KPI-01 | ${status} | ${status === "withdrawn" ? "撤回した" : ""} |`;
+		//  draft の行のフォルダが無くても、withdrawn の行のフォルダがあっても通す
+		edit(root, OV, (t) => t.replace(/(\| GOAL-01 [^\n]*\n)/, `$1${row("GOAL-02", "draft")}\n${row("GOAL-03", "withdrawn")}\n`));
+		mkdirSync(join(root, "docs/goals/GOAL-03-c"), { recursive: true });
+		assert.equal(lint(root).status, 0, lint(root).out);
+		//  行の無いフォルダ
+		mkdirSync(join(root, "docs/goals/GOAL-09-x"), { recursive: true });
+		assert.match(lint(root).out, /GOAL-09 の行が概要（00-overview\.md）の GOAL の表に無い/);
+		rmSync(join(root, "docs/goals/GOAL-09-x"), { recursive: true });
+		//  planned の行のフォルダ
+		edit(root, OV, (t) => t.replace(row("GOAL-03", "withdrawn"), row("GOAL-03", "planned")));
+		assert.match(lint(root).out, /GOAL-03 は概要で planned（未着手）なのにフォルダがある/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("lint spec 概要: 古い文書は名前でも frontmatter の id でも違反にし、migrate overview を案内する。行の status の語彙と目指す状態の空を検査する", () => {
+	const root = overviewRoot();
+	try {
+		writeFileSync(join(root, "docs/goals-backlog.md"), "---\nid: X\nstatus: living\n---\n");
+		writeFileSync(join(root, "docs/product-vision.md"), "---\nid: VISION\nstatus: frozen\n---\n");
+		writeFileSync(join(root, "docs/goals/GOAL-01-a/GOAL.md"), "---\nid: GOAL-01\nstatus: active\n---\n");
+		edit(root, OV, (t) => t.replace(/\| GOAL-01 \| [^|]* \|([^\n]*)\| active \|/, "| GOAL-01 | |$1| done |"));
+		const { status, out } = lint(root);
+		assert.equal(status, 1, out);
+		assert.match(out, /goals-backlog\.md の文書は置かない.*harness migrate overview --write/);
+		assert.match(out, /product-vision\.md: id VISION（00-vision\.md） の文書は置かない/);
+		assert.match(out, /GOAL-01-a\/GOAL\.md: GOAL\.md の文書は置かない/);
+		assert.match(out, /GOAL-01: status は planned\|draft\|active\|withdrawn のいずれか。実際: "done"/);
+		assert.match(out, /GOAL-01: 目指す状態の 1 文が空/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("lint spec 概要: 並行性・外部依存の行は、方針の 3 つの小節が埋まり概要が living のときだけ省ける。方針の例外は見出し・理由・REQ を検査する", () => {
+	const root = overviewRoot();
+	try {
+		const omit = (t) => t.replace(/\| 並行性 \| なし \| なし \|\n/, "").replace(/\| 外部依存 \| なし \| なし \|\n/, "");
+		edit(root, UCF, omit);
+		//  方針が未記入（概要は living）
+		assert.match(lint(root).out, /例外系の走査に「並行性」の行が無い.*概要の全体の方針の 3 つの小節が埋まっていて、概要が living のときだけ省ける/);
+		//  方針が埋まっていても概要が draft なら省けない
+		edit(root, OV, (t) => POLICY_FILLED(t).replace(/^status: living$/m, "status: draft"));
+		assert.match(lint(root).out, /例外系の走査に「外部依存」の行が無い/);
+		//  埋まっていて living なら省ける
+		edit(root, OV, (t) => t.replace(/^status: draft$/m, "status: living"));
+		assert.equal(lint(root).status, 0, lint(root).out);
+		//  方針の例外: 正しい書き方は通る
+		const exc = (cell) => edit(root, UCF, (t) => t.replace(/(\| 不変条件違反 [^\n]*\n)(\| 並行性[^\n]*\n)?/, `$1| 並行性 | 2 | ${cell} |\n`));
+		exc("方針の例外（同時に届いた要求）: 後の要求も受け付ける。理由: 重複しても害が無い。REQ-001");
+		assert.equal(lint(root).status, 0, lint(root).out);
+		exc("方針の例外（同時の要求）: 後の要求も受け付ける。REQ-001");
+		const out = lint(root).out;
+		assert.match(out, /方針の例外は「方針の例外（同時に届いた要求 \| 外部の情報の遅れ \| 外部が応答しない）/);
+		assert.match(out, /方針の例外に「理由: 」の後の理由が無い/);
+		exc("方針の例外（外部が応答しない）: 待たずに返す。理由: 画面を止めない");
+		assert.match(lint(root).out, /方針の例外に REQ-nnn が無い/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });

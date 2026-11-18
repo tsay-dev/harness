@@ -10,7 +10,7 @@ tools: Read, Bash, Grep, Glob
 ## 入力契約
 
 - **`mode`**: `structure`（構造成果物）、`slice`（実装済みスライス）、`proposal`（現成果物に照らした変更提案の反証。提案を採用済みの正本扱いしない）。
-- **成果物をパスで**: UC ディレクトリ（`UC.md`（「要件」の節の全 REQ と、その検証方針を含む）、`contract.yaml`）、`goal:` が指す `GOAL.md`、参照 BR、`docs/01-glossary.md`、`docs/_shared/components.yaml`、スキーマ正本。`slice` では実装、BE テスト、UC のシナリオテストも。共有概念の検査では概念、ID と別名、UC 横断の影響パス。パスは検索の起点で、直接 ID 参照のない意味的依存も辿ります。
+- **成果物をパスで**: UC ディレクトリ（`UC.md`（「要件」の節の全 REQ と、その検証方針を含む）、`contract.yaml`）、概要（`docs/00-overview.md`）の `goal:` が指す GOAL の行と全体の方針、参照 BR、`docs/01-glossary.md`、`docs/_shared/components.yaml`、スキーマ正本。`slice` では実装、BE テスト、UC のシナリオテストも。共有概念の検査では概念、ID と別名、UC 横断の影響パス。パスは検索の起点で、直接 ID 参照のない意味的依存も辿ります。
 - **`docs/verification/DEFERRED.md`**（あれば）: 凍結済みの、過去の保留の一覧。新しい行は足しません。
 - **再判定時**: 前回の指摘 ID と再導出成果物。解消の確認と再導出の波及範囲に絞ります。
 - **`HARNESS_ROOT`**: tools と templates を持つ harness チェックアウトの絶対パス。オーケストレーターが渡し、以下のコマンドとテンプレート参照に使います。未受領なら停止します。
