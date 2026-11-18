@@ -109,6 +109,16 @@ REQ は、`UC.md` の「要件」の節に小節として書く形に変わっ�
 3. 文書の中の `…/REQ-nnn.md` への参照（保留の一覧の対象など）を、`…/UC.md#REQ-nnn` に直す。
 4. `node .harness/bin/harness.mjs lint` を実行し、検査が通ることを確かめる。
 
+## ビジョン・アクター表・GOAL を 1 枚の概要へ移す（00-overview.md）
+
+`00-vision.md`・`02-actors.md`・`goals-backlog.md`・各ゴールの `GOAL.md` は、1 枚の概要 `docs/00-overview.md` にまとめた（ADR-0076）。GOAL は概要の GOAL の表の行（未着手は `planned`）で定義する。古い文書と、設定のキー `docs.vision`・`docs.actors`・`docs.goals_backlog` が残っていると、`harness lint spec`・`harness lint refs`・`harness lint config` が失敗する。意味を変えずに移すスクリプトがある。自動では移らない。
+
+1. 文書を持つディレクトリ（monorepo では unit ごと）で、`node .harness/bin/harness.mjs migrate overview --root <unit>` を実行し、移せることを確かめる。移せないもの（定形の外の行、案内でない HTML コメント、vision とアクター表の status の食い違いなど）があれば、表示された箇所を直してから実行し直す。
+2. `node .harness/bin/harness.mjs migrate overview --root <unit> --write` で書き換える。
+3. 表示された案のとおり、`harness.config.json` の `docs` に `"overview": "docs/00-overview.md"`（文書を持たない unit は理由付きの none）を足し、`vision`・`actors`・`goals_backlog` を消す。設定の変更なので、書き込み前の関門を有効にしていれば人間の承認に回る。
+4. 表示された「古い文書の名前を書いている箇所」（docs、`CLAUDE.md`・`AGENTS.md`）を直す。ADR は過去の記録なのでそのまま。
+5. `node .harness/bin/harness.mjs verify --level lint` を実行し、検査が通ることを確かめる。全体の方針は未記入のままでよい（埋まるまでは、UC の例外系の並行性・外部依存の行を今までどおり書く）。
+
 ## 契約の引用符の中のエスケープ
 
 契約と共有語彙の YAML で、二重引用符の中のエスケープを YAML の決まりどおりに解くようにした。これまでは、ブロックの値ではバックスラッシュをそのまま残し、フロー記法の値ではバックスラッシュだけを落として読んでいた（`"a\nb"` が「a\nb」や「anb」になっていた）。
