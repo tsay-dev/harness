@@ -23,6 +23,7 @@ import { reqDocsOf, splitUc } from "./reqs.mjs";
 import { goalsRootOf, specDirs } from "./spec-tree.mjs";
 import { CONFIG_FILE, renamedConfigHint, retiredKeysIn } from "./config.mjs";
 import { MIGRATE_HINT, OVERVIEW_FILE, actorKindsOf, overviewPathOf, readOverviewFile, retiredDocsIn } from "./overview.mjs";
+import { DROPPED_HINT, droppedDocsIn } from "./dropped-docs.mjs";
 
 //  出力の頭に付けるコマンドの名前（"lint refs" など）。コマンドのファイルが、最初に useCommandName で決める
 let command = "";
@@ -317,6 +318,12 @@ export class Corpus {
 			for (const x of retiredDocsIn(docsDir)) {
 				known.add(x.file);
 				this.pathViolations.push(`${r(x.file)}: ${x.why} の文書は置かない（1 枚の概要 ${OVERVIEW_FILE} にまとめた）。${MIGRATE_HINT}`);
+			}
+		//  やめた文書（設計書と全体の検証方針。ADR-0077）
+		if (docsDir)
+			for (const x of droppedDocsIn(docsDir)) {
+				known.add(x.file);
+				this.pathViolations.push(`${r(x.file)}: ${x.why}は置かない。${DROPPED_HINT}`);
 			}
 		const goalDirOf = {};
 

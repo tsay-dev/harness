@@ -216,6 +216,12 @@ test("K6: 廃止したキー（実装の注釈を読むためのキー。ADR-007
 	assert.equal(run(project(change((c) => ((c.source = { none: "コードが無い" }), (c.schema = { none: "DB が無い" }))))).status, 0);
 });
 
+test("K6: 全体の検証方針の置き場（docs.verification_global。ADR-0077）が残っていれば、移し先を添えて違反にする", () => {
+	const r = run(project(change((c) => (c.docs = { verification_global: "docs/verification/GLOBAL.md" }))));
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	assert.match(r.stdout, /err  K6  docs\.verification_global は廃止した（ADR-0077）。全体の検証方針（verification\/GLOBAL\.md）はやめた。中身を概要（00-overview\.md）の全体の方針・NFR・ADR へ移して消す/);
+});
+
 test("K2: commands.list_entries は決めごとを確かめるコマンドではないので、rules.check に書けない", () => {
 	const r = run(project(change((c) => ((c.commands.list_entries = "node list.mjs"), (c.rules.layers.check = "list_entries")))));
 	assert.equal(r.status, 1);

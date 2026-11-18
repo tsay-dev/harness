@@ -171,9 +171,9 @@ function makeNfrRoot() {
 	w("docs/nfr/NFR-008.md", nfr("NFR-008", "active", "https://example.com/dashboard"));
 	w("perf/other.js", "// 別の計測\n");
 	w("docs/rules/perf.md", "NFR-007 の計測\n");
-	//  GLOBAL.md（検証しない範囲の置き場）は NFR の ID を含んでも計測の所在にならない
-	w("docs/nfr/NFR-010.md", nfr("NFR-010", "active", "docs/verification/GLOBAL.md"));
-	w("docs/verification/GLOBAL.md", "# 検証しない範囲\n\n- NFR-010 は計測しない\n");
+	//  保留の一覧（docs.verification_deferred）も宣言した文書なので、NFR の ID を含んでも計測の所在にならない
+	w("docs/nfr/NFR-010.md", nfr("NFR-010", "active", "docs/verification/DEFERRED.md"));
+	w("docs/verification/DEFERRED.md", "# 保留\n\n- NFR-010 は計測しない\n");
 	//  docs の下でも、宣言した文書でない runbook は計測の所在になる
 	w("docs/nfr/NFR-011.md", nfr("NFR-011", "active", "docs/runbooks/NFR-011.md"));
 	w("docs/runbooks/NFR-011.md", "# NFR-011 の計測\n\n計測先: 監視ダッシュボードの p95\n");
@@ -191,7 +191,7 @@ test("C20: active な NFR にテストか measured_by を求め、measured_by �
 	assert.match(r.stdout, /\[C20\] e2e\/perf\.spec\.ts:1: 未定義の NFR-009 を @covers している/);
 	assert.match(r.stdout, /\[C20\] NFR-006 の measured_by perf\/other\.js の中に NFR-006 が現れない/);
 	assert.match(r.stdout, /\[C20\] NFR-007 の measured_by docs\/rules\/perf\.md は docs\.rules_dir の文書で、計測の所在にならない/);
-	assert.match(r.stdout, /\[C20\] NFR-010 の measured_by docs\/verification\/GLOBAL\.md は docs\.verification_global の文書で、計測の所在にならない/);
+	assert.match(r.stdout, /\[C20\] NFR-010 の measured_by docs\/verification\/DEFERRED\.md は docs\.verification_deferred の文書で、計測の所在にならない/);
 	assert.match(r.stdout, /\[C20\] NFR-008 の measured_by https:\/\/example\.com\/dashboard はリポジトリ内のファイルにする/);
 	assert.doesNotMatch(r.stdout, /\[C20\].*NFR-00[125]/);
 	assert.match(r.stdout, /OK NFR-011  \[active\]  measured_by:docs\/runbooks\/NFR-011\.md/);
@@ -373,4 +373,16 @@ test("--as-active: draft の行は active とみなし、planned の行は plann
 	const r = run(root, "--only", "C8", "--as-active");
 	assert.match(r.stdout, /\[C8\] GOAL-02 \(active\) を実現する UC が存在しない/);
 	assert.doesNotMatch(r.stdout, /GOAL-03/);
+});
+
+test("C9: 設計書（design.md）と全体の検証方針（verification/GLOBAL.md）が残っていれば違反にする（ADR-0077）", (t) => {
+	const root = makeRefRoot();
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	foldOverview(root);
+	mkdirSync(join(root, "docs/verification"), { recursive: true });
+	writeFileSync(join(root, "docs/design.md"), "# 設計\n");
+	writeFileSync(join(root, "docs/verification/GLOBAL.md"), "---\nid: VERIFICATION_GLOBAL\nstatus: living\n---\n");
+	const r = run(root, "--only", "C9");
+	assert.match(r.stdout, /\[C9\] docs\/design\.md: 設計書（design\.md）は置かない。中身を概要（00-overview\.md）の全体の方針・NFR・ADR へ移して消す（ADR-0077）/);
+	assert.match(r.stdout, /\[C9\] docs\/verification\/GLOBAL\.md: 全体の検証方針（verification\/GLOBAL\.md）は置かない/);
 });

@@ -4,15 +4,14 @@
 //
 //  検証対象のレイアウト（rules/develop/docs.md §10）:
 //    docs/00-overview.md  01-glossary.md                         単票（OVERVIEW / GLOSSARY）。GOAL の ID は概要の GOAL の表の行で定義する（ADR-0076）
-//    docs/design.md                                              【任意】How の現在形
 //    docs/goals/GOAL-nn-<slug>/                                  ゴールのフォルダ（planned でない行の GOAL だけ。UC を置く）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md               ユースケース（＝縦スライスの単位）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md の「要件」の節  要件（### REQ-nnn の小節。EARS 1 文 + 検証方針。ADR-0067）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/contract.yaml       UC の境界契約（harness 独自 YAML）
 //    docs/rules/BR-nnn.md  docs/nfr/NFR-nnn.md  docs/adr/ADR-nnnn-<slug>.md   横断（中央）
-//    docs/verification/GLOBAL.md                                 【任意】全体の検証除外
 //    docs/verification/DEFERRED.md                               【既存のものだけ】凍結済みの、過去の保留の一覧（ADR-0068）
 //    docs/_shared/components.yaml                                契約の共有語彙（$ref 先）
+//    （design.md と verification/GLOBAL.md は置かない。残っていれば違反 / ADR-0077）
 //
 //  書式の SSOT は templates/develop/ のテンプレート。必須フロントマター・必須セクション・
 //  契約の必須 x- キーはテンプレートから導出する（書式改定はテンプレートを直せば lint も追従する。
@@ -38,6 +37,7 @@ import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mj
 import { readHostConfig } from "../_shared/config.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { DROPPED_HINT, droppedDocsIn } from "../_shared/dropped-docs.mjs";
 import { GOAL_ROW_STATUS, MIGRATE_HINT, OVERVIEW_FILE, OVERVIEW_ID, OVERVIEW_STATUS, overviewFormat, overviewPathOf, retiredDocsIn, policiesInForce, readOverview } from "../_shared/overview.mjs";
 import { goalsRootOf, specDirs } from "../_shared/spec-tree.mjs";
 import { CONTRACT_STATUS, DIRECTIONS, ENTRY_TRANSPORTS, OP_NAME_RE, TRANSPORTS, isFilledText } from "../_shared/contract-vocab.mjs";
@@ -55,7 +55,7 @@ const ADR_FILE_RE = /^ADR-\d+-[a-z0-9-]+\.md$/;
 
 //  --- 閉じた語彙（実行コードでしか強制できないため本ツールが正）---
 const NODE_STATUS = ["draft", "active", "withdrawn"]; //  UC / REQ / BR / NFR。active ＝ 人間が承認した（GOAL の行の語彙は tools/_shared/overview.mjs）
-const SINGLETON_STATUS = ["draft", "frozen", "living"]; //  glossary / GLOBAL（概要の語彙は tools/_shared/overview.mjs）
+const SINGLETON_STATUS = ["draft", "frozen", "living"]; //  glossary（概要の語彙は tools/_shared/overview.mjs）
 const DEFERRED_STATUS = ["living"]; //  DEFERRED（台帳は常に現在形。draft を持たない）
 const ADR_STATUS = ["proposed", "accepted", "superseded"];
 const PHASES = ["定義", "構造", "実装", "検証", "完了"]; //  UC.md の phase:（工程台帳。orchestrator だけが進める）
@@ -177,7 +177,6 @@ function deriveContractKeys() {
 const FORMATS = {
 	overview: deriveDocFormat("00-overview.md", { required: ["id", "status"], optional: [], sections: ["解決する課題", "成功の定義", "アクター", "GOAL", "全体の方針", "やらないこと"] }),
 	glossary: deriveDocFormat("01-glossary.md", { required: ["id", "status"], optional: [], sections: [] }),
-	global: deriveDocFormat("verification-GLOBAL.md", { required: ["id", "status"], optional: [], sections: ["検証しない範囲"] }),
 	deferred: deriveDocFormat("DEFERRED.md", { required: ["id", "status", "frozen_at"], optional: [], sections: ["保留中の指摘"] }),
 	uc: deriveDocFormat("UC.md", { required: ["id", "title", "actor", "goal", "status", "phase"], optional: [], sections: ["概要", "事前条件", "主シナリオ", "状態", "例外系の走査", "事後条件"] }),
 	req: deriveDocFormat("REQ", { required: ["id", "pattern", "uc", "status"], optional: ["br"], sections: [POLICY] }),
@@ -335,10 +334,10 @@ function countLongDescriptions(lines) {
 
 //  --- 各文書の検証 ---
 
-//  単票（glossary / GLOBAL / DEFERRED。概要は validateOverview）。vocab は status の語彙（DEFERRED だけ living に閉じる）
+//  単票（glossary / DEFERRED。概要は validateOverview）。vocab は status の語彙（DEFERRED だけ living に閉じる）
 function validateSingleton(file, kind, expectedId, required, vocab = SINGLETON_STATUS) {
 	if (!existsSync(file)) {
-		if (required) warn(file, `${basename(file)} が無い（テンプレート templates/develop/${basename(file) === "GLOBAL.md" ? "verification-GLOBAL.md" : basename(file)} 参照）`);
+		if (required) warn(file, `${basename(file)} が無い（テンプレート templates/develop/${basename(file)} 参照）`);
 		return null;
 	}
 	const fmt = FORMATS[kind];
@@ -889,14 +888,6 @@ function loadShared(docsDir) {
 	return { file, authSchemes: authSchemes || {}, errorCodes: errorCodes || {} };
 }
 
-//  --- design.md（任意ファイル・warn 中心）---
-function validateDesign(file) {
-	if (!existsSync(file)) return;
-	const { data, body } = readFm(file);
-	if (!data["ステータス"] || !data["更新日"]) warn(file, `フロントマター（ステータス/更新日）が無い`);
-	if (/Given|When|Then|受け入れ条件/.test(body)) warn(file, `GWT/受け入れ条件らしき記述がある — 振る舞いは UC.md の「要件」の節の REQ へ`);
-}
-
 //  --- 保留台帳 docs/verification/DEFERRED.md（任意ファイル）---
 //  凍結済みの一覧（ADR-0068）。新しい行は足さない: frontmatter の frozen_at より後の起票日の行は err。
 //  1 行 1 件の表だけを持つ。書式（7 列・ID・日付・語彙）は err。残っている件数と、対象が消えた行は warn。
@@ -1047,11 +1038,11 @@ function loadModel(docsDir) {
 	//  概要へ移した文書（ADR-0076）
 	//  名前を変えて残したものも、frontmatter の id で見つける
 	for (const r of retiredDocsIn(docsDir)) err(join(docsDir, relative(resolve(docsDir), r.file)), `${r.why} の文書は置かない（ビジョン・アクター表・バックログ・GOAL.md は 1 枚の概要 ${OVERVIEW_FILE} にまとめた）。${MIGRATE_HINT}`);
-	validateSingleton(join(docsDir, "verification", "GLOBAL.md"), "global", "VERIFICATION_GLOBAL", false);
+	//  やめた文書（ADR-0077。読み方は tools/_shared/dropped-docs.mjs で、lint refs と同じ）
+	for (const d of droppedDocsIn(docsDir)) err(join(docsDir, relative(resolve(docsDir), d.file)), `${d.why}は置かない。${DROPPED_HINT}`);
 	const deferredFile = join(docsDir, "verification", "DEFERRED.md");
 	const deferred = validateSingleton(deferredFile, "deferred", "VERIFICATION_DEFERRED", false, DEFERRED_STATUS);
 	if (deferred) validateDeferred(deferredFile);
-	validateDesign(join(docsDir, "design.md"));
 
 	return { goals, ucs, contracts, shared };
 }

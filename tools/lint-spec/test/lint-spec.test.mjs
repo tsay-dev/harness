@@ -678,3 +678,24 @@ test("lint spec 概要: 並行性・外部依存の行は、方針の 3 つの�
 		rmSync(root, { recursive: true, force: true });
 	}
 });
+
+//  ---- やめた文書（ADR-0077） ----
+
+test("lint spec: 設計書（design.md）と全体の検証方針（verification/GLOBAL.md。id でも見つける）が残っていれば違反にし、移し先を案内する", () => {
+	const root = overviewRoot();
+	try {
+		assert.equal(lint(root).status, 0, lint(root).out);
+		writeFileSync(join(root, "docs/design.md"), "---\nステータス: 現行\n更新日: 2026-01-01\n---\n\n# 設計\n");
+		mkdirSync(join(root, "docs/verification"), { recursive: true });
+		writeFileSync(join(root, "docs/verification/GLOBAL.md"), "---\nid: VERIFICATION_GLOBAL\nstatus: living\n---\n\n## 検証しない範囲（全体）\n");
+		writeFileSync(join(root, "docs/verification-scope.md"), "---\nid: VERIFICATION_GLOBAL\nstatus: living\n---\n");
+		const { status, out } = lint(root);
+		assert.equal(status, 1, out);
+		assert.match(out, /design\.md: 設計書（design\.md）は置かない。中身を概要（00-overview\.md）の全体の方針・NFR・ADR へ移して消す（ADR-0077）/);
+		assert.match(out, /verification\/GLOBAL\.md: 全体の検証方針（verification\/GLOBAL\.md）は置かない/);
+		assert.match(out, /verification-scope\.md: 全体の検証方針（id VERIFICATION_GLOBAL）は置かない/);
+		assert.equal(out.match(/verification\/GLOBAL\.md: /g)?.length, 1, out);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

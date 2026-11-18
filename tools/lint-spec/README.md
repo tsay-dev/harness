@@ -4,10 +4,11 @@ docs の SSOT（単一文書、GOAL / UC / REQ、
 BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械的に検証する（`harness lint spec`。依存なしの Node）。
 
 - **検証する配置**: `docs/00-overview.md`（1 枚の概要。ADR-0076） `01-glossary.md`（任意で
-  `design.md`、`verification/GLOBAL.md`、`verification/DEFERRED.md` —
+  `verification/DEFERRED.md` —
   凍結済みの、過去の保留の一覧。行のみ。ADR-0068）、`docs/goals/GOAL-nn-<slug>/`（概要の `planned` でない行の GOAL だけ）、
   `…/UC-nnn-<slug>/`（`UC.md`（REQ は「要件」の節の `### REQ-nnn`。ADR-0067）、`contract.yaml`）、`docs/rules/BR-nnn.md`、`docs/nfr/NFR-nnn.md`、
-  `docs/adr/ADR-nnnn-<slug>.md`、`docs/_shared/components.yaml`。
+  `docs/adr/ADR-nnnn-<slug>.md`、`docs/_shared/components.yaml`。`design.md` と `verification/GLOBAL.md` は置かず、
+  残っていれば違反にする（ADR-0077）。
 - **検証する書式**: SSOT は `../../templates/develop/` のテンプレート。必須 frontmatter キー
   （テンプレートのコメントに `optional` とあるキーは任意）、必須節、契約の必須 `x-` キーを
   **テンプレートから導出**する（テンプレートを編集して書式を改めれば lint が追従）。

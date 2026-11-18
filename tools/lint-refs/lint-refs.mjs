@@ -308,9 +308,8 @@ function runChecks(cfg, { asActive = false } = {}) {
 	}
 
 	//  C20: active な NFR は検証の所在（保留でないテストの @covers NFR-nnn か、measured_by）を持つ。
-	//  measured_by は docs で宣言した文書（goals / rules / nfr / adr、verification_global / verification_deferred、shared、actors、vision、
-	//  glossary など docs.* のすべて）の外のファイルで、中にその NFR の ID が現れること（計測の所在を ID で辿る）。
-	//  GLOBAL.md は「検証しない範囲」の置き場で、NFR の ID を含んでも計測の所在にはならない
+	//  measured_by は docs で宣言した文書（goals / rules / nfr / adr、verification_deferred、shared、overview、
+	//  glossary など docs.* のすべて）の外のファイルで、中にその NFR の ID が現れること（計測の所在を ID で辿る）
 	const docPaths = Object.entries(isMap(cfg.docs) ? cfg.docs : {})
 		.filter(([, v]) => typeof v === "string" && v.trim())
 		.map(([k, v]) => [`docs.${k}`, resolve(cfg._root, v)]);

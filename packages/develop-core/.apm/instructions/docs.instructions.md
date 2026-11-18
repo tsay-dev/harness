@@ -36,9 +36,8 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 | `UC.md` | R-302 のシナリオ、状態 × イベント表、事前・事後条件、BR の**参照** | 実装設計、BR 本文、REQ 本文、導出 REQ の一覧、契約のエラー評価順序（R-1207） |
 | `UC.md` の「要件」の節の `### REQ-nnn` | 項目（`pattern`、`br`、`status`）、EARS 1 文、検証方針 | 実装手段、UI 詳細、テストケースの内容 |
 | `BR-nnn.md` | ルールの存在、意図、`enforced_at` | 参照元、機械可読にできる値（R-102）、契約のエラー評価順序（R-1207） |
-| `NFR-nnn.md` | 閾値 + 計測方法、検証の所在（保留でないテストの `@covers NFR-nnn` か `measured_by:`。`measured_by` は `docs.*` で宣言した文書（GLOBAL.md を含む）の外にあるリポジトリ内のファイルで、中にその NFR の ID が現れる。外部の計測は ID と計測先を書いた runbook を指す。C20） | 計測できないもの（R-104） |
+| `NFR-nnn.md` | 閾値 + 計測方法、検証の所在（保留でないテストの `@covers NFR-nnn` か `measured_by:`。`measured_by` は `docs.*` で宣言した文書の外にあるリポジトリ内のファイルで、中にその NFR の ID が現れる。外部の計測は ID と計測先を書いた runbook を指す。C20） | 計測できないもの（R-104） |
 | `ADR-nnnn-<slug>.md` | Context / Decision / Consequences、却下した選択肢と理由 | 現在の設計状態（ADR は更新せず置き換える） |
-| `verification/GLOBAL.md` | プロジェクト全体の「検証しない」範囲と理由 | REQ ごとの方針（REQ に置く） |
 | `verification/DEFERRED.md`（既存のものだけ） | 凍結済みの、過去の保留の一覧。解消した行を orchestrator が消すだけ（ADR-0068） | 新しい行、新しい一覧。指摘は、機械検査にするか、人間に聞いて仕様に書く |
 | `contract.yaml` | 境界の形（操作、型、**評価順の**エラー、エラーコードごとに失敗例 1 つ） | 同内容の説明文コピー、ルール、目的、エラーの順序・排他性の説明文 |
 
@@ -84,7 +83,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 ## 10. ファイル粒度と配置
 
 - **R-1001 (MUST)** UC / BR / NFR / ADR は 1 ID に 1 ファイルです。GOAL は概要（`00-overview.md`）の GOAL の表の 1 行で、status は `planned`（未着手）| `draft` | `active` | `withdrawn` です（ADR-0076）。REQ は、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節（`### REQ-nnn`）として書きます。ファイル名は ID（ノードファイルは `UC.md`、ADR は `ADR-nnnn-<slug>.md`）。
-- **R-1002 (MUST)** REQ の検証方針は、その REQ の小節の中の `#### 検証方針` に置きます（C2）。プロジェクト全体の除外だけを `docs/verification/GLOBAL.md` に置きます。
+- **R-1002 (MUST)** REQ の検証方針は、その REQ の小節の中の `#### 検証方針` に置きます（C2）。プロジェクト全体で検証しない範囲（外部 SDK の内部など）と理由は、概要（`00-overview.md`）の「全体の方針」に書きます。設計の事実は契約・ADR・コードに置き、写しの設計書（`design.md`）や全体の検証方針の文書（`verification/GLOBAL.md`）は置きません（ADR-0077）。
 - **R-1003 (MUST)** 索引は生成し、コミットしません（`harness index`）。
 - **R-1004 (MUST)** ディレクトリ全体の読み取りを既定にせず、参照（UC の `goal:`、REQ の `br:`）から読むものを決めます。
 - **R-1005 (SHOULD)** 1 ファイルはおおむね 100 行以下です。超えたら分割するか、値を機械可読にします。
