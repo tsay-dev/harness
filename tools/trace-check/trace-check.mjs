@@ -1083,7 +1083,8 @@ function runChecks(cfg, { asActive = false } = {}) {
 	for (const req of Object.keys(reqTests).sort())
 		if (!(req in corpus.reqs)) fail("C3", `テストが未定義の ${req} を @covers している（${reqTests[req].where.join(", ")}）`);
 		else if (corpus.reqs[req].status === "withdrawn") fail("C3", `テストが撤回済みの ${req} を @covers している（${reqTests[req].where.join(", ")}）`);
-	for (const br of Object.keys(brs).sort()) if (!referencedBrs.has(br)) fail("C4", `${br} がどの UC / REQ からも参照されていない（死んだ規則）`);
+	//  撤回済みの BR は、どこからも参照されていないのが正しい（active な文書から参照すれば C16 が落とす）
+	for (const br of Object.keys(brs).sort()) if (brs[br] !== "withdrawn" && !referencedBrs.has(br)) fail("C4", `${br} がどの UC / REQ からも参照されていない（死んだ規則）`);
 	const idStatus = (ident) => corpus.reqs[ident]?.status ?? brs[ident] ?? corpus.ucs[ident]?.status;
 	for (const ident of Object.keys(implementsMap).sort()) {
 		const st = idStatus(ident);

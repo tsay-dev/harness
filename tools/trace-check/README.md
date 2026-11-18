@@ -174,7 +174,7 @@ active な REQ がある間、`source.dirs` の全ファイルは `source.unit_d
 | C1 | `active` REQ と、withdrawn 以外でソースから `@implements` されている REQ に、保留でないテストの `@covers` がない（status を戻しても実装が残ればテストが要る） | R-1104 |
 | C2 | `active` REQ に `## 検証方針` 節がない | R-1002 |
 | C3 | テストが存在しない、または撤回済みの REQ を `@covers` する | R-602 |
-| C4 | BR がどの UC / REQ にも参照されない（死んだ規則） | R-103 |
+| C4 | 撤回済みでない BR がどの UC / REQ にも参照されない（死んだ規則。撤回済みの BR は対象外。ADR-0069） | R-103 |
 | C5 | コードが存在しない、または撤回済みの ID を `@implements` する（孤立参照） | R-701 |
 | C6 | 層が禁止された層を import する（設定の `layering`。`layer_pattern` が層のパス階層を指定し、`{layer}` = `root` 配下の第一階層、`*/{layer}` = 第二階層、例: `Features/<name>/Domain`）。C6 は `import_patterns` だけを見る。同じモジュールに層があり互いに import しない言語（単一モジュール Swift アプリ）では一致対象がなく、正常な C6 は沈黙であり証明ではない。代わりにプラットフォーム linter で方向を保証し、`layering` は省略する | R-702 |
 | C7 | 実装のエラーコード（`contract.error_source` の `error_code_pattern` の一致）が `docs.shared` の `errorCodes` の部分集合ではない | R-703 |

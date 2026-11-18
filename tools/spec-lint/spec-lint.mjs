@@ -443,6 +443,9 @@ function validateReq(file, ucDirId) {
 	else if (paras.length > 1) err(file, `要件文の blockquote が ${paras.length} 段落ある — 1 要件 1 文。別の要件は別の REQ へ（R-401）`);
 	else if (paras[0].length > MAX_EARS_CHARS) warn(file, `要件文が ${paras[0].length} 文字（${MAX_EARS_CHARS} 文字超）— 複数の要件の圧縮ではないか（R-401）`);
 
+	//  撤回した理由は note に書く（R-201）。経緯を git と ADR から引けるように、決定の記録の番号を添える
+	if (isWithdrawn(status) && !data.note) warn(file, `withdrawn なのに撤回の理由（- note:）が無い（R-201）`);
+
 	//  検証方針の中身は test-author が後から埋める（trace-check C2 / C10 が判定）。ここでは見出しの存在だけ
 	checkSections(file, body, fmt.sections, status, { skipEmpty: [POLICY] });
 	checkSentinels(file, head, status);
@@ -460,7 +463,7 @@ function validateBR(file) {
 	checkSections(file, body, fmt.sections, status);
 	checkSentinels(file, body, status);
 	checkHygiene(file, body, "br");
-	if (isSettled(status) && !/\*\*意図\*\*/.test(body)) warn(file, `「**意図**」が無い — 規則は存在と意図を書く（KPI / GOAL との接続）`);
+	if (isSettled(status) && !isWithdrawn(status) && !/\*\*意図\*\*/.test(body)) warn(file, `「**意図**」が無い — 規則は存在と意図を書く（KPI / GOAL との接続）`);
 	return { id: data.id || stem, status };
 }
 
@@ -474,7 +477,7 @@ function validateNFR(file) {
 	checkSections(file, body, fmt.sections, status);
 	checkSentinels(file, body, status);
 	if (isSettled(status) && blockquoteParagraphs(stripComments(body)).length === 0) err(file, `${status} なのに要件文（> で始まる 1 文）が無い`);
-	if (isSettled(status) && !/測定/.test(stripComments(body))) warn(file, `測定方法の記述が見当たらない — 測定できない NFR は書かない（R-104）`);
+	if (isSettled(status) && !isWithdrawn(status) && !/測定/.test(stripComments(body))) warn(file, `測定方法の記述が見当たらない — 測定できない NFR は書かない（R-104）`);
 	return { id: data.id || stem, status };
 }
 

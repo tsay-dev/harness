@@ -570,3 +570,26 @@ test("撤回済みの REQ でも、要件文（> の 1 文）は要る", () => {
 	assert.equal(r.status, 1, r.out);
 	assert.match(r.out, /REQ-900: 要件文（> で始まる EARS 1 文）が無い/);
 });
+
+test("撤回済みの UC に空の表の節が残っていても、表の中身は求めない（撤回済みでなければ err）", () => {
+	const withTables = (status) => {
+		const files = shortUc(status, "withdrawn");
+		const path = Object.keys(files)[0];
+		files[path] = files[path].replace("## 要件", "## 概要\n\n撤回した。\n\n## 事前条件\n\nなし。\n\n## 主シナリオ\n\n1. なし。\n\n## 状態 × イベント表\n\n## 例外系の走査（4 分類）\n\n| 分類 | 対象ステップ | 導出した要件 |\n| --- | --- | --- |\n\n## 事後条件\n\nなし。\n\n## 要件");
+		return files;
+	};
+	assert.equal(validate({ hostFiles: withTables("withdrawn") }).status, 0);
+	const active = validate({ hostFiles: withTables("active") });
+	assert.equal(active.status, 1, active.out);
+	assert.match(active.out, /例外系の走査に「権限」の行が無い/);
+});
+
+test("撤回済みの REQ に撤回の理由（note）が無ければ warn", () => {
+	const files = shortUc("withdrawn", "withdrawn");
+	const path = Object.keys(files)[0];
+	files[path] = files[path].replace("- note: 一括の配信を廃止した（ADR-0001）\n", "");
+	const r = validate({ hostFiles: files });
+	assert.equal(r.status, 0, r.out);
+	assert.match(r.out, /warn .*REQ-900: withdrawn なのに撤回の理由（- note:）が無い/);
+	assert.doesNotMatch(validate({ hostFiles: shortUc("withdrawn", "withdrawn") }).out, /撤回の理由/);
+});
