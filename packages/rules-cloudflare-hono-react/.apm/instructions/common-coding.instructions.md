@@ -24,7 +24,7 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/tsc
 | `apps/api/src/db/{schema/*.ts,client.ts}`、`drizzle.config.*`、`apps/api/migrations/*.sql` | [D1 / Drizzle](backend-database.instructions.md) |
 | `apps/api/src/features/<feature>/*.do.ts`、`*.schema.ts` | [リアルタイム](backend-realtime.instructions.md) |
 | R2 を使う repository とアップロードルート | [R2](backend-storage.instructions.md) |
-| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | [ブラウザルーティング](frontend-routing.instructions.md)、[データフロー](frontend-dataflow.instructions.md) |
+| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | [ブラウザルーティング](../../../rules-hono-react-spa/.apm/instructions/frontend-routing.instructions.md)、[データフロー](../../../rules-hono-react-spa/.apm/instructions/frontend-dataflow.instructions.md) |
 | `packages/shared/src/<feature>/schemas.ts` | [バックエンドの境界](backend-coding.instructions.md) |
 | テストとランナー設定 | [テストの接続](common-testing.instructions.md)、[バックエンド](backend-testing.instructions.md)、[システム](system-testing.instructions.md) |
 

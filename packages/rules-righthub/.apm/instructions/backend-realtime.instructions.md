@@ -15,4 +15,4 @@ WebSocket を使う機能だけに適用する。認可は[セキュリティ](b
 - heartbeat、切断検出、再接続バックオフ、フレームサイズ、送信キューに上限を設ける。遅い受信者に無制限に蓄積せず、バックプレッシャーまたは切断を行う。
 - DB 更新と配信は別の処理。永続イベント / outbox 等で再送可能にし、プロセス停止後も未配信を修復できるようにする。
 
-ブラウザ側の整合は[データフロー](frontend-dataflow.instructions.md)。
+ブラウザ側の整合は[データフロー](../../../rules-hono-react-spa/.apm/instructions/frontend-dataflow.instructions.md)。

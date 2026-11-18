@@ -1,3 +1,6 @@
 name: rules-righthub
 version: 1.0.0
 description: "Righthub — Xserver VPS 内で動かす Node.js、Hono、React SPA、PostgreSQL、Prisma のベンダーに依存しない規約"
+dependencies:
+  apm:
+    - ../rules-hono-react-spa

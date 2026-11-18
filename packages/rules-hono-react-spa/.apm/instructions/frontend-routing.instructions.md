@@ -5,7 +5,7 @@ applyTo: "**/apps/web/src/**,**/vite.config.*,**/e2e/**,**/playwright.config.*"
 
 # React SPA — 機能のルーティング
 
-ブラウザ routes は `apps/web/src/routes/`。Hono の機能 routes は[バックエンドコーディング](backend-coding.instructions.md)の別の層。
+ブラウザ routes は `apps/web/src/routes/`。Hono の機能 routes は、バックエンドの規約が扱う別の層。
 
 ## 配置と公開境界
 

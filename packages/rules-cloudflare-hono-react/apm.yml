@@ -1,3 +1,6 @@
 name: rules-cloudflare-hono-react
 version: 1.0.0
 description: "Cloudflare Workers、Hono、React SPA、Drizzle を使う D1 のベンダーに依存しない規約"
+dependencies:
+  apm:
+    - ../rules-hono-react-spa

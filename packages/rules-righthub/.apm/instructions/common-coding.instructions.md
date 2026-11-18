@@ -24,7 +24,7 @@ Righthub は、利用プロジェクトが宣言した Xserver VPS 内で動く 
 | `prisma/schema.prisma`、`prisma/migrations/**`、`prisma.config.*`、`apps/api/src/db/client.ts` | [PostgreSQL / Prisma](backend-database.instructions.md) |
 | `apps/api/src/features/<feature>/*.socket.ts`、`*.schema.ts` | [リアルタイム](backend-realtime.instructions.md) |
 | ファイル保存を使う repository とアップロードルート | [ファイル保存](backend-storage.instructions.md) |
-| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | [ブラウザルーティング](frontend-routing.instructions.md)、[データフロー](frontend-dataflow.instructions.md) |
+| `apps/web/src/routes/**`、`features/<feature>/{api,components,hooks,lib,index.ts}` | [ブラウザルーティング](../../../rules-hono-react-spa/.apm/instructions/frontend-routing.instructions.md)、[データフロー](../../../rules-hono-react-spa/.apm/instructions/frontend-dataflow.instructions.md) |
 | `packages/shared/src/<feature>/schemas.ts` | [バックエンドの境界](backend-coding.instructions.md) |
 | テストとランナー設定 | [テストの接続](common-testing.instructions.md)、[バックエンド](backend-testing.instructions.md)、[システム](system-testing.instructions.md) |
 
