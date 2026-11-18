@@ -251,7 +251,7 @@ function checkSections(file, body, required, status, opts = {}) {
 function checkHygiene(file, body, kind, opts = {}) {
 	const lines = body.split(/\r?\n/);
 	const plain = stripComments(body);
-	//  REQ の検証方針は「参照先」「値の SSOT は <path>」を書く正規の場所なので、アンカー系の検査は要件文の側だけに掛ける
+	//  REQ の検証方針はテストのパスなどを書くことがあるので、アンカー系の検査は要件文の側だけに掛ける
 	const policyIdx = kind === "req" ? plain.indexOf(`## ${POLICY}`) : -1;
 	const head = policyIdx >= 0 ? plain.slice(0, policyIdx) : plain;
 
@@ -455,6 +455,10 @@ function validateReq(file, ucDirId) {
 	checkSections(file, body, fmt.sections, status, { skipEmpty: [POLICY] });
 	checkSentinels(file, head, status);
 	checkHygiene(file, body, "req");
+	//  どのテストが確かめるかはテストの @covers が正本で、harness index が出す。検証方針に手で写した「参照先」は、
+	//  古くなっても何も落ちない 2 か所目なので廃止した。版を上げた利用プロジェクトを一斉に落とさないよう warn に留める（ADR-0080）
+	if (policyIdx >= 0 && /^\s*-\s*\*\*参照先\*\*/m.test(stripComments(body.slice(policyIdx))))
+		warn(file, "検証方針の「参照先」は使わない（どのテストが確かめるかは `harness index` が出す。この欄は消してよい / ADR-0080）");
 	return { id: data.id || stem, status, uc: data.uc || null };
 }
 
