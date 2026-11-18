@@ -22,4 +22,4 @@ harness のひな形 `harness.config.json` から変える値だけを示す。�
 - スキーマ源は `prisma/schema.prisma`。SQL でだけ表せる制約を採用する場合は、その正本も `schema` の範囲に追加する。DB で守る規則（`@unique` / `@@unique` など）は、規則に反する行を DB に直接入れて断られるテスト（`@covers BR-nnn`）で確かめる（C13）。
 - 共有エラーコードはブラウザも読むので `packages/shared/src` に置く。
 - `@covers` はテスト本文の先頭行に置く（[テストの接続](common-testing.instructions.md)）ので `after`。シナリオテストはひな形のまま。
-- 技術部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!apps/api/src/middleware/**"`）。外さなければ `@covers` の無いテストとして C11 になる。
+- 部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!apps/api/src/middleware/**"`）。外さなければ `@covers` の無いテストとして C11 になる。

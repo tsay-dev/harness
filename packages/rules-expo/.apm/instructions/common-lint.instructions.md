@@ -20,4 +20,4 @@ applyTo: "**/*.tsx,**/*.ts,**/app.json,**/app.config.*,**/eas.json,**/eslint.con
 | `react-native` の `SafeAreaView` | 本番コード |
 | `screen → feature → parts → ui` の逆向きの読み込みと、同じ階層どうしの読み込み | 画面とコンポーネント |
 | view コンポーネントが、query hook、API client、store、`expo-secure-store` を読み込む、または `fetch` を呼ぶ | 外観のコンポーネント |
-| 仕様のテスト（`@covers` を持つテスト）が、入口の表（`common-testing`）が示す module とテストの足場以外の本番コードを読み込む | 既定スイート |
+| `@covers` を付けた仕様のテストが、入口の表（`common-testing`）が示す module とテストの足場以外の本番コードを読み込む | 既定スイートの `tests.dirs`（`@covers` を付けない部品の自己検査は、`tests.dirs` の外に置くので対象外） |

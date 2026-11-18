@@ -36,4 +36,4 @@ Expo（expo-router）のアプリで、harness のひな形 `harness.config.json
 - Maestro の workspace 設定（`config.yaml`）と subflow は UC のシナリオではないので、除外の glob で範囲から外す。subflow の置き場が違えば glob を合わせる。`e2e/` に置くなら `dirs` をそちらにする。
 - `layering` はひな形の層名を持たないので削除するか、`CLAUDE.md` の層の置き場で書き直す。
 - `commands` は[テストの接続](common-testing.instructions.md)と[システムテスト](system-testing.instructions.md)が定めるコマンドに置き換える。
-- 技術部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!src/lib/**"`）。外さなければ `@covers` の無いテストとして C11 になる。
+- 部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!src/lib/**"`）。外さなければ `@covers` の無いテストとして C11 になる。
