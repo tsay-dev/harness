@@ -648,6 +648,20 @@ test("guard: 設定の docs.shared が docs の外を指しても、その語彙
 	assert.deepEqual([...readLog(root), ...readLog(mono)].map((l) => l.reason), ["approved-edit", "approved-edit"]);
 });
 
+test("guard: 2 つ以上の docs が共有する語彙は、どれか 1 つに fixed の契約があれば人に回す（unit の並び順によらない）", (t) => {
+	for (const fixedIn of ["apps/a", "apps/ab"]) {
+		const root = makeRoot(t);
+		put(root, "harness.config.json", JSON.stringify({ git: { units: { a: "apps/a", ab: "apps/ab" } } }));
+		for (const u of ["apps/a", "apps/ab"]) {
+			put(root, `${u}/harness.config.json`, JSON.stringify({ docs: { goals_dir: "docs/goals", shared: "../../shared/components.yaml" } }));
+			put(root, `${u}/docs/goals/GOAL-01-x/UC-001-y/contract.yaml`, `x-uc: UC-001\nx-status: ${u === fixedIn ? "fixed" : "draft"}\n`);
+		}
+		put(root, "shared/components.yaml", "errorCodes: {}\n");
+		const r = runHook(root, { tool_input: { file_path: "shared/components.yaml", content: "errorCodes:\n  X: x\n" }, cwd: root }, ["--code", "src/**"]);
+		assert.match(askOf(r), /共有の語彙を変える/, fixedIn);
+	}
+});
+
 test("guard: unit の docs は verify と同じ <unit>/docs に固定する（--docs はルートの docs だけに効く）", async (t) => {
 	const { unitDocsOf } = await import("../../_shared/suite.mjs");
 	assert.equal(unitDocsOf("/x/apps/a"), join("/x/apps/a", "docs"));

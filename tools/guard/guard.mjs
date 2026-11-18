@@ -563,14 +563,18 @@ function main() {
 		const docsDir = opts.docs.replace(/\/+$/, "");
 		const areas = docsAreas(root, opts.docs);
 		//  共有の語彙は、設定の docs.shared が docs の外を指していても判定する（どの docs の語彙かは、その docs の設定で決まる）
-		const vocabArea = areas.areas.find((a) => !a.error && a.docsDir !== null && sharedVocabFiles(a).some((f) => f.toLowerCase() === abs.toLowerCase()));
-		if (vocabArea) {
+		//  同じ語彙を 2 つ以上の docs が共有するときは、一致したすべての docs を見る（どれか 1 つに fixed の契約があれば人に回す）
+		const vocabAreas = areas.areas.filter((a) => !a.error && a.docsDir !== null && sharedVocabFiles(a).some((f) => f.toLowerCase() === abs.toLowerCase()));
+		if (vocabAreas.length) {
 			ctx.target = rel;
-			let vocab;
-			try {
-				vocab = sharedVocabEdit(abs, input, vocabArea);
-			} catch (e) {
-				vocab = `共有の語彙への書き込みを判定できない（${e?.message ?? e}）`;
+			let vocab = null;
+			for (const area of vocabAreas) {
+				try {
+					vocab = sharedVocabEdit(abs, input, area);
+				} catch (e) {
+					vocab = `共有の語彙への書き込みを判定できない（${e?.message ?? e}）`;
+				}
+				if (vocab) break;
 			}
 			if (vocab)
 				ask(
