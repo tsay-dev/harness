@@ -66,6 +66,9 @@ const ACTOR_KINDS = ["人間", "システム"];
 const EARS_PATTERNS = ["Ubiquitous", "Event-driven", "State-driven", "Unwanted behaviour", "Optional"];
 const POLICY = "検証方針"; //  REQ の検証方針セクション（所有者は test-author。中身の判定は trace-check C2/C10）
 const isSettled = (s) => !!s && s !== "draft" && s !== "proposed";
+//  撤回済み（withdrawn）の文書は、ID・撤回の印・理由・1 文だけの短い形でよい。経緯は git と ADR が持つので、
+//  効いていた頃の節（検証方針、状態 × イベント表、例外系の走査など）を残すことを求めない
+const isWithdrawn = (s) => s === "withdrawn";
 
 //  --- 肥大の閾値（本ツールが唯一の SSOT。producer craft に数値を書き写さない）---
 //  UC.md と REQ は 1 スライスで producer / oracle の全員が別コンテキストで全文を読むため、
@@ -256,6 +259,7 @@ function checkRequiredFm(file, data, keys) {
 
 //  必須セクションの存在と、draft を抜けた文書での空セクション
 function checkSections(file, body, required, status, opts = {}) {
+	if (isWithdrawn(status)) return;
 	const secs = getSections(body);
 	for (const key of required) {
 		const found = secs.find((s) => sectionKey(s.title) === key || s.title.startsWith(key));
@@ -403,7 +407,7 @@ function validateUC(file, dirId) {
 	//  状態 × イベント表: 全セルを埋める（R-501。空セル＝仕様の穴）
 	const stateSec = findSection(body, (t) => t.startsWith("状態"));
 	const stateRows = stateSec ? tableRows(stateSec.lines) : [];
-	if (isSettled(status) && stateSec) {
+	if (isSettled(status) && !isWithdrawn(status) && stateSec) {
 		if (stateRows.length < 2) err(file, `${status} なのに状態 × イベント表にデータ行が無い（R-501）`);
 		stateRows.slice(1).forEach((cells, i) => {
 			const empty = cells.slice(1).some((c) => c === "");
@@ -413,7 +417,7 @@ function validateUC(file, dirId) {
 	//  例外系の走査: 4 分類の行が揃っているか（R-502）
 	const excSec = findSection(body, (t) => t.startsWith("例外系"));
 	const excRows = excSec ? tableRows(excSec.lines).slice(1) : [];
-	if (isSettled(status) && excSec) {
+	if (isSettled(status) && !isWithdrawn(status) && excSec) {
 		for (const axis of ["権限", "不変条件違反", "並行性", "外部依存"])
 			if (!excRows.some((r) => r[0] === axis)) err(file, `例外系の走査に「${axis}」の行が無い（R-502: 4 分類を全て走査する）`);
 	}

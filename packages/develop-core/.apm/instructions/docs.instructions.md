@@ -18,7 +18,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 ## 2. ID の文法
 
-- **R-201 (MUST)** ID は不変、内容は変更可能です。廃止は `status: withdrawn` であり削除ではありません。
+- **R-201 (MUST)** ID は不変、内容は変更可能です。廃止は `status: withdrawn` であり削除ではありません。撤回した文書は、ID・`status: withdrawn`・撤回の理由（REQ は `- note:`、ほかは本文の 1 文。決定の記録があれば番号を添える）・元の 1 文だけの短い形にします。効いていた頃の節（検証方針、状態 × イベント表、例外系の走査など）は残しません（経緯は git と ADR が持つ）。
 - **R-202 (MUST)** `GOAL-nn` / `UC-nnn` / `REQ-nnn` / `BR-nnn` / `NFR-nnn` / `ADR-nnnn` / `ACT-nn` / `KPI-nn`。番号は再利用しません。桁幅は `harness.config.json` で変えます。
 - **R-203 (MUST)** 1 ID に 1 ファイル、frontmatter の `id:` に宣言します（例外は `goals-backlog.md` の `###` 見出しと ACT / KPI 表だけ）。本文に現れるほかの ID は参照で、参照先の定義は C16（BR）・C17（REQ）・C18（ACT・KPI）が検査します。
 - **R-204 (MUST)** 採番は `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --next <goal|uc|req|br|nfr|adr>`（原子的な予約。`--reserve N` で連番、`--next req` は UC 表が予約した ID も数える）。二重定義は C12 が検出します。

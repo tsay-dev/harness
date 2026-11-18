@@ -520,3 +520,53 @@ test("DEFERRED.md: REQ を指す対象（UC.md#REQ-nnn）は、その小節が�
 	const noFile = validate({ deferredRows: [row("DEF-001", { target: "docs/goals/GOAL-01-a/UC-009-z/UC.md#REQ-001" })] });
 	assert.match(noFile.out, /が存在しない/);
 });
+
+//  撤回済みの文書は短い形でよい: 効いていた頃の節を残すことを求めない
+const shortUc = (status, reqStatus) => ({
+	"docs/goals/GOAL-01-a/UC-009-z/UC.md": `---
+id: UC-009
+title: 一括で配信する
+actor: ACT-01
+goal: GOAL-01
+status: ${status}
+phase: 完了
+---
+
+# UC-009 一括で配信する
+
+> 撤回: 運営からのお知らせに作り直した（ADR-0001）。
+
+## 要件
+
+### REQ-900
+
+- pattern: Event-driven
+- status: ${reqStatus}
+- note: 一括の配信を廃止した（ADR-0001）
+
+> 運営者が配信を求めた場合、システムは全員に届ける。
+`,
+});
+
+test("撤回済みの UC と REQ は、節（検証方針・状態・例外系など）が無い短い形で通る", () => {
+	const r = validate({ hostFiles: shortUc("withdrawn", "withdrawn") });
+	assert.equal(r.status, 0, r.out);
+});
+
+test("撤回済みでない UC と REQ は、節が無ければ err のまま", () => {
+	const uc = validate({ hostFiles: shortUc("active", "withdrawn") });
+	assert.equal(uc.status, 1, uc.out);
+	assert.match(uc.out, /UC-009-z\/UC\.md: 必須セクション "概要" が無い/);
+	const req = validate({ hostFiles: shortUc("withdrawn", "active") });
+	assert.equal(req.status, 1, req.out);
+	assert.match(req.out, /REQ-900: 必須セクション "検証方針" が無い/);
+});
+
+test("撤回済みの REQ でも、要件文（> の 1 文）は要る", () => {
+	const files = shortUc("withdrawn", "withdrawn");
+	const path = Object.keys(files)[0];
+	files[path] = files[path].replace("> 運営者が配信を求めた場合、システムは全員に届ける。\n", "");
+	const r = validate({ hostFiles: files });
+	assert.equal(r.status, 1, r.out);
+	assert.match(r.out, /REQ-900: 要件文（> で始まる EARS 1 文）が無い/);
+});
