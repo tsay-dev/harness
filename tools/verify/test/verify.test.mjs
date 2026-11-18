@@ -8,6 +8,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
+import { foldOverview } from "../../_shared/test/fold-overview.mjs";
+import { project, bigReportFiles, LAST_VIOLATION } from "../../_shared/test/refs-linked-fixture.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VERIFY = join(HERE, "..", "verify.mjs");
@@ -149,4 +152,21 @@ test("verify: 入口の一覧のコマンドの途中で止められても、一
 	child.kill("SIGTERM");
 	assert.deepEqual(await ended, { status: null, signal: "SIGTERM" });
 	assert.deepEqual(readdirSync(tmp).filter((n) => n.startsWith("harness-entries-")), []);
+});
+
+test("verify: 検査の出力が 200KB を超えても、末尾（FAIL と違反の行）を表示する", (t) => {
+	//  本物の lint refs を実行する。検査が出力を書き終える前に終わると、verify が受け取る出力が途中で切れ、
+	//  表示する末尾が報告の途中の行になって、何が違反か分からなくなる
+	const root = project(t, { files: bigReportFiles() });
+	foldReqFiles(root);
+	foldOverview(root);
+	const env = { ...process.env };
+	delete env.HARNESS_TOOLS_DIR;
+	delete env.CLAUDE_PROJECT_DIR;
+	const r = spawnSync(process.execPath, [VERIFY, "--level", "lint", "--root", root], { encoding: "utf8", env });
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	const shown = r.stderr.split("\n  lint refs: exit 1\n")[1]?.split(/\n {2}\S/)[0] ?? "";
+	assert.match(shown, /\n {4}FAIL（違反 1 件）:\n {6}x \[C11\] /, r.stderr);
+	assert.ok(shown.includes(LAST_VIOLATION), r.stderr);
+	assert.match(shown, /-> 上流 SSOT を更新してから再導出すること/);
 });

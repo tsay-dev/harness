@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
 import { foldOverview } from "../../_shared/test/fold-overview.mjs";
-import { toolOf, fm, U, project, br, UC_WITH_BR } from "../../_shared/test/refs-linked-fixture.mjs";
+import { toolOf, fm, U, project, br, UC_WITH_BR, bigReportFiles, LAST_VIOLATION } from "../../_shared/test/refs-linked-fixture.mjs";
 
 const run = (root, ...args) => {
 	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
@@ -369,4 +369,13 @@ test("設定エラー（exit 2）: 廃止した docs.vision・docs.actors・docs
 	const r = run(root);
 	assert.equal(r.status, 2, r.stdout + r.stderr);
 	assert.match(r.stderr, /docs\.goals_backlog は廃止した（ADR-0076）。.*harness migrate overview/);
+});
+
+test("報告が 200KB を超えても、パイプ越しに末尾の FAIL と違反の行まで出る（書き終える前に終わらない）", (t) => {
+	//  パイプへの書き込みは非同期なので、書き終える前にプロセスを終えると、途中（64KB や 150KB 前後）で切れて違反が見えなくなる
+	const r = run(project(t, { files: bigReportFiles() }));
+	assert.equal(r.status, 1, r.stderr);
+	assert.ok(Buffer.byteLength(r.stdout) > 200 * 1024, `報告が小さすぎて確かめにならない: ${Buffer.byteLength(r.stdout)} バイト`);
+	assert.match(r.stdout, /\nFAIL（違反 1 件）:\n {2}x \[C11\] ([^\n]*)\n\n-> 上流 SSOT を更新してから再導出すること（逆流ルール R-801）\n$/);
+	assert.ok(r.stdout.includes(LAST_VIOLATION), r.stdout.slice(-500));
 });

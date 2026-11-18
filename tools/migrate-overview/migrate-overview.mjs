@@ -30,6 +30,7 @@ import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync 
 import { basename, join, relative, resolve } from "node:path";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { OVERVIEW_FILE, overviewFormat, readOverview, renderOverview, splitRow, unescapeCell } from "../_shared/overview.mjs";
+import { exitWith } from "../_shared/stdio.mjs";
 
 const TAG = "[migrate overview]";
 //  ひな形の案内の HTML コメントの書き出し（これで始まるコメントは落とす）
@@ -55,9 +56,7 @@ const EMPTY_BACKLOG_RE = /^未着手の(ゴール|GOAL)は(まだ)?(無い|な�
 const OLD_KEYS = { vision: "00-vision.md", actors: "02-actors.md", goals_backlog: "goals-backlog.md" };
 
 function usage(msg) {
-	if (msg) console.error(`${TAG} ${msg}`);
-	console.error("usage: harness migrate overview [--root .] [--docs docs] [--write]");
-	process.exit(2);
+	exitWith(2, ...(msg ? [`${TAG} ${msg}`] : []), "usage: harness migrate overview [--root .] [--docs docs] [--write]");
 }
 
 function parseArgs(argv) {

@@ -149,4 +149,4 @@ function cmdGate(docsDir, opts) {
 }
 
 const opts = parseArgs(COMMAND, process.argv.slice(2));
-process.exit(cmdGate(opts.docs, opts));
+process.exitCode = cmdGate(opts.docs, opts);

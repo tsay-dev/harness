@@ -23,7 +23,7 @@ applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/*.t
 | 本番の組み立てでだけ使うもの（ランタイム固有のモジュール、組み立てでだけ使うクラス、サーバーの起動）を読み込む | `*.routes.ts`、`*.service.ts` |
 | `app.all()` と `app.mount()` の呼び出し（入口は method を明示して登録する） | `apps/api/src/` |
 | `'use server'` の指定（Server Actions） | `apps/web/src/` |
-| 仕様のテスト（`@covers` を持つテスト）が、テストの入口（`entry.test_entry`）、テストの足場、`packages/shared/src/` 以外の本番コードを読み込む | `tests.dirs` |
+| `@covers` を付けた仕様のテストが、テストの入口（`entry.test_entry`）、テストの足場、`packages/shared/src/` 以外の本番コードを読み込む | `tests.dirs`（`@covers` を付けない部品の自己検査は、`tests.dirs` の外に置くので対象外） |
 | `waitForTimeout`、`test.fail`、CSS・XPath・位置（`nth()`）によるロケーター | シナリオテスト（`e2e/`） |
 
 lint で見分けられない決まり（`app.use` に渡したものが次へ渡さずに応答を返すか、ロケーターが偶然の画面文言から来ていないか）は、それぞれの規約に残し、レビューで見る。

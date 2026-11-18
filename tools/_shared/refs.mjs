@@ -24,6 +24,7 @@ import { goalsRootOf, specDirs } from "./spec-tree.mjs";
 import { CONFIG_FILE, renamedConfigHint, retiredKeysIn } from "./config.mjs";
 import { MIGRATE_HINT, OVERVIEW_FILE, actorKindsOf, overviewPathOf, readOverviewFile, retiredDocsIn } from "./overview.mjs";
 import { DROPPED_HINT, droppedDocsIn } from "./dropped-docs.mjs";
+import { exitWith } from "./stdio.mjs";
 
 //  出力の頭に付けるコマンドの名前（"lint refs" など）。コマンドのファイルが、最初に useCommandName で決める
 let command = "";
@@ -105,19 +106,16 @@ export function scopeFiles(cfg, patterns, exts) {
 
 export function loadConfig(root, configPath) {
 	if (!existsSync(configPath)) {
-		console.error(`${command}: 設定が無い: ${configPath}（テンプレート templates/develop/harness.config.json を host 直下に置く）${renamedConfigHint(configPath)}`);
-		process.exit(2);
+		exitWith(2, `${command}: 設定が無い: ${configPath}（テンプレート templates/develop/harness.config.json を host 直下に置く）${renamedConfigHint(configPath)}`);
 	}
 	let cfg;
 	try {
 		cfg = JSON.parse(read(configPath));
 	} catch (e) {
-		console.error(`${command}: ${configPath} が JSON として読めない: ${e.message}`);
-		process.exit(2);
+		exitWith(2, `${command}: ${configPath} が JSON として読めない: ${e.message}`);
 	}
 	if (!isMap(cfg)) {
-		console.error(`${command}: ${configPath} の最上位はオブジェクトにする`);
-		process.exit(2);
+		exitWith(2, `${command}: ${configPath} の最上位はオブジェクトにする`);
 	}
 	cfg._root = root;
 	return cfg;
@@ -753,8 +751,7 @@ export function checkContractConformance(cfg, shared) {
 //  ---- 3 つのコマンドに共通の始め方 -----------------------------------------------
 
 export function usage(msg) {
-	console.error(`${command}: ${msg}`);
-	process.exit(2);
+	exitWith(2, `${command}: ${msg}`);
 }
 
 //  設定を読み、宣言を検査する。戻り: { root, cfg, decl, declError }。declError() は宣言の誤りを表示して 2 を返す。
@@ -763,8 +760,7 @@ export function openProject(opts) {
 	const root = resolve(opts.root);
 	const cfg = loadConfig(root, opts.config ? resolve(opts.config) : join(root, CONFIG_FILE));
 	if ("baseline_file" in cfg) {
-		console.error(`${command}: baseline_file は廃止した（ADR-0056）。harness.config.json からキーを削除し、台帳ファイルも削除する`);
-		process.exit(2);
+		exitWith(2, `${command}: baseline_file は廃止した（ADR-0056）。harness.config.json からキーを削除し、台帳ファイルも削除する`);
 	}
 	const decl = checkDeclarations(cfg);
 	const declError = () => {

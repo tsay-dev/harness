@@ -19,5 +19,5 @@ applyTo: "**/next.config.*,**/middleware.ts,**/middleware.js,**/app/**,**/action
 | `../../../` のように積み重ねた相対の読み込み（tsconfig のパスエイリアスを使う） | 本番コード |
 | `"use client"` のモジュールが、ユースケース、infrastructure、サーバーを前提とする domain を読み込む | Client Component |
 | `middleware.ts` が、DB のクライアント、ユースケース、domain を読み込む | `middleware.ts` |
-| 仕様のテスト（`@covers` を持つテスト）が、入口の表（`common-testing`）が示すファイルとテストの足場以外の本番コードを読み込む | `tests.dirs` |
+| `@covers` を付けた仕様のテストが、入口の表（`common-testing`）が示すファイルとテストの足場以外の本番コードを読み込む | `tests.dirs`（`@covers` を付けない部品の自己検査は、`tests.dirs` の外に置くので対象外） |
 | `test.fail`、`page.waitForTimeout`、CSS selector・XPath・`nth()` によるロケーター | シナリオテスト |
