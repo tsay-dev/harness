@@ -27,7 +27,7 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   trace-check・contract-run・gate-hook も同じものを使うので、同じ文書をツールごとに違う値（一方は active、他方は draft）に読まない（ADR-0056）。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
   意図的に狭い YAML 部分集合用の手書き parser（`../_shared/strict-yaml.mjs`。理由: `docs/adr/ADR-0002`）で構造を検査する:
-  `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、inbound の `http` の操作の `wire.path` は入口の一覧と同じ書式（`../exec-check/README.md` の「パスの書式」。draft の段階から検査する）、`entry` は `deeplink` / `push` / `stream` のみ（`deeplink` / `push` は inbound 限定）、`stream` の `observers` と例の `events`、
+  `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、inbound の操作の `wire.path`（http）と `entry`（deeplink）は入口の一覧と同じ書式（`../exec-check/README.md` の「パスの書式」。draft の段階から検査し、撤回済みの UC の契約は対象にしない）、`entry` は `deeplink` / `push` / `stream` のみ（`deeplink` / `push` は inbound 限定）、`stream` の `observers` と例の `events`、
   `owned: false` なら `source` 必須、全操作に明示した `auth` が `_shared` に解決すること、
   `errors[].code` が `_shared` の `errorCodes` に閉じていること、対応する `PERMISSION_DENIED` のない `requires`、
   `errors: []` を「失敗経路なし」の宣言として受理すること（失敗例は要求しない。`errors` の省略はその宣言ではない）、
@@ -68,7 +68,7 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
 `schemas:`（`$ref` を `#/schemas/<Name>` に書き換え）、`security` → `auth`（`[]` = `none`）、`x-status` は引き継ぐ。
 判断できないもの — direction（`--direction`、既定 `outbound` = このアプリが API を呼ぶ。サーバー自身の API は
 `inbound`）、欠落した `security`、推測したエラーコード、欠落した `summary`、UC（`--uc`）— はすべて
-ファイル末尾の `# convert:` 注記として残し、stderr に表示する。旧契約に 4xx がない操作は `errors: []` にする
+ファイル末尾の `# convert:` 注記として残し、stderr に表示する。OpenAPI のパスはそのまま写し、入口の一覧と突き合わせる書式に無い形（`/files/{name}.json` など）を写したときは、同じ注記で知らせる（inbound の操作なら `validate` が違反にする）。旧契約に 4xx がない操作は `errors: []` にする
 （失敗経路を創作しない）。注記を解消後に `validate` を通すことを意図した結果。
 
 ## エラーとして扱うもの（ライフサイクルと参照の不変条件）

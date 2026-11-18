@@ -45,7 +45,7 @@ import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mj
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
-import { ENTRY_PATH_FORM, normEntryPath } from "../_shared/entry-path.mjs";
+import { ENTRY_FORMAT_REF, inEntryScope, inboundEntryOf, readHttpPath } from "../_shared/entry-path.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -517,7 +517,7 @@ const ERROR_ITEM_KEYS = ["code", "when", "wire"]; //  errors[] の各項目も�
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
-function validateContract(file, text, dirId, xKeys, shared) {
+function validateContract(file, text, dirId, xKeys, shared, entryScope = true) {
 	const at = (line) => (line ? `${file}:${line}` : file);
 	const { root, problems } = parseStrictYaml(text);
 	for (const p of problems) err(at(p.line), p.msg);
@@ -647,13 +647,21 @@ function validateContract(file, text, dirId, xKeys, shared) {
 				for (const k of ["method", "path", "success"])
 					if (wire[k] === undefined || wire[k] === null)
 						err(fieldAt("wire"), `${label}: wire.${k} が無い`);
-				//  呼ばれる側の操作のパスは、アプリが出す入口の一覧と突き合わせる（exec-check entries）。一覧と同じ読み方で読めない形は、
-				//  どの入口とも合わない。fixed にした後で分かると、直すのに降格と再承認が要るので、draft の段階から止める
-				if (direction === "inbound" && typeof wire["path"] === "string" && normEntryPath(wire["path"]) === null)
-					err(at(lineOf(wire, "path") || lineOf(op, "wire")), `${label}: wire.path が、入口の一覧と突き合わせる書式に無い形を含む: ${wire["path"]}（${ENTRY_PATH_FORM}。区分の一部だけがパラメーターの形は、区分の全体をパラメーターにして書き直す。例: /files/{name}.json → /files/{name}、/items/{id}:cancel → /items/{id}/cancel）`);
 			}
 		} else if (wire !== undefined) {
 			err(fieldAt("wire"), `${label}: transport が ${transport} なのに wire がある（wire は http 専用）`);
+		}
+
+		//  呼ばれる側の操作の入口（http の wire.path、deeplink の entry）は、アプリが出す入口の一覧と突き合わせる（exec-check entries）。
+		//  一覧と同じ読み方（tools/_shared/entry-path.mjs）で読めない形は、どの入口とも合わない。承認して fixed にした後で分かると、
+		//  承認済みの契約を直すことになるので、draft の段階から止める。撤回済みの UC の契約は、突き合わせの対象でないので検査しない
+		if (entryScope) {
+			const e = inboundEntryOf(name, op);
+			if (e && e.problem && !e.reportedBySpecLint)
+				err(
+					at((e.field === "wire.path" && isMap(wire) && lineOf(wire, "path")) || lineOf(op, e.field === "entry" ? "entry" : "wire") || lineOf(ops, name)),
+					`${label}: ${e.field} が、入口の一覧と突き合わせる書式に無い: ${e.problem}（${ENTRY_FORMAT_REF}）`,
+				);
 		}
 
 		//  写し取りの契約は出所が要る
@@ -1009,7 +1017,7 @@ function loadModel(docsDir) {
 
 			const contractFile = join(udir, "contract.yaml");
 			if (existsSync(contractFile)) {
-				const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), uid, xKeys, shared);
+				const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), uid, xKeys, shared, inEntryScope(u.status));
 				if (c.id) contracts.set(c.id, { file: contractFile, ...c });
 			}
 			if (existsSync(join(udir, "api-contract.yaml"))) err(join(udir, "api-contract.yaml"), `旧フォーマットの契約が残っている（/docs-migrate）`);
@@ -1390,6 +1398,9 @@ function buildOperation(name, op, method, path, params, globalSecurity, comps, o
 	const success = statuses.find((s) => s.code >= 200 && s.code < 300);
 	o.wire = { method: method.toUpperCase(), path, success: success ? success.code : 200 };
 	if (!success) notes.push(`${name}: 2xx レスポンスが無い（wire.success は 200 を仮置き）`);
+	//  パスはそのまま写す。呼ばれる側の操作として使うなら、入口の一覧と突き合わせる書式に直す必要がある（validate が違反にする）
+	const pathForm = readHttpPath(path);
+	if (pathForm.problem) notes.push(`${name}: wire.path ${path} は、入口の一覧と突き合わせる書式に無い（${pathForm.problem}）。direction が inbound なら、書式に直す（${ENTRY_FORMAT_REF}）`);
 	const request = buildRequest(op, params, comps);
 	if (request) o.request = request;
 	if (success) {

@@ -49,9 +49,10 @@
 //          合う操作が 1 つも無い入口（契約に無い入口）と、合う操作が fixed でない契約にしか無い入口の 2 通りを、文を分けて報告する。
 //          契約の外の入口を認める宣言は無い。生存確認や静的なファイルの配信も、契約の操作として書く
 //      E2  fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い
-//      E4  一覧か、契約の wire.path を読めない: commands.list_entries が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに 0 行、
-//          JSON でない行、項目の欠落や知らない項目、同じ入口の重複、決まった書式に無い形を含むパス（パラメーターは :name と {name}、
-//          何でも受ける部分は * だけ）。契約の inbound の操作の wire.path が同じ書式に無い（owned・x-status によらない）。
+//      E4  一覧か、契約の操作の入口を読めない: commands.list_entries が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに 0 行、
+//          JSON でない行、項目の欠落や知らない項目、同じ入口の重複、決まった書式に無い path（http）や name（deeplink）。
+//          契約の inbound の操作の wire.path・entry が同じ書式に無い、wire や entry が欠けている（owned・x-status によらない）。
+//          書式の説明は README の「パスの書式」、読み方は tools/_shared/entry-path.mjs。
 //          廃止した設定のキー entries が残っている
 //      （E3 は欠番。契約に書かない入口の宣言 entries.outside_contract の検査だったが、その宣言を廃止した）
 //  確かめるのは「1 回も実行されなかったファイル・関数が無いこと」まで。行ごとの割合のしきい値は持たない。
@@ -68,7 +69,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
-import { ENTRY_PATH_FORM, normEntryName, normEntryPath } from "../_shared/entry-path.mjs";
+import { ENTRY_FORMAT_REF, NAMED_KINDS, entryOf, inEntryScope, inboundEntryOf } from "../_shared/entry-path.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope } from "../_shared/glob.mjs";
 import { parseStrictYaml } from "../_shared/strict-yaml.mjs";
@@ -423,22 +424,12 @@ function checkCoverage(cfg, root, since, entry) {
 
 //  ---- 入口の一覧と契約の突き合わせ（entries） -----------------------------------
 
-//  http 以外の入口の種類（契約の transport と同じ語）。一覧の kind に使う
-const NAMED_KINDS = ["deeplink", "push", "stream", "sdk", "local-store", "device", "internal"];
+//  入口の種類（http と、契約の transport と同じ語）。一覧の kind に使う。
+//  パスと deeplink の名前の読み方、契約の操作からの入口の読み方は tools/_shared/entry-path.mjs（spec-lint と同じものを使う）
 const ENTRY_KINDS = ["http", ...NAMED_KINDS];
 
-//  パスの書式と deeplink の名前の読み方は、tools/_shared/entry-path.mjs（spec-lint が契約の wire.path を同じ読み方で検査する）
-
-//  入口の同一性（突き合わせに使う鍵）と、表示の書き方。http は「METHOD パス」、それ以外は「種類 名前」。
-//  書式に無い形のパスは readable: false（鍵はパスそのまま。書式どおりの一覧の入口とは合わない）
-const httpEntry = (method, path) => {
-	const norm = normEntryPath(path);
-	return { key: `http ${method.toUpperCase()} ${norm ?? `(読めない形) ${path}`}`, label: `${method.toUpperCase()} ${path}`, readable: norm !== null };
-};
-const namedEntry = (kind, name) => ({ key: `${kind} ${kind === "deeplink" ? normEntryName(name) : name}`, label: `${kind} ${name}`, readable: true });
-const PATH_FORM = ENTRY_PATH_FORM;
-
-//  撤回されていない UC の契約の inbound の操作: [{ id: "UC-nnn#操作名", key, label, readable, status, fixed, fixedOwned }]
+//  撤回されていない UC の契約の inbound の操作: [{ id: "UC-nnn#操作名", key, label, status, fixed, fixedOwned }]
+//  入口を読めない操作（書式に無い wire.path・entry、欠けた wire など）は { id, label, field, problem } で、key を持たない
 //  status は契約の x-status（無ければ null）。入口の突き合わせ先（E1）にするのは fixed の契約の操作だけ（draft の契約は、人が承認していない）
 //  契約の読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。構文の誤りは spec-lint が報告し、ここは読めた分だけ使う
 function inboundOperations(cfg, root) {
@@ -452,17 +443,14 @@ function inboundOperations(cfg, root) {
 			const file = join(udir, "contract.yaml");
 			if (!existsSync(ucFile) || !existsSync(file)) continue;
 			const uc = parseFrontmatter(readFileSync(ucFile, "utf8")).data;
-			if (uc.status === "withdrawn") continue;
+			if (!inEntryScope(uc.status)) continue;
 			const { root: doc } = parseStrictYaml(readFileSync(file, "utf8"));
 			if (!isMap(doc) || !isMap(doc.operations)) continue;
 			for (const [name, op] of Object.entries(doc.operations)) {
-				if (!isMap(op) || op.direction !== "inbound") continue;
-				let e = null;
-				if (op.transport === "http") {
-					if (isMap(op.wire) && isText(String(op.wire.method ?? "")) && isText(op.wire.path)) e = httpEntry(String(op.wire.method), op.wire.path);
-				} else if (NAMED_KINDS.includes(op.transport)) e = namedEntry(op.transport, isText(op.entry) ? op.entry.trim() : name);
+				const e = inboundEntryOf(name, op);
+				if (e === null) continue;
 				const status = typeof doc["x-status"] === "string" ? doc["x-status"] : null;
-				if (e) out.push({ id: `${uc.id ?? "?"}#${name}`, ...e, status, fixed: status === "fixed", fixedOwned: status === "fixed" && op.owned === true });
+				out.push({ id: `${uc.id ?? "?"}#${name}`, ...e, status, fixed: status === "fixed", fixedOwned: status === "fixed" && op.owned === true });
 			}
 		}
 	return out;
@@ -496,16 +484,16 @@ function parseEntryList(text) {
 				errs.push(`E4  ${at}: kind が http の入口は、method（GET などの 1 語）と、/ で始まる path を持つ`);
 				return;
 			}
-			e = httpEntry(v.method, v.path);
+			e = entryOf("http", { method: v.method, path: v.path });
 		} else {
 			if (!isText(v.name)) {
 				errs.push(`E4  ${at}: kind が ${v.kind} の入口は、name（契約の entry と同じ書き方。entry を持たない種類は操作の名前）を持つ`);
 				return;
 			}
-			e = namedEntry(v.kind, v.name.trim());
+			e = entryOf(v.kind, { name: v.name.trim() });
 		}
-		if (!e.readable) {
-			errs.push(`E4  ${at}: path に、決まった書式に無い形がある: ${v.path}（${PATH_FORM}。一覧を出すコマンドが、この書式に直して出す）`);
+		if (e.problem) {
+			errs.push(`E4  ${at}: ${v.kind === "http" ? "path" : "name"} が、決まった書式に無い: ${e.label}（${e.problem}。一覧を出すコマンドが、書式に直して出す。${ENTRY_FORMAT_REF}）`);
 			return;
 		}
 		if (seen.has(e.key)) errs.push(`E4  ${at}: 同じ入口が ${seen.get(e.key)} 行目にもある: ${e.label}`);
@@ -527,10 +515,11 @@ function checkEntries(cfg, root, opts) {
 	const errs = [];
 	//  none を認める条件と、0 行の一覧を認める条件は同じ: fixed の契約に inbound の操作が無い間だけ
 	const fixedOps = ops.filter((o) => o.fixed);
-	//  契約の wire.path が書式に無い形だと、どの入口とも合わない。spec-lint が先に止めるが、ここ単独でも原因が契約の書き方だと分かるように出す
+	const readableOps = ops.filter((o) => !o.problem);
+	//  入口を読めない契約の操作は、どの入口とも合わない。spec-lint が先に止めるが、ここ単独でも原因が契約の書き方だと分かるように出す
+	//  （owned・x-status によらない。黙って捨てると、その操作に合うはずの入口が「契約に無い入口」としてだけ見える）
 	for (const o of ops)
-		if (!o.readable)
-			errs.push(`E4  契約の操作 ${o.id} の wire.path が、決まった書式に無い形を含む: ${o.label}（契約の書き方の誤り。このままでは、どの入口とも合わない。${PATH_FORM}。区分の一部だけがパラメーターの形は、区分の全体をパラメーターにして書き直す）`);
+		if (o.problem) errs.push(`E4  契約の操作 ${o.id} の ${o.field} を読めない: ${o.label}（${o.problem}。契約の書き方の誤りで、このままではどの入口とも合わない。${ENTRY_FORMAT_REF}）`);
 	//  契約の外の入口を認める宣言は廃止した。残っていれば、黙って読み飛ばさない
 	if (cfg.entries !== undefined)
 		errs.push("E4  設定の entries は廃止した（契約の外の入口は置けない）。キーを削除し、そこに書いていた入口は、契約の inbound の操作として書く");
@@ -567,9 +556,9 @@ function checkEntries(cfg, root, opts) {
 
 	if (listed !== null) {
 		//  突き合わせ先は fixed の契約の操作だけ。fixed でない契約の操作は、「合う操作はあるが承認されていない」と伝えるためにだけ引く
-		const fixedKeys = new Set(ops.filter((o) => o.fixed).map((o) => o.key));
+		const fixedKeys = new Set(readableOps.filter((o) => o.fixed).map((o) => o.key));
 		const pending = new Map(); //  鍵 -> fixed でない契約の操作（最初の 1 件）
-		for (const o of ops) if (!o.fixed && !pending.has(o.key)) pending.set(o.key, o);
+		for (const o of readableOps) if (!o.fixed && !pending.has(o.key)) pending.set(o.key, o);
 		const listedKeys = new Set(listed.map((e) => e.key));
 		for (const e of listed) {
 			if (fixedKeys.has(e.key)) continue;
@@ -580,7 +569,7 @@ function checkEntries(cfg, root, opts) {
 				);
 			else errs.push(`E1  契約に無い入口: ${e.label}（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く）`);
 		}
-		for (const o of ops)
+		for (const o of readableOps)
 			if (o.fixedOwned && !listedKeys.has(o.key))
 				errs.push(
 					`E2  ${o.id}（fixed、owned かつ inbound）に合う入口が、一覧に無い: ${o.label}（入口を実装するか、一覧を出すコマンドが載せているかを確かめる）`,

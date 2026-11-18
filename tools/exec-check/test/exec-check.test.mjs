@@ -328,12 +328,13 @@ test("entries: fixed の契約で owned が false の inbound の操作（外部
 });
 
 //  一覧のパスの書式に無い形。パラメーター 1 つとみなすと、契約より広い入口が契約の {accountId} に合ったことになる
-const BAD_PATH_FORMS = ["/api/members/[...slug]", "/api/members/[id]", "/api/members/{*splat}", "/api/members/:rest{.+}", "/api/members/{path:path}", "/api/members/:id?", "/api/members/${id}", "/api/members/<int:id>", "/api/members/:id(\\d+)", "/api/members/:id.json", "/api/members/x*", "/api/members/:id?x=1", "/api/members/:id#top"];
+const BAD_PATH_FORMS = ["/api/members/[...slug]", "/api/members/[id]", "/api/members/{*splat}", "/api/members/:rest{.+}", "/api/members/{path:path}", "/api/members/:id?", "/api/members/${id}", "/api/members/<int:id>", "/api/members/:id(\\d+)", "/api/members/:id.json", "/api/members/x*", "/api/members/:id?x=1", "/api/members/:id#top", "/api/members/:id-x", "/api/members/{id}.json", "/api/members:batchGet", "/api/$metadata/:id"];
 for (const path of BAD_PATH_FORMS) {
 	test(`entries E4: 一覧のパスが書式に無い形（${path}）は、契約のパラメーターに合わせず、読めない行として違反`, () => {
 		const r = entries({ list: LIST.replace("/api/members/:accountId", path.replace(/\\/g, "\\\\")) });
 		assert.equal(r.status, 1, r.stdout + r.stderr);
-		assert.ok(r.stdout.includes(`err  E4  一覧の 1 行目: path に、決まった書式に無い形がある: ${path}（パラメーターは、/ で区切った区分の全体を :name か {name} と書く`), r.stdout);
+		assert.ok(r.stdout.includes(`err  E4  一覧の 1 行目: path が、決まった書式に無い: GET ${path}（`), r.stdout);
+		assert.match(r.stdout, /書式は tools\/exec-check\/README\.md の「パスの書式」/);
 		//  読めない行は入口として数えないので、契約の操作の入口は無いままになる
 		assert.match(r.stdout, /err  E2  UC-001#getMember/);
 	});
@@ -351,13 +352,13 @@ test("entries: 契約の側も * と書いていれば、* の入口はそれと
 	assert.match(empty.stdout, /OK: 入口は無い、fixed の契約の inbound の操作 0 件/);
 });
 
-test("entries: パラメーターの名前には - も使える。deeplink は、区分の全体が :name か {name} のときだけパラメーターとみなす", () => {
+test("entries: {name} の名前には - も使える（:name には使えない）。deeplink は、スキームを外した残りを http のパスと同じ読み方で読む", () => {
 	const files = {
 		[`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("getItem", { path: "/api/items/{item-id}" }), op("openItem", { transport: "deeplink", entry: '"app://item/{itemId}"' }), op("openProfile", { transport: "deeplink", entry: '"myapp:profile"' }), op("openSettings", { transport: "deeplink", entry: '"myapp:settings"' })]),
 		[`${G}/UC-002-draft/contract.yaml`]: null,
 		[`${G}/UC-004-operate/contract.yaml`]: null,
 	};
-	const list = [line({ kind: "http", method: "GET", path: "/api/items/:id-x" }), line({ kind: "deeplink", name: "app://item/:id" }), line({ kind: "deeplink", name: "myapp:profile" }), line({ kind: "deeplink", name: "myapp:settings" })].join("\n");
+	const list = [line({ kind: "http", method: "GET", path: "/api/items/:id" }), line({ kind: "deeplink", name: "app://item/:id" }), line({ kind: "deeplink", name: "myapp:profile" }), line({ kind: "deeplink", name: "myapp:settings" })].join("\n");
 	const r = entries({ files, list });
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /OK: 入口 4 件/);
@@ -385,8 +386,16 @@ const BAD_ENTRIES = [
 	["E4", "fixed の契約に inbound の操作があるのに一覧が 0 行", { list: "", files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("receiveHook", { owned: false, method: "POST", path: "/hooks/pay" })]), [`${G}/UC-004-operate/contract.yaml`]: null } }, /入口の一覧が 0 行（撤回されていない UC の fixed の契約に inbound の操作が 1 件ある。例: UC-001#receiveHook）/],
 	["E1", "draft の契約の操作にしか合わない入口（人が承認していない契約では、入口を通さない）", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}` }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約の x-status が draft。fixed でない契約の操作は、入口の突き合わせ先に数えない/],
 	["E1", "x-status の無い契約の操作にしか合わない入口", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}`, files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("exportMembers", { path: "/api/members/export" })]).replace("x-status: draft\n", "") } }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約に x-status が無い。/],
-	["E4", "契約の wire.path が書式に無い形（どの入口とも合わない。原因が契約の書き方だと分かる文で出す）", { files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("getMember", { path: "/api/members/{accountId:int}" }), op("createMember", { method: "POST", path: "/api/members" }), op("receiveNotice", { transport: "push", entry: "notice.updated" })]) } }, /E4  契約の操作 UC-001#getMember の wire\.path が、決まった書式に無い形を含む: GET \/api\/members\/\{accountId:int\}（契約の書き方の誤り。[^]*E2  UC-001#getMember/],
-	["E4", "draft の契約・owned が false の操作でも、読めない wire.path は報告する", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("receiveHook", { owned: false, path: '"/hooks/:id?"' })]) } }, /E4  契約の操作 UC-002#receiveHook の wire\.path が、決まった書式に無い形を含む: GET \/hooks\/:id\?（契約の書き方の誤り/],
+	["E4", "契約の wire.path が書式に無い形（どの入口とも合わない。原因が契約の書き方だと分かる文で出す）", { files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("getMember", { path: "/api/members/{accountId:int}" }), op("createMember", { method: "POST", path: "/api/members" }), op("receiveNotice", { transport: "push", entry: "notice.updated" })]) } }, /E4  契約の操作 UC-001#getMember の wire\.path を読めない: GET \/api\/members\/\{accountId:int\}（区分「\{accountId:int\}」: 「\{name\}」の名前は[^]*契約の書き方の誤り/],
+	["E4", "draft の契約・owned が false の操作でも、読めない wire.path は報告する", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("receiveHook", { owned: false, path: '"/hooks/:id?"' })]) } }, /E4  契約の操作 UC-002#receiveHook の wire\.path を読めない: GET \/hooks\/:id\?（クエリ（\? 以降）と # は書けない[^]*契約の書き方の誤り/],
+	["E4", "契約の wire.path が文字列でない操作を、黙って捨てない", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: "123" })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: GET 123（文字列でない（実際: 123）/],
+	["E4", "契約の wire.path が空", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: '""' })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: GET （\/ で始まらない/],
+	["E4", "契約の wire.path が / で始まらない", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: "items/{id}" })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: GET items\/\{id\}（\/ で始まらない/],
+	["E4", "契約の deeplink の entry にクエリがある", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("openItem", { transport: "deeplink", entry: '"myapp://open?item={id}"' })]) } }, /E4  契約の操作 UC-002#openItem の entry を読めない: deeplink myapp:\/\/open\?item=\{id\}（クエリ（\? 以降）と # は書けない/],
+	["E4", "一覧の deeplink の名前にクエリがある", { list: `${LIST}\n${line({ kind: "deeplink", name: "myapp://open?item=:itemId" })}` }, /一覧の 6 行目: name が、決まった書式に無い: deeplink myapp:\/\/open\?item=:itemId（クエリ/],
+	["E4", "一覧の deeplink の名前で、区分の一部がパラメーター（myapp:item::itemId）", { list: `${LIST}\n${line({ kind: "deeplink", name: "myapp:item::itemId" })}` }, /一覧の 6 行目: name が、決まった書式に無い: deeplink myapp:item::itemId（区分「item::itemId」: 固定の文字列の区分に、書式に使えない文字（:）がある/],
+	["E4", "一覧の deeplink の名前で、区分の一部がパラメーター（.html が続く）", { list: `${LIST}\n${line({ kind: "deeplink", name: "myapp://item/{slug}.html" })}` }, /name が、決まった書式に無い: deeplink myapp:\/\/item\/\{slug\}\.html（区分「\{slug\}\.html」: 区分の一部だけがパラメーターになっている/],
+	["E4", "一覧の deeplink の名前にスキームが無い", { list: `${LIST}\n${line({ kind: "deeplink", name: "item/{id}" })}` }, /name が、決まった書式に無い: deeplink item\/\{id\}（スキーム/],
 	["E1", "deeplink の名前は、区分の一部が :name に見えても、文字どおりに比べる（myapp:profile と myapp:secret は別）", { files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/*" }), op("openProfile", { transport: "deeplink", entry: '"myapp:profile"' })]) }, list: `${LIST}\n${line({ kind: "deeplink", name: "myapp:secret" })}` }, /契約に無い入口: deeplink myapp:secret/],
 	["E1", "何でも受ける登録（*）は、契約のパラメーターの入口とは数えない", { list: LIST.replace("/api/members/:accountId", "/api/members/*") }, /契約に無い入口: GET \/api\/members\/\*/],
 	["E4", "JSON でない行", { list: `${LIST}\nGET /api/x` }, /一覧の 6 行目が JSON でない: GET \/api\/x/],

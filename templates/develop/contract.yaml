@@ -48,7 +48,7 @@ operations:
     summary: <何をするか 1 行>  # 一行のみ。詳細説明なし
     wire:                    # transport が http なら必須。それ以外ではエラー
       method: POST
-      path: /xxx             # inbound の操作は、区分の全体を {name} か :name と書く（名前は英数字・_・-）。何でも受ける部分は *。/files/{name}.json のような形は書けない
+      path: /xxx             # inbound の操作は / で始め、パラメーターは区分の全体を {name}（英字か _ で始まる英数字・_・-）と書く。何でも受ける部分は *。クエリと /files/{name}.json のような形は書けない
       success: 200
     request:
       type: object
