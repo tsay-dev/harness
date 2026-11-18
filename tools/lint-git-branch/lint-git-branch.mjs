@@ -52,4 +52,4 @@ function cmdBranch(root, cfg, opts) {
 	return report(TAG, checkBranch(name, cfg), `ブランチ名 OK: ${name}`);
 }
 
-process.exit(runGitLint(COMMAND, cmdBranch));
+process.exitCode = runGitLint(COMMAND, cmdBranch);

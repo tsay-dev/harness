@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { parseFrontmatter } from "./frontmatter.mjs";
+import { exitWith } from "./stdio.mjs";
 
 //  --- 収集した違反 ---
 export const errors = [];
@@ -48,15 +49,13 @@ export function parseArgs(command, argv) {
 		else if (a === "--unit") opts.unit = argv[++i];
 		else if (a === "--ignore-legacy-layout") opts.ignoreLegacy = true;
 		else if (["--update-baseline", "--strict", "--baseline"].includes(a)) {
-			console.error(`${command}: ${a} は廃止した（baseline を持たず、常にすべての違反で失敗する。ADR-0056）`);
-			process.exit(2);
+			exitWith(2, `${command}: ${a} は廃止した（baseline を持たず、常にすべての違反で失敗する。ADR-0056）`);
 		}
 		else if (a === "--out") opts.out = argv[++i];
 		else if (a === "--direction") opts.direction = argv[++i];
 		else if (a === "--date") opts.date = argv[++i];
 		else if (a.startsWith("--")) {
-			console.error(`${command}: 不明な引数 ${a}`);
-			process.exit(2);
+			exitWith(2, `${command}: 不明な引数 ${a}`);
 		} else opts._.push(a);
 	}
 	return opts;

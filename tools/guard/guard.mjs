@@ -62,6 +62,7 @@ import { CONFIG_FILE, readHostConfig } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
 import { actorKindsOf, overviewFormat, overviewPathOf, readOverview } from "../_shared/overview.mjs";
 import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
+import { readStdin, writeAllSync } from "../_shared/stdio.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
 
@@ -290,7 +291,7 @@ function block(reason, lines, ctx) {
 	//  exit 2: PreToolUse のブロック。stderr がそのまま AI に差し戻される。
 	//  ログを先に書く（stderr / exit の後には何も実行されない）。
 	log("block", reason, ctx);
-	process.stderr.write(
+	writeAllSync(2, 
 		[
 			"[guard] 実装着手ゲート（develop skill §2）によりこの書き込みをブロックしました。",
 			...lines,
@@ -303,7 +304,7 @@ function block(reason, lines, ctx) {
 //  止めずに人間の承認を求める（exit 0 + permissionDecision: "ask"）
 function ask(reason, message, ctx) {
 	log("ask", reason, ctx);
-	process.stdout.write(
+	writeAllSync(1, 
 		JSON.stringify({
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
@@ -342,7 +343,7 @@ function main() {
 	//  stdin は先に読むが、解釈できなくても設置ミスの警告は出す（root / session を取るためだけに読む）
 	let payload = null;
 	try {
-		payload = JSON.parse(readFileSync(0, "utf8"));
+		payload = JSON.parse(readStdin());
 	} catch {
 		payload = null;
 	}
@@ -355,7 +356,7 @@ function main() {
 		//  有効化したのに対象 glob が無いのは設置ミス。ブロックはせず人間にだけ警告
 		//  （exit 1: 非ブロッキングエラー。stderr はユーザー向け表示に載る）。設置ミスも記録する。
 		log("skip", "misconfig", ctx);
-		process.stderr.write(
+		writeAllSync(2, 
 			"[guard] --code が未指定のため何もゲートしません（settings の hook コマンドに --code 'src/**' 等を追加してください）\n",
 		);
 		process.exit(1);
@@ -388,7 +389,7 @@ function main() {
 		if (lower === ".harness-gate" || lower.startsWith(".harness-gate/")) {
 			ctx.target = rel;
 			log("block", "harness-gate", ctx);
-			process.stderr.write(
+			writeAllSync(2, 
 				`[guard] ${rel}: .harness-gate/ はゲートのログと状態の置き場で、書くのはフック自身だけ。Write / Edit で書かない\n`,
 			);
 			process.exit(2);
@@ -535,7 +536,7 @@ function main() {
 		if (!gating) process.exit(0); //  ゲート判定に入る前の不具合 → fail-open
 		//  実装コードへの書き込みを判定できない → fail-closed（判定できないまま通すとゲートが無いのと同じ）
 		log("block", "internal-error", ctx);
-		process.stderr.write(`[guard] 実装着手ゲートを判定できないため、この書き込みをブロックしました（内部エラー: ${e?.message ?? e}）。docs/goals の構造を確認すること\n`);
+		writeAllSync(2, `[guard] 実装着手ゲートを判定できないため、この書き込みをブロックしました（内部エラー: ${e?.message ?? e}）。docs/goals の構造を確認すること\n`);
 		process.exit(2);
 	}
 }

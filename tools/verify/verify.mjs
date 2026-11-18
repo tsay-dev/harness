@@ -57,6 +57,7 @@ import { fileURLToPath } from "node:url";
 import { appendLog, defaultLogPath } from "../_shared/gate-log.mjs";
 import { CONFIG_FILE } from "../_shared/config.mjs";
 import { LEVELS, readConfig, runSuite, suiteCommandFiles, tailLines, unitsOf } from "../_shared/suite.mjs";
+import { exitWith, readStdin } from "../_shared/stdio.mjs";
 
 const USAGE =
 	"usage: harness verify [--level lint|fast|full] [--unit <名前>]... [--root .] [--docs docs] [--config harness.config.json] [--timeout 300] [--tail 15] [--verbose] [--ignore-legacy-layout]\n" +
@@ -81,8 +82,7 @@ function failureLines(failures, opts) {
 //  ==== 1 回の実行（CI・手元） ====================================================
 
 function usage(msg) {
-	console.error(`verify: ${msg}\n${USAGE}`);
-	process.exit(2);
+	exitWith(2, `verify: ${msg}\n${USAGE}`);
 }
 
 function parseArgs(argv) {
@@ -152,18 +152,15 @@ function parseHookArgs(argv) {
 		else if (a === "--ignore-legacy-layout") opts.ignoreLegacyLayout = true;
 		else if (a === "--unit") opts.only.push(argv[++i]);
 		else {
-			console.error(`verify: 不明な引数 ${a}\n${HOOK_USAGE}`);
-			process.exit(2);
+			exitWith(2, `verify: 不明な引数 ${a}\n${HOOK_USAGE}`);
 		}
 	}
 	if (!LEVELS.includes(opts.level) || opts.only.some((u) => typeof u !== "string" || !u)) {
-		console.error(`verify: --level は ${LEVELS.join(" / ")}、--unit は unit の名前\n${HOOK_USAGE}`);
-		process.exit(2);
+		exitWith(2, `verify: --level は ${LEVELS.join(" / ")}、--unit は unit の名前\n${HOOK_USAGE}`);
 	}
 	for (const k of ["maxRounds", "timeout", "tail"])
 		if (!Number.isInteger(opts[k]) || opts[k] < 0) {
-			console.error(`verify: --${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())} は 0 以上の整数\n${HOOK_USAGE}`);
-			process.exit(2);
+			exitWith(2, `verify: --${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())} は 0 以上の整数\n${HOOK_USAGE}`);
 		}
 	return opts;
 }
@@ -264,7 +261,7 @@ async function runHook(argv) {
 	//  1. stdin（読めなければ fail-open）
 	let payload;
 	try {
-		payload = JSON.parse(readFileSync(0, "utf8"));
+		payload = JSON.parse(readStdin());
 		if (!payload || typeof payload !== "object") throw new Error("not an object");
 	} catch {
 		const root = process.env.CLAUDE_PROJECT_DIR || process.cwd();
@@ -402,5 +399,5 @@ function internalError(e, payload, opts, statePath, session, log) {
 //  ==== 入口 ======================================================================
 
 const argv = process.argv.slice(2);
-if (argv.includes("--hook")) process.exit(await runHook(argv.filter((a) => a !== "--hook")));
+if (argv.includes("--hook")) process.exitCode = await runHook(argv.filter((a) => a !== "--hook"));
 else process.exitCode = await runOnce(argv);

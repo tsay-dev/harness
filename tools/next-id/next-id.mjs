@@ -18,6 +18,7 @@ import { basename, join } from "node:path";
 import { splitUc } from "../_shared/reqs.mjs";
 import { specDirs } from "../_shared/spec-tree.mjs";
 import { DOC_PATHS, collectDefinitions, lookup, openProject, p, read, usage, useCommandName, walk } from "../_shared/refs.mjs";
+import { exitWith } from "../_shared/stdio.mjs";
 
 const NAME = "next-id";
 useCommandName(NAME);
@@ -46,8 +47,7 @@ function withLock(root, fn) {
 				}
 			} catch {}
 			if (Date.now() > deadline) {
-				console.error(`${NAME}: 採番ロックが取れない（${lock} が残っている。他の next-id が動いていなければ削除する）`);
-				process.exit(2);
+				exitWith(2, `${NAME}: 採番ロックが取れない（${lock} が残っている。他の next-id が動いていなければ削除する）`);
 			}
 			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 + Math.floor(Math.random() * 20));
 		}
@@ -144,4 +144,4 @@ function main() {
 	return 0;
 }
 
-process.exit(main());
+process.exitCode = main();

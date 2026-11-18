@@ -57,3 +57,17 @@ export function project(t, { files = {}, configure = () => {} } = {}) {
 export const br = (id, enforcedAt, status = "active") => `${fm({ id, title: "t", enforced_at: enforcedAt, status })}# ${id}\n`;
 //  UC の本文から BR-001 を参照する（C4 の「死んだ規則」にしない）
 export const UC_WITH_BR = `${fm({ id: "UC-001", title: "t", actor: "ACT-01", goal: "GOAL-01", status: "active", phase: "実装" })}# UC-001\n\n- 適用される業務規則: BR-001\n\n## 状態 × イベント表\n\n| 状態 \\ イベント | 登録 |\n| --- | --- |\n| 未登録 | REQ-001 |\n`;
+
+//  ---- 大きな出力（パイプ越しに最後まで届くかを確かめる） ----
+
+//  REQ-001 に分割クラスを count 個置き、どれもテストで確かめる（報告が 1 クラス 1 行で長くなる）。
+//  最後に @covers の無いテストを 1 つ置き、報告の末尾の FAIL に違反を 1 件だけ出す（C11）
+export const LAST_VIOLATION = 'tests/zz.test.ts:1 "最後の違反"';
+export function bigReportFiles(count = 5000) {
+	const ids = Array.from({ length: count }, (_, n) => `c${String(n).padStart(4, "0")}`);
+	return {
+		[`${U}/REQ-001.md`]: `${fm({ id: "REQ-001", pattern: "Ubiquitous", uc: "UC-001", status: "active" })}# REQ-001\n\n> 1 文\n\n## 検証方針\n\n- **分割クラス**:\n${ids.map((c) => `  - \`#${c}\` — x\n`).join("")}`,
+		"tests/x.test.ts": ids.map((c) => `// @covers REQ-001#${c}\ntest("${c}", () => {});\n`).join(""),
+		"tests/zz.test.ts": 'test("最後の違反", () => {});\n',
+	};
+}

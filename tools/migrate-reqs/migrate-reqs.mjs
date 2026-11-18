@@ -24,6 +24,7 @@
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { REQS_HEADING, reqDocsOf, sectionFromReqDoc } from "../_shared/reqs.mjs";
+import { exitWith } from "../_shared/stdio.mjs";
 
 const TAG = "[migrate reqs]";
 //  検証方針の下に置かれていた、ひな形の案内のコメントの書き出し（日本語のひな形と、その前の英語のひな形）
@@ -32,9 +33,7 @@ const GUIDANCE = ["要件作成者ではなくテスト設計者が所有する"
 const STATUS_GUIDANCE = ["draft | active | withdrawn（active = 人間承認済み）", "draft | active | withdrawn (active = approved by a human)", "draft | active | withdrawn"];
 
 function usage(msg) {
-	if (msg) console.error(`${TAG} ${msg}`);
-	console.error("usage: harness migrate reqs [--root .] [--docs docs] [--write]");
-	process.exit(2);
+	exitWith(2, ...(msg ? [`${TAG} ${msg}`] : []), "usage: harness migrate reqs [--root .] [--docs docs] [--write]");
 }
 
 function parseArgs(argv) {

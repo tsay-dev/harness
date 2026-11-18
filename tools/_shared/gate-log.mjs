@@ -28,6 +28,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { exitWith } from "./stdio.mjs";
 
 const RECORD_KEYS = ["ts", "hook", "event", "session", "decision", "reason", "target", "uc", "round", "failures", "ms"];
 
@@ -61,8 +62,7 @@ function parseArgs(argv) {
 		else if (a === "--log") opts.log = argv[++i];
 		else if (a === "--since") opts.since = Number(argv[++i]);
 		else {
-			console.error(`gate-log: 不明な引数 ${a}`);
-			process.exit(2);
+			exitWith(2, `gate-log: 不明な引数 ${a}`);
 		}
 	}
 	return opts;
@@ -148,4 +148,4 @@ function main() {
 }
 
 //  直接実行時だけ集計モード（import された場合は何もしない）
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main());
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main();

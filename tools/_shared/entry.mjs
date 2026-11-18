@@ -6,6 +6,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { CONFIG_FILE, renamedConfigHint } from "./config.mjs";
+import { exitWith } from "./stdio.mjs";
 
 export const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 export const isText = (v) => typeof v === "string" && v.trim() !== "";
@@ -16,9 +17,7 @@ export const posixPath = (p) => p.split(sep).join("/");
 export const tagOf = (mode) => `[lint ${mode}]`;
 
 export function usage(mode, msg) {
-	if (msg) console.error(`${tagOf(mode)} ${msg}`);
-	console.error("usage: harness lint entry|coverage|entries [--root .] [--config <設定ファイル>] [--since <ms>] [--from <入口の一覧のファイル>]");
-	process.exit(2);
+	exitWith(2, ...(msg ? [`${tagOf(mode)} ${msg}`] : []), "usage: harness lint entry|coverage|entries [--root .] [--config <設定ファイル>] [--since <ms>] [--from <入口の一覧のファイル>]");
 }
 
 //  3 つのコマンドの引数を読む。--since は coverage、--from は entries でだけ使える
@@ -44,16 +43,14 @@ function parseArgs(mode, argv) {
 function loadConfig(mode, configPath) {
 	const TAG = tagOf(mode);
 	if (!existsSync(configPath)) {
-		console.error(`${TAG} 設定が無い: ${configPath}（テンプレート templates/develop/${CONFIG_FILE} を host 直下に置く）${renamedConfigHint(configPath)}`);
-		process.exit(2);
+		exitWith(2, `${TAG} 設定が無い: ${configPath}（テンプレート templates/develop/${CONFIG_FILE} を host 直下に置く）${renamedConfigHint(configPath)}`);
 	}
 	try {
 		const cfg = JSON.parse(readFileSync(configPath, "utf8"));
 		if (!isMap(cfg)) throw new Error("最上位がオブジェクトでない");
 		return cfg;
 	} catch (e) {
-		console.error(`${TAG} ${configPath}: JSON として読めない（${e.message}）`);
-		process.exit(2);
+		exitWith(2, `${TAG} ${configPath}: JSON として読めない（${e.message}）`);
 	}
 }
 
