@@ -105,7 +105,9 @@ test("verify: --root と --level と --unit を、Stop フックと同じ意味�
 	const elsewhere = temp("harness verify cwd ");
 	const r = run(elsewhere, ["--root", root, "--level", "fast", "--unit", "api"], { tools });
 	assert.equal(r.status, 0, r.stdout + r.stderr);
-	assert.match(r.stdout, /level fast、unit: api/);
+	//  full でない通過は、完了の判定ではないと分かる形で出す（終了コードは 0 のまま）
+	assert.match(r.stdout, /\[verify\] 完了の判定ではない（level fast。シナリオテストは実行していない）: 実行した \d+ 検査はすべて通過（unit: api。skip: /);
+	assert.doesNotMatch(r.stdout, /\[verify\] すべて通過/);
 	assert.ok(existsSync(join(root, "apps", "api", "ran.txt")));
 	assert.ok(!existsSync(join(root, "apps", "web", "ran.txt")));
 	assert.match(r.stdout, /skip: commands\.system:api = none/);

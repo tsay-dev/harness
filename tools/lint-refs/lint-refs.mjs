@@ -245,10 +245,13 @@ function runChecks(cfg, { asActive = false } = {}) {
 
 	//  C13: DB で守る active な規則は、制約が効くことを確かめるテストを持つ（規則に反する行を DB に直接入れて断られる）。
 	//  アプリの入口を通すテストでは、手前の検証が断ったのか DB が断ったのかを区別できない（tests が none なら C26）
+	const dbUntested = new Set(); //  C13 の違反がある規則（下の表でも NG と出す）
 	if (tests)
 		for (const id of dbBrs)
-			if (!brTests[id]?.live.length)
+			if (!brTests[id]?.live.length) {
+				dbUntested.add(id);
 				fail("C13", uncovered(brTests[id], `${id} は enforced_at に database を含むが、@covers ${id} のテスト`, `（規則に反する行を DB に直接入れて断られることを確かめるテストを tests.dirs に書き、@covers ${id} を付ける）`));
+			}
 
 	//  C15: 人間アクターの active な UC は、保留でないシナリオテスト（tests.system の @scenario UC-nnn）を 1 件以上持つ。
 	//  1 UC 1 本・正常系のみが規律（ADR-0035）だが、機械が見るのは存在と参照先の実在だけ（本数の上限は reviewer）
@@ -489,7 +492,9 @@ function runChecks(cfg, { asActive = false } = {}) {
 	lines.push("-".repeat(68), " BR -> 検証（生成。規則を確かめるテストと、br: に持つ active な REQ）");
 	for (const br of Object.keys(brs).sort()) {
 		const where = [...(brTests[br]?.live || []), ...activeReqs.filter((r) => values(corpus.reqs[r].br).includes(br)).map((r) => `br:${r}`)];
-		lines.push(`  ${where.length ? "OK " : "NG "}${br}  [${brs[br]}]  ${where.join(", ") || "(検証の所在なし)"}`);
+		//  DB で守る規則は、br: に持つ REQ があっても、DB で断られるテストが無ければ C13 の違反なので NG と出す
+		const c13 = dbUntested.has(br) ? "  (C13: DB に直接入れて断られるテストなし)" : "";
+		lines.push(`  ${where.length && !c13 ? "OK " : "NG "}${br}  [${brs[br]}]  ${where.join(", ") || "(検証の所在なし)"}${c13}`);
 	}
 	lines.push("-".repeat(68), " NFR -> 検証（生成）");
 	for (const id of Object.keys(nfrDocs).sort()) {

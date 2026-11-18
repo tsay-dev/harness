@@ -258,7 +258,8 @@ function checkCoverage(cfg, root, since, entry) {
 			else if (r.fns.get(name) > 0) errs.push(`V4  ${key} は呼ばれている。coverage.not_run から消す`);
 		}
 	}
-	const list = (fs) => fs.slice(0, 20).map((f) => `\n        ${f}`).join("") + (fs.length > 20 ? `\n        …ほか ${fs.length - 20} 件` : "");
+	//  全件を出す（coverage.not_run に書く名前を、記録から拾い直さずに済むように）
+	const list = (fs) => fs.map((f) => `\n        ${f}`).join("");
 	if (missing.length) {
 		const none = missing.length === sources.length - [...notRun.keys()].filter((k) => sources.includes(k) && !report.has(k)).length;
 		const example = none ? `。記録のパスの例: ${[...report.keys()].slice(0, 2).join("、")}${outsideHint}（ソースのパスと基準が合っているかを確かめる）` : "";

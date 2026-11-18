@@ -504,6 +504,22 @@ test("撤回済みの REQ に撤回の理由（note）が無ければ warn", () 
 	assert.doesNotMatch(validate({ hostFiles: shortUc("withdrawn", "withdrawn") }).out, /撤回の理由/);
 });
 
+test("検証方針に「参照先」の行が残っていれば warn にし、harness index を案内する（err にはしない / ADR-0080）", () => {
+	const root = mkdtempSync(join(tmpdir(), "lint-spec-"));
+	try {
+		writeMinimalDocs(root);
+		const req = join(root, "docs/goals/GOAL-01-a/UC-001-b/REQ-001.md");
+		writeFileSync(req, `${readFileSync(req, "utf8").replace(/\n*$/, "\n")}- **参照先**: \`tests/thing.test.mjs::doThing\`\n`);
+		const r = runNode(LINT_SPEC, [], { cwd: root });
+		const out = r.stdout + r.stderr;
+		assert.equal(r.status, 0, out);
+		assert.match(out, /warn .*REQ-001: 検証方針の「参照先」は使わない（どのテストが確かめるかは `harness index` が出す。この欄は消してよい \/ ADR-0080）/);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+	assert.doesNotMatch(validate().out, /参照先/);
+});
+
 //  ---- 呼ばれる側の http の操作の wire.method / wire.path（入口の一覧と文字どおり比べる。形は解釈しない） ----
 
 const httpContract = ({ status = "draft", direction = "inbound", method = "POST", path }) => `x-uc: UC-001
