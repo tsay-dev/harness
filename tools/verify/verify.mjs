@@ -79,6 +79,10 @@ function failureLines(failures, opts) {
 	return out;
 }
 
+//  level が full でないときの、通過の表示に添える断り。読むだけ・テストまでの通過を、完了と読み違えないようにする
+const NOT_RUN_BY_LEVEL = { lint: "テストもシナリオテストも実行していない", fast: "シナリオテストは実行していない" };
+const notFinalNote = (level) => (NOT_RUN_BY_LEVEL[level] ? `完了の判定ではない（level ${level}。${NOT_RUN_BY_LEVEL[level]}）` : "");
+
 //  ==== 1 回の実行（CI・手元） ====================================================
 
 function usage(msg) {
@@ -124,7 +128,10 @@ async function runOnce(argv) {
 	for (const n of notes) console.log(n);
 	const scope = `level ${opts.level}${opts.only.length ? `、unit: ${opts.only.join(", ")}` : ""}`;
 	if (failures.length === 0) {
-		console.log(`[verify] すべて通過（${scope}。${ran} 検査、skip: ${skipped.join(", ") || "なし"}）`);
+		const note = notFinalNote(opts.level);
+		const skip = `skip: ${skipped.join(", ") || "なし"}`;
+		if (note) console.log(`[verify] ${note}: 実行した ${ran} 検査はすべて通過（${opts.only.length ? `unit: ${opts.only.join(", ")}。` : ""}${skip}）`);
+		else console.log(`[verify] すべて通過（${scope}。${ran} 検査、${skip}）`);
 		return 0;
 	}
 	const out = [`[verify] 失敗 ${failures.length} 件（${scope}。${ran} 検査）: ${failures.map((f) => f.name).join(", ")}`];
@@ -331,7 +338,8 @@ async function runHook(argv) {
 			state.session = emptySession(session);
 			saveState(statePath, state);
 			for (const n of notes) console.log(n);
-			console.log(`[verify] 終端ゲート通過（${ran} 検査、skip: ${skipped.join(", ") || "なし"}）`);
+			const note = notFinalNote(opts.level);
+			console.log(`[verify] 終端ゲート通過（${note ? `${note}。` : ""}${ran} 検査、skip: ${skipped.join(", ") || "なし"}）`);
 			log("pass", "ok");
 			return 0;
 		}
