@@ -16,7 +16,7 @@ develop skill の説得による停止線を構造にする、二つの hook と
 ## gate-hook — 実装開始ゲート（PreToolUse）
 
 1. Write / Edit / MultiEdit / NotebookEdit の直前に発火し、対象パスを受け取る。
-2. 対象が「実装コード」（`--code` glob に一致）なら、全 `docs/goals/**/UC-*/UC.md` の frontmatter `phase:` を読む（そこが進捗台帳。台帳ファイルはコミットしない、R-1003）。
+2. 対象が「実装コード」（`--code` glob に一致）なら、仕様の木のすべての UC の `UC.md`（どのフォルダを UC として数えるかと、木の根の決め方は、ほかの検査ツールと同じ `../_shared/goals-tree.mjs`）の frontmatter `phase:` を読む（そこが進捗台帳。台帳ファイルはコミットしない、R-1003）。
 3. **phase が実装または検証のすべての UC** について、UC が `active`、REQ に `draft` がない、`contract.yaml` が `fixed` であることを検証する。
 4. 欠落があれば **exit 2 でツール呼び出しを阻止**し、理由（どの UC に何が欠け、どの phase に戻るか）を stderr で AI に返す。AI の意図にかかわらず停止する。
 

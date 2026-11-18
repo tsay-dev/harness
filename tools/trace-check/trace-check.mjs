@@ -68,7 +68,7 @@ import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope, isGlob } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { reqDocsOf, splitUc } from "../_shared/reqs.mjs";
-import { goalDirs, ucDirs } from "../_shared/goals-tree.mjs";
+import { goalsRootOf, specDirs } from "../_shared/goals-tree.mjs";
 import { CONFIG_FILE, renamedConfigHint, retiredKeysIn } from "../_shared/config.mjs";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
@@ -94,14 +94,6 @@ const read = (p) => readFileSync(p, "utf8");
 const frontmatter = (path) => parseFrontmatter(read(path)).data;
 //  UC・REQ の文面。UC は「要件」の節を除いた UC 自身の部分、REQ は自分の小節だけ（同じ UC.md に書かれた別の REQ の文面を混ぜない）
 const textOf = (doc) => doc.text ?? read(doc.file);
-
-function listDirs(dir) {
-	if (!existsSync(dir)) return [];
-	return readdirSync(dir, { withFileTypes: true })
-		.filter((d) => d.isDirectory())
-		.map((d) => join(dir, d.name))
-		.sort();
-}
 
 function listFiles(dir, pred) {
 	if (!existsSync(dir)) return [];
@@ -347,15 +339,16 @@ class Corpus {
 		this.ucs = {}; //  id -> { goal, actor, status, phase, dir, goalDir, file }
 		this.reqs = {}; //  id -> { uc, status, dir, goalDir, file, hasPolicy, classes, br }
 		this.pathViolations = [];
-		const goalsDir = p(cfg, "docs.goals_dir");
+		//  根の決め方は tools/_shared/goals-tree.mjs（ほかの検査ツールと同じ）
+		const goalsDir = goalsRootOf({ hostRoot: cfg._root, cfg }).root;
 		const r = (x) => rel(cfg, x);
 		const known = new Set();
 
 		//  フォルダの数え方は tools/_shared/goals-tree.mjs（. で始まるフォルダと _shared は木の外。ほかの検査ツールと同じ）
-		const tree = goalDirs(goalsDir);
-		for (const gdir of tree.stray)
-			this.pathViolations.push(`${r(gdir)}: _shared 以外の _ ディレクトリは検査の対象にならない（GOAL-nn-<slug> にするか、goals の外へ移す）`);
-		for (const gdir of tree.goals) {
+		const stray = (dir) => this.pathViolations.push(`${r(dir)}: _shared 以外の _ ディレクトリは検査の対象にならない（GOAL-nn-<slug>・UC-nnn-<slug> にするか、goals の外へ移す）`);
+		const tree = specDirs(goalsDir);
+		tree.stray.forEach(stray);
+		for (const gdir of tree.dirs) {
 			const name = basename(gdir);
 			const m = name.match(GOAL_DIR_RE);
 			const dirGoal = m ? m[1] : null;
@@ -376,7 +369,9 @@ class Corpus {
 				this.pathViolations.push(`${r(f)}: UC / REQ はゴール直下ではなく UC ディレクトリ配下に置く`);
 			}
 
-			for (const udir of ucDirs(gdir)) {
+			const ucTree = specDirs(gdir);
+			ucTree.stray.forEach(stray);
+			for (const udir of ucTree.dirs) {
 				const um = basename(udir).match(UC_DIR_RE);
 				const dirUc = um ? um[1] : null;
 				const ufile = join(udir, "UC.md");

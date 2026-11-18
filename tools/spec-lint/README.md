@@ -45,7 +45,7 @@ node spec-lint.mjs gate --uc UC-012            # 一 UC に同じ検査 [モノ�
 node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
 ```
 
-終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー、または `validate` で `<docs>/goals` が無い（`--docs` の指定を確かめるか、
+終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー、`validate` で docs の隣の設定の `docs.goals_dir` が `<docs>/goals` と別の場所を指している（trace-check・exec-check と別の木を読むことになる。根の決め方は `../_shared/goals-tree.mjs`）、または `validate` で `<docs>/goals` が無い（`--docs` の指定を確かめるか、
 `<docs>/goals/` を作る。空なら `.gitkeep` を置く）。docs の場所の書き損じで検証が黙って空回りしないため（ADR-0056）。Node のみ（外部依存なし）。
 baseline は無い（ADR-0056）。違反は 1 件でも失敗にする。廃止した `--update-baseline` / `--strict` / `--baseline` は
 使用法エラー、残った `.spec-baseline.json` は読まずに警告する。

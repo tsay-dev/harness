@@ -385,7 +385,7 @@ const BAD_ENTRIES = [
 	["E4", "契約の deeplink の操作に entry が無い", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("openItem", { transport: "deeplink" })]) } }, /E4  契約の操作 UC-002#openItem の entry を読めない: 空でない文字列でない（実際: null）/],
 	["E4", "契約の push の entry が数（文字列でない）", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("onNotice", { transport: "push", entry: "123" })]) } }, /E4  契約の操作 UC-002#onNotice の entry を読めない: 空でない文字列でない（実際: 123）/],
 	["E4", "契約の wire.path が空白だけ（空とみなす。一覧に同じ空白を出しても合わない）", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: '" "' })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: 空でない文字列でない（実際: " "）/],
-	["E4", "契約の inbound の操作の transport が、入口の種類に無い", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("call", { transport: "grpc" })]) } }, /E4  契約の操作 UC-002#call の transport を読めない: 入口の種類（http \/ deeplink/],
+	["E4", "契約の inbound の操作の transport が、入口の種類に無い", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("call", { transport: "grpc" })]) } }, /E4  契約の操作 UC-002#call の transport を読めない: 入口の種類（http \/ sdk/],
 	["E4", "一覧の path が空白だけ", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: " " })}` }, /kind が http の入口は、method と path を、空でない文字列で持つ/],
 	["E4", "一覧の name が空白だけ", { list: `${LIST}\n${line({ kind: "push", name: " " })}` }, /kind が push の入口は、name を、空でない文字列で持つ/],
 	["E1", "method と path の境目をまたぐ文字（改行）で、別の入口と同じ鍵にならない", { files: only([op("getA", { path: '"/a\\nb"' })]), list: line({ kind: "http", method: "GET\n/a", path: "b" }) }, /契約に無い入口: GET\n\/a b/],
@@ -427,7 +427,7 @@ test("entries: none は、撤回されていない UC の fixed の契約に inb
 
 //  フォルダの数え方は spec-lint・trace-check・gate-hook と同じ（tools/_shared/goals-tree.mjs）。
 //  spec-lint が検査しないフォルダに置いた「fixed の契約」を、入口の突き合わせ先に数えない
-for (const dir of ["docs/goals/.stash/x", "docs/goals/_shared/x", "docs/goals/_tmp/x", `${G}/.hidden`]) {
+for (const dir of ["docs/goals/.stash/x", "docs/goals/_shared/x", "docs/goals/_tmp/x", `${G}/.hidden`, `${G}/_draft`, `${G}/_shared`]) {
 	test(`entries E1: ほかの検査ツールが読まないフォルダ（${dir}）の契約は、突き合わせ先に数えない`, () => {
 		const hidden = { [`${dir}/UC.md`]: ucDoc("UC-900"), [`${dir}/contract.yaml`]: contract("UC-900", "fixed", [op("wipe", { method: "DELETE", path: "/admin/everything" })]) };
 		const r = entries({ files: hidden, list: `${LIST}\n${h("DELETE", "/admin/everything")}` });

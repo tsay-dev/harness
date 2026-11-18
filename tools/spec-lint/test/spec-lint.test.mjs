@@ -663,3 +663,21 @@ test("フォルダの数え方: goals の直下の . と _ で始まるフォル
 	assert.equal(r.status, 0, r.out);
 	assert.doesNotMatch(r.out, /UC-900|wipe/);
 });
+
+test("根: docs の隣の設定が docs.goals_dir を別の場所に宣言していれば、設定の誤りで止まる（lint entries と別の木を読まない）", () => {
+	const alt = {
+		"harness.config.json": JSON.stringify({ docs: { goals_dir: "specs/goals" } }),
+		"specs/goals/GOAL-01-a/UC-001-b/UC.md": "---\nid: UC-001\nstatus: active\n---\n",
+		"specs/goals/GOAL-01-a/UC-001-b/contract.yaml": "x-uc: UC-001\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n",
+	};
+	const r = validate({ hostFiles: alt });
+	assert.equal(r.status, 2, r.out);
+	assert.match(r.out, /spec-lint: 仕様の置き場が 2 通りに決まっている: 設定の docs\.goals_dir は .*specs\/goals、docs のフォルダ（--docs）から決まる場所は .*docs\/goals/);
+	//  設定が同じ場所を指していれば、今までどおり検査する
+	assert.equal(validate({ hostFiles: { "harness.config.json": JSON.stringify({ docs: { goals_dir: "docs/goals" } }) } }).status, 0);
+});
+
+test("フォルダの数え方: ゴールの直下の _ で始まるフォルダも読まない（goals の直下と同じ決まり。trace-check が配置の違反にする）", () => {
+	const r = validate({ hostFiles: { "docs/goals/GOAL-01-a/_draft/UC.md": "---\nid: UC-900\nstatus: active\n---\n", "docs/goals/GOAL-01-a/_draft/contract.yaml": "x-uc: UC-900\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n" } });
+	assert.equal(r.status, 0, r.out);
+});

@@ -6,7 +6,7 @@ harness に同梱する依存なしの Node ツール。利用プロジェクト
 
 ## 検査内容
 
-すべての `fixed` 契約（`docs/goals/**/UC-*/contract.yaml`）は、操作ごとに実値の `examples` を持つ。
+すべての `fixed` 契約（仕様の木の UC のフォルダの `contract.yaml`）は、操作ごとに実値の `examples` を持つ。
 少なくとも成功例一つと、各 `errors[].code` の失敗例一つがある（spec-lint が保証）。それらを fixture とする。
 contract-run は各例を**利用プロジェクトが書いたアダプタープロセス**で実装へ渡し、応答を例に照らして判定する。
 
@@ -29,7 +29,7 @@ node tools/contract-run/contract-run.mjs [--root <host root>] [--config harness.
 | --- | --- |
 | `--root` | 利用プロジェクト直下（既定: 現在のディレクトリ）。アダプターはここを cwd に実行 |
 | `--config` | 読む `harness.config.json`（既定: `<root>/harness.config.json`）。設定欠落は exit `2`。探索はしない |
-| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は `<docs>/goals/**/UC-*/contract.yaml` 配下で探す。`<docs>/goals` が無ければ exit `2` |
+| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は、`<docs>/goals` の直下のゴールのフォルダの、直下の UC のフォルダの `contract.yaml`（数え方は spec-lint・trace-check・exec-check と同じ `../_shared/goals-tree.mjs`。それより深い場所や、`.`・`_` で始まるフォルダの契約は、どのツールも読まない）。`<docs>/goals` が無いか、設定の `docs.goals_dir` と別の場所を指していれば exit `2` |
 | `--uc` | `x-uc` が一致する契約だけ（繰り返し指定、またはカンマ区切り） |
 | `--all` | `draft` 契約も実行（既定: `x-status: fixed` のみ） |
 | `--include-external` | `owned: false` 操作も実行（既定: `owned: true` のみ）。外部境界は写しであり自身のものではないため明示選択 |

@@ -346,12 +346,12 @@ test("配列は長さと要素ごとの部分集合で比べ、ネストした�
 	assert.match(r.stdout, /items\[1\]\.status: 期待 "ok" \/ 実際 "pending"/);
 });
 
-test("--docs の先に goals が無ければ、実例が無いとして通さず exit 2（ADR-0056）", (t) => {
+test("--docs の指す場所が、設定の docs.goals_dir と違えば、実例が無いとして通さず exit 2（ほかの検査ツールと別の木を読まない）", (t) => {
 	const root = makeHost();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root, "--docs", "documentation");
 	assert.equal(r.status, 2, r.stdout + r.stderr);
-	assert.match(r.stderr, /documentation\/goals が無い/);
+	assert.match(r.stderr, /仕様の置き場が 2 通りに決まっている: 設定の docs\.goals_dir は .*docs\/goals、docs のフォルダ（--docs）から決まる場所は .*documentation\/goals/);
 });
 
 //  ---- stream の例: 観測者ごとに届いたイベントを照合する（ADR-0061）----

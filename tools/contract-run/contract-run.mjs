@@ -38,11 +38,12 @@
 //  baseline は持たない（実行結果は負債ではなく、その場で直すもの）。
 //
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { lineOf, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
+import { allUcDirs, goalsRootOf } from "../_shared/goals-tree.mjs";
 
 const TAG = "[contract-run]";
 const UC_DIR_RE = /^UC-\d+-[a-z0-9-]+$/;
@@ -67,20 +68,13 @@ function loadConfig(configPath) {
 
 //  ---- 契約の収集 ---------------------------------------------------------------
 
-//  <docs>/goals/**/UC-*/contract.yaml を深さに関係なく集める（GOAL 直下が既定だが配置は trace-check C9 の仕事）
-function findContracts(dir) {
-	const out = [];
-	if (!existsSync(dir)) return out;
-	for (const d of readdirSync(dir, { withFileTypes: true })) {
-		if (!d.isDirectory()) continue;
-		const p = join(dir, d.name);
-		if (UC_DIR_RE.test(d.name)) {
-			const c = join(p, "contract.yaml");
-			if (existsSync(c)) out.push(c);
-		}
-		out.push(...findContracts(p));
-	}
-	return out.sort();
+//  仕様の木の UC のフォルダの contract.yaml を集める。どのフォルダを UC として数えるかは tools/_shared/goals-tree.mjs
+//  （spec-lint・trace-check・exec-check と同じ。ほかのツールが検査しない場所の契約は、実行もしない）
+function findContracts(goalsRoot) {
+	return allUcDirs(goalsRoot)
+		.map(({ ucDir }) => join(ucDir, "contract.yaml"))
+		.filter((c) => existsSync(c))
+		.sort();
 }
 
 //  契約 1 件を「実行する例」の列に落とす。書式の妥当性は spec-lint の仕事なので、
@@ -371,15 +365,21 @@ async function main() {
 	const cfg = loadConfig(opts.config ? resolve(opts.config) : join(root, CONFIG_FILE));
 	if (!cfg) return 2;
 	const docsDir = resolve(root, opts.docs);
+	//  仕様の木の根は、ほかの検査ツールと同じ決め方で決める（設定の docs.goals_dir と食い違えば設定エラー）
+	const tree = goalsRootOf({ docsDir, hostRoot: root, cfg });
+	if (tree.error) {
+		console.error(`${TAG} ${tree.error}`);
+		return 2;
+	}
 	//  docs の場所の書き損じで「実行する実例が無い」と黙って通らないよう、goals が無ければ設定エラー（ADR-0056）
-	if (!existsSync(join(docsDir, "goals"))) {
+	if (!existsSync(tree.root)) {
 		console.error(`${TAG} ${join(opts.docs, "goals")} が無い。--docs の指定を確かめるか、goals/ を作る（空なら .gitkeep を置く）`);
 		return 2;
 	}
 
 	//  契約を集めて実行計画に落とす。読めない契約は fail（実装の不一致）ではなく設定異常
 	const items = [];
-	for (const file of findContracts(join(docsDir, "goals"))) {
+	for (const file of findContracts(tree.root)) {
 		const { root: node, problems } = parseStrictYaml(readFileSync(file, "utf8"));
 		if (problems.length) {
 			console.error(`${TAG} 契約が読めない: ${file}:${problems[0].line} ${problems[0].msg}（spec-lint validate で直す）`);
