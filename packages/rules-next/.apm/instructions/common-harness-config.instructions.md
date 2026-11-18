@@ -31,4 +31,4 @@ Next.js（App Router）のプロジェクトで、harness のひな形 `harness.
 - 実行の記録（`coverage`）で確かめる範囲は、テストから実行する層（`coverage.scope` に `src/use-cases`、`src/domain`、`src/infrastructure` など）。画面（`src/app`、`src/components`）はシナリオテストで確かめるので、範囲の外に置く。
 - `@covers` はテスト本体の先頭行に置く（[common-testing](common-testing.instructions.md)）ので `after`。
 - シナリオテスト（`e2e/`、`test.fixme` の保留）と `commands` はひな形のまま使える。スキーマ源が Prisma でなければ `schema` を合わせる。DB で守る規則は、規則に反する行を DB に直接入れて断られるテスト（`@covers BR-nnn`）で確かめる。
-- 技術部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!src/infrastructure/**"`）。外さなければ `@covers` の無いテストとして C11 になる。
+- 部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!src/infrastructure/**"`）。外さなければ `@covers` の無いテストとして C11 になる。
