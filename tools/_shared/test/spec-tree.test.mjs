@@ -1,16 +1,16 @@
-//  goals-tree のテスト。仕様の木の根の決め方と、読む・読まないフォルダの表を固定する
-//  （spec-lint・trace-check・gate-hook・exec-check・contract-run が、同じ根の同じフォルダを読む）
+//  spec-tree のテスト。仕様の木の根の決め方と、読む・読まないフォルダの表を固定する
+//  （lint spec・lint refs・lint entries・run cases・guard が、同じ根の同じフォルダを読む）
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { ENTRY_TRANSPORTS, TRANSPORTS, allUcDirs, goalsRootOf, isFilledText, specDirs } from "../goals-tree.mjs";
+import { allUcDirs, goalsRootOf, specDirs } from "../spec-tree.mjs";
 
 const TEMP = [];
 after(() => TEMP.forEach((d) => rmSync(d, { recursive: true, force: true })));
 const tree = (dirs, files = []) => {
-	const root = mkdtempSync(join(tmpdir(), "goals-tree-"));
+	const root = mkdtempSync(join(tmpdir(), "spec-tree-"));
 	TEMP.push(root);
 	for (const d of dirs) mkdirSync(join(root, d), { recursive: true });
 	for (const f of files) writeFileSync(join(root, f), "");
@@ -45,11 +45,4 @@ test("フォルダ: . で始まるものと _shared は読まず、ほかの _ �
 	//  名前の形（GOAL-nn・UC-nnn）は見ない。形の違反は、各ツールが報告する
 	assert.deepEqual(allUcDirs(root).map(({ ucDir }) => relative(root, ucDir)), ["GOAL-01-a/UC-001-b", "GOAL-01-a/UC-002-c", "GOAL-01-a/notes", "misc/x"]);
 	assert.deepEqual(specDirs(join(root, "none")), { dirs: [], stray: [] });
-});
-
-test("契約の語彙: entry を書く transport は transport の語彙の一部。項目が書いてあるのは、空でない文字列だけ（空白だけは空）", () => {
-	for (const t of ENTRY_TRANSPORTS) assert.ok(TRANSPORTS.includes(t));
-	assert.ok(TRANSPORTS.includes("http"));
-	for (const v of ["a", " a ", "/"]) assert.equal(isFilledText(v), true);
-	for (const v of ["", " ", "\t\n", 1, true, null, undefined, ["a"], {}]) assert.equal(isFilledText(v), false);
 });

@@ -43,10 +43,9 @@ import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { lineOf, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
-import { allUcDirs, goalsRootOf } from "../_shared/goals-tree.mjs";
+import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
 
 const TAG = "[contract-run]";
-const UC_DIR_RE = /^UC-\d+-[a-z0-9-]+$/;
 
 //  ---- 設定 -------------------------------------------------------------------
 
@@ -68,7 +67,7 @@ function loadConfig(configPath) {
 
 //  ---- 契約の収集 ---------------------------------------------------------------
 
-//  仕様の木の UC のフォルダの contract.yaml を集める。どのフォルダを UC として数えるかは tools/_shared/goals-tree.mjs
+//  仕様の木の UC のフォルダの contract.yaml を集める。どのフォルダを UC として数えるかは tools/_shared/spec-tree.mjs
 //  （spec-lint・trace-check・exec-check と同じ。ほかのツールが検査しない場所の契約は、実行もしない）
 function findContracts(goalsRoot) {
 	return allUcDirs(goalsRoot)

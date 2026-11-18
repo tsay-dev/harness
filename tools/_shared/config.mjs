@@ -4,11 +4,21 @@
 //  「設定が無い」とだけ伝えると原因が分からないので、改名したことを添える。古い名前のファイルは読まない
 //  （読む名前が 2 つあると、どちらが効いているかが分からなくなる）。
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 export const CONFIG_FILE = "harness.config.json";
 const OLD_CONFIG_FILE = "traceconfig.json";
+
+//  フォルダ hostRoot の設定を読む。無い・読めないときは null（読めないことは、設定の形の検査と紐づきの検査が報告する）。
+//  読めないことを自分で報告しない場面（仕様の木の根を決めるとき、アクター表の場所を引くとき）で使う
+export function readHostConfig(hostRoot) {
+	try {
+		return JSON.parse(readFileSync(join(hostRoot, CONFIG_FILE), "utf8"));
+	} catch {
+		return null;
+	}
+}
 
 //  ひな形（templates/develop/harness.config.json）に無いが、最上位に書いてよいキー。
 //  既定の動きを変えるときだけ書くキーで、ひな形に値を置くと既定を上書きしてしまうもの。

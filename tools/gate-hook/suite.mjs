@@ -38,7 +38,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
-import { goalsRootOf } from "../_shared/goals-tree.mjs";
+import { goalsRootOf } from "../_shared/spec-tree.mjs";
 
 export const LEVELS = ["lint", "fast", "full"];
 export const COMMAND_KEYS = ["typecheck", "lint", "test", "system"];
@@ -266,7 +266,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	//  2〜4 を 1 組の docs / 設定に対して実行する（失敗を集める）
 	const checkDocs = async (label, unitRoot, docsDir, cfgPath, unitCfg) => {
 		//  spec-lint・contract-run には docs のフォルダを、trace-check・exec-check には設定を渡す。2 つが別の木を指していれば、
-		//  ツールごとに別の契約を読むので、検査を実行せずに失敗にする（根の決め方は tools/_shared/goals-tree.mjs）
+		//  ツールごとに別の契約を読むので、検査を実行せずに失敗にする（根の決め方は tools/_shared/spec-tree.mjs）
 		const tree = goalsRootOf({ docsDir, hostRoot: unitRoot, cfg: unitCfg });
 		if (tree.error) {
 			fail(`config${label}`, `${tree.error}（${cfgPath}）`);

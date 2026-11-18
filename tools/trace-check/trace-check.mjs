@@ -68,7 +68,7 @@ import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope, isGlob } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { reqDocsOf, splitUc } from "../_shared/reqs.mjs";
-import { goalsRootOf, specDirs } from "../_shared/goals-tree.mjs";
+import { goalsRootOf, specDirs } from "../_shared/spec-tree.mjs";
 import { CONFIG_FILE, renamedConfigHint, retiredKeysIn } from "../_shared/config.mjs";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
@@ -339,12 +339,12 @@ class Corpus {
 		this.ucs = {}; //  id -> { goal, actor, status, phase, dir, goalDir, file }
 		this.reqs = {}; //  id -> { uc, status, dir, goalDir, file, hasPolicy, classes, br }
 		this.pathViolations = [];
-		//  根の決め方は tools/_shared/goals-tree.mjs（ほかの検査ツールと同じ）
+		//  根の決め方は tools/_shared/spec-tree.mjs（ほかの検査ツールと同じ）
 		const goalsDir = goalsRootOf({ hostRoot: cfg._root, cfg }).root;
 		const r = (x) => rel(cfg, x);
 		const known = new Set();
 
-		//  フォルダの数え方は tools/_shared/goals-tree.mjs（. で始まるフォルダと _shared は木の外。ほかの検査ツールと同じ）
+		//  フォルダの数え方は tools/_shared/spec-tree.mjs（. で始まるフォルダと _shared は木の外。ほかの検査ツールと同じ）
 		const stray = (dir) => this.pathViolations.push(`${r(dir)}: _shared 以外の _ ディレクトリは検査の対象にならない（GOAL-nn-<slug>・UC-nnn-<slug> にするか、goals の外へ移す）`);
 		const tree = specDirs(goalsDir);
 		tree.stray.forEach(stray);

@@ -43,9 +43,10 @@ import { join, dirname, basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
-import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
+import { CONFIG_FILE, readHostConfig, renamedConfigHint } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
-import { ENTRY_TRANSPORTS, TRANSPORTS, goalsRootOf, isFilledText, specDirs } from "../_shared/goals-tree.mjs";
+import { goalsRootOf, specDirs } from "../_shared/spec-tree.mjs";
+import { ENTRY_TRANSPORTS, TRANSPORTS, isFilledText } from "../_shared/contract-vocab.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -502,7 +503,7 @@ function validateADR(file) {
 
 //  internal ＝ 同じプロセス内の境界を、ホストが ADR で「契約に書く」と決めたときの語（既定は R-1204 で operation にしない）
 //  stream ＝ 持続する接続（WebSocket / SSE など）の上を流れるメッセージ。接続の確立そのものは http の操作として書く（ADR-0061）
-//  transport の語彙と、entry が要る transport は tools/_shared/goals-tree.mjs（exec-check の入口の種類と同じもの）
+//  transport の語彙と、entry が要る transport は tools/_shared/contract-vocab.mjs（exec-check の入口の種類と同じもの）
 const DIRECTIONS = ["outbound", "inbound"];
 const INBOUND_ONLY_TRANSPORTS = ["deeplink", "push"]; //  stream は双方向（outbound = 送るメッセージ / inbound = 届くイベント）
 const SELF_OBSERVER = "self"; //  例の主体の接続。予約語なので observers に宣言しない
@@ -963,7 +964,7 @@ function loadModel(docsDir) {
 	const ucs = new Map(); //  id -> { file, dir, status, phase, goal, hasExceptionDerivation, reqs: [] }
 	const contracts = new Map(); //  id -> { file, status, errorCount, text }
 
-	//  フォルダの数え方は tools/_shared/goals-tree.mjs（ほかの検査ツールと同じ。_ で始まるフォルダは trace-check が配置の違反にする）
+	//  フォルダの数え方は tools/_shared/spec-tree.mjs（ほかの検査ツールと同じ。_ で始まるフォルダは trace-check が配置の違反にする）
 	for (const gdir of specDirs(goalsRoot).dirs) {
 		const gname = basename(gdir);
 		const gid = (gname.match(/^GOAL-\d+/) || [null])[0];
@@ -1086,15 +1087,6 @@ function validateHostGuides(docsDir) {
 	}
 }
 
-//  docs の隣の設定（harness.config.json）。無い・読めないときは null（読めないことは config-lint と trace-check が報告する）
-function readHostConfig(hostRoot) {
-	try {
-		return JSON.parse(readFileSync(join(hostRoot, CONFIG_FILE), "utf8"));
-	} catch {
-		return null;
-	}
-}
-
 function cmdValidate(docsDir, opts) {
 	if (existsSync(join(docsDir, "specs"))) {
 		if (!opts.ignoreLegacy) {
@@ -1108,7 +1100,7 @@ function cmdValidate(docsDir, opts) {
 		warn(join(docsDir, "specs"), `旧レイアウトが残っている（--ignore-legacy-layout で続行中）— 移行完了時に attic へ移す`);
 	}
 	if (existsSync(join(docsDir, "PRD.md"))) warn(join(docsDir, "PRD.md"), `旧レイアウトの PRD.md がある — 00-vision.md へ移す（/docs-migrate）`);
-	//  仕様の木の根は、ほかの検査ツールと同じ決め方で決める（tools/_shared/goals-tree.mjs）。docs の隣の設定が docs.goals_dir を
+	//  仕様の木の根は、ほかの検査ツールと同じ決め方で決める（tools/_shared/spec-tree.mjs）。docs の隣の設定が docs.goals_dir を
 	//  別の場所に宣言していれば、trace-check・exec-check と別の木を読むことになるので、設定の誤りにする
 	const hostRoot = dirname(resolve(docsDir));
 	const tree = goalsRootOf({ docsDir: resolve(docsDir), hostRoot, cfg: readHostConfig(hostRoot) });

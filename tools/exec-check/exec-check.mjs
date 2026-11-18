@@ -66,7 +66,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
-import { ENTRY_TRANSPORTS, TRANSPORTS, allUcDirs, goalsRootOf, isFilledText } from "../_shared/goals-tree.mjs";
+import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
+import { ENTRY_TRANSPORTS, TRANSPORTS, isFilledText } from "../_shared/contract-vocab.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope } from "../_shared/glob.mjs";
 import { parseStrictYaml } from "../_shared/strict-yaml.mjs";
@@ -425,7 +426,7 @@ function checkCoverage(cfg, root, since, entry) {
 //  harness はパスを解釈しない（:id と {id} を同じとみなさない。* を特別に扱わない。末尾の / も大文字小文字もならさない）。
 //  枠組みの書き方から契約の書き方へ直すのは、一覧を出すスクリプト（commands.list_entries）の役目（ADR-0070）
 
-//  入口の種類は、契約の transport と同じ語彙（tools/_shared/goals-tree.mjs）。一覧の kind に使う
+//  入口の種類は、契約の transport と同じ語彙（tools/_shared/contract-vocab.mjs）。一覧の kind に使う
 const ENTRY_KINDS = TRANSPORTS;
 
 //  入口の同一性（突き合わせに使う鍵）と、表示の書き方。鍵は、項目の並びを JSON にしたもの（項目の中の文字で、別の入口と同じ鍵にならない）
@@ -454,25 +455,25 @@ function inboundEntryOf(name, op) {
 //  status は契約の x-status（無ければ null）。入口の突き合わせ先（E1）にするのは fixed の契約の操作だけ（draft の契約は、人が承認していない）
 //  契約の読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。構文の誤りは spec-lint が報告し、ここは読めた分だけ使う
 function inboundOperations(cfg, root) {
-	//  根の決め方と、フォルダの数え方は tools/_shared/goals-tree.mjs（spec-lint が検査しない場所の契約を、突き合わせ先に数えない）
+	//  根の決め方と、フォルダの数え方は tools/_shared/spec-tree.mjs（spec-lint が検査しない場所の契約を、突き合わせ先に数えない）
 	const goals = goalsRootOf({ hostRoot: root, cfg }).root;
 	if (goals === null) return null;
 	const out = [];
 	for (const { ucDir: udir } of allUcDirs(goals)) {
-			const ucFile = join(udir, "UC.md");
-			const file = join(udir, "contract.yaml");
-			if (!existsSync(ucFile) || !existsSync(file)) continue;
-			const uc = parseFrontmatter(readFileSync(ucFile, "utf8")).data;
-			if (uc.status === "withdrawn") continue;
-			const { root: doc } = parseStrictYaml(readFileSync(file, "utf8"));
-			if (!isMap(doc) || !isMap(doc.operations)) continue;
-			for (const [name, op] of Object.entries(doc.operations)) {
-				const e = inboundEntryOf(name, op);
-				if (e === null) continue;
-				const status = typeof doc["x-status"] === "string" ? doc["x-status"] : null;
-				out.push({ id: `${uc.id ?? "?"}#${name}`, ...e, status, fixed: status === "fixed", fixedOwned: status === "fixed" && op.owned === true });
-			}
+		const ucFile = join(udir, "UC.md");
+		const file = join(udir, "contract.yaml");
+		if (!existsSync(ucFile) || !existsSync(file)) continue;
+		const uc = parseFrontmatter(readFileSync(ucFile, "utf8")).data;
+		if (uc.status === "withdrawn") continue;
+		const { root: doc } = parseStrictYaml(readFileSync(file, "utf8"));
+		if (!isMap(doc) || !isMap(doc.operations)) continue;
+		for (const [name, op] of Object.entries(doc.operations)) {
+			const e = inboundEntryOf(name, op);
+			if (e === null) continue;
+			const status = typeof doc["x-status"] === "string" ? doc["x-status"] : null;
+			out.push({ id: `${uc.id ?? "?"}#${name}`, ...e, status, fixed: status === "fixed", fixedOwned: status === "fixed" && op.owned === true });
 		}
+	}
 	return out;
 }
 
@@ -533,7 +534,7 @@ function checkEntries(cfg, root, opts) {
 	const fixedOps = ops.filter((o) => o.fixed);
 	const readableOps = ops.filter((o) => !o.problem);
 	//  入口を読めない契約の操作（比べる項目が空でない文字列でない、transport が入口の種類に無い）は、どの入口とも合わない。
-	//  同じ操作は spec-lint も違反にする（判定は tools/_shared/goals-tree.mjs の isFilledText）。ここでも、owned・x-status によらず報告する
+	//  同じ操作は spec-lint も違反にする（判定は tools/_shared/contract-vocab.mjs の isFilledText）。ここでも、owned・x-status によらず報告する
 	for (const o of ops)
 		if (o.problem) errs.push(`E4  契約の操作 ${o.id} の ${o.field} を読めない: ${o.problem}（契約の書き方の誤りで、このままではどの入口とも合わない）`);
 	//  契約の外の入口を認める宣言は廃止した。残っていれば、黙って読み飛ばさない
