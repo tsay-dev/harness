@@ -32,7 +32,7 @@
 //
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { join, dirname, basename, resolve } from "node:path";
+import { join, dirname, basename, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mjs";
 import { readHostConfig } from "../_shared/config.mjs";
@@ -1046,7 +1046,7 @@ function loadModel(docsDir) {
 	validateSingleton(join(docsDir, "01-glossary.md"), "glossary", "GLOSSARY", true);
 	//  概要へ移した文書（ADR-0076）
 	//  名前を変えて残したものも、frontmatter の id で見つける
-	for (const r of retiredDocsIn(docsDir)) err(r.file, `${r.why} の文書は置かない（ビジョン・アクター表・バックログ・GOAL.md は 1 枚の概要 ${OVERVIEW_FILE} にまとめた）。${MIGRATE_HINT}`);
+	for (const r of retiredDocsIn(docsDir)) err(join(docsDir, relative(resolve(docsDir), r.file)), `${r.why} の文書は置かない（ビジョン・アクター表・バックログ・GOAL.md は 1 枚の概要 ${OVERVIEW_FILE} にまとめた）。${MIGRATE_HINT}`);
 	validateSingleton(join(docsDir, "verification", "GLOBAL.md"), "global", "VERIFICATION_GLOBAL", false);
 	const deferredFile = join(docsDir, "verification", "DEFERRED.md");
 	const deferred = validateSingleton(deferredFile, "deferred", "VERIFICATION_DEFERRED", false, DEFERRED_STATUS);
