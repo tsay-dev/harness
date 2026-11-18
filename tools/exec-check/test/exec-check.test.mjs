@@ -256,14 +256,14 @@ test("設定が無い・読めない・使い方の誤りは 2 で終わる", ()
 	assert.equal(run(project({ cfg: { docs: { goals_dir: "docs/goals" }, commands: { list_entries: "node list.mjs" } }, lcov: null }), "entries", ["--from", "no-such-file"]).status, 2);
 });
 
-//  ---- entries: アプリの入口の一覧と契約の突き合わせ（ADR-0070） ----
+//  ---- entries: アプリの入口の一覧と契約の突き合わせ（ADR-0070。文字の完全一致） ----
 
 const op = (name, { transport = "http", direction = "inbound", owned = true, method = "GET", path = null, entry = null } = {}) =>
 	`  ${name}:\n    transport: ${transport}\n    direction: ${direction}\n    owned: ${owned}\n    auth: none\n    summary: s\n` +
 	(transport === "http" ? `    wire:\n      method: ${method}\n      path: ${path}\n      success: 200\n` : "") +
 	(entry ? `    entry: ${entry}\n` : "") +
 	"    errors: []\n";
-const contract = (uc, status, ops) => `x-uc: ${uc}\nx-status: ${status}\noperations:\n${ops.join("")}`;
+const contract = (uc, status, ops) => `x-uc: ${uc}\n${status ? `x-status: ${status}\n` : ""}operations:\n${ops.join("")}`;
 const ucDoc = (id, status = "active") => `---\nid: ${id}\ntitle: t\nstatus: ${status}\n---\n\n# ${id}\n`;
 const G = "docs/goals/GOAL-01-x";
 //  架空のアプリ: 会員を読む・作る（fixed）、通知を受け取る（fixed。push）、下書きの操作（draft）、撤回済みの UC の操作、外の API を呼ぶ操作（outbound）、
@@ -284,13 +284,8 @@ const DOCS = {
 	[`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/*" })]),
 };
 const line = (o) => JSON.stringify(o);
-const LIST = [
-	line({ kind: "http", method: "GET", path: "/api/members/:accountId" }),
-	line({ kind: "http", method: "post", path: "/api/members/" }),
-	line({ kind: "push", name: "notice.updated" }),
-	line({ kind: "http", method: "GET", path: "/api/health" }),
-	line({ kind: "http", method: "GET", path: "/assets/*" }),
-].join("\n");
+const h = (method, path) => line({ kind: "http", method, path });
+const LIST = [h("GET", "/api/members/{accountId}"), h("POST", "/api/members"), line({ kind: "push", name: "notice.updated" }), h("GET", "/api/health"), h("GET", "/assets/*")].join("\n");
 const entriesCfg = (f = () => {}) => {
 	const c = { docs: { goals_dir: "docs/goals" }, commands: { list_entries: "node scripts/list-entries.mjs" } };
 	f(c);
@@ -300,113 +295,105 @@ const entries = ({ cfg = entriesCfg(), list = LIST, files = {} } = {}) => {
 	const d = project({ cfg, files: { ...DOCS, ...files, "entries.jsonl": list }, lcov: null });
 	return run(d, "entries", ["--from", join(d, "entries.jsonl")]);
 };
+//  契約 1 つ（UC-001、fixed）だけにする
+const only = (ops, status = "fixed") => ({ [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", status, ops), [`${G}/UC-002-draft/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null });
 
-test("entries: 一覧の入口がすべて契約の inbound の操作に合い、fixed の操作の入口が一覧にあれば通る（パラメーターの書き方・method の大小・末尾の / の違いは同じに扱う）", () => {
+test("entries: 一覧の入口が、fixed の契約の inbound の操作と文字どおり一致し、fixed の操作の入口が一覧にあれば通る", () => {
 	const r = entries();
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /OK: 入口 5 件（すべて fixed の契約の inbound の操作に合う）、fixed の契約の inbound の操作 5 件/);
 });
 
-test("entries: 契約が draft の間は、入口が無いのが正しい（draft の契約の操作しか無ければ、一覧が 0 行でも通る）", () => {
+//  harness はパスを解釈しない。契約 /a/{id} に対して、1 文字でも違う入口は合わない（E1 と E2 の両方が出る）
+for (const [name, method, path] of [
+	[":id と {id} を同じとみなさない", "GET", "/a/:id"],
+	["パラメーターの名前が違う", "GET", "/a/{itemId}"],
+	["末尾の / を無視しない", "GET", "/a/{id}/"],
+	["大文字小文字をならさない", "GET", "/A/{id}"],
+	["* を特別に扱わない", "GET", "/a/*"],
+	["method の表記が違う（小文字）", "get", "/a/{id}"],
+	["method が違う", "PUT", "/a/{id}"],
+	["前後の空白を削らない", "GET", "/a/{id} "],
+]) {
+	test(`entries E1 / E2: 完全一致でなければ合わない（${name}）`, () => {
+		const r = entries({ files: only([op("getA", { path: "/a/{id}" })]), list: h(method, path) });
+		assert.equal(r.status, 1, r.stdout + r.stderr);
+		assert.ok(r.stdout.includes(`err  E1  契約に無い入口: ${method} ${path}（`), r.stdout);
+		assert.match(r.stdout, /err  E2  UC-001#getA（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/a\/\{id\}/);
+	});
+}
+
+test("entries: どんな書き方のパスや名前でも、契約と一覧が同じ文字なら合う（harness は書式を持たない）", () => {
+	const paths = ["/a/{id}", "/files/{name}.json", "/odata/$metadata", "/v1/items/{id}:cancel", "/docs/[[...slug]]", "/a/:id?", "/assets/*", "/"];
+	const files = only([...paths.map((p, i) => op(`op${i}`, { path: JSON.stringify(p) })), op("openItem", { transport: "deeplink", entry: '"myapp://open?item={id}"' }), op("openProfile", { transport: "deeplink", entry: '"myapp:profile"' }), op("syncLocal", { transport: "internal" })]);
+	const list = [...paths.map((p) => h("GET", p)), line({ kind: "deeplink", name: "myapp://open?item={id}" }), line({ kind: "deeplink", name: "myapp:profile" }), line({ kind: "internal", name: "syncLocal" })].join("\n");
+	const r = entries({ files, list });
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+	assert.match(r.stdout, /OK: 入口 11 件/);
+	//  名前の入口も完全一致（パラメーターの書き方が違えば合わない）
+	const diff = entries({ files, list: list.replace("myapp://open?item={id}", "myapp://open?item=:id") });
+	assert.match(diff.stdout, /err  E1  契約に無い入口: deeplink myapp:\/\/open\?item=:id/);
+	assert.match(diff.stdout, /err  E2  UC-001#openItem/);
+});
+
+test("entries: 契約が draft の間は、入口が無いのが正しい（draft の契約の操作しか無ければ、一覧が 0 行でも none でも通る）", () => {
 	const draftOnly = { [`${G}/UC-001-members/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null };
 	const r = entries({ files: draftOnly, list: "" });
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /OK: 入口は無い、fixed の契約の inbound の操作 0 件/);
-	//  同じ状態では、list_entries を none にもできる（none を認める条件と、0 行を認める条件は同じ）
 	const d = project({ cfg: entriesCfg((c) => (c.commands.list_entries = { none: "契約が fixed になるまで入口を置かない" })), files: { ...DOCS, ...draftOnly }, lcov: null });
 	assert.equal(run(d, "entries").status, 0);
 	//  同じ状態で入口を置くと、契約を fixed にするまで違反
-	const early = entries({ files: draftOnly, list: line({ kind: "http", method: "GET", path: "/api/members/export" }) });
+	const early = entries({ files: draftOnly, list: h("GET", "/api/members/export") });
 	assert.equal(early.status, 1);
 	assert.match(early.stdout, /err  E1  契約が fixed でない入口: GET \/api\/members\/export/);
+	//  「fixed でない契約に合う」の判定も完全一致（1 文字違えば、契約に無い入口）
+	assert.match(entries({ files: draftOnly, list: h("GET", "/api/members/export/") }).stdout, /err  E1  契約に無い入口: GET \/api\/members\/export\//);
 });
 
 test("entries: fixed の契約で owned が false の inbound の操作（外部からの通知など）に合う入口は通る", () => {
 	const hook = { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/*" }), op("receiveHook", { owned: false, method: "POST", path: "/hooks/pay" })]) };
-	const r = entries({ files: hook, list: `${LIST}\n${line({ kind: "http", method: "POST", path: "/hooks/pay" })}` });
+	const r = entries({ files: hook, list: `${LIST}\n${h("POST", "/hooks/pay")}` });
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
-//  一覧のパスの書式に無い形。パラメーター 1 つとみなすと、契約より広い入口が契約の {accountId} に合ったことになる
-const BAD_PATH_FORMS = ["/api/members/[...slug]", "/api/members/[id]", "/api/members/{*splat}", "/api/members/:rest{.+}", "/api/members/{path:path}", "/api/members/:id?", "/api/members/${id}", "/api/members/<int:id>", "/api/members/:id(\\d+)", "/api/members/:id.json", "/api/members/x*", "/api/members/:id?x=1", "/api/members/:id#top", "/api/members/:id-x", "/api/members/{id}.json", "/api/members:batchGet", "/api/$metadata/:id"];
-for (const path of BAD_PATH_FORMS) {
-	test(`entries E4: 一覧のパスが書式に無い形（${path}）は、契約のパラメーターに合わせず、読めない行として違反`, () => {
-		const r = entries({ list: LIST.replace("/api/members/:accountId", path.replace(/\\/g, "\\\\")) });
-		assert.equal(r.status, 1, r.stdout + r.stderr);
-		assert.ok(r.stdout.includes(`err  E4  一覧の 1 行目: path が、決まった書式に無い: GET ${path}（`), r.stdout);
-		assert.match(r.stdout, /書式は tools\/exec-check\/README\.md の「パスの書式」/);
-		//  読めない行は入口として数えないので、契約の操作の入口は無いままになる
-		assert.match(r.stdout, /err  E2  UC-001#getMember/);
-	});
-}
-
-test("entries: 契約の側も * と書いていれば、* の入口はそれとだけ合う。inbound の操作が無ければ、一覧が 0 行でも通る", () => {
-	const star = { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("serveFiles", { path: "/files/*" })]), [`${G}/UC-002-draft/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null };
-	const ok = entries({ files: star, list: line({ kind: "http", method: "GET", path: "/files/**" }) });
-	assert.equal(ok.status, 0, ok.stdout + ok.stderr);
-	const param = entries({ files: star, list: line({ kind: "http", method: "GET", path: "/files/:name" }) });
-	assert.match(param.stdout, /err  E1  契約に無い入口: GET \/files\/:name/);
-	const none = { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("sendMail", { direction: "outbound", owned: false, method: "POST", path: "/v1/mail" })]), [`${G}/UC-002-draft/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null };
-	const empty = entries({ files: none, list: "" });
+test("entries: inbound の操作が無ければ、一覧が 0 行でも通る。一覧は標準入力からも読める", () => {
+	const empty = entries({ files: only([op("sendMail", { direction: "outbound", owned: false, method: "POST", path: "/v1/mail" })]), list: "" });
 	assert.equal(empty.status, 0, empty.stdout + empty.stderr);
 	assert.match(empty.stdout, /OK: 入口は無い、fixed の契約の inbound の操作 0 件/);
-});
-
-test("entries: {name} の名前には - も使える（:name には使えない）。deeplink は、スキームを外した残りを http のパスと同じ読み方で読む", () => {
-	const files = {
-		[`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("getItem", { path: "/api/items/{item-id}" }), op("openItem", { transport: "deeplink", entry: '"app://item/{itemId}"' }), op("openProfile", { transport: "deeplink", entry: '"myapp:profile"' }), op("openSettings", { transport: "deeplink", entry: '"myapp:settings"' })]),
-		[`${G}/UC-002-draft/contract.yaml`]: null,
-		[`${G}/UC-004-operate/contract.yaml`]: null,
-	};
-	const list = [line({ kind: "http", method: "GET", path: "/api/items/:id" }), line({ kind: "deeplink", name: "app://item/:id" }), line({ kind: "deeplink", name: "myapp:profile" }), line({ kind: "deeplink", name: "myapp:settings" })].join("\n");
-	const r = entries({ files, list });
-	assert.equal(r.status, 0, r.stdout + r.stderr);
-	assert.match(r.stdout, /OK: 入口 4 件/);
-});
-
-test("entries: 一覧は標準入力からも読める", () => {
 	const d = project({ cfg: entriesCfg(), files: DOCS, lcov: null });
 	const r = spawnSync(process.execPath, [TOOL, "entries", "--root", d], { encoding: "utf8", input: LIST });
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
 const BAD_ENTRIES = [
-	["E1", "契約に無い入口", { list: `${LIST}\n${line({ kind: "http", method: "DELETE", path: "/api/members/:id" })}` }, /契約に無い入口: DELETE \/api\/members\/:id/],
-	["E1", "method が違う", { list: LIST.replace('"post"', '"PUT"') }, /契約に無い入口: PUT \/api\/members\//],
-	["E1", "撤回済みの UC の契約にしか無い入口", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/old-report" })}` }, /契約に無い入口: GET \/api\/old-report/],
-	["E1", "outbound の操作と同じパスの入口", { list: `${LIST}\n${line({ kind: "http", method: "POST", path: "/v1/mail" })}` }, /契約に無い入口: POST \/v1\/mail/],
+	["E1", "契約に無い入口", { list: `${LIST}\n${h("DELETE", "/api/members/{id}")}` }, /契約に無い入口: DELETE \/api\/members\/\{id\}/],
+	["E1", "撤回済みの UC の契約にしか無い入口", { list: `${LIST}\n${h("GET", "/api/old-report")}` }, /契約に無い入口: GET \/api\/old-report/],
+	["E1", "outbound の操作と同じパスの入口", { list: `${LIST}\n${h("POST", "/v1/mail")}` }, /契約に無い入口: POST \/v1\/mail/],
 	["E1", "http 以外で契約に無い入口", { list: `${LIST}\n${line({ kind: "deeplink", name: "app://open/{id}" })}` }, /契約に無い入口: deeplink app:\/\/open\/\{id\}/],
-	["E1", "契約に書いていない運用の入口（生存確認）は、認める宣言の手段が無く、必ず違反になる", { files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("serveAssets", { path: "/assets/*" })]) } }, /契約に無い入口: GET \/api\/health（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く）/],
+	["E1", "契約に書いていない運用の入口（生存確認）は、認める宣言の手段が無く、必ず違反になる", { files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("serveAssets", { path: "/assets/*" })]) } }, /契約に無い入口: GET \/api\/health（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く。突き合わせは文字の完全一致/],
 	["E4", "廃止した entries.outside_contract に書いても、入口は認められない", { cfg: entriesCfg((c) => (c.entries = { outside_contract: [{ entry: "GET /api/health", reason: "監視が呼ぶ生存確認" }] })), files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("serveAssets", { path: "/assets/*" })]) } }, /設定の entries は廃止した（契約の外の入口は置けない）[^]*err  E1  契約に無い入口: GET \/api\/health/],
 	["E4", "廃止した entries のキーが残っている（空でも）", { cfg: entriesCfg((c) => (c.entries = { outside_contract: [] })) }, /設定の entries は廃止した（契約の外の入口は置けない）。キーを削除し/],
-	["E1", "何でも受ける登録（/assets/*）は、契約が同じ * の書き方を持つときだけ合う（契約がパラメーターなら合わない）", { files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/{name}" })]) } }, /契約に無い入口: GET \/assets\/\*/],
+	["E1", "draft の契約の操作にしか合わない入口（人が承認していない契約では、入口を通さない）", { list: `${LIST}\n${h("GET", "/api/members/export")}` }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約の x-status が draft。fixed でない契約の操作は、入口の突き合わせ先に数えない。人間の承認を得て契約を fixed にするまで、この検査は通らない/],
+	["E1", "x-status の無い契約の操作にしか合わない入口", { list: `${LIST}\n${h("GET", "/api/members/export")}`, files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", null, [op("exportMembers", { path: "/api/members/export" })]) } }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約に x-status が無い。/],
 	["E2", "fixed の操作の入口が一覧に無い", { list: LIST.split("\n").slice(1).join("\n") }, /UC-001#getMember（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/api\/members\/\{accountId\}/],
 	["E2", "fixed の push の操作の入口が一覧に無い", { list: LIST.replace("notice.updated", "notice.created") }, /UC-001#receiveNotice（fixed、owned かつ inbound）に合う入口が、一覧に無い: push notice\.updated/],
-	["E2", "契約が * なのに、一覧の入口がパラメーター", { list: LIST.replace("/assets/*", "/assets/:name") }, /UC-004#serveAssets（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/assets\/\*/],
-	["E4", "fixed の契約に inbound の操作があるのに一覧が 0 行", { list: "", files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("receiveHook", { owned: false, method: "POST", path: "/hooks/pay" })]), [`${G}/UC-004-operate/contract.yaml`]: null } }, /入口の一覧が 0 行（撤回されていない UC の fixed の契約に inbound の操作が 1 件ある。例: UC-001#receiveHook）/],
-	["E1", "draft の契約の操作にしか合わない入口（人が承認していない契約では、入口を通さない）", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}` }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約の x-status が draft。fixed でない契約の操作は、入口の突き合わせ先に数えない/],
-	["E1", "x-status の無い契約の操作にしか合わない入口", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}`, files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("exportMembers", { path: "/api/members/export" })]).replace("x-status: draft\n", "") } }, /契約が fixed でない入口: GET \/api\/members\/export（合う操作 UC-002#exportMembers はあるが、その契約に x-status が無い。/],
-	["E4", "契約の wire.path が書式に無い形（どの入口とも合わない。原因が契約の書き方だと分かる文で出す）", { files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("getMember", { path: "/api/members/{accountId:int}" }), op("createMember", { method: "POST", path: "/api/members" }), op("receiveNotice", { transport: "push", entry: "notice.updated" })]) } }, /E4  契約の操作 UC-001#getMember の wire\.path を読めない: GET \/api\/members\/\{accountId:int\}（区分「\{accountId:int\}」: 「\{name\}」の名前は[^]*契約の書き方の誤り/],
-	["E4", "draft の契約・owned が false の操作でも、読めない wire.path は報告する", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("receiveHook", { owned: false, path: '"/hooks/:id?"' })]) } }, /E4  契約の操作 UC-002#receiveHook の wire\.path を読めない: GET \/hooks\/:id\?（クエリ（\? 以降）と # は書けない[^]*契約の書き方の誤り/],
-	["E4", "契約の wire.path が文字列でない操作を、黙って捨てない", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: "123" })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: GET 123（文字列でない（実際: 123）/],
-	["E4", "契約の wire.path が空", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: '""' })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: GET （\/ で始まらない/],
-	["E4", "契約の wire.path が / で始まらない", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: "items/{id}" })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: GET items\/\{id\}（\/ で始まらない/],
-	["E4", "契約の deeplink の entry にクエリがある", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("openItem", { transport: "deeplink", entry: '"myapp://open?item={id}"' })]) } }, /E4  契約の操作 UC-002#openItem の entry を読めない: deeplink myapp:\/\/open\?item=\{id\}（クエリ（\? 以降）と # は書けない/],
-	["E4", "一覧の deeplink の名前にクエリがある", { list: `${LIST}\n${line({ kind: "deeplink", name: "myapp://open?item=:itemId" })}` }, /一覧の 6 行目: name が、決まった書式に無い: deeplink myapp:\/\/open\?item=:itemId（クエリ/],
-	["E4", "一覧の deeplink の名前で、区分の一部がパラメーター（myapp:item::itemId）", { list: `${LIST}\n${line({ kind: "deeplink", name: "myapp:item::itemId" })}` }, /一覧の 6 行目: name が、決まった書式に無い: deeplink myapp:item::itemId（区分「item::itemId」: 固定の文字列の区分に、書式に使えない文字（:）がある/],
-	["E4", "一覧の deeplink の名前で、区分の一部がパラメーター（.html が続く）", { list: `${LIST}\n${line({ kind: "deeplink", name: "myapp://item/{slug}.html" })}` }, /name が、決まった書式に無い: deeplink myapp:\/\/item\/\{slug\}\.html（区分「\{slug\}\.html」: 区分の一部だけがパラメーターになっている/],
-	["E4", "一覧の deeplink の名前にスキームが無い", { list: `${LIST}\n${line({ kind: "deeplink", name: "item/{id}" })}` }, /name が、決まった書式に無い: deeplink item\/\{id\}（スキーム/],
-	["E1", "deeplink の名前は、区分の一部が :name に見えても、文字どおりに比べる（myapp:profile と myapp:secret は別）", { files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/*" }), op("openProfile", { transport: "deeplink", entry: '"myapp:profile"' })]) }, list: `${LIST}\n${line({ kind: "deeplink", name: "myapp:secret" })}` }, /契約に無い入口: deeplink myapp:secret/],
-	["E1", "何でも受ける登録（*）は、契約のパラメーターの入口とは数えない", { list: LIST.replace("/api/members/:accountId", "/api/members/*") }, /契約に無い入口: GET \/api\/members\/\*/],
+	["E4", "fixed の契約に inbound の操作があるのに一覧が 0 行", { list: "", files: only([op("receiveHook", { owned: false, method: "POST", path: "/hooks/pay" })]) }, /入口の一覧が 0 行（撤回されていない UC の fixed の契約に inbound の操作が 1 件ある。例: UC-001#receiveHook）/],
+	["E4", "契約の wire.path が文字列でない操作を、黙って捨てない（draft でも、owned が false でも）", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { owned: false, path: "123" })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: 空でない文字列でない（実際: 123）（契約の書き方の誤り/],
+	["E4", "契約の wire.path が空", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: '""' })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: 空でない文字列でない（実際: ""）/],
+	["E4", "契約の wire.method が文字列でない", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { method: "1", path: "/a" })]) } }, /E4  契約の操作 UC-002#getA の wire\.method を読めない: 空でない文字列でない（実際: 1）/],
+	["E4", "契約の deeplink の操作に entry が無い", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("openItem", { transport: "deeplink" })]) } }, /E4  契約の操作 UC-002#openItem の entry を読めない: 空でない文字列でない（実際: null）/],
 	["E4", "JSON でない行", { list: `${LIST}\nGET /api/x` }, /一覧の 6 行目が JSON でない: GET \/api\/x/],
 	["E4", "kind が無い", { list: `${LIST}\n${line({ method: "GET", path: "/x" })}` }, /一覧の 6 行目: kind が無いか、知らない種類/],
-	["E4", "path が無い", { list: `${LIST}\n${line({ kind: "http", method: "GET" })}` }, /kind が http の入口は、method（GET などの 1 語）と、\/ で始まる path を持つ/],
-	["E4", "name が無い", { list: `${LIST}\n${line({ kind: "push" })}` }, /kind が push の入口は、name/],
+	["E4", "path が無い", { list: `${LIST}\n${line({ kind: "http", method: "GET" })}` }, /kind が http の入口は、method と path を、空でない文字列で持つ/],
+	["E4", "path が文字列でない", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: 1 })}` }, /kind が http の入口は、method と path を、空でない文字列で持つ/],
+	["E4", "method が空", { list: `${LIST}\n${line({ kind: "http", method: "", path: "/x" })}` }, /kind が http の入口は、method と path を、空でない文字列で持つ/],
+	["E4", "name が無い", { list: `${LIST}\n${line({ kind: "push" })}` }, /kind が push の入口は、name を、空でない文字列で持つ/],
 	["E4", "知らない項目", { list: LIST.replace('"kind":"push"', '"kind":"push","file":"src/x.ts"') }, /知らない項目「file」がある/],
-	["E4", "同じ入口の重複", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/{id}" })}` }, /一覧の 6 行目: 同じ入口が 1 行目にもある/],
+	["E4", "同じ入口の重複", { list: `${LIST}\n${h("GET", "/api/health")}` }, /一覧の 6 行目: 同じ入口が 4 行目にもある/],
 	["E4", "list_entries が未宣言", { cfg: entriesCfg((c) => delete c.commands) }, /commands\.list_entries が宣言されていない/],
 	["E4", "list_entries の形が誤り", { cfg: entriesCfg((c) => (c.commands.list_entries = ["node"])) }, /commands\.list_entries は、文字列のコマンドか/],
-	["E4", "inbound の操作があるのに none", { cfg: entriesCfg((c) => (c.commands.list_entries = { none: "入口は無い" })) }, /commands\.list_entries は none にできない（撤回されていない UC の fixed の契約に inbound の操作が 5 件ある。例: UC-001#getMember）/],
+	["E4", "fixed の契約に inbound の操作があるのに none", { cfg: entriesCfg((c) => (c.commands.list_entries = { none: "入口は無い" })) }, /commands\.list_entries は none にできない（撤回されていない UC の fixed の契約に inbound の操作が 5 件ある。例: UC-001#getMember）/],
 	["E4", "none に理由が無い", { cfg: entriesCfg((c) => (c.commands.list_entries = { none: "" })) }, /commands\.list_entries の none は、理由の文字列だけを持つ/],
 	["E4", "docs.goals_dir が無い", { cfg: entriesCfg((c) => delete c.docs) }, /docs\.goals_dir が無いので、契約を読めない/],
 ];
@@ -419,14 +406,14 @@ for (const [id, name, opts, re] of BAD_ENTRIES) {
 	});
 }
 
+test("entries: 撤回済みの UC の契約は対象外（比べる項目が文字列でなくても、違反にしない）", () => {
+	const r = entries({ files: { [`${G}/UC-003-old/contract.yaml`]: contract("UC-003", "fixed", [op("oldReport", { path: "123" })]) } });
+	assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
 test("entries: none は、撤回されていない UC の fixed の契約に inbound の操作が無い間だけ通り、確かめていないことを表示する", () => {
-	const noInbound = {
-		[`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("sendMail", { direction: "outbound", owned: false, method: "POST", path: "/v1/mail" })]),
-		[`${G}/UC-002-draft/contract.yaml`]: null,
-		[`${G}/UC-004-operate/contract.yaml`]: null,
-	};
 	const none = (c) => (c.commands.list_entries = { none: "外から呼ばれる入口を持たないバッチ" });
-	const d = project({ cfg: entriesCfg(none), files: { ...DOCS, ...noInbound }, lcov: null });
+	const d = project({ cfg: entriesCfg(none), files: { ...DOCS, ...only([op("sendMail", { direction: "outbound", owned: false, method: "POST", path: "/v1/mail" })]) }, lcov: null });
 	const r = run(d, "entries");
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /commands\.list_entries = none（外から呼ばれる入口を持たないバッチ）: 契約に無い入口が無いかを確かめていない/);

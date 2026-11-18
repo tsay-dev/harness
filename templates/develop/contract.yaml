@@ -35,7 +35,7 @@ operations:
   # 突き合わせる: http は wire の method と path、deeplink / push / stream は entry、それ以外は操作名が、一覧の入口と一致すること。
   # fixed の owned な inbound の操作に合う入口が無いこと、契約に無い入口があることを、harness lint entries が違反にする。
   # 契約の外に入口を置く手段は無い。生存確認、静的なファイルや画面の配信も、運用のための入口をまとめる UC の契約に操作として書く。
-  # 何でも受ける経路は wire.path に /assets/* のように書く。応答が JSON でない操作は、アダプターが返す JSON の形
+  # 入口との突き合わせは文字の完全一致（何でも受ける経路も、一覧に出すのと同じ文字で wire.path に書く。例: /assets/*）。応答が JSON でない操作は、アダプターが返す JSON の形
   # （contentType など、確かめたい事実）を response と実例に書く（tools/exec-check/README.md「機能の仕様ではない入口」）
   # 操作配下のキーは閉じた集合（transport / direction / owned / source / auth / summary / wire /
   # entry / requires / request / response / errors / examples）。spec-lint は x-* を含む他のキーを拒否する。
@@ -48,7 +48,7 @@ operations:
     summary: <何をするか 1 行>  # 一行のみ。詳細説明なし
     wire:                    # transport が http なら必須。それ以外ではエラー
       method: POST
-      path: /xxx             # inbound の操作は / で始め、パラメーターは区分の全体を {name}（英字か _ で始まる英数字・_・-）と書く。何でも受ける部分は *。クエリと /files/{name}.json のような形は書けない
+      path: /xxx             # inbound の操作は、アプリが出す入口の一覧の path と、文字どおり一致させる（method も同じ）
       success: 200
     request:
       type: object

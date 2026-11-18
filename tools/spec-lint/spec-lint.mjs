@@ -45,7 +45,6 @@ import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mj
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
-import { ENTRY_FORMAT_REF, inEntryScope, inboundEntryOf, readHttpPath } from "../_shared/entry-path.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -652,17 +651,12 @@ function validateContract(file, text, dirId, xKeys, shared, entryScope = true) {
 			err(fieldAt("wire"), `${label}: transport が ${transport} なのに wire がある（wire は http 専用）`);
 		}
 
-		//  呼ばれる側の操作の入口（http の wire.path、deeplink の entry）は、アプリが出す入口の一覧と突き合わせる（exec-check entries）。
-		//  一覧と同じ読み方（tools/_shared/entry-path.mjs）で読めない形は、どの入口とも合わない。承認して fixed にした後で分かると、
-		//  承認済みの契約を直すことになるので、draft の段階から止める。撤回済みの UC の契約は、突き合わせの対象でないので検査しない
-		if (entryScope) {
-			const e = inboundEntryOf(name, op);
-			if (e && e.problem && !e.reportedBySpecLint)
-				err(
-					at((e.field === "wire.path" && isMap(wire) && lineOf(wire, "path")) || lineOf(op, e.field === "entry" ? "entry" : "wire") || lineOf(ops, name)),
-					`${label}: ${e.field} が、入口の一覧と突き合わせる書式に無い: ${e.problem}（${ENTRY_FORMAT_REF}）`,
-				);
-		}
+		//  呼ばれる側の http の操作は、wire.method と wire.path を、アプリが出す入口の一覧と文字どおり比べる（exec-check entries）。
+		//  比べられるよう、空でない文字列であることだけを求める（パスの形は解釈しない）。撤回済みの UC の契約は、突き合わせの対象でないので求めない
+		if (entryScope && transport === "http" && direction === "inbound" && isMap(wire))
+			for (const k of ["method", "path"])
+				if (wire[k] !== undefined && wire[k] !== null && (typeof wire[k] !== "string" || wire[k] === ""))
+					err(at(lineOf(wire, k) || lineOf(op, "wire")), `${label}: wire.${k} は、空でない文字列で書く（実際: ${JSON.stringify(wire[k])}。入口の一覧の ${k} と、文字どおり比べる）`);
 
 		//  写し取りの契約は出所が要る
 		if (owned === false && (!op["source"] || String(op["source"]).trim().length === 0))
@@ -1017,7 +1011,7 @@ function loadModel(docsDir) {
 
 			const contractFile = join(udir, "contract.yaml");
 			if (existsSync(contractFile)) {
-				const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), uid, xKeys, shared, inEntryScope(u.status));
+				const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), uid, xKeys, shared, u.status !== "withdrawn");
 				if (c.id) contracts.set(c.id, { file: contractFile, ...c });
 			}
 			if (existsSync(join(udir, "api-contract.yaml"))) err(join(udir, "api-contract.yaml"), `旧フォーマットの契約が残っている（/docs-migrate）`);
@@ -1398,9 +1392,6 @@ function buildOperation(name, op, method, path, params, globalSecurity, comps, o
 	const success = statuses.find((s) => s.code >= 200 && s.code < 300);
 	o.wire = { method: method.toUpperCase(), path, success: success ? success.code : 200 };
 	if (!success) notes.push(`${name}: 2xx レスポンスが無い（wire.success は 200 を仮置き）`);
-	//  パスはそのまま写す。呼ばれる側の操作として使うなら、入口の一覧と突き合わせる書式に直す必要がある（validate が違反にする）
-	const pathForm = readHttpPath(path);
-	if (pathForm.problem) notes.push(`${name}: wire.path ${path} は、入口の一覧と突き合わせる書式に無い（${pathForm.problem}）。direction が inbound なら、書式に直す（${ENTRY_FORMAT_REF}）`);
 	const request = buildRequest(op, params, comps);
 	if (request) o.request = request;
 	if (success) {

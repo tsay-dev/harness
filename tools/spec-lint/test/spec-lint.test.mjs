@@ -594,9 +594,9 @@ test("撤回済みの REQ に撤回の理由（note）が無ければ warn", () 
 	assert.doesNotMatch(validate({ hostFiles: shortUc("withdrawn", "withdrawn") }).out, /撤回の理由/);
 });
 
-//  ---- 呼ばれる側の http の操作の wire.path（入口の一覧と同じ読み方。tools/_shared/entry-path.mjs） ----
+//  ---- 呼ばれる側の http の操作の wire.method / wire.path（入口の一覧と文字どおり比べる。形は解釈しない） ----
 
-const httpContract = ({ status = "draft", direction = "inbound", path }) => `x-uc: UC-001
+const httpContract = ({ status = "draft", direction = "inbound", method = "POST", path }) => `x-uc: UC-001
 x-status: ${status}
 x-spec: ./UC.md
 x-updated: 2026-09-01
@@ -609,108 +609,34 @@ operations:
     auth: none
     summary: ものを作る
     wire:
-      method: POST
+      method: ${method}
       path: ${path}
       success: 200
     errors: []
 `;
 
-const UNREADABLE_WIRE_PATHS = ["/v1/items/{id}:cancel", "/files/{name}.json", "/@{user}", "/hooks/:id?", "/a/[...slug]", "/a/{*splat}", "/a/:rest{.+}", "/a/{path:path}", "/a/x*", "/a/:id-x", "/a/{-id}", "/odata/$metadata", "/users:batchGet", "/a?x=1", "items/{id}", ""];
-for (const path of UNREADABLE_WIRE_PATHS) {
-	test(`契約: inbound の http の操作の wire.path が書式に無い形（${path}）なら、draft の段階から err`, () => {
-		const r = validate({ contract: httpContract({ path: JSON.stringify(path) }) });
-		assert.equal(r.status, 1, r.out);
-		assert.match(r.out, /operations\.doThing: wire\.path が、入口の一覧と突き合わせる書式に無い: .*（書式は tools\/exec-check\/README\.md の「パスの書式」）/);
-	});
-}
+test("契約: inbound の http の操作の wire.path と wire.method は、空でない文字列（draft の段階から err）", () => {
+	const empty = validate({ contract: httpContract({ path: '""' }) });
+	assert.equal(empty.status, 1, empty.out);
+	assert.match(empty.out, /operations\.doThing: wire\.path は、空でない文字列で書く（実際: ""。入口の一覧の path と、文字どおり比べる）/);
+	assert.match(validate({ contract: httpContract({ path: "123" }) }).out, /wire\.path は、空でない文字列で書く（実際: 123。/);
+	assert.match(validate({ contract: httpContract({ path: "[a, b]" }) }).out, /wire\.path は、空でない文字列で書く（実際: \["a","b"\]。/);
+	assert.match(validate({ contract: httpContract({ method: "1", path: "/a" }) }).out, /wire\.method は、空でない文字列で書く（実際: 1。/);
+	//  無いときは、今までどおりの文
+	assert.match(validate({ contract: httpContract({ path: "~" }) }).out, /operations\.doThing: wire\.path が無い/);
+});
 
-test("契約: 書式どおりの wire.path（{id}、:id、名前に - を含むパラメーター、*、固定の文字列）は通る。outbound の操作のパスは検査しない", () => {
-	for (const path of ["/things", "/things/{id}", "/things/:id", "/things/{thing-id}/parts/{part_id}", "/assets/*", "/api/v1.0/a-b/c_d/~e", "/"]) {
+test("契約: wire.path の形は解釈しない（どんな書き方でも通る）。outbound の操作は、空でない文字列の検査もしない", () => {
+	for (const path of ["/things/{id}", "/things/:id", "/files/{name}.json", "/v1/items/{id}:cancel", "/odata/$metadata", "/docs/[[...slug]]", "/a?x=1", "items/{id}", "/assets/*"]) {
 		const r = validate({ contract: httpContract({ path: JSON.stringify(path) }) });
 		assert.equal(r.status, 0, `${path}\n${r.out}`);
 	}
-	//  外の API を呼ぶ側のパスは、相手の書き方のまま写す（入口の一覧とは突き合わせない）
-	const out = validate({ contract: httpContract({ direction: "outbound", path: '"/v1/items/{id}:cancel"' }) });
-	assert.equal(out.status, 0, out.out);
+	const out = validate({ contract: httpContract({ direction: "outbound", path: "123" }) });
+	assert.doesNotMatch(out.out, /空でない文字列で書く/, out.out);
 });
 
-test("convert: OpenAPI から inbound で写したパスも、同じ検査に掛かる（書式に無い形は validate で err）", () => {
-	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
-	try {
-		writeMinimalDocs(root);
-		const openapi = `openapi: 3.0.0
-info: { title: t, version: "1" }
-paths:
-  /files/{name}.json:
-    get:
-      operationId: getFile
-      summary: ファイルを返す
-      security: []
-      parameters:
-        - { name: name, in: path, required: true, schema: { type: string } }
-      responses:
-        "200":
-          description: ok
-          content:
-            application/json:
-              schema: { type: object, properties: { id: { type: integer } } }
-`;
-		writeFileSync(join(root, "openapi.yaml"), openapi);
-		const out = join(root, "docs/goals/GOAL-01-a/UC-001-b/contract.yaml");
-		const c = runNode(SPEC_LINT, ["convert", join(root, "openapi.yaml"), "--uc", "UC-001", "--direction", "inbound", "--out", out], { cwd: root });
-		assert.equal(c.status, 0, c.stdout + c.stderr);
-		assert.match(readFileSync(out, "utf8"), /path: "?\/files\/\{name\}\.json"?/);
-		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
-		assert.equal(r.status, 1, r.stdout + r.stderr);
-		assert.match(r.stdout + r.stderr, /operations\.getFile: wire\.path が、入口の一覧と突き合わせる書式に無い: 区分「\{name\}\.json」: 区分の一部だけがパラメーターになっている/);
-		//  写すこと自体は変えず、書式に無い形を写したことを注記と標準エラーで知らせる
-		assert.match(c.stderr + readFileSync(out, "utf8"), /getFile: wire\.path \/files\/\{name\}\.json は、入口の一覧と突き合わせる書式に無い/);
-	} finally {
-		rmSync(root, { recursive: true, force: true });
-	}
-});
-
-test("契約: 違反の文は、形ごとに当てはまる案内になる（区分の一部がパラメーター / 書式に使えない文字 / :name の - / 文字列でない）", () => {
-	const msg = (path) => validate({ contract: httpContract({ path }) }).out;
-	assert.match(msg('"/files/{name}.json"'), /区分「\{name\}\.json」: 区分の一部だけがパラメーターになっている。区分の全体をパラメーターにして書き直す/);
-	assert.match(msg("/odata/$metadata"), /区分「\$metadata」: 固定の文字列の区分に、書式に使えない文字（\$）がある/);
-	assert.match(msg('"/a/:id-x"'), /区分「:id-x」: 「:name」の名前に - は使えない/);
-	assert.match(msg("123"), /wire\.path が、入口の一覧と突き合わせる書式に無い: 文字列でない（実際: 123）/);
-	assert.match(msg("items/{id}"), /\/ で始まらない/);
-});
-
-const deeplinkContract = (entry, status = "draft") => `x-uc: UC-001
-x-status: ${status}
-x-spec: ./UC.md
-x-updated: 2026-09-01
-
-operations:
-  openItem:
-    transport: deeplink
-    direction: inbound
-    owned: true
-    auth: none
-    summary: ものを開く
-    entry: ${JSON.stringify(entry)}
-    errors: []
-`;
-
-test("契約: deeplink の entry は、スキームを外した残りを http のパスと同じ読み方で読む。書式に無い形は draft の段階から err", () => {
-	for (const entry of ["myapp://open?item={id}", "myapp:item:{id}", "myapp://item/{id}.html", "myapp://item/:id-x", "item/{id}", "myapp://item/{id}#top"]) {
-		const r = validate({ contract: deeplinkContract(entry) });
-		assert.equal(r.status, 1, `${entry}\n${r.out}`);
-		assert.match(r.out, /operations\.openItem: entry が、入口の一覧と突き合わせる書式に無い: /, entry);
-	}
-	for (const entry of ["myapp:profile", "myapp://item/{item-id}", "app://item/:id", "https://example.com/items/{id}", "myapp://files/*"]) {
-		const r = validate({ contract: deeplinkContract(entry) });
-		assert.equal(r.status, 0, `${entry}\n${r.out}`);
-	}
-});
-
-test("契約: 撤回済みの UC の契約には、wire.path と entry の書式の検査を掛けない（入口の突き合わせの対象でない）", () => {
+test("契約: 撤回済みの UC の契約には、wire.path と wire.method の検査を掛けない（入口の突き合わせの対象でない）", () => {
 	const withdrawnUc = { "docs/goals/GOAL-01-a/UC-001-b/UC.md": "---\nid: UC-001\ntitle: ものを作る\nactor: ACT-01\ngoal: GOAL-01\nstatus: withdrawn\n---\n\n# UC-001 ものを作る\n\n- note: 作らないことにした\n" };
-	const r = validate({ contract: httpContract({ path: '"/a/{id}.json"' }), hostFiles: withdrawnUc });
-	assert.doesNotMatch(r.out, /入口の一覧と突き合わせる書式に無い/, r.out);
-	const d = validate({ contract: deeplinkContract("myapp://open?item={id}"), hostFiles: withdrawnUc });
-	assert.doesNotMatch(d.out, /入口の一覧と突き合わせる書式に無い/, d.out);
+	const r = validate({ contract: httpContract({ path: "123" }), hostFiles: withdrawnUc });
+	assert.doesNotMatch(r.out, /空でない文字列で書く/, r.out);
 });
