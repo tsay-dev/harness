@@ -282,4 +282,4 @@ function cmdConvert(opts) {
 	return 0;
 }
 
-process.exit(cmdConvert(parseArgs("convert", process.argv.slice(2))));
+process.exitCode = cmdConvert(parseArgs("convert", process.argv.slice(2)));

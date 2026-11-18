@@ -4,7 +4,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -109,6 +109,15 @@ for (const [words, script] of ROUTES) {
 		assert.deepEqual(r.calls, [{ script, args: ["--x", "値 1"], cwd: CWD }]);
 	});
 }
+
+test("コマンドのファイルは、最後の出力を書いた直後に process.exit で終わらない（終了コードは process.exitCode に入れる）", () => {
+	//  標準出力・標準エラーがパイプのときは書き込みが非同期になり、process.exit は書き終わる前にプロセスを終える（出力が途中で切れる）。
+	//  関数の外（字下げの無い行）にある process.exit を、main の戻り値で終わる書き方として見つける
+	for (const script of [...SCRIPTS, "_shared/gate-log.mjs"]) {
+		const hits = readFileSync(join(REAL_TOOLS, script), "utf8").split("\n").filter((l) => /^\S/.test(l) && !l.startsWith("//") && l.includes("process.exit("));
+		assert.deepEqual(hits, [], script);
+	}
+});
 
 test("一覧に出るコマンドと、テストが確かめるコマンドは同じ集合", () => {
 	const r = harness([]);

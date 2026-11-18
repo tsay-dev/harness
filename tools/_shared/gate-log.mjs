@@ -148,4 +148,4 @@ function main() {
 }
 
 //  直接実行時だけ集計モード（import された場合は何もしない）
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main());
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main();

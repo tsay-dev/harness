@@ -434,4 +434,4 @@ async function main() {
 	return summary.fail > 0 || summary.skip > 0 ? 1 : 0;
 }
 
-process.exit(await main());
+process.exitCode = await main();
