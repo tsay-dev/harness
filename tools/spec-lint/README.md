@@ -19,15 +19,15 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   ADR で明示的に契約化を決めたプロセス内境界。R-1204 の既定ではその境界は操作ではない）/ `direction`。
 - **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
   作業指針は地図だけを持つ）。
-- **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
-  （C9）、採番衝突、参照先の実在は `../trace-check/` の 27 検査の担当。
+- **トレーサビリティは担当外**: カバレッジ、`@covers` / `@scenario` の解決、配置 ↔ frontmatter
+  （C9）、採番衝突、参照先の実在は `../trace-check/` の検査（C1〜C26）の担当。
 - **撤回済みの文書**: `status: withdrawn` の UC・REQ・BR・NFR には、必須の節（検証方針、状態 × イベント表、例外系の走査など）とその中身を求めない。frontmatter・ID・要件文（REQ と NFR）は検査する。
 - **共有パーサー**: frontmatter は `../_shared/frontmatter.mjs`、契約と共有語彙の YAML は `../_shared/strict-yaml.mjs` で読む。
   引用符付きの値は YAML の決まりどおりに読む（二重引用符の中のエスケープを解く。知らないエスケープは違反。単一引用符の中は解かない）。改行・タブ・NUL を含む例は `"a\nb"`・`"\u0000"` のように書ける。
   trace-check・contract-run・gate-hook も同じものを使うので、同じ文書をツールごとに違う値（一方は active、他方は draft）に読まない（ADR-0056）。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
   意図的に狭い YAML 部分集合用の手書き parser（`../_shared/strict-yaml.mjs`。理由: `docs/adr/ADR-0002`）で構造を検査する:
-  `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、`entry` は `deeplink` / `push` / `stream` のみ（`deeplink` / `push` は inbound 限定）、`stream` の `observers` と例の `events`、
+  `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、inbound の `http` の操作の `wire.method` と `wire.path` は空でない文字列（入口の一覧と文字どおり比べるため。形は解釈しない。撤回済みの UC の契約は対象にしない）、`entry` は `deeplink` / `push` / `stream` のみ（`deeplink` / `push` は inbound 限定）、`stream` の `observers` と例の `events`、
   `owned: false` なら `source` 必須、全操作に明示した `auth` が `_shared` に解決すること、
   `errors[].code` が `_shared` の `errorCodes` に閉じていること、対応する `PERMISSION_DENIED` のない `requires`、
   `errors: []` を「失敗経路なし」の宣言として受理すること（失敗例は要求しない。`errors` の省略はその宣言ではない）、
@@ -45,7 +45,7 @@ node spec-lint.mjs gate --uc UC-012            # 一 UC に同じ検査 [モノ�
 node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
 ```
 
-終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー、または `validate` で `<docs>/goals` が無い（`--docs` の指定を確かめるか、
+終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー、`validate` で docs の隣の設定の `docs.goals_dir` が `<docs>/goals` と別の場所を指している（trace-check・exec-check と別の木を読むことになる。根の決め方は `../_shared/goals-tree.mjs`）、または `validate` で `<docs>/goals` が無い（`--docs` の指定を確かめるか、
 `<docs>/goals/` を作る。空なら `.gitkeep` を置く）。docs の場所の書き損じで検証が黙って空回りしないため（ADR-0056）。Node のみ（外部依存なし）。
 baseline は無い（ADR-0056）。違反は 1 件でも失敗にする。廃止した `--update-baseline` / `--strict` / `--baseline` は
 使用法エラー、残った `.spec-baseline.json` は読まずに警告する。

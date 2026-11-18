@@ -19,7 +19,7 @@
 //  契約の必須 x- キーはテンプレートから導出する（書式改定はテンプレートを直せば lint も追従する。
 //  テンプレートで「# optional」と注記されたキーだけ任意）。閉じた語彙（status / phase / pattern /
 //  transport / direction）は実行コードでしか強制できないため本ツールが持つ。
-//  トレーサビリティ（被覆・参照・配置の整合 C1–C27）は tools/trace-check の仕事で、ここでは見ない。
+//  トレーサビリティ（被覆・参照・配置の整合 C1–C26）は tools/trace-check の仕事で、ここでは見ない。
 //
 //  契約フォーマットの判断は docs/adr/ADR-0001（OpenAPI をやめた理由）と
 //  docs/adr/ADR-0002（パーサを自前実装し YAML を厳格サブセットに限る理由）。
@@ -39,12 +39,13 @@
 //
 
 import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
-import { join, dirname, basename } from "node:path";
+import { join, dirname, basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { ENTRY_TRANSPORTS, TRANSPORTS, goalsRootOf, isFilledText, specDirs } from "../_shared/goals-tree.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -501,9 +502,8 @@ function validateADR(file) {
 
 //  internal ＝ 同じプロセス内の境界を、ホストが ADR で「契約に書く」と決めたときの語（既定は R-1204 で operation にしない）
 //  stream ＝ 持続する接続（WebSocket / SSE など）の上を流れるメッセージ。接続の確立そのものは http の操作として書く（ADR-0061）
-const TRANSPORTS = ["http", "sdk", "local-store", "deeplink", "push", "device", "internal", "stream"];
+//  transport の語彙と、entry が要る transport は tools/_shared/goals-tree.mjs（exec-check の入口の種類と同じもの）
 const DIRECTIONS = ["outbound", "inbound"];
-const ENTRY_TRANSPORTS = ["deeplink", "push", "stream"]; //  entry が要る transport
 const INBOUND_ONLY_TRANSPORTS = ["deeplink", "push"]; //  stream は双方向（outbound = 送るメッセージ / inbound = 届くイベント）
 const SELF_OBSERVER = "self"; //  例の主体の接続。予約語なので observers に宣言しない
 const EVENT_ITEM_KEYS = ["entry", "payload"]; //  examples.<case>.events.<観測者>[] の各項目も閉集合
@@ -516,7 +516,7 @@ const ERROR_ITEM_KEYS = ["code", "when", "wire"]; //  errors[] の各項目も�
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
-function validateContract(file, text, dirId, xKeys, shared) {
+function validateContract(file, text, dirId, xKeys, shared, entryScope = true) {
 	const at = (line) => (line ? `${file}:${line}` : file);
 	const { root, problems } = parseStrictYaml(text);
 	for (const p of problems) err(at(p.line), p.msg);
@@ -651,6 +651,13 @@ function validateContract(file, text, dirId, xKeys, shared) {
 			err(fieldAt("wire"), `${label}: transport が ${transport} なのに wire がある（wire は http 専用）`);
 		}
 
+		//  呼ばれる側の http の操作は、wire.method と wire.path を、アプリが出す入口の一覧と文字どおり比べる（exec-check entries）。
+		//  比べられるよう、空でない文字列であることだけを求める（パスの形は解釈しない）。撤回済みの UC の契約は、突き合わせの対象でないので求めない
+		if (entryScope && transport === "http" && direction === "inbound" && isMap(wire))
+			for (const k of ["method", "path"])
+				if (wire[k] !== undefined && wire[k] !== null && !isFilledText(wire[k]))
+					err(at(lineOf(wire, k) || lineOf(op, "wire")), `${label}: wire.${k} は、空でない文字列で書く（実際: ${JSON.stringify(wire[k])}。入口の一覧の ${k} と、文字どおり比べる）`);
+
 		//  写し取りの契約は出所が要る
 		if (owned === false && (!op["source"] || String(op["source"]).trim().length === 0))
 			err(fieldAt("source"), `${label}: owned が false なら source（写し取り元の URL / SDK バージョン）が要る`);
@@ -659,8 +666,11 @@ function validateContract(file, text, dirId, xKeys, shared) {
 
 		//  呼ばれる側は入口の識別子が要る
 		if (ENTRY_TRANSPORTS.includes(transport)) {
-			if (!op["entry"] || String(op["entry"]).trim().length === 0)
-				err(fieldAt("entry"), `${label}: transport が ${transport} なら entry（URL パターン / ペイロード識別子 / メッセージ種別）が要る`);
+			//  入口の一覧の name と文字どおり比べるので、空でない文字列で書く（判定は exec-check と同じ。数や真偽値は文字列でない）。
+			//  撤回済みの UC の契約は、wire.method・wire.path と同じく対象にしない（入口の突き合わせの対象でない）。
+			//  向きは問わない（deeplink / push は inbound だけ。stream は、送る側のメッセージの名前も entry に書く）
+			if (entryScope && !isFilledText(op["entry"]))
+				err(fieldAt("entry"), `${label}: transport が ${transport} なら entry（URL パターン / ペイロード識別子 / メッセージ種別）を、空でない文字列で書く（実際: ${JSON.stringify(op["entry"] ?? null)}）`);
 			if (INBOUND_ONLY_TRANSPORTS.includes(transport) && direction !== "inbound")
 				err(fieldAt("direction"), `${label}: transport が ${transport} なら direction は inbound`);
 		} else if (op["entry"] !== undefined) {
@@ -953,9 +963,9 @@ function loadModel(docsDir) {
 	const ucs = new Map(); //  id -> { file, dir, status, phase, goal, hasExceptionDerivation, reqs: [] }
 	const contracts = new Map(); //  id -> { file, status, errorCount, text }
 
-	for (const gname of listDirs(goalsRoot)) {
-		if (gname.startsWith("_") || gname.startsWith(".")) continue;
-		const gdir = join(goalsRoot, gname);
+	//  フォルダの数え方は tools/_shared/goals-tree.mjs（ほかの検査ツールと同じ。_ で始まるフォルダは trace-check が配置の違反にする）
+	for (const gdir of specDirs(goalsRoot).dirs) {
+		const gname = basename(gdir);
 		const gid = (gname.match(/^GOAL-\d+/) || [null])[0];
 		if (!GOAL_DIR_RE.test(gname)) err(gdir, `ディレクトリ名が GOAL-nn-<slug>（slug は小文字ケバブ）でない`);
 		const gfile = join(gdir, "GOAL.md");
@@ -969,8 +979,8 @@ function loadModel(docsDir) {
 		}
 		for (const f of listFiles(gdir, /^(UC|REQ)-\d+.*\.md$/)) err(f, `UC / REQ はゴール直下ではなく UC ディレクトリ配下に置く（R-1006）`);
 
-		for (const uname of listDirs(gdir)) {
-			const udir = join(gdir, uname);
+		for (const udir of specDirs(gdir).dirs) {
+			const uname = basename(udir);
 			const uid = (uname.match(/^UC-\d+/) || [null])[0];
 			if (!UC_DIR_RE.test(uname)) err(udir, `ディレクトリ名が UC-nnn-<slug>（slug は小文字ケバブ）でない`);
 			const ufile = join(udir, "UC.md");
@@ -1004,7 +1014,7 @@ function loadModel(docsDir) {
 
 			const contractFile = join(udir, "contract.yaml");
 			if (existsSync(contractFile)) {
-				const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), uid, xKeys, shared);
+				const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), uid, xKeys, shared, u.status !== "withdrawn");
 				if (c.id) contracts.set(c.id, { file: contractFile, ...c });
 			}
 			if (existsSync(join(udir, "api-contract.yaml"))) err(join(udir, "api-contract.yaml"), `旧フォーマットの契約が残っている（/docs-migrate）`);
@@ -1076,6 +1086,15 @@ function validateHostGuides(docsDir) {
 	}
 }
 
+//  docs の隣の設定（harness.config.json）。無い・読めないときは null（読めないことは config-lint と trace-check が報告する）
+function readHostConfig(hostRoot) {
+	try {
+		return JSON.parse(readFileSync(join(hostRoot, CONFIG_FILE), "utf8"));
+	} catch {
+		return null;
+	}
+}
+
 function cmdValidate(docsDir, opts) {
 	if (existsSync(join(docsDir, "specs"))) {
 		if (!opts.ignoreLegacy) {
@@ -1089,6 +1108,14 @@ function cmdValidate(docsDir, opts) {
 		warn(join(docsDir, "specs"), `旧レイアウトが残っている（--ignore-legacy-layout で続行中）— 移行完了時に attic へ移す`);
 	}
 	if (existsSync(join(docsDir, "PRD.md"))) warn(join(docsDir, "PRD.md"), `旧レイアウトの PRD.md がある — 00-vision.md へ移す（/docs-migrate）`);
+	//  仕様の木の根は、ほかの検査ツールと同じ決め方で決める（tools/_shared/goals-tree.mjs）。docs の隣の設定が docs.goals_dir を
+	//  別の場所に宣言していれば、trace-check・exec-check と別の木を読むことになるので、設定の誤りにする
+	const hostRoot = dirname(resolve(docsDir));
+	const tree = goalsRootOf({ docsDir: resolve(docsDir), hostRoot, cfg: readHostConfig(hostRoot) });
+	if (tree.error) {
+		console.error(`spec-lint: ${tree.error}`);
+		return 2;
+	}
 	//  docs の場所の書き損じで検証が黙って空回りしないよう、goals が無ければ設定エラー（ADR-0056）
 	if (!existsSync(join(docsDir, "goals"))) {
 		console.error(`spec-lint: ${docsDir}/goals が無い。--docs の指定を確かめるか、${docsDir}/goals/ を作る（空なら .gitkeep を置く）`);
@@ -1115,8 +1142,9 @@ function report() {
 //  --- gate コマンド（draft なのに実装、を防ぐ） ---
 function findUcDir(docsDir, id) {
 	const goalsRoot = join(docsDir, "goals");
-	for (const g of listDirs(goalsRoot)) {
-		const hit = listDirs(join(goalsRoot, g)).find((d) => d === id || d.startsWith(id + "-"));
+	for (const gdir of specDirs(goalsRoot).dirs) {
+		const g = basename(gdir);
+		const hit = specDirs(gdir).dirs.map((d) => basename(d)).find((d) => d === id || d.startsWith(id + "-"));
 		if (hit) return join(goalsRoot, g, hit);
 	}
 	return null;

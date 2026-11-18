@@ -6,7 +6,7 @@ harness に同梱する依存なしの Node ツール。利用プロジェクト
 
 ## 検査内容
 
-すべての `fixed` 契約（`docs/goals/**/UC-*/contract.yaml`）は、操作ごとに実値の `examples` を持つ。
+すべての `fixed` 契約（仕様の木の UC のフォルダの `contract.yaml`）は、操作ごとに実値の `examples` を持つ。
 少なくとも成功例一つと、各 `errors[].code` の失敗例一つがある（spec-lint が保証）。それらを fixture とする。
 contract-run は各例を**利用プロジェクトが書いたアダプタープロセス**で実装へ渡し、応答を例に照らして判定する。
 
@@ -29,7 +29,7 @@ node tools/contract-run/contract-run.mjs [--root <host root>] [--config harness.
 | --- | --- |
 | `--root` | 利用プロジェクト直下（既定: 現在のディレクトリ）。アダプターはここを cwd に実行 |
 | `--config` | 読む `harness.config.json`（既定: `<root>/harness.config.json`）。設定欠落は exit `2`。探索はしない |
-| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は `<docs>/goals/**/UC-*/contract.yaml` 配下で探す。`<docs>/goals` が無ければ exit `2` |
+| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は、`<docs>/goals` の直下のゴールのフォルダの、直下の UC のフォルダの `contract.yaml`（数え方は spec-lint・trace-check・exec-check と同じ `../_shared/goals-tree.mjs`。それより深い場所や、`.`・`_` で始まるフォルダの契約は、どのツールも読まない）。`<docs>/goals` が無いか、設定の `docs.goals_dir` と別の場所を指していれば exit `2` |
 | `--uc` | `x-uc` が一致する契約だけ（繰り返し指定、またはカンマ区切り） |
 | `--all` | `draft` 契約も実行（既定: `x-status: fixed` のみ） |
 | `--include-external` | `owned: false` 操作も実行（既定: `owned: true` のみ）。外部境界は写しであり自身のものではないため明示選択 |
@@ -110,6 +110,10 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 - `skip` には一行の理由を入れる。skip した例は失敗に数える（紐づきに例外を作らない。ADR-0056）。
 - アダプターは契約を読む必要がない。振り分けに必要なすべてをリクエスト行が持つ。
 
+## 応答が JSON でない操作
+
+画像、HTML、ファイルを返す操作（静的なファイルや画面の配信など）も、契約に書いて実例で実行する。契約の `response` と実例には、アダプターが返す JSON の形を書く。アダプターは、実装の応答から確かめたい事実だけを JSON にして返す（例: `{"id":3,"response":{"contentType":"image/png"}}`）。本文そのものは実例に書かない。判定は、ほかの操作と同じ部分集合の一致である。何でも受ける経路（`wire.path: /assets/*`）の実例は、`request` に具体的なパスを書く。書き方の全体は `../exec-check/README.md` の「機能の仕様ではない入口」。
+
 ## アダプターの作成
 
 アダプターは利用プロジェクトのコードで、その repository に置く（例: `scripts/contract-adapter.ts`）。
@@ -130,7 +134,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
   境界を切り出す。`skip` は失敗に数えるので、到達できないままにはできない。
 - **外部境界**（`owned: false`）— `--include-external` の場合だけ記録済み fixture または sandbox アカウントで実行し、
   本番には接続してはならない。既定では `owned: false` の操作は実行しない（写しであり自身の実装ではない。
-  実装との紐づきは trace-check C21 の `@operation` が見る）。
+  このアプリが呼ばれる側の操作の入口は、exec-check の `lint entries` が入口の一覧と突き合わせる）。
 
 ## 判定規則
 
@@ -162,7 +166,8 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 | ツール | 証明するもの | 証明しないもの |
 | --- | --- | --- |
 | `spec-lint` | 契約の書式とライフサイクル（語彙、`examples` の存在と `request` との整合） | コードの存在 |
-| `trace-check` | 参照の解決: `@covers` / `@implements`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、入口と契約の操作の `@operation`（C21）、層 | コードの動作 |
+| `trace-check` | 参照の解決: テストの `@covers` / `@scenario`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、層 | コードの動作 |
+| `exec-check` | テストが本番と同じ組み立てを通ること、どのテストからも実行されないソースと関数が無いこと、アプリの入口と契約の inbound の操作が双方向に合うこと（`lint entries`） | 入口の先の動作 |
 | **`contract-run`** | 実装が各例に契約の**形状**と**コード**で応答すること | REQ の**意味** |
 | テスト（`## 検証方針`） | 分割クラスごとの REQ の意味 | — |
 

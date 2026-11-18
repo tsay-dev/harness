@@ -6,7 +6,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
 
 > 対象はすべてのプラットフォームの `docs/` 配下の全ファイルです。指摘では ID で引用します（`R-101`）。
-> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C27）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
+> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C26）と `"${HARNESS_ROOT}/tools/exec-check"`（実行の記録と入口の一覧による、実装との対応）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
 
 ## 1. SSOT の原則
 
@@ -66,11 +66,11 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 ## 7. コードとの接続
 
-- **R-701 (MUST)** 実装は `@implements REQ-nnn / BR-nnn / UC-nnn` で上流 ID を参照します（ID のみ。配置は comments 末端ファイル。存在しない ID は C5）。
+- **R-701 (MUST)** 手で書く紐づきはテストの側だけです（ADR-0070）。テストは `@covers`（REQ のクラス、NFR、BR）、シナリオテストは `@scenario` で上流 ID を参照します（ID のみ。配置は comments 末端ファイル。存在しない・撤回済みの ID は C3 / C15 / C20）。実装とスキーマのコードに、仕様の ID を指す印は書きません。
 - **R-702 (MUST)** 層の依存方向は lint / C6（`harness.config.json` の `layering`）で強制します。
 - **R-703 (MUST)** 実装のエラーコードは `_shared` の `errorCodes` に含まれ（C7）、`errorCodes` のコードはどれかの契約の `errors` で使われます（C24）。
-- **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`harness.config.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本で `@implements BR-nnn` 付きの制約として実現します（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
-- **R-705 (MUST)** すべての `active` REQ と BR に実装からの `@implements` があります（C14）。逆向き（実現単位を置く場所 `source.unit_dirs` の、どの仕様も指さない単位）は C19 が検出します。仕様を持たない技術部品は `source.support_dirs` に置き、`source.dirs` のファイルはどちらかに入れます（C27）。C14 / C19 が見るのは注釈の存在で、単位が文を実現するかは reviewer に残ります（R-901）。
+- **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`harness.config.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本の制約として実現し、制約が効くことを、規則に反する行を DB に直接入れて断られるテスト（`@covers BR-nnn`）で確かめます（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
+- **R-705 (MUST)** 実装と仕様の対応は、印ではなく実行で確かめます。すべての `active` REQ に保留でないテストがあり（C1）、範囲に入るソースのファイルと名前のある関数は、どれかのテストから実行されます（`harness lint coverage`。実行されないことを認めるものは、`harness.config.json` の `coverage.not_run` に理由と一緒に書く）。active な REQ とソースがあるプロジェクトは、実行の記録（`coverage`）を none にできません（C26）。要件を撤回したら、そのテストと、テストだけが使っていたコードを同じ変更で消します。実行されたコードが文を実現するかは reviewer に残ります（R-901）。
 
 ## 8. 変更手順
 
@@ -118,5 +118,5 @@ C10 / C11 / C15 が保証するのは宣言と存在の一致です。分割が�
 - **R-1203 (MUST)** OS 契約（Info.plist、entitlements、manifest）は機械可読なのでそれ自身が SSOT です。
 - **R-1204 (SHOULD)** モジュール間は言語の型システムが契約、コンパイラーと C6 が検査者です。テストが契約操作を呼ぶ入口は、フレームワークの testing 末端ファイルの「operation → entry」規約で操作名から導出し、ルールパッケージがなければ利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に命名規則として 1 回宣言します（操作ごとの表にせず、規則に従わないものだけを挙げます）。テストの足場（境界フェイク、fixture、テスト用 app）の使い方の正本はそのテストコードの型とコメントで、作業指針に写しません。実装を読んで導出しません。
 - **R-1205 (SHOULD)** 外部 API はクライアント側で防御的に扱います（DTO 層、記録した応答 fixture、未知フィールドを無視するデコード）。
-- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界の入口と契約の操作は `@operation` で双方向に対応させます（C21）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
+- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界の入口と契約の操作は、アプリが出す入口の一覧（`commands.list_entries`）で双方向に対応させます（`harness lint entries`。fixed の契約の操作に合わない入口と、入口の無い fixed の操作が違反。draft の契約の操作に合うだけの入口は通らない）。アプリの入口は、生存確認や静的なファイル・画面の配信も含めて、すべて契約の操作として書きます（契約の外に置く宣言は無い。運用のための入口は、それをまとめる UC の契約に置く。書き方は `"${HARNESS_ROOT}/tools/exec-check/README.md"`）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
 - **R-1207 (MUST)** 失敗条件の評価順序は `contract.yaml` の `errors:` 一覧順だけに置き、最初の一致を採用します。`when` はラベルで排他性の証明ではなく、順序を UC / BR / ADR / スキーマコメント / 操作配下の `x-*` に再記述しません（spec-lint が `x-*` を拒否）。隣接項目の優先順位は両条件を満たす例（`contract-run`）またはテストクラスで反証します。

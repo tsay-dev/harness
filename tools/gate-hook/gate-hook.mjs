@@ -9,7 +9,7 @@
 //  仕組み:
 //    Claude Code の PreToolUse フックとして起動され、stdin の JSON から書き込み
 //    対象パスを取り出す。対象が「実装コード」（--code glob にマッチ）なら、
-//    docs/goals/**/UC-*/UC.md の frontmatter phase:（工程台帳）を読み、実装中
+//    仕様の木の UC の UC.md（数え方は tools/_shared/goals-tree.mjs）の frontmatter phase:（工程台帳）を読み、実装中
 //    （phase=実装|検証）の全 UC について UC active / 全 REQ が draft でない / 契約 fixed を
 //    検証する。欠けていれば exit 2 でツール実行そのものをブロックし、stderr の理由が
 //    AI に差し戻される。
@@ -52,7 +52,7 @@
 //
 //  使い方・設置手順・制約は同梱 README.md を参照。
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { matchesAny } from "../_shared/glob.mjs";
@@ -60,6 +60,7 @@ import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
 import { CONFIG_FILE } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { allUcDirs, goalsRootOf } from "../_shared/goals-tree.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
 
@@ -82,15 +83,12 @@ const fm = (text) => parseFrontmatter(text).data;
 
 const ACTIVE_PHASES = new Set(["実装", "検証"]);
 
-const listDirs = (dir) =>
-	existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(dir, d.name)).sort() : [];
-
-//  docs/goals/**/UC-*/UC.md を全部読む（工程台帳は UC.md の phase: / R-1003 で台帳ファイルは持たない）
+//  仕様の木の UC の UC.md を全部読む（工程台帳は UC.md の phase: / R-1003 で台帳ファイルは持たない）。
+//  どのフォルダを UC として数えるかは tools/_shared/goals-tree.mjs（ほかの検査ツールと同じ）
 function collectUcs(goalsRoot) {
 	const ucs = [];
-	for (const gdir of listDirs(goalsRoot)) {
-		if (basename(gdir).startsWith("_") || basename(gdir).startsWith(".")) continue;
-		for (const udir of listDirs(gdir)) {
+	for (const { ucDir: udir } of allUcDirs(goalsRoot)) {
+		{
 			const ufile = join(udir, "UC.md");
 			if (!existsSync(ufile)) continue;
 			const d = fm(readFileSync(ufile, "utf8"));
@@ -189,12 +187,19 @@ function ucActorChange(abs, rel, input) {
 	return a.status === "active" && (a.actor ?? "") !== (b.actor ?? "") ? [a.actor ?? "（なし）", b.actor ?? "（なし）"] : null;
 }
 
+//  プロジェクトの設定（harness.config.json）。無い・読めないときは null
+function hostConfig(root) {
+	try {
+		return JSON.parse(readFileSync(join(root, CONFIG_FILE), "utf8"));
+	} catch {
+		return null;
+	}
+}
+
 //  アクター表のパス（harness.config.json の docs.actors。無ければテンプレートの既定）
 function actorsPath(root, docsDir) {
-	try {
-		const cfg = JSON.parse(readFileSync(join(root, CONFIG_FILE), "utf8"));
-		if (typeof cfg?.docs?.actors === "string") return cfg.docs.actors.replace(/^\.\//, "");
-	} catch {}
+	const cfg = hostConfig(root);
+	if (typeof cfg?.docs?.actors === "string") return cfg.docs.actors.replace(/^\.\//, "");
 	return `${docsDir}/02-actors.md`;
 }
 
@@ -456,7 +461,10 @@ function main() {
 		gating = true;
 		ctx.target = rel;
 
-		const goalsRoot = join(root, docsDir, "goals");
+		//  根の決め方は tools/_shared/goals-tree.mjs。設定の docs.goals_dir と食い違えば、判定できないので止める（fail-closed）
+		const tree = goalsRootOf({ docsDir: resolve(root, docsDir), hostRoot: root, cfg: hostConfig(root) });
+		if (tree.error) block("misconfig", [`対象: ${rel}`, tree.error], ctx);
+		const goalsRoot = tree.root;
 		if (!existsSync(goalsRoot))
 			block("no-goals", [`対象: ${rel}`, `${docsDir}/goals（GOAL → UC → REQ の SSOT）が存在しない。§2 判定条件 1 を満たせません。`], ctx);
 

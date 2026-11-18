@@ -1,5 +1,5 @@
 {
-  "_comment": "利用プロジェクト直下に harness.config.json として置く（orchestrator が人間の承認を得て書く。値はスタックの rules-* の common-harness-config が差分を示す）。tools/trace-check / spec-lint / contract-run / gate-hook が読む。キーの意味と検査項目は tools/trace-check/README.md。rules（ほかに正本がある決めごと。正本のファイルと確かめる commands のキーを指す）/ conventions（ほかに置き場が無く、機械で確かめていない決めごと）/ exceptions（人間が認めた例外）の書き方は tools/config-lint/README.md。紐づきの宣言（docs.actors / vision / glossary / shared、source、tests、tests.system、schema、contract とその子）は省略できない。対象が無いなら { \"none\": \"<理由>\" } と書く。none と範囲の一致 0 件が通るのは、それを求める active な文書・fixed な契約が無い間だけ（C26）。baseline と、コードに書く例外の印は無い（ADR-0056）。dirs 系はパスか glob の配列で、\"!\" で始まるものは除外。注釈はコメントの中だけを数える（comment_pattern）。正規表現は u フラグでコンパイルする。",
+  "_comment": "利用プロジェクト直下に harness.config.json として置く（orchestrator が人間の承認を得て書く。値はスタックの rules-* の common-harness-config が差分を示す）。tools/trace-check / spec-lint / contract-run / exec-check / gate-hook が読む。キーの意味と検査項目は tools/trace-check/README.md。rules（ほかに正本がある決めごと。正本のファイルと確かめる commands のキーを指す）/ conventions（ほかに置き場が無く、機械で確かめていない決めごと）/ exceptions（人間が認めた例外）の書き方は tools/config-lint/README.md。紐づきの宣言（docs.actors / vision / glossary / shared、source、tests、tests.system、schema、contract とその子）は省略できない。対象が無いなら { \"none\": \"<理由>\" } と書く。none と範囲の一致 0 件が通るのは、それを求める active な文書・fixed な契約が無い間だけ（C26）。baseline と、コードに書く例外の印は無い（ADR-0056）。手で書く紐づきはテストの側だけ（@covers REQ-nnn#クラス / @covers NFR-nnn / @covers BR-nnn と、シナリオテストの @scenario UC-nnn）で、実装とスキーマのコードに @implements・@operation は書かない（ADR-0070）。実装との対応は、実行の記録（coverage）と入口の一覧（commands.list_entries）で確かめる。active な REQ があり source を宣言しているプロジェクトは、coverage を none にも省略にもできない（C26）。dirs 系はパスか glob の配列で、\"!\" で始まるものは除外。注釈はコメントの中だけを数える（comment_pattern）。正規表現は u フラグでコンパイルする。",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",
@@ -11,8 +11,7 @@
   "covers_pattern": "@covers\\s+(REQ-\\d{3})(?!\\d)(?:#([\\w-]+))?",
   "scenario_pattern": "@scenario\\s+(UC-\\d{3})(?!\\d)",
   "nfr_pattern": "@covers\\s+(NFR-\\d{3})(?!\\d)",
-  "operation_pattern": "@operation\\s+(UC-\\d{3})#(\\w+)",
-  "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?!\\d)(?:\\s*[,、/]\\s*(?:REQ|BR|UC)-\\d{3}(?!\\d))*)",
+  "br_pattern": "@covers\\s+(BR-\\d{3})(?!\\d)",
   "docs": {
     "goals_dir": "docs/goals",
     "goals_backlog": "docs/goals-backlog.md",
@@ -27,11 +26,12 @@
     "glossary": "docs/01-glossary.md"
   },
   "commands": {
-    "_comment": "完了の判定（harness verify と Stop フック。tools/gate-hook/suite.mjs）と tools/contract-run が読み、trace-check は読まない。コマンドは、プロジェクトのルートで実行する（monorepo では unit の設定に書き、unit のディレクトリで実行する）。typecheck / lint / test / system はシェル 1 行か { \"none\": \"<理由>\" } で必ず宣言する（欠落は失敗。tests を宣言していれば test は none にできない）。typecheck -> lint -> test -> extra の各コマンド -> system の順に実行する。extra は、4 つのほかに実行するコマンドを { \"<名前>\": \"<コマンド>\" } で書く（省略できる）。system はシナリオスイート全体を 1 回実行するコマンド。どこまで実行するかは、呼ぶ側が --level（lint / fast / full）で選ぶ（system を実行するのは full だけ）。contract_adapter は契約の実例を実行するプロセス（JSONL。stdin 1 行 1 リクエスト / stdout 1 行 1 応答）。test-author が書いてから宣言する。fixed 契約の owned の操作があるのに未宣言なら contract-run が失敗にする（ADR-0056）。",
+    "_comment": "完了の判定（harness verify と Stop フック。tools/gate-hook/suite.mjs）と tools/contract-run が読み、trace-check は読まない。コマンドは、プロジェクトのルートで実行する（monorepo では unit の設定に書き、unit のディレクトリで実行する）。typecheck / lint / test / system はシェル 1 行か { \"none\": \"<理由>\" } で必ず宣言する（欠落は失敗。tests を宣言していれば test は none にできない）。typecheck -> lint -> test -> extra の各コマンド -> system の順に実行する。extra は、4 つのほかに実行するコマンドを { \"<名前>\": \"<コマンド>\" } で書く（省略できる）。tests.dirs に置いたテストは、test か extra のどれかが必ず実行するようにする（実 DB が要る結合スイートに置いた、DB で守る規則のテスト @covers BR-nnn は、extra に結合スイートのコマンドを書く。実行されないテストは、注釈があっても何も確かめていない）。system はシナリオスイート全体を 1 回実行するコマンド。どこまで実行するかは、呼ぶ側が --level（lint / fast / full）で選ぶ（system を実行するのは full だけ）。contract_adapter は契約の実例を実行するプロセス（JSONL。stdin 1 行 1 リクエスト / stdout 1 行 1 応答）。test-author が書いてから宣言する。fixed 契約の owned の操作があるのに未宣言なら contract-run が失敗にする（ADR-0056）。list_entries は、アプリの入口の一覧を標準出力へ 1 行 1 件の JSON で出すコマンド（例: {\"kind\":\"http\",\"method\":\"GET\",\"path\":\"/api/items/{id}\"}。method と path は、契約の wire.method・wire.path と文字どおり同じに出す（突き合わせは完全一致）。http 以外は {\"kind\":\"deeplink\",\"name\":\"<契約の entry>\"}）。本番と同じ組み立てから入口を列挙して出す。完了の判定が level fast 以上で実行し、契約と突き合わせる（tools/exec-check/README.md の entries）。契約の外の入口を認める宣言は無い。生存確認や静的なファイルの配信のような入口も、契約の inbound の操作として書く。コマンドか { \"none\": \"<理由>\" } を必ず書く。none が通るのは、撤回されていない UC の fixed の契約に inbound の操作が無い間だけ。",
     "typecheck": "npx tsc --noEmit",
     "lint": "npx eslint .",
     "test": "npm test --silent",
-    "system": "npx playwright test"
+    "system": "npx playwright test",
+    "list_entries": { "none": "まだ宣言していない。inbound の操作を持つ契約を fixed にする前に、入口の一覧を出すコマンドに書き換える（tools/exec-check/README.md）" }
   },
   "policy": {
     "_comment": "組織とプロジェクトで変わる方針の値（ADR-0050）。develop-core と rules-* はここをキー名で読み、未宣言なら記した既定値を使う。方法論そのもの（人間ゲート、作成者 ≠ 判定者、成果物の型）はここに置かない。language は会話と成果物（docs、契約の説明文、ADR、コミットメッセージ、コード内コメント、テストのタイトル、利用者向けの文言）の言語で、BCP 47 の言語タグ。未宣言なら ja。harness 自身のプロンプト正本の言語（ADR-0043）とは別。",
@@ -52,20 +52,7 @@
     "extensions": [
       ".ts",
       ".tsx"
-    ],
-    "unit_dirs": [
-      "src/usecase/**"
-    ],
-    "support_dirs": [
-      "src/index.*",
-      "src/*.d.ts",
-      "src/domain/**",
-      "src/infra/**",
-      "src/shared/**"
-    ],
-    "unit_pattern": "^export\\s+(?:default\\s+)?(?:async\\s+)?function\\*?\\s*(\\w*)\\s*[<(]|^export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+(\\w+)|^export\\s+(?:const|let)\\s+(\\w+)\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:<[^>]*>\\s*)?(?:\\(|function\\b|\\w+\\s*=>|\\w+\\s*\\(\\s*(?:async\\s*)?(?:\\(|function\\b|\\w+\\s*=>))|^export\\s+default\\s+(?:(\\w+)\\s*;?\\s*$|(?:async\\s*)?(?:\\(|\\w+\\s*\\())|^export\\s*\\{(?!(?:\\s*type\\s+\\w+(?:\\s+as\\s+\\w+)?\\s*,?)*\\s*\\})\\s*([^}]*?)\\s*(?:\\}\\s*;?\\s*)?$",
-    "implements_placement": "before",
-    "entry_pattern": "\\.(?:get|post|put|patch|delete|all)\\(\\s*[\"'`](\\/[^\"'`]*)|\\.route\\(\\s*[\"'`](\\/[^\"'`]*)|\\.on\\(\\s*(?:[\"'`][A-Z]+[\"'`]|\\[[^\\]]*\\])\\s*,\\s*[\"'`](\\/[^\"'`]*)"
+    ]
   },
   "tests": {
     "dirs": [
@@ -93,8 +80,7 @@
   "schema": {
     "files": [
       "prisma/schema.prisma"
-    ],
-    "constraint_pattern": "^\\s*(\\w+)\\s+\\S+(?:(?!\\/\\/).)*@unique\\b|^\\s*@@unique\\(\\s*(?:fields:\\s*)?\\[([^\\]]+)\\]"
+    ]
   },
   "layering": {
     "root": "src",
@@ -120,5 +106,5 @@
   "conventions": [],
   "exceptions": [],
   "entry": { "none": "まだ宣言していない。本番の組み立てとテストの入口が決まったら { \"compose\": \"<ファイル>#<名前>\", \"test_entry\": \"<ファイル>#<名前>\" } に書き換える（tools/exec-check/README.md）" },
-  "coverage": { "none": "まだ宣言していない。テストのコマンドが実行の記録（lcov）を書き出すようにしたら { \"report\": \"<記録のファイル>\", \"not_run\": [] } に書き換える（tools/exec-check/README.md）" }
+  "coverage": { "none": "まだ宣言していない。none にできるのは、active な REQ が無い間だけ（最初の REQ を active にする前に宣言する。C26）。テストのコマンドが実行の記録（lcov。関数ごとの FN / FNDA を含む）を書き出すようにしたら { \"report\": \"<記録のファイル>\", \"not_run\": [] } に書き換える。not_run には、どのテストからも実行されないことを認めたファイル（\"<ファイル>\"）と関数（\"<ファイル>#<関数の名前>\"）を、理由と一緒に書く。関数ごとの情報を出せない道具（記録に FN / FNDA が 1 つも無い）のときだけ \"functions\": { \"none\": \"<理由>\" } を足せる（tools/exec-check/README.md）" }
 }

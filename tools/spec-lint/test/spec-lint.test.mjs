@@ -593,3 +593,91 @@ test("撤回済みの REQ に撤回の理由（note）が無ければ warn", () 
 	assert.match(r.out, /warn .*REQ-900: withdrawn なのに撤回の理由（- note:）が無い/);
 	assert.doesNotMatch(validate({ hostFiles: shortUc("withdrawn", "withdrawn") }).out, /撤回の理由/);
 });
+
+//  ---- 呼ばれる側の http の操作の wire.method / wire.path（入口の一覧と文字どおり比べる。形は解釈しない） ----
+
+const httpContract = ({ status = "draft", direction = "inbound", method = "POST", path }) => `x-uc: UC-001
+x-status: ${status}
+x-spec: ./UC.md
+x-updated: 2026-09-01
+
+operations:
+  doThing:
+    transport: http
+    direction: ${direction}
+    owned: true
+    auth: none
+    summary: ものを作る
+    wire:
+      method: ${method}
+      path: ${path}
+      success: 200
+    errors: []
+`;
+
+test("契約: inbound の http の操作の wire.path と wire.method は、空でない文字列（draft の段階から err）", () => {
+	const empty = validate({ contract: httpContract({ path: '""' }) });
+	assert.equal(empty.status, 1, empty.out);
+	assert.match(empty.out, /operations\.doThing: wire\.path は、空でない文字列で書く（実際: ""。入口の一覧の path と、文字どおり比べる）/);
+	assert.match(validate({ contract: httpContract({ path: "123" }) }).out, /wire\.path は、空でない文字列で書く（実際: 123。/);
+	assert.match(validate({ contract: httpContract({ path: "[a, b]" }) }).out, /wire\.path は、空でない文字列で書く（実際: \["a","b"\]。/);
+	assert.match(validate({ contract: httpContract({ method: "1", path: "/a" }) }).out, /wire\.method は、空でない文字列で書く（実際: 1。/);
+	//  無いときは、今までどおりの文
+	assert.match(validate({ contract: httpContract({ path: "~" }) }).out, /operations\.doThing: wire\.path が無い/);
+});
+
+test("契約: wire.path の形は解釈しない（どんな書き方でも通る）。outbound の操作は、空でない文字列の検査もしない", () => {
+	for (const path of ["/things/{id}", "/things/:id", "/files/{name}.json", "/v1/items/{id}:cancel", "/odata/$metadata", "/docs/[[...slug]]", "/a?x=1", "items/{id}", "/assets/*"]) {
+		const r = validate({ contract: httpContract({ path: JSON.stringify(path) }) });
+		assert.equal(r.status, 0, `${path}\n${r.out}`);
+	}
+	const out = validate({ contract: httpContract({ direction: "outbound", path: "123" }) });
+	assert.doesNotMatch(out.out, /空でない文字列で書く/, out.out);
+});
+
+test("契約: 撤回済みの UC の契約には、wire.path と wire.method の検査を掛けない（入口の突き合わせの対象でない）", () => {
+	const withdrawnUc = { "docs/goals/GOAL-01-a/UC-001-b/UC.md": "---\nid: UC-001\ntitle: ものを作る\nactor: ACT-01\ngoal: GOAL-01\nstatus: withdrawn\n---\n\n# UC-001 ものを作る\n\n- note: 作らないことにした\n" };
+	const r = validate({ contract: httpContract({ path: "123" }), hostFiles: withdrawnUc });
+	assert.doesNotMatch(r.out, /空でない文字列で書く/, r.out);
+});
+
+test("契約: 入口の一覧と比べる項目は、exec-check と同じ判定（空でない文字列。空白だけは空）で検査する", () => {
+	assert.match(validate({ contract: httpContract({ path: '" "' }) }).out, /wire\.path は、空でない文字列で書く（実際: " "。/);
+	const push = (entry) => `x-uc: UC-001\nx-status: draft\nx-spec: ./UC.md\nx-updated: 2026-09-01\n\noperations:\n  onNotice:\n    transport: push\n    direction: inbound\n    owned: true\n    auth: none\n    summary: 通知を受け取る\n    entry: ${entry}\n    request: { type: object }\n`;
+	for (const [entry, shown] of [["123", "123"], ['" "', '" "'], ["[a]", '["a"]']]) {
+		const r = validate({ contract: push(entry) });
+		assert.equal(r.status, 1, r.out);
+		assert.ok(r.out.includes(`operations.onNotice: transport が push なら entry（URL パターン / ペイロード識別子 / メッセージ種別）を、空でない文字列で書く（実際: ${shown}）`), r.out);
+	}
+	assert.doesNotMatch(validate({ contract: push("notice.updated") }).out, /entry（URL パターン/);
+});
+
+test("フォルダの数え方: goals の直下の . と _ で始まるフォルダ、ゴールの直下の . で始まるフォルダの契約は読まない（exec-check も数えない）", () => {
+	const bad = "x-uc: UC-900\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n";
+	const files = {};
+	for (const dir of ["docs/goals/.stash/x", "docs/goals/_shared/x", "docs/goals/_tmp/x", "docs/goals/GOAL-01-a/.hidden"]) {
+		files[`${dir}/UC.md`] = "---\nid: UC-900\nstatus: active\n---\n";
+		files[`${dir}/contract.yaml`] = bad;
+	}
+	const r = validate({ hostFiles: files });
+	assert.equal(r.status, 0, r.out);
+	assert.doesNotMatch(r.out, /UC-900|wipe/);
+});
+
+test("根: docs の隣の設定が docs.goals_dir を別の場所に宣言していれば、設定の誤りで止まる（lint entries と別の木を読まない）", () => {
+	const alt = {
+		"harness.config.json": JSON.stringify({ docs: { goals_dir: "specs/goals" } }),
+		"specs/goals/GOAL-01-a/UC-001-b/UC.md": "---\nid: UC-001\nstatus: active\n---\n",
+		"specs/goals/GOAL-01-a/UC-001-b/contract.yaml": "x-uc: UC-001\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n",
+	};
+	const r = validate({ hostFiles: alt });
+	assert.equal(r.status, 2, r.out);
+	assert.match(r.out, /spec-lint: 仕様の置き場が 2 通りに決まっている: 設定の docs\.goals_dir は .*specs\/goals、docs のフォルダ（--docs）から決まる場所は .*docs\/goals/);
+	//  設定が同じ場所を指していれば、今までどおり検査する
+	assert.equal(validate({ hostFiles: { "harness.config.json": JSON.stringify({ docs: { goals_dir: "docs/goals" } }) } }).status, 0);
+});
+
+test("フォルダの数え方: ゴールの直下の _ で始まるフォルダも読まない（goals の直下と同じ決まり。trace-check が配置の違反にする）", () => {
+	const r = validate({ hostFiles: { "docs/goals/GOAL-01-a/_draft/UC.md": "---\nid: UC-900\nstatus: active\n---\n", "docs/goals/GOAL-01-a/_draft/contract.yaml": "x-uc: UC-900\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n" } });
+	assert.equal(r.status, 0, r.out);
+});

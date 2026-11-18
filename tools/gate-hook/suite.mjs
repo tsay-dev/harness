@@ -9,9 +9,14 @@
 //      2. spec-lint validate           仕様の文書の書式と状態の決まり
 //      3. trace-check                  仕様・コード・テストの ID の紐づき
 //         exec-check entry             テストの入口が、本番と同じ組み立てを呼んでいるか
+//         exec-check entries           commands.list_entries がコマンドでないとき（未宣言・none・形の誤り）は、ここで読むだけの判定をする
+//                                      （none にできるのは、撤回されていない UC の fixed の契約に inbound の操作が無い間だけ）
 //      commands の宣言の検査（typecheck / lint / test / system は、コマンドか理由付きの none が必須）
 //    level fast 以上
-//      4. contract-run                 契約の実例を実装に当てて実行する
+//      4. commands.list_entries → exec-check entries
+//                                      アプリの入口の一覧をコマンドに出させ、契約と突き合わせる（契約に無い入口・入口の無い操作）。
+//                                      exec-check は読むだけなので、コマンドはここで実行し、標準出力を一時ファイルに書いて渡す
+//         contract-run                 契約の実例を実装に当てて実行する
 //      5. commands.typecheck → lint → test → exec-check coverage（test が書いた実行の記録で、どのテストからも
 //         実行されなかったソースが無いか）→ commands.extra の各コマンド（書いた順）
 //    level full
@@ -29,9 +34,11 @@
 //  制限時間を過ぎたコマンドは、プロセスグループごと止める（シェルの子として動くテストランナーを残さない）。
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
+import { goalsRootOf } from "../_shared/goals-tree.mjs";
 
 export const LEVELS = ["lint", "fast", "full"];
 export const COMMAND_KEYS = ["typecheck", "lint", "test", "system"];
@@ -126,7 +133,10 @@ const onStop = (sig) => {
 		currentAbort?.();
 	} else stopSelf();
 };
+//  検査の途中で作った一時フォルダ。止められたときは finally に戻らないので、ここから消す
+const tempDirs = new Set();
 function stopSelf() {
+	for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
 	for (const s of STOP_SIGNALS) process.removeListener(s, onStop);
 	process.kill(process.pid, stopBy);
 }
@@ -254,10 +264,42 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	await run("config-lint", `node ${tool("config-lint")} --config ${q(configPath)}`);
 
 	//  2〜4 を 1 組の docs / 設定に対して実行する（失敗を集める）
-	const checkDocs = async (label, unitRoot, docsDir, cfgPath) => {
+	const checkDocs = async (label, unitRoot, docsDir, cfgPath, unitCfg) => {
+		//  spec-lint・contract-run には docs のフォルダを、trace-check・exec-check には設定を渡す。2 つが別の木を指していれば、
+		//  ツールごとに別の契約を読むので、検査を実行せずに失敗にする（根の決め方は tools/_shared/goals-tree.mjs）
+		const tree = goalsRootOf({ docsDir, hostRoot: unitRoot, cfg: unitCfg });
+		if (tree.error) {
+			fail(`config${label}`, `${tree.error}（${cfgPath}）`);
+			return;
+		}
 		await specLint(label, docsDir);
 		await run(`trace-check${label}`, `node ${tool("trace-check")} --root ${q(unitRoot)} --config ${q(cfgPath)}`);
 		await run(`entry${label}`, `node ${tool("exec-check")} entry --root ${q(unitRoot)} --config ${q(cfgPath)}`);
+		//  入口の一覧と契約の突き合わせ。一覧を出すコマンドは利用プロジェクトのものなので、level fast 以上でだけ実行する。
+		//  コマンドでない宣言（未宣言・none・形の誤り）は、exec-check が読むだけで判定できるので、level によらず渡す
+		const entriesCheck = `node ${tool("exec-check")} entries --root ${q(unitRoot)} --config ${q(cfgPath)}`;
+		const listCmd = isMap(unitCfg.commands) ? unitCfg.commands.list_entries : undefined;
+		if (typeof listCmd !== "string" || !listCmd.trim()) await run(`entries${label}`, entriesCheck);
+		else if (level < 1) skip(`entries${label}`, `entries${label}（--level lint では、入口の一覧を出すコマンド commands.list_entries を実行しない）`);
+		else {
+			//  一覧は標準出力だけを受け取る（標準エラーは、失敗したときの表示に残す）。置き場はプロジェクトの外（ツリーを変えない）
+			const dir = mkdtempSync(join(tmpdir(), "harness-entries-"));
+			tempDirs.add(dir);
+			const listFile = join(dir, "entries.jsonl");
+			//  コマンドの後ろに改行を置く（末尾が「# コメント」でも、閉じ括弧とリダイレクトがコメントに飲まれない）。
+			//  「a | b」の左側の失敗を見逃さないよう、シェルが対応していれば pipefail を付ける（対応していないシェルで
+			//  set -o pipefail をそのまま実行すると、シェルごと止まるので、先にサブシェルで試す）。
+			//  対応していないシェル（古い dash など）では、左側の失敗は終了コードに出ない。fixed の契約に inbound の操作があれば、空の一覧は E4、途中までの一覧は E2 が見る（無い間は、空の一覧も通る）
+			const wrapped = posix
+				? `(set -o pipefail) 2>/dev/null && set -o pipefail\n(\n${listCmd}\n) > ${q(listFile)}`
+				: `(${listCmd}) > ${q(listFile)}`;
+			try {
+				if (await run(`list_entries${label}`, wrapped, unitRoot)) await run(`entries${label}`, `${entriesCheck} --from ${q(listFile)}`);
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+				tempDirs.delete(dir);
+			}
+		}
 		if (level >= 1) await run(`contract-run${label}`, `node ${tool("contract-run")} --root ${q(unitRoot)} --config ${q(cfgPath)} --docs ${q(docsDir)}`);
 		else skip(`contract-run${label}`, `contract-run${label}（--level lint では実行しない）`);
 	};
@@ -302,7 +344,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	const only = [...new Set(opts.only ?? [])];
 	if (!units) {
 		if (only.length) fail("config", `--unit は、設定に git.units を宣言したプロジェクトでだけ使える（指定: ${only.join(", ")}）`);
-		await checkDocs("", root, resolve(root, opts.docs), configPath);
+		await checkDocs("", root, resolve(root, opts.docs), configPath, cfg);
 		await runCommands("", root, cfg, configPath);
 		return { failures, skipped, notes, ran, outputs };
 	}
@@ -333,7 +375,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 			fail(`config:${name}`, `${u.error}。${dir}/${CONFIG_FILE} を直す`);
 			continue;
 		}
-		await checkDocs(`:${name}`, unitRoot, unitDocs, unitCfgPath);
+		await checkDocs(`:${name}`, unitRoot, unitDocs, unitCfgPath, u.cfg);
 		await runCommands(`:${name}`, unitRoot, u.cfg, unitCfgPath);
 	}
 	//  ルートの commands は、宣言があるときだけ実行する（リポジトリ全体に掛ける検査）

@@ -1,7 +1,7 @@
 ---
 id: ADR-0019
 title: active な REQ / BR に実装側の @implements を機械必須にする（C14）
-status: accepted
+status: superseded
 date: 2026-09-03
 ---
 

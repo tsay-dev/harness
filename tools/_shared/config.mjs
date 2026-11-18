@@ -15,6 +15,37 @@ const OLD_CONFIG_FILE = "traceconfig.json";
 //  config-lint の K1 は「ひな形のキー + これ」を使えるキーとする
 export const OPTIONAL_TOP_KEYS = ["comment_pattern"];
 
+//  廃止したキーと、代わりにすること（ADR-0070: 手で書く紐づきはテストの側だけにし、実装のコードの注釈を読まない）。
+//  設定に残っていたら、config-lint（K6）と trace-check が案内を付けて失敗にする。黙って無視すると、
+//  利用プロジェクトは「まだ検査されている」と思ったまま、注釈と設定を保ち続けることになる
+const NO_IMPLEMENTS = "実装とスキーマの @implements は読まない。紐づきはテストの @covers に書く";
+const NO_UNITS = "実現単位と技術部品の置き場の分類はやめた。実行されないソースは lint coverage（実行の記録）で見つける";
+const NO_OPERATION = "入口の @operation は読まない。入口は commands.list_entries の一覧と契約の突き合わせ（lint entries）で確かめる";
+export const RETIRED_KEYS = [
+	["implements_pattern", NO_IMPLEMENTS],
+	["operation_pattern", NO_OPERATION],
+	["source.unit_dirs", NO_UNITS],
+	["source.support_dirs", NO_UNITS],
+	["source.unit_pattern", NO_UNITS],
+	["source.implements_placement", NO_IMPLEMENTS],
+	["source.entry_pattern", NO_OPERATION],
+	["source.entry_exclude", NO_OPERATION],
+	["source.entry_file_pattern", NO_OPERATION],
+	["schema.constraint_pattern", "スキーマの制約の @implements は読まない。DB で守る規則は、規則に反する行を DB に直接入れて断られることを確かめるテストに @covers BR-nnn を書く"],
+	["schema.implements_placement", NO_IMPLEMENTS],
+	["entries", "契約の外の入口は置けない（entries.outside_contract は無くした）。入口はすべて、契約の inbound の操作として書く"],
+];
+//  cfg に残っている廃止したキー: [[キー, 案内]]。親が none（{ "none": … }）やオブジェクトでないときは、子は無いものとして扱う
+export function retiredKeysIn(cfg) {
+	const out = [];
+	for (const [keyPath, hint] of RETIRED_KEYS) {
+		let node = cfg;
+		for (const k of keyPath.split(".")) node = node !== null && typeof node === "object" && !Array.isArray(node) && Object.hasOwn(node, k) ? node[k] : undefined;
+		if (node !== undefined) out.push([keyPath, hint]);
+	}
+	return out;
+}
+
 //  configPath が無いとき、同じ場所に古い名前のファイルがあれば、移し方の案内を返す（無ければ空文字）
 export function renamedConfigHint(configPath) {
 	if (basename(configPath) !== CONFIG_FILE || !existsSync(join(dirname(configPath), OLD_CONFIG_FILE))) return "";

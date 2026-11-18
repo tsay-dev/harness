@@ -15,7 +15,7 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 | 統合 | Node.js と実 PostgreSQL / ファイル保存 / WebSocket。本番リソースなし | `tests/integration/` |
 | システム | 実 SPA + Node.js API のシナリオ環境に対する Playwright | `e2e/` |
 
-- 探索はフォルダーとランナー設定で分離し、既定テストが 実通信、DB、ブラウザなしで成功するようにする。`harness.config.json` に `commands.test`、最終ゲートで使うなら `commands.system` を宣言し、統合コマンドは別に記録する。
+- 探索はフォルダーとランナー設定で分離し、既定テストが 実通信、DB、ブラウザなしで成功するようにする。`harness.config.json` に `commands.test`、最終ゲートで使うなら `commands.system` を宣言する。DB で守る規則のテスト（`@covers BR-nnn`。規則に反する行を実 PostgreSQL に直接入れて断られる）は統合スイートに置き、統合コマンドを `commands.extra` に宣言して、完了の判定が実行するようにする。規則のテストを持たない間は、統合コマンドは別に記録するだけでよい。
 - `commands.contract_adapter` は利用プロジェクトが明示的に書くもので、Hono RPC が自動で提供しない。宣言済みコマンドだけを使う。
 
 ## 操作 → 入口（実装を読まずに導出）

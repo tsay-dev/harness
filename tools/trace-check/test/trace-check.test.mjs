@@ -148,57 +148,24 @@ test("C18: docs.vision が none なら origin を判定しない", (t) => {
 	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09/);
 });
 
-//  C19 用: 実現単位を置く場所（source.unit_dirs）と、その外の技術部品（infra）
-function makeSourceRoot({ placement = "before", configure = () => {} } = {}) {
+//  設定エラー用: source を宣言したプロジェクト
+function makeSourceRoot({ configure = () => {} } = {}) {
 	const root = mkdtempSync(join(tmpdir(), "harness trace-check source "));
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	for (const k of ["_comment", "layering"]) delete cfg[k];
 	for (const k of ["contract", "schema"]) cfg[k] = NONE;
 	cfg.tests.system = NONE;
-	cfg.source.implements_placement = placement;
 	configure(cfg);
 	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
-	const w = (rel, text) => {
-		mkdirSync(dirname(join(root, rel)), { recursive: true });
-		writeFileSync(join(root, rel), text);
-	};
-	w(
-		"src/usecase/register.ts",
-		placement === "before"
-			? "/** @implements REQ-001 */\nexport function register() {}\n\nexport class Unlinked {}\n\nfunction helper() {}\n"
-			: "export function register() {\n\t// @implements REQ-001\n}\n\nexport class Unlinked {}\n",
-	);
-	//  REQ を持たない技術部品は unit_dirs の外に置き、注釈も印も持たない
-	w("src/infra/date.ts", "export const formatDate = () => {};\n");
+	mkdirSync(join(root, "src/usecase"), { recursive: true });
+	writeFileSync(join(root, "src/usecase/register.ts"), "export function register() {}\n");
 	return root;
 }
 
-for (const placement of ["before", "after"])
-	test(`C19: source.unit_dirs の実現単位に @implements が無ければ違反、unit_dirs の外は見ない（implements_placement: ${placement}）`, (t) => {
-		const root = makeSourceRoot({ placement });
-		t.after(() => rmSync(root, { recursive: true, force: true }));
-		const r = run(root, "--only", "C19");
-		assert.equal(r.status, 1, r.stdout + r.stderr);
-		assert.match(r.stdout, /\[C19\] src\/usecase\/register\.ts:\d+ "Unlinked": @implements の無い実現単位/);
-		assert.doesNotMatch(r.stdout, /\[C19\].*"(register|formatDate|helper)"/);
-	});
-
-test("C19: レポートに実現単位の内訳を出し、unit_dirs が none なら判定せず理由を出す", (t) => {
-	const root = makeSourceRoot();
-	t.after(() => rmSync(root, { recursive: true, force: true }));
-	assert.match(run(root).stdout, /実現単位: 2（@implements なし 1）/);
-	const off = makeSourceRoot({ configure: (cfg) => (cfg.source.unit_dirs = { none: "実現単位はまだ移行していない" }) });
-	t.after(() => rmSync(off, { recursive: true, force: true }));
-	const r = run(off, "--only", "C19");
-	assert.equal(r.status, 0, r.stdout + r.stderr);
-	assert.doesNotMatch(r.stdout, /\[C19\]/);
-	assert.match(run(off).stdout, /source\.unit_dirs: 実現単位はまだ移行していない/);
-});
-
 test("設定エラー: 宣言の省略、none にできないキー、理由の無い none、廃止した exempt_pattern（ADR-0055 / ADR-0056）", (t) => {
 	const cases = [
-		[(cfg) => delete cfg.source.unit_pattern, /source\.unit_pattern が宣言されていない/],
-		[(cfg) => (cfg.source.unit_pattern = NONE), /source\.unit_pattern は none にできない/],
+		[(cfg) => delete cfg.source.extensions, /source\.extensions が宣言されていない/],
+		[(cfg) => (cfg.source.dirs = NONE), /source\.dirs は none にできない/],
 		[(cfg) => delete cfg.schema, /schema が宣言されていない/],
 		[(cfg) => delete cfg.docs.glossary, /docs\.glossary が宣言されていない/],
 		[(cfg) => (cfg.contract = { none: "" }), /contract: none は理由の文字列だけを持つ/],
@@ -292,7 +259,6 @@ function makeFullRoot() {
 	const root = mkdtempSync(join(tmpdir(), "harness trace-check full "));
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	for (const k of ["_comment", "layering"]) delete cfg[k];
-	cfg.source.unit_dirs = ["src/usecase"];
 	writeFileSync(join(root, "harness.config.json"), JSON.stringify(cfg, null, 2) + "\n");
 	const w = (rel, text) => {
 		mkdirSync(dirname(join(root, rel)), { recursive: true });
@@ -326,11 +292,11 @@ function makeFullRoot() {
 	w(`${g}/UC-002-old/contract.yaml`, contract("UC-002", ["oldOp"]));
 	w(
 		"src/usecase/project.ts",
-		"/** @implements REQ-001 */\nexport class Project {}\n\nexport enum ProjectStatus { DRAFT }\n\n// @implements REQ-002\nexport function legacy() {}\n",
+		"export class Project {}\n\nexport enum ProjectStatus { DRAFT }\n\nexport function legacy() {}\n",
 	);
 	w(
 		"src/infra/routes.ts",
-		'// @operation UC-001#createProject\napp.post("/projects", h);\napp.get("/projects", h);\n// @operation UC-001#deleteProject\napp.delete("/projects/:id", h);\n// @operation UC-002#oldOp\napp.put("/old", h);\n',
+		'app.post("/projects", h);\napp.get("/projects", h);\n',
 	);
 	w("src/domain/errors.ts", "export const e = { code = 'INVALID_INPUT' };\n");
 	w(
@@ -338,16 +304,15 @@ function makeFullRoot() {
 		'// @covers REQ-001#ok\ntest("ok", () => {});\n// @covers REQ-002#ok\ntest("old", () => {});\n// @covers NFR-001\ntest("perf", () => {});\n// @covers REQ-001#ok\n\ntest("separated", () => {});\n',
 	);
 	w("e2e/flow.spec.ts", '// @scenario UC-001\ntest("flow", () => {});\ntest("bare", () => {});\n// @scenario UC-002\ntest("old flow", () => {});\n');
-	w("prisma/schema.prisma", "model Project {\n  id Int @id\n  /// @implements BR-001\n  code String @unique\n  name String @unique\n}\n");
+	w("prisma/schema.prisma", "model Project {\n  id Int @id\n  code String @unique\n  name String @unique\n}\n");
 	return root;
 }
 
-test("撤回済みの仕様を指す注釈・参照は違反（C3 / C5 / C15 / C16 / C17 / C20）", (t) => {
+test("撤回済みの仕様を指す注釈・参照は違反（C3 / C15 / C16 / C17 / C20）", (t) => {
 	const root = makeFullRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const out = run(root, "--only", "C3,C5,C15,C16,C17,C20").stdout;
+	const out = run(root, "--only", "C3,C15,C16,C17,C20").stdout;
 	assert.match(out, /\[C3\] テストが撤回済みの REQ-002 を @covers している/);
-	assert.match(out, /\[C5\] コードが撤回済みの REQ-002 を参照/);
 	assert.match(out, /\[C15\] e2e\/flow\.spec\.ts:4: 撤回済みの UC-002 を @scenario している/);
 	assert.match(out, /\[C16\] UC-001 が撤回済みの BR-003 を参照している/);
 	assert.match(out, /\[C17\] UC-001 の表が撤回済みの REQ-002 を指している/);
@@ -364,26 +329,12 @@ test("注釈の窓は単位の直上に連続する行だけ。空行を挟ん�
 	assert.doesNotMatch(out, /"(ok|old|perf|flow|old flow)":/);
 });
 
-test("C21: 入口と契約の操作の双方向（@operation の無い入口、契約に無い操作、撤回済み UC の操作、@operation の無い fixed 操作）", (t) => {
+test("C22 / C24 / C25: REQ からもテストからも辿れない BR、使われない共有エラーコード、承認済みの仕様が使う用語のうちソースに無い識別子", (t) => {
 	const root = makeFullRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const out = run(root, "--only", "C21").stdout;
-	assert.match(out, /\[C21\] src\/infra\/routes\.ts:3 "\/projects": @operation の無い境界の入口/);
-	assert.match(out, /\[C21\] src\/infra\/routes\.ts:4: 契約に無い操作 UC-001#deleteProject を @operation している/);
-	assert.match(out, /\[C21\] src\/infra\/routes\.ts:6: 撤回済みの UC の操作 UC-002#oldOp を @operation している/);
-	assert.match(out, /\[C21\] UC-001#listProjects（fixed、owned かつ inbound）を @operation する入口が無い/);
-	assert.doesNotMatch(out, /createProject/);
-	assert.doesNotMatch(out, /\[C21\] UC-002#oldOp（fixed）/);
-});
-
-test("C22–C25: REQ から辿れない BR、注釈の無い制約、使われない共有エラーコード、承認済みの仕様が使う用語のうちソースに無い識別子", (t) => {
-	const root = makeFullRoot();
-	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const out = run(root, "--only", "C22,C23,C24,C25").stdout;
-	assert.match(out, /\[C22\] BR-002 \(active\) を br: に持つ active な REQ が無い/);
+	const out = run(root, "--only", "C22,C24,C25").stdout;
+	assert.match(out, /\[C22\] BR-002 \(active\) を br: に持つ active な REQ も、@covers BR-002 のテストも無い/);
 	assert.doesNotMatch(out, /\[C22\] BR-00[13]/);
-	assert.match(out, /\[C23\] prisma\/schema\.prisma:5 "name": @implements の無い制約/);
-	assert.doesNotMatch(out, /\[C23\].*"code"/);
 	assert.match(out, /\[C24\] 共有語彙のエラーコード UNUSED_CODE がどの契約の errors でも使われていない/);
 	assert.doesNotMatch(out, /\[C24\].*(INVALID_INPUT|FORBIDDEN)/);
 	assert.match(out, /\[C25\] 用語集の「掲載中」のコード識別子 OPEN がソースに無い/);
