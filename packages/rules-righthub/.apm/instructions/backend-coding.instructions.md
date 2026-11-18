@@ -19,7 +19,7 @@ applyTo: "**/apps/api/src/**,**/packages/shared/src/**,**/tests/backend/**,**/te
 | `middleware/auth.ts`、`middleware/error-handler.ts` | 再利用する主体識別とエラー境界 | 機能の業務フロー |
 | `types/env.ts` | 起動時に検証する環境設定と型付き Hono variables | 秘密情報のリテラル |
 
-- service は注入可能な repository 境界と純粋関数に依存し、別機能の service を直接 import しない。時刻と乱数は注入する。
+- service は注入可能な repository 境界と純粋関数に依存する。時刻と乱数は注入する。各ファイルが読み込んではいけないものは、lint で止める項目（`common-lint`）。
 - `apps/api/src/index.ts` で middleware と機能 routes を組み立て、推論した `AppType` と app を公開する。`server.ts` で `@hono/node-server` と実依存を組み立て、待ち受けを開始する。
 - route / service の import 時に待ち受け、DB 接続、環境変数の読み取りを開始しない。接続と起動は組み立て境界に集める。
 

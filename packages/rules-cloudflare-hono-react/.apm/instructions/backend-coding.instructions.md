@@ -19,9 +19,9 @@ applyTo: "**/apps/api/src/**,**/packages/shared/src/**,**/tests/backend/**,**/te
 | `middleware/auth.ts`、`middleware/error-handler.ts` | 再利用する主体識別とエラー境界 | 機能の業務フロー |
 | `types/env.ts` | 生成されたバインディングと型付き Hono variables | 手書きのバインディング定義 |
 
-- service は注入可能な repository 境界と純粋関数に依存し、別機能の service を直接 import しない。時刻と乱数は注入する。
+- service は注入可能な repository 境界と純粋関数に依存する。時刻と乱数は注入する。各ファイルが読み込んではいけないものは、lint で止める項目（`common-lint`）。
 - `apps/api/src/index.ts` で middleware と機能 routes を組み立て、推論した `AppType`、app の default export、Durable Object クラスの名前付き export を公開する。
-- 既定スイートが import する route / service モジュールに `cloudflare:workers` と Object クラスの import を含めない。Worker の組み立てと実バインディングは workerd で検査する。
+- `cloudflare:workers` と Object クラスは組み立てでだけ使う（route / service からの読み込みは lint で止める項目の `common-lint`）。Worker の組み立てと実バインディングは workerd で検査する。
 
 ## 入出力と Hono RPC
 

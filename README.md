@@ -21,7 +21,7 @@ harness が目指すのは、**人間が承認した仕様から、実装とそ�
 | `rules-next` | Next.js の規約葉 | Next.js 開発。develop-core と組み合わせる |
 | `rules-cloudflare-hono-react` | Workers + Hono + React SPA、D1 + Drizzle の規約葉 | Cloudflare 開発。develop-core と組み合わせる |
 | `rules-righthub` | Righthub：Xserver VPS 内の Node.js + Hono + React SPA、PostgreSQL + Prisma の規約葉 | VPS 内で完結する開発。develop-core と組み合わせる |
-| `rules-hono-react-spa` | Hono API + React SPA（TanStack Router / Query）に共通の規約葉 | 直接は選ばない。`rules-cloudflare-hono-react` と `rules-righthub` が依存として引き込む |
+| `rules-hono-react-spa` | Hono API + React SPA（TanStack Router / Query）に共通の規約葉と、lint で止める項目の一覧 | 直接は選ばない。`rules-cloudflare-hono-react` と `rules-righthub` が依存として引き込む |
 | `rules-crow` | crow の規約葉 | crow 開発 |
 | `rules-expo` | Expo の規約葉 | Expo 開発 |
 | `rules-swiftui` | SwiftUI の規約葉 | SwiftUI 開発 |
