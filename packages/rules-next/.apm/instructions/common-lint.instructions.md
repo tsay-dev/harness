@@ -1,6 +1,6 @@
 ---
 description: "Next.js — プロジェクトの lint で止める項目の一覧"
-applyTo: "**/eslint.config.*,**/.eslintrc*,**/biome.json,**/biome.jsonc,**/tsconfig*.json,**/harness.config.json"
+applyTo: "**/next.config.*,**/middleware.ts,**/middleware.js,**/app/**,**/actions/**/*.ts,**/actions/**/*.tsx,**/components/**,**/features/**,**/domain/**,**/infrastructure/**,**/use-cases/**,**/usecases/**,**/e2e/**,**/playwright.config.*,**/eslint.config.*,**/.eslintrc*,**/biome.json,**/biome.jsonc,**/tsconfig*.json,**/harness.config.json"
 ---
 
 # Next.js — lint で止める項目

@@ -1,6 +1,6 @@
 ---
 description: "Hono / React SPA — プロジェクトの lint で止める項目の一覧"
-applyTo: "**/eslint.config.*,**/.eslintrc*,**/biome.json,**/biome.jsonc,**/tsconfig*.json,**/harness.config.json"
+applyTo: "**/apps/web/src/**,**/apps/api/src/**,**/packages/shared/src/**,**/*.test.ts,**/*.spec.ts,**/__tests__/**,**/tests/backend/**,**/tests/integration/**,**/e2e/**,**/playwright.config.*,**/vite.config.*,**/eslint.config.*,**/.eslintrc*,**/biome.json,**/biome.jsonc,**/tsconfig*.json,**/harness.config.json"
 ---
 
 # Hono / React SPA — lint で止める項目

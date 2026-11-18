@@ -1,6 +1,6 @@
 ---
 description: "SwiftUI — プロジェクトの lint で止める項目の一覧"
-applyTo: "**/.swiftlint.yml,**/.swiftlint.yaml,**/.swift-format,**/Package.swift,**/harness.config.json"
+applyTo: "**/*.swift,**/Package.swift,**/*Tests/**,**/UITests/**,**/.swiftlint.yml,**/.swiftlint.yaml,**/.swift-format,**/harness.config.json"
 ---
 
 # SwiftUI — lint で止める項目

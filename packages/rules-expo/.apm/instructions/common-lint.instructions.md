@@ -1,6 +1,6 @@
 ---
 description: "Expo — プロジェクトの lint で止める項目の一覧"
-applyTo: "**/eslint.config.*,**/.eslintrc*,**/biome.json,**/biome.jsonc,**/tsconfig*.json,**/harness.config.json"
+applyTo: "**/*.tsx,**/*.ts,**/app.json,**/app.config.*,**/eas.json,**/eslint.config.*,**/.eslintrc*,**/biome.json,**/biome.jsonc,**/tsconfig*.json,**/harness.config.json"
 ---
 
 # Expo — lint で止める項目
