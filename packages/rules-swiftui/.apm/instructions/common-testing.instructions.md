@@ -39,7 +39,7 @@ SwiftUI iOS でテストを置く場所、入口、注釈だけを持つ。View 
 
 - 機械 oracle の主戦場は UseCase（Repository protocol の fake を注入）。次に薄い ViewModel（fake の UseCase を注入し、画面状態と Router の呼び出しを spy で観測）。View のスナップショットは作らない。
 - モックは境界だけ（Repository、時計、乱数）。Domain Entity をモックしない。既定スイートで `URLSession` 実装を実ネットワークにつながず、HTTP を試すなら fake の `URLProtocol` で閉じる。
-- 実時間の `sleep` / `Task.sleep` で待たない。アニメーション完了を待たず、検証対象にしない。ViewModel のテストはテスト関数側でも `@MainActor` を揃える。
+- 実時間で待たない（止める書き方は `common-lint`）。アニメーション完了を待たず、検証対象にしない。ViewModel のテストはテスト関数側でも `@MainActor` を揃える。
 - テストは順序に依存しない。共有可変グローバルや singleton を変えたら元に戻す。`.shared` に依存するテストは設計の崩れの兆候。
 
 ## スイートの分離（実行に必要なもので分ける）

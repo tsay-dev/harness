@@ -22,7 +22,7 @@ date: 2026-11-18
 - 仕様のテスト（`@covers` を持つテスト）が、テストの入口・テストの足場・共有の契約スキーマ以外の本番コードを読み込まないことを、一覧の 1 項目にする。
 - lint では見分けられない決まり（ミドルウェアが応答を返すか、ロケーターが偶然の画面文言から来ていないか）は、文章のまま残す。
 - 一覧は、lint の設定のファイルと `harness.config.json` を書くときに届く（`applyTo`）。
-- 最初に、`rules-cloudflare-hono-react` と `rules-righthub` に適用する。2 つは共通の規約を `rules-hono-react-spa` から引き込む（ADR-0072）ので、一覧もそこに 1 つだけ置く。
+- `rules-cloudflare-hono-react` と `rules-righthub` は共通の規約を `rules-hono-react-spa` から引き込む（ADR-0072）ので、一覧もそこに 1 つだけ置く。`rules-next`・`rules-expo`・`rules-swiftui` は、それぞれのパッケージに 1 つ置く。
 - 強制の所在: 一覧の項目を止めるのは利用プロジェクトの lint であり、harness は確かめない。止めていない項目は、`conventions` の一覧として `harness lint config` が毎回表示する。`conventions` を書く担当が読み、判定する担当が違反を指摘する（ADR-0074）。
 
 ## Consequences
@@ -37,7 +37,8 @@ date: 2026-11-18
 
 - コードを書く担当には、一覧の決まりが文章としては届かなくなる（一覧は lint の設定を書くときに届く）。利用プロジェクトが lint で止めず、`conventions` にも書かなければ、決まりは誰にも見られない。
 - `rules-cloudflare-hono-react` と `rules-righthub` の `backend-testing` は、純粋な業務関数と service を直接テストする行を持つ。仕様のテストを入口からだけ呼ぶ項目と両立させるには、その行が仕様のテストでないこと（技術部品の自己検査として `tests.dirs` の外に置く）を決める必要がある。この変更では決めていない。
-- `rules-next`・`rules-expo`・`rules-swiftui`・`rules-crow` には、まだ適用していない。同じ形で一覧を作るまで、決まりは文章のまま散っている。
+- `rules-crow` には、まだ適用していない。同じ形で一覧を作るまで、決まりは文章のまま散っている。
+- `rules-swiftui` の仕様のテストは、入口の表が示す UseCase を直接構築する。読み込みの単位（モジュール）では入口とそれ以外を分けられないので、テストが入口から入ることは一覧の項目にしていない。
 
 ## 却下した選択肢
 
