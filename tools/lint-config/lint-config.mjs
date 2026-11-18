@@ -40,6 +40,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_FILE, OPTIONAL_TOP_KEYS, renamedConfigHint, retiredKeysIn } from "../_shared/config.mjs";
+import { exitWith } from "../_shared/stdio.mjs";
 
 const TAG = "[lint config]";
 const TEMPLATE =
@@ -59,9 +60,7 @@ const outside = (root, p) => {
 const isNone = (v) => isMap(v) && typeof v.none === "string";
 
 function usage(msg) {
-	if (msg) console.error(`${TAG} ${msg}`);
-	console.error("usage: harness lint config [--root .] | [--config <設定ファイル>]");
-	process.exit(2);
+	exitWith(2, ...(msg ? [`${TAG} ${msg}`] : []), "usage: harness lint config [--root .] | [--config <設定ファイル>]");
 }
 
 function parseArgs(argv) {

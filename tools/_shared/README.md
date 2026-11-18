@@ -21,6 +21,7 @@
 | `entry.mjs` | 3 つのコマンドに共通の引数と設定の読み方、設定の `entry`（本番の組み立てとテストの入口）の読み方（X1・X2 の判定。lint coverage の V5 も同じ読み方を使う） | lint entry / lint coverage / lint entries |
 | `git-rules.mjs` | 設定の `git` ブロックの読み方、コミットの `type` の閉じた語彙、検査しないブランチの判定、2 つのコマンドに共通の引数と違反の報告 | lint git branch / lint git message |
 | `suite.mjs` | 完了の判定が実行する検査の並び（level、monorepo の unit ごとの実行、`commands` の宣言の検査、制限時間）。1 回の実行と Stop フックが同じ並びを使う | verify |
+| `stdio.mjs` | パイプでも出力と入力を取りこぼさない扱い方。書き終えてから終わる `exitWith`（使い方の誤りなど、処理の途中で止めるところだけで使う。ふつうの終わり方は `process.exitCode` に入れて自然に終わらせる。`process.exit` はパイプへの書きかけの出力を捨てる）、最後まで書く `writeAllSync`、非ブロッキングのパイプでも EAGAIN で落ちずに標準入力を読み切る `readStdin` | lint config / lint spec / lint refs / lint entry / lint coverage / lint entries / lint git uc / verify / guard / next-id / index / migrate reqs / migrate overview / convert |
 | `gate-log.mjs` | 2 つのフックの判定の記録（`.harness-gate/log.jsonl`。1 行 1 件の JSON）と、その集計。集計だけは、このファイルを直接実行する（`node tools/_shared/gate-log.mjs --summary`。`../guard/README.md`） | guard / verify |
 
 - コマンドのファイルは `../_shared/` を相対パスで import する。`tools/` の一部だけを写す配置では、`_shared/` も一緒に写す。

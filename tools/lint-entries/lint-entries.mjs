@@ -34,6 +34,8 @@ import { ENTRY_TRANSPORTS, TRANSPORTS, isFilledText } from "../_shared/contract-
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { isMap, isNone, isText, openProject, tagOf, usage } from "../_shared/entry.mjs";
+import { isatty } from "node:tty";
+import { readStdin } from "../_shared/stdio.mjs";
 
 const TAG = tagOf("entries");
 
@@ -176,8 +178,8 @@ function checkEntries(cfg, root, opts) {
 			}
 			text = readFileSync(p, "utf8");
 		} else {
-			if (process.stdin.isTTY) usage("entries", `入口の一覧を渡す（${decl} | harness lint entries、または --from <一覧を書き出したファイル>）`);
-			text = readFileSync(0, "utf8");
+			if (isatty(0)) usage("entries", `入口の一覧を渡す（${decl} | harness lint entries、または --from <一覧を書き出したファイル>）`);
+			text = readStdin();
 		}
 		const parsed = parseEntryList(text);
 		errs.push(...parsed.errs);

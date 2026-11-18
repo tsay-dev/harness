@@ -1,7 +1,7 @@
 //  lint entries のテスト。入口の一覧と契約を 1 か所ずつずらし、その検査項目で落ちることを確かめる
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { toolOf, project, run, op, contract, ucDoc, G, DOCS, line, h, LIST, entriesCfg, entries } from "../../_shared/test/entry-fixture.mjs";
 
 //  契約 1 つ（UC-001、fixed）だけにする
@@ -146,3 +146,19 @@ for (const dir of ["docs/goals/.stash/x", "docs/goals/_shared/x", "docs/goals/_t
 		assert.equal(entries({ files: hidden }).status, 0);
 	});
 }
+
+test("entries: 一覧を標準入力のパイプで受け、書き手が遅れて書いても落ちずに読む（EAGAIN で止まらない）", async () => {
+	//  書き手がまだ書いていない非ブロッキングのパイプを readFileSync(0) で読むと、EAGAIN で落ちる
+	const d = project({ cfg: entriesCfg(), files: DOCS, lcov: null });
+	const child = spawn(process.execPath, [toolOf("entries"), "--root", d], { stdio: ["pipe", "pipe", "pipe"] });
+	child.stdout.setEncoding("utf8");
+	child.stderr.setEncoding("utf8");
+	let out = "";
+	let err = "";
+	child.stdout.on("data", (c) => (out += c));
+	child.stderr.on("data", (c) => (err += c));
+	setTimeout(() => child.stdin.end(LIST), 300);
+	const code = await new Promise((res) => child.on("close", res));
+	assert.equal(code, 0, out + err);
+	assert.match(out, /OK: 入口 5 件/);
+});
