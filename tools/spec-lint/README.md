@@ -22,6 +22,7 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
 - **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
   （C9）、採番衝突、参照先の実在は `../trace-check/` の 27 検査の担当。
 - **共有パーサー**: frontmatter は `../_shared/frontmatter.mjs`、契約と共有語彙の YAML は `../_shared/strict-yaml.mjs` で読む。
+  引用符付きの値は YAML の決まりどおりに読む（二重引用符の中のエスケープを解く。知らないエスケープは違反。単一引用符の中は解かない）。改行・タブ・NUL を含む例は `"a\nb"`・`"\u0000"` のように書ける。
   trace-check・contract-run・gate-hook も同じものを使うので、同じ文書をツールごとに違う値（一方は active、他方は draft）に読まない（ADR-0056）。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
   意図的に狭い YAML 部分集合用の手書き parser（`../_shared/strict-yaml.mjs`。理由: `docs/adr/ADR-0002`）で構造を検査する:

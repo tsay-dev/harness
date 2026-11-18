@@ -17,6 +17,44 @@ const isBlockIndicator = (s) => BLOCK_INDICATORS.has(s) || /^[|>][-+]?\d*$/.test
 export const isQuoted = (s) =>
 	(s.startsWith('"') && s.endsWith('"') && s.length > 1) ||
 	(s.startsWith("'") && s.endsWith("'") && s.length > 1);
+//  二重引用符の中のエスケープ（YAML 1.2 の決まり）。知らないエスケープは null を返す
+const DQ_SIMPLE = { 0: "\0", a: "\x07", b: "\b", t: "\t", "\t": "\t", n: "\n", v: "\v", f: "\f", r: "\r", e: "\x1b", " ": " ", '"': '"', "/": "/", "\\": "\\", N: "\x85", _: "\xa0", L: "\u2028", P: "\u2029" };
+const DQ_HEX = { x: 2, u: 4, U: 8 };
+function decodeDoubleQuoted(body) {
+	let out = "";
+	for (let i = 0; i < body.length; i++) {
+		const c = body[i];
+		if (c !== "\\") {
+			out += c;
+			continue;
+		}
+		const e = body[++i];
+		if (e !== undefined && Object.hasOwn(DQ_SIMPLE, e)) {
+			out += DQ_SIMPLE[e];
+			continue;
+		}
+		const n = DQ_HEX[e];
+		const hex = n ? body.slice(i + 1, i + 1 + n) : "";
+		if (!n || hex.length !== n || !/^[0-9a-fA-F]+$/.test(hex) || Number.parseInt(hex, 16) > 0x10ffff) return null;
+		out += String.fromCodePoint(Number.parseInt(hex, 16));
+		i += n;
+	}
+	return out;
+}
+
+//  引用符付きのスカラーの中身。二重引用符はエスケープを解き、単一引用符は '' を ' に戻す。
+//  知らないエスケープは違反にする（黙って別の文字列として読まない）
+export function unquote(s, ctx, lineNo) {
+	const body = s.slice(1, -1);
+	if (s[0] === "'") return body.replaceAll("''", "'");
+	const decoded = decodeDoubleQuoted(body);
+	if (decoded === null) {
+		ctx?.reject(lineNo, `二重引用符の中のエスケープを読めない: ${s}（使えるのは \\n \\t \\" \\\\ \\xNN \\uNNNN など。バックスラッシュそのものは \\\\ と書くか、単一引用符で囲む）`);
+		return body;
+	}
+	return decoded;
+}
+
 //  キーに {orderId} のようなテンプレート片が入りうる（フロー記法は parseNode が先に見る）
 const MAP_ENTRY_RE = /^(?:"[^"]*"|'[^']*'|[^:#]+?)\s*:(\s|$)/;
 
@@ -49,14 +87,22 @@ function parseFlow(text, ctx, lineNo) {
 		while (st.i < st.s.length && /\s/.test(st.s[st.i])) st.i++;
 	};
 	const readQuoted = () => {
-		const q = st.s[st.i++];
-		let out = "";
-		while (st.i < st.s.length && st.s[st.i] !== q) {
+		const q = st.s[st.i];
+		const start = st.i++;
+		while (st.i < st.s.length) {
+			if (st.s[st.i] === q) {
+				//  単一引用符の中の '' は、閉じる引用符ではなく ' そのもの
+				if (q === "'" && st.s[st.i + 1] === "'") {
+					st.i += 2;
+					continue;
+				}
+				break;
+			}
 			if (st.s[st.i] === "\\" && q === '"') st.i++;
-			out += st.s[st.i++];
+			st.i++;
 		}
 		st.i++;
-		return out;
+		return unquote(st.s.slice(start, st.i), ctx, lineNo);
 	};
 	const readBare = (stops) => {
 		let out = "";
@@ -136,7 +182,7 @@ function coerce(s, ctx, lineNo) {
 			lineNo,
 			`アンカー / エイリアス "${s.split(/\s/)[0]}" は使えない（共有は _shared/components.yaml の $ref を通す）`,
 		);
-	if (isQuoted(s)) return s.slice(1, -1);
+	if (isQuoted(s)) return unquote(s, ctx, lineNo);
 	if (s === "true") return true;
 	if (s === "false") return false;
 	if (s === "null" || s === "~") return null;
@@ -251,7 +297,7 @@ export function parseStrictYaml(text, opts = {}) {
 				pos++;
 				continue;
 			}
-			const key = isQuoted(m[1].trim()) ? m[1].trim().slice(1, -1) : m[1].trim();
+			const key = isQuoted(m[1].trim()) ? unquote(m[1].trim(), ctx, row.no) : m[1].trim();
 			const rest = m[2].trim();
 			pos++;
 			let value;
