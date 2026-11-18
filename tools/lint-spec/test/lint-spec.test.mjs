@@ -254,12 +254,13 @@ test("docs/goals が無ければ設定エラー（exit 2）、アクターの種
 		assert.equal(r.status, 2, r.stdout + r.stderr);
 		assert.match(r.stderr, /docs\/goals が無い/);
 		writeMinimalDocs(root);
-		const actors = (kind) =>
-			`---\nid: ACTORS\nstatus: living\n---\n\n# アクター\n\n## アクター一覧（この表は閉じている）\n\n| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | ${kind} | 登録する |\n`;
-		writeFileSync(join(root, "docs/02-actors.md"), actors("利用者（人間）"));
+		const ov = join(root, "docs/00-overview.md");
+		const actors = (kind) => readFileSync(ov, "utf8").replace(/(## アクター[^\n]*\n\n\| ID[^\n]*\n\| ---[^\n]*\n)(\| ACT-01 [^\n]*\n)?/, `$1| ACT-01 | 利用者 | ${kind} | 登録する |\n`);
+		runNode(LINT_SPEC, [], { cwd: root }); //  入力の GOAL.md を概要に畳む
+		writeFileSync(ov, actors("利用者（人間）"));
 		const bad = runNode(LINT_SPEC, [], { cwd: root });
 		assert.match(bad.stdout + bad.stderr, /ACT-01: 種別は 人間 \/ システム のどちらかで始める/);
-		writeFileSync(join(root, "docs/02-actors.md"), actors("人間 / 認証済"));
+		writeFileSync(ov, actors("人間 / 認証済"));
 		const good = runNode(LINT_SPEC, [], { cwd: root });
 		assert.doesNotMatch(good.stdout + good.stderr, /種別は/);
 	} finally {

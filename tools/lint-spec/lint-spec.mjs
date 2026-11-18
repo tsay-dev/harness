@@ -3,10 +3,9 @@
 //  lint spec — docs SSOT のフォーマット / ライフサイクル検証（harness lint spec）
 //
 //  検証対象のレイアウト（rules/develop/docs.md §10）:
-//    docs/00-vision.md  01-glossary.md  02-actors.md            単票（VISION / GLOSSARY / ACTORS）
-//    docs/goals-backlog.md                                       【任意】未着手ゴール
+//    docs/00-overview.md  01-glossary.md                         単票（OVERVIEW / GLOSSARY）。GOAL の ID は概要の GOAL の表の行で定義する（ADR-0076）
 //    docs/design.md                                              【任意】How の現在形
-//    docs/goals/GOAL-nn-<slug>/GOAL.md                           ゴール（1 ID 1 ファイル）
+//    docs/goals/GOAL-nn-<slug>/                                  ゴールのフォルダ（planned でない行の GOAL だけ。UC を置く）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md               ユースケース（＝縦スライスの単位）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md の「要件」の節  要件（### REQ-nnn の小節。EARS 1 文 + 検証方針。ADR-0067）
 //    docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/contract.yaml       UC の境界契約（harness 独自 YAML）
@@ -39,6 +38,7 @@ import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mj
 import { readHostConfig } from "../_shared/config.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { GOAL_ROW_STATUS, MIGRATE_HINT, OVERVIEW_FILE, OVERVIEW_ID, OVERVIEW_STATUS, overviewFormat, overviewPathOf, retiredDocsIn, policiesInForce, readOverview } from "../_shared/overview.mjs";
 import { goalsRootOf, specDirs } from "../_shared/spec-tree.mjs";
 import { CONTRACT_STATUS, DIRECTIONS, ENTRY_TRANSPORTS, OP_NAME_RE, TRANSPORTS, isFilledText } from "../_shared/contract-vocab.mjs";
 import { VIRTUAL, err, errors, parseArgs, readFm, report, warn } from "../_shared/spec-cli.mjs";
@@ -54,8 +54,8 @@ const UC_DIR_RE = /^UC-\d+-[a-z0-9-]+$/;
 const ADR_FILE_RE = /^ADR-\d+-[a-z0-9-]+\.md$/;
 
 //  --- 閉じた語彙（実行コードでしか強制できないため本ツールが正）---
-const NODE_STATUS = ["draft", "active", "withdrawn"]; //  GOAL / UC / REQ / BR / NFR。active ＝ 人間が承認した
-const SINGLETON_STATUS = ["draft", "frozen", "living"]; //  vision / glossary / actors / backlog / GLOBAL
+const NODE_STATUS = ["draft", "active", "withdrawn"]; //  UC / REQ / BR / NFR。active ＝ 人間が承認した（GOAL の行の語彙は tools/_shared/overview.mjs）
+const SINGLETON_STATUS = ["draft", "frozen", "living"]; //  glossary / GLOBAL（概要の語彙は tools/_shared/overview.mjs）
 const DEFERRED_STATUS = ["living"]; //  DEFERRED（台帳は常に現在形。draft を持たない）
 const ADR_STATUS = ["proposed", "accepted", "superseded"];
 const PHASES = ["定義", "構造", "実装", "検証", "完了"]; //  UC.md の phase:（工程台帳。orchestrator だけが進める）
@@ -175,13 +175,10 @@ function deriveContractKeys() {
 }
 
 const FORMATS = {
-	vision: deriveDocFormat("00-vision.md", { required: ["id", "status"], optional: [], sections: ["解決する課題", "対象ユーザー", "成功の定義", "やらないこと"] }),
+	overview: deriveDocFormat("00-overview.md", { required: ["id", "status"], optional: [], sections: ["解決する課題", "成功の定義", "アクター", "GOAL", "全体の方針", "やらないこと"] }),
 	glossary: deriveDocFormat("01-glossary.md", { required: ["id", "status"], optional: [], sections: [] }),
-	actors: deriveDocFormat("02-actors.md", { required: ["id", "status"], optional: [], sections: ["アクター一覧"] }),
-	backlog: deriveDocFormat("goals-backlog.md", { required: ["id", "status"], optional: [], sections: [] }),
 	global: deriveDocFormat("verification-GLOBAL.md", { required: ["id", "status"], optional: [], sections: ["検証しない範囲"] }),
 	deferred: deriveDocFormat("DEFERRED.md", { required: ["id", "status", "frozen_at"], optional: [], sections: ["保留中の指摘"] }),
-	goal: deriveDocFormat("GOAL.md", { required: ["id", "actor", "origin", "status"], optional: [], sections: [] }),
 	uc: deriveDocFormat("UC.md", { required: ["id", "title", "actor", "goal", "status", "phase"], optional: [], sections: ["概要", "事前条件", "主シナリオ", "状態", "例外系の走査", "事後条件"] }),
 	req: deriveDocFormat("REQ", { required: ["id", "pattern", "uc", "status"], optional: ["br"], sections: [POLICY] }),
 	br: deriveDocFormat("BR.md", { required: ["id", "title", "enforced_at", "status"], optional: [], sections: [] }),
@@ -338,7 +335,7 @@ function countLongDescriptions(lines) {
 
 //  --- 各文書の検証 ---
 
-//  単票（vision / glossary / actors / backlog / GLOBAL / DEFERRED）。vocab は status の語彙（DEFERRED だけ living に閉じる）
+//  単票（glossary / GLOBAL / DEFERRED。概要は validateOverview）。vocab は status の語彙（DEFERRED だけ living に閉じる）
 function validateSingleton(file, kind, expectedId, required, vocab = SINGLETON_STATUS) {
 	if (!existsSync(file)) {
 		if (required) warn(file, `${basename(file)} が無い（テンプレート templates/develop/${basename(file) === "GLOBAL.md" ? "verification-GLOBAL.md" : basename(file)} 参照）`);
@@ -352,28 +349,42 @@ function validateSingleton(file, kind, expectedId, required, vocab = SINGLETON_S
 	checkSections(file, body, fmt.sections, status);
 	checkSentinels(file, body, status);
 	checkHygiene(file, body, "singleton");
-	if (kind === "actors")
-		for (const line of body.split(/\r?\n/)) {
-			const cells = line.split("|").map((c) => c.trim());
-			if (cells.length < 5 || !/^ACT-\d+$/.test(cells[1])) continue;
-			if (!ACTOR_KINDS.some((k) => cells[3].startsWith(k)))
-				err(file, `${cells[1]}: 種別は ${ACTOR_KINDS.join(" / ")} のどちらかで始める。実際: "${cells[3]}"`);
-		}
 	return { status };
 }
 
-function validateGoal(file, dirId) {
-	const fmt = FORMATS.goal;
+//  1 枚の概要（00-overview.md。ADR-0076）。表の読み方は tools/_shared/overview.mjs（lint refs・guard と同じ）。
+//  戻り: null（無い）| { status, goals: Map<id, 行>, policiesInForce }
+function validateOverview(file) {
+	if (!existsSync(file)) {
+		warn(file, `${OVERVIEW_FILE} が無い（テンプレート templates/develop/${OVERVIEW_FILE} 参照）`);
+		return null;
+	}
+	const fmt = FORMATS.overview;
 	const { data, body } = readFm(file);
 	checkRequiredFm(file, data, fmt.required);
-	const status = checkStatus(file, data.status, NODE_STATUS);
-	if (data.id && dirId && data.id !== dirId) err(file, `id "${data.id}" がディレクトリ名の ID "${dirId}" と不一致`);
-	if (isSettled(status) && blockquoteParagraphs(body).length === 0) err(file, `${status} なのにゴール文（> で始まる 1 文）が無い`);
+	if (data.id && data.id !== OVERVIEW_ID) err(file, `id は ${OVERVIEW_ID}。実際: "${data.id}"`);
+	const status = checkStatus(file, data.status, OVERVIEW_STATUS);
+	checkSections(file, body, fmt.sections, status);
 	checkSentinels(file, body, status);
-	return { id: data.id || dirId, status };
+	checkHygiene(file, body, "singleton");
+	const ov = readOverview(readFileSync(file, "utf8"));
+	for (const p of ov.problems) err(`${file}:${p.line}`, p.msg);
+	for (const a of ov.actors)
+		if (!ACTOR_KINDS.some((k) => a.kind.startsWith(k))) err(`${file}:${a.line}`, `${a.id}: 種別は ${ACTOR_KINDS.join(" / ")} のどちらかで始める。実際: "${a.kind}"`);
+	const goals = new Map();
+	for (const g of ov.goals) {
+		const at = `${file}:${g.line}`;
+		goals.set(g.id, g);
+		if (!GOAL_ROW_STATUS.includes(g.status)) err(at, `${g.id}: status は ${GOAL_ROW_STATUS.join("|")} のいずれか。実際: "${g.status}"`);
+		if (g.status !== "withdrawn" && !g.sentence.trim()) err(at, `${g.id}: 目指す状態の 1 文が空（R-301）`);
+		if (g.status === "withdrawn" && !g.note.trim()) warn(at, `${g.id}: withdrawn なのに備考が空（撤回の理由を書く / R-201）`);
+	}
+	//  方針の小節は任意（未記入の間は、UC の並行性・外部依存の行を省けない）。見出しが欠けていれば、ひな形に合わせるよう伝える
+	for (const h of overviewFormat().policies) if (!(h in ov.policies)) warn(file, `全体の方針に「### ${h}」の小節が無い（未記入なら、ひな形の「（未記入: …）」の 1 行を置く）`);
+	return { status, goals, policiesInForce: policiesInForce(ov), policyHeadings: overviewFormat().policies };
 }
 
-function validateUC(file, dirId) {
+function validateUC(file, dirId, ov = null) {
 	const fmt = FORMATS.uc;
 	const { data, body } = readFm(file);
 	checkRequiredFm(file, data, fmt.required);
@@ -394,14 +405,28 @@ function validateUC(file, dirId) {
 			if (empty) err(file, `状態 × イベント表の ${i + 1} 行目（${cells[0]}）に空セルがある — 不可なら「不可: 理由」を書く（R-501: 空セル＝仕様の穴）`);
 		});
 	}
-	//  例外系の走査: 4 分類の行が揃っているか（R-502）
+	//  例外系の走査: 4 分類の行が揃っているか（R-502）。並行性と外部依存は、概要の全体の方針が効いている（3 つの小節が埋まり、
+	//  概要が living）ときだけ省ける（省いた行は方針どおり。ADR-0076）
 	const excSec = findSection(body, (t) => t.startsWith("例外系"));
 	const excRows = excSec ? tableRows(excSec.lines).slice(1) : [];
 	if (isSettled(status) && !isWithdrawn(status) && excSec) {
-		for (const axis of ["権限", "不変条件違反", "並行性", "外部依存"])
-			if (!excRows.some((r) => r[0] === axis)) err(file, `例外系の走査に「${axis}」の行が無い（R-502: 4 分類を全て走査する）`);
+		for (const axis of ["権限", "不変条件違反", "並行性", "外部依存"]) {
+			if (excRows.some((r) => r[0] === axis)) continue;
+			if ((axis === "並行性" || axis === "外部依存") && ov?.policiesInForce) continue;
+			err(file, `例外系の走査に「${axis}」の行が無い（R-502: 4 分類を全て走査する${axis === "並行性" || axis === "外部依存" ? "。概要の全体の方針の 3 つの小節が埋まっていて、概要が living のときだけ省ける" : ""}）`);
+		}
+		//  方針の例外: 「方針の例外（<見出し>）: <代わりに許すこと>。理由: <理由>」と REQ-nnn（代わりの振る舞いも観測できるので要件とテストが要る）
+		for (const r of excRows) {
+			const cell = r.slice(1).find((c) => c.includes("方針の例外"));
+			if (!cell) continue;
+			const m = /方針の例外（([^）]*)）\s*[:：]/.exec(cell);
+			const headings = ov?.policyHeadings ?? overviewFormat().policies;
+			if (!m || !headings.includes(m[1])) err(file, `例外系の走査の「${r[0]}」: 方針の例外は「方針の例外（${headings.join(" | ")}）: <代わりに許すこと>。理由: <理由>」と書く（実際: ${cell}）`);
+			if (!/理由[:：]\s*\S/.test(cell)) err(file, `例外系の走査の「${r[0]}」: 方針の例外に「理由: 」の後の理由が無い`);
+			if (!r.slice(1).some((c) => /\bREQ-\d+\b/.test(c))) err(file, `例外系の走査の「${r[0]}」: 方針の例外に REQ-nnn が無い（代わりの振る舞いを要件とテストで確かめる / R-502）`);
+		}
 	}
-	//  「なし（対象外）」「なし: ADR-0033」のように理由付きの「なし」も導出なしと読む（先頭一致）
+	//  「なし（対象外）」「なし: ADR-0033」のように理由付きの「なし」も導出なしと読む（先頭一致）。方針の例外のセルは導出あり
 	const hasExceptionDerivation = excRows.some((r) => r.slice(1).some((c) => c && !/^(なし|—|-)/.test(c)));
 	return { id: data.id || dirId, status, phase: data.phase || null, goal: data.goal || null, hasExceptionDerivation };
 }
@@ -936,7 +961,11 @@ function loadModel(docsDir) {
 	const goalsRoot = join(docsDir, "goals");
 	const xKeys = deriveContractKeys();
 	const shared = loadShared(docsDir);
-	const goals = new Map(); //  id -> { file, status }
+	//  GOAL の定義は概要の GOAL の表の行（ADR-0076）。フォルダは planned でない行の GOAL だけに置ける
+	const overviewFile = join(docsDir, OVERVIEW_FILE);
+	const ov = validateOverview(overviewFile);
+	const goals = ov?.goals ?? new Map(); //  id -> 行
+	const goalDirs = new Map(); //  id -> フォルダ
 	const ucs = new Map(); //  id -> { file, dir, status, phase, goal, hasExceptionDerivation, reqs: [] }
 	const contracts = new Map(); //  id -> { file, status, errorCount, text }
 
@@ -945,14 +974,13 @@ function loadModel(docsDir) {
 		const gname = basename(gdir);
 		const gid = (gname.match(/^GOAL-\d+/) || [null])[0];
 		if (!GOAL_DIR_RE.test(gname)) err(gdir, `ディレクトリ名が GOAL-nn-<slug>（slug は小文字ケバブ）でない`);
-		const gfile = join(gdir, "GOAL.md");
-		if (!existsSync(gfile)) err(gdir, `GOAL.md が無い（ゴールディレクトリには必須 / R-1006）`);
-		else {
-			const g = validateGoal(gfile, gid);
-			if (g.id) {
-				if (goals.has(g.id)) err(gfile, `GOAL "${g.id}" が重複（${goals.get(g.id).file} と）`);
-				else goals.set(g.id, { file: gfile, ...g });
-			}
+		if (gid) {
+			if (goalDirs.has(gid)) err(gdir, `GOAL "${gid}" のフォルダが 2 つある（${goalDirs.get(gid)} と）`);
+			else goalDirs.set(gid, gdir);
+			const row = goals.get(gid);
+			if (!ov) err(gdir, `GOAL のフォルダがあるのに ${OVERVIEW_FILE} が無い（GOAL は概要の GOAL の表の行で定義する）`);
+			else if (!row) err(gdir, `${gid} の行が概要（${OVERVIEW_FILE}）の GOAL の表に無い`);
+			else if (row.status === "planned") err(gdir, `${gid} は概要で planned（未着手）なのにフォルダがある（着手したら行の status を draft にする / R-1008）`);
 		}
 		for (const f of listFiles(gdir, /^(UC|REQ)-\d+.*\.md$/)) err(f, `UC / REQ はゴール直下ではなく UC ディレクトリ配下に置く（R-1006）`);
 
@@ -969,7 +997,7 @@ function loadModel(docsDir) {
 			const reqParts = reqDocsOf(ufile, readFileSync(ufile, "utf8"), uid);
 			for (const p of reqParts.problems) err(`${ufile}:${p.line}`, p.msg);
 			VIRTUAL.set(ufile, reqParts.ucText);
-			const u = validateUC(ufile, uid);
+			const u = validateUC(ufile, uid, ov);
 			if (u.goal && gid && u.goal !== gid) err(ufile, `goal "${u.goal}" が配置ディレクトリの GOAL "${gid}" と不一致（R-1007）`);
 			const id = u.id || uid;
 			const entry = { file: ufile, dir: udir, ...u, reqs: [] };
@@ -1015,10 +1043,10 @@ function loadModel(docsDir) {
 	}
 
 	//  単票
-	validateSingleton(join(docsDir, "00-vision.md"), "vision", "VISION", true);
 	validateSingleton(join(docsDir, "01-glossary.md"), "glossary", "GLOSSARY", true);
-	validateSingleton(join(docsDir, "02-actors.md"), "actors", "ACTORS", true);
-	validateSingleton(join(docsDir, "goals-backlog.md"), "backlog", "GOALS_BACKLOG", false);
+	//  概要へ移した文書（ADR-0076）
+	//  名前を変えて残したものも、frontmatter の id で見つける
+	for (const r of retiredDocsIn(docsDir)) err(r.file, `${r.why} の文書は置かない（ビジョン・アクター表・バックログ・GOAL.md は 1 枚の概要 ${OVERVIEW_FILE} にまとめた）。${MIGRATE_HINT}`);
 	validateSingleton(join(docsDir, "verification", "GLOBAL.md"), "global", "VERIFICATION_GLOBAL", false);
 	const deferredFile = join(docsDir, "verification", "DEFERRED.md");
 	const deferred = validateSingleton(deferredFile, "deferred", "VERIFICATION_DEFERRED", false, DEFERRED_STATUS);
@@ -1075,13 +1103,19 @@ function cmdValidate(docsDir, opts) {
 		}
 		warn(join(docsDir, "specs"), `旧レイアウトが残っている（--ignore-legacy-layout で続行中）— 移行完了時に attic へ移す`);
 	}
-	if (existsSync(join(docsDir, "PRD.md"))) warn(join(docsDir, "PRD.md"), `旧レイアウトの PRD.md がある — 00-vision.md へ移す（/docs-migrate）`);
+	if (existsSync(join(docsDir, "PRD.md"))) warn(join(docsDir, "PRD.md"), `旧レイアウトの PRD.md がある — 00-overview.md へ移す（/docs-migrate）`);
 	//  仕様の木の根は、ほかの検査ツールと同じ決め方で決める（tools/_shared/spec-tree.mjs）。docs の隣の設定が docs.goals_dir を
 	//  別の場所に宣言していれば、lint refs・lint entries と別の木を読むことになるので、設定の誤りにする
 	const hostRoot = dirname(resolve(docsDir));
 	const tree = goalsRootOf({ docsDir: resolve(docsDir), hostRoot, cfg: readHostConfig(hostRoot) });
 	if (tree.error) {
 		console.error(`${COMMAND}: ${tree.error}`);
+		return 2;
+	}
+	//  概要の置き場も 1 つに固定する（設定の docs.overview は <docs>/00-overview.md か none だけ）
+	const ovPath = overviewPathOf({ docsDir: resolve(docsDir), hostRoot, cfg: readHostConfig(hostRoot) });
+	if (ovPath.error) {
+		console.error(`${COMMAND}: ${ovPath.error}`);
 		return 2;
 	}
 	//  docs の場所の書き損じで検証が黙って空回りしないよう、goals が無ければ設定エラー（ADR-0056）
