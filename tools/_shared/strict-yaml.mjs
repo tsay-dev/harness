@@ -36,9 +36,12 @@ function decodeDoubleQuoted(body) {
 		const n = DQ_HEX[e];
 		const hex = n ? body.slice(i + 1, i + 1 + n) : "";
 		if (!n || hex.length !== n || !/^[0-9a-fA-F]+$/.test(hex) || Number.parseInt(hex, 16) > 0x10ffff) return null;
-		out += String.fromCodePoint(Number.parseInt(hex, 16));
+		//  \uD83D\uDE00 のように 16 ビットの符号を 2 つ並べた書き方は、1 文字にまとまる
+		out += n === 4 ? String.fromCharCode(Number.parseInt(hex, 16)) : String.fromCodePoint(Number.parseInt(hex, 16));
 		i += n;
 	}
+	//  対になっていないサロゲートは文字ではないので、読めない値として扱う
+	if (!out.isWellFormed()) return null;
 	return out;
 }
 
@@ -56,7 +59,11 @@ export function unquote(s, ctx, lineNo) {
 }
 
 //  キーに {orderId} のようなテンプレート片が入りうる（フロー記法は parseNode が先に見る）
-const MAP_ENTRY_RE = /^(?:"[^"]*"|'[^']*'|[^:#]+?)\s*:(\s|$)/;
+//  引用符付きのキーは、中のエスケープした引用符（\" と ''）とコロンを含めて 1 つのキーとして読む。
+//  引用符で始まる行を、裸のキーとして途中のコロンで切らない
+const KEY_SRC = String.raw`"(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|(?!["'])[^:#]+?`;
+const MAP_ENTRY_RE = new RegExp(String.raw`^(?:${KEY_SRC})\s*:(\s|$)`);
+const MAP_SPLIT_RE = new RegExp(String.raw`^(${KEY_SRC.replace("[^:#]+?", "[^:]+?")})\s*:\s*(.*)$`);
 
 //  行末コメントを落とす（引用符の中の # は残す）
 export function stripComment(line) {
@@ -291,7 +298,7 @@ export function parseStrictYaml(text, opts = {}) {
 				continue;
 			}
 			if (row.text === "-") break;
-			const m = row.text.match(/^("[^"]*"|'[^']*'|[^:]+?)\s*:\s*(.*)$/);
+			const m = row.text.match(MAP_SPLIT_RE);
 			if (!m) {
 				ctx.reject(row.no, `マップの "キー: 値" として読めない: "${row.text}"`);
 				pos++;

@@ -56,3 +56,36 @@ test("引用符の中の # はコメントにならず、エスケープした�
 	assert.deepEqual(r.problems, []);
 	assert.equal(r.root.a, 'x " # y');
 });
+
+test("YAML 1.2 のエスケープをすべて解く（1 文字のもの）", () => {
+	const table = { 0: "\0", a: "\x07", b: "\b", t: "\t", n: "\n", v: "\v", f: "\f", r: "\r", e: "\x1b", " ": " ", '"': '"', "/": "/", "\\": "\\", N: "\x85", _: "\xa0", L: "\u2028", P: "\u2029" };
+	for (const [esc, want] of Object.entries(table)) {
+		const r = read(`a: "x\\${esc}y"\n`);
+		assert.deepEqual(r.problems, [], esc);
+		assert.equal(r.root.a, `x${want}y`, esc);
+	}
+});
+
+test("16 ビットの符号を 2 つ並べた書き方は 1 文字にまとめ、対になっていないサロゲートは違反にする", () => {
+	const pair = read(String.raw`a: "\uD83D\uDE00"` + "\n");
+	assert.deepEqual(pair.problems, []);
+	assert.equal(pair.root.a, "😀");
+	for (const value of [String.raw`"\uD83D"`, String.raw`"x\uDE00"`, String.raw`"\U0000D800"`]) {
+		const r = read(`a: ${value}\n`);
+		assert.equal(r.problems.length, 1, value);
+	}
+});
+
+test("引用符付きのキーと列の要素は、中のコロン・エスケープした引用符で切らない", () => {
+	const r = read(String.raw`"a\": b": 1
+'c'' : d': 2
+list:
+  - "x: y"
+  - 'p: q'
+  - "x\" : y"
+`);
+	assert.deepEqual(r.problems, []);
+	assert.equal(r.root['a": b'], 1);
+	assert.equal(r.root["c' : d"], 2);
+	assert.deepEqual(r.root.list, ["x: y", "p: q", 'x" : y']);
+});
