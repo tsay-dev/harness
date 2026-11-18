@@ -27,6 +27,7 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 ### 判定規則
 
 上の行から順に、最初に当たったものを適用する。パスの比較は大文字小文字を無視する（`--code` / `--exclude` / `--docs` も。大文字小文字を区別しないファイルシステムで `Docs/` や `Src/` から書いて素通りしないように）。
+表の `docs/` は、`--docs` のフォルダと、monorepo ではルートの `harness.config.json` の `git.units` に宣言した各 unit の `<unit のディレクトリ>/<--docs>`（例: `apps/a/docs`）を指す。どの unit の docs にも同じ判定を当てる。
 
 | 書き込み対象 | 判定 | ログ記録 |
 | --- | --- | --- |
@@ -35,6 +36,7 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 | `.harness/**`（検査器そのもの） | 人間の承認を求める | あり（`ask` / `harness`） |
 | `.claude/settings*.json` と、`.codex/` `.cursor/` `.grok/` `.agents/` 直下の `*.json` / `*.toml`（hook の設定。プロジェクト外のユーザー設定 `~/.claude/settings.json` なども） | 人間の承認を求める | あり（`ask` / `hook-settings`） |
 | `.github/workflows/**` | 人間の承認を求める | あり（`ask` / `workflow`） |
+| docs の場所を決められない: monorepo（ルートの `harness.config.json` に `git.units`）で、unit の docs（`<unit>/<--docs>`）に書くのに `<unit>/harness.config.json` が無い・JSON として読めない、`git.units` の値がディレクトリの文字列でない、ルートの `harness.config.json` が JSON として読めない（このときは、パスの途中に `--docs` のフォルダ名を含む書き込みと `--docs` 配下） | 人間の承認を求める（fail-closed）。どの docs への書き込みか、その docs の判定に要る設定を決められないため | あり（`ask` / `status-down`） |
 | `docs/` 配下で status の降格（`active` / `fixed` / `living` / `frozen` から、それ以外の値・status 行の削除・引用符を付けた値などの語彙の外の値へ）と、判定中の例外 | 人間の承認を求める。検査の義務を減らすため。契約の `x-status` は共有の厳格 YAML パーサーで読む（他のツールと同じ値） | あり（`ask` / `status-down`） |
 | 概要（`<docs>/00-overview.md`）のアクター表で人間のアクターを削除する、種別を「システム」に変える、または active な `UC.md` の `actor:` を変える | 人間の承認を求める。シナリオテスト（C15）の義務を減らすため | あり（`ask` / `actor-kind`） |
 | 概要の GOAL の表から行を消す（status によらず）、active の行を active でなくする | 人間の承認を求める。降格と同じく検査の義務を減らすため（ADR-0076） | あり（`ask` / `status-down`） |
@@ -42,6 +44,7 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 | `verification/DEFERRED.md`（保留の一覧。`--docs` の場所によらず、monorepo の unit 配下も含む）を新しく作る、`frozen_at` を変える、行を足す（行を消すだけの書き込みは対象外）と、判定中の例外 | 人間の承認を求める。一覧は凍結済みで、足せば未決を持ち越せるため（ADR-0068） | あり（`ask` / `deferred`） |
 | `docs/` 配下で `UC.md` の `active`、契約の `fixed` への昇格（新規作成で書く場合も） | 人間の承認を求める。実装着手ゲートを開ける人間ゲートを agent が自力で開けないため | あり（`ask` / `status-up-gate`） |
 | `docs/` 配下で、承認済みの文書（`active` の `UC.md`・BR・NFR、`living` の概要、`fixed` の契約）の本文（frontmatter の `status`、契約の `x-status` 以外の行）を変える。active の `UC.md` で REQ を `active` にする・`active` で足す、draft の REQ の小節を消す、書き込み後の内容や「要件」の節の書き方が読めないときも含む（判定に迷う形は人に回す） | 人間の承認を求める。承認時の指紋で承認を無効にするのではなく、書き換えるたびに人が差分を見る（ADR-0078）。BR・NFR はファイル名（`BR-nnn` / `NFR-nnn`）か frontmatter の `id` で見分ける | あり（`ask` / `approved-edit`） |
+| `docs/` 配下の共有の語彙（`<docs>/_shared/components.yaml` と、設定の `docs.shared` が指すファイル）を変える書き込み（エラーコードを足すだけでも、新しく作るのも、書き込み後の内容が分からないのも）で、その docs の仕様の木に `fixed` の契約が 1 つでもあるとき | 人間の承認を求める。契約の本文を書き換えなくても、承認済みの契約が参照する語彙が変わるため（ADR-0078）。どの契約がどの語彙を参照するかは解決せず、`fixed` の契約があるかだけを見る。`fixed` の契約が無ければ許可 | あり（`ask` / `approved-edit`） |
 | 上の承認済みの文書のうち、`UC.md` の `phase:` だけを変える書き込みと、active の `UC.md` で draft の REQ の小節を足す・直すだけの書き込み | 許可。phase は orchestrator が進め、draft の REQ はまだ人が承認していないため。同じ書き込みで status を下げるなら上の `status-down` | なし |
 | `docs/` 配下でそれ以外の昇格（REQ（UC が active でないとき）/ BR / NFR / GOAL の `draft` → `active`、単一文書の `draft` → `living` / `frozen`）と、status を持つ新規作成 | 許可 | あり（`pass` / `status-up`） |
 | `docs/` 配下でそれ以外（承認前の文書で status が変わらない、status を持たない新規ファイル、`draft` ↔ `withdrawn` など義務の増減を伴わない変更） | 許可（SSOT の書き込みはゲートの前提条件） | なし |
@@ -158,7 +161,7 @@ jq -r 'select(.decision=="block") | "\(.ts) \(.hook) \(.reason) \(.target // (.f
   意図的に対象外とする。harness.config.json / status / 検査器 / workflow の ask も同じで、Bash や Claude Code 以外の
   プロバイダーでの変更は止まらない。CI（verify.yml）が PR のジョブ要約にそれらの変更を出すので、
   merge 時に CODEOWNERS とブランチ保護で必須レビューにする（ADR-0057）。
-- **docs の status の判定は `--docs` の 1 か所だけ。** monorepo の unit の docs（`apps/a/docs` など）の status の変更は ask しない。
+- **docs の判定は、`--docs` と、ルートの `harness.config.json` の `git.units` に宣言した unit の docs だけに当てる。** unit の docs は `<unit のディレクトリ>/<--docs>`、その設定は `<unit のディレクトリ>/harness.config.json` で、`harness verify` が unit ごとに読むものと同じ（`tools/_shared/suite.mjs` の `unitsOf`・`readConfig`）。`git.units` に宣言していないフォルダの docs（`apps/c/docs` など）は判定しない。実装コードの判定（`--code`）は、今までどおり `--docs` の仕様の木だけを読む。
 - PreToolUse では**どちらの hook も主 agent と子 agent を区別しない**。実装作成者の正当な Write も
   同じ検査を通るが、正当な実装は UC、REQs、契約が揃ってからのみ行うので追加の網は害を与えない
   （実際、逸脱する作成者も止める）。

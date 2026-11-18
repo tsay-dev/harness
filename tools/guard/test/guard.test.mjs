@@ -548,3 +548,81 @@ test("guard: active の UC・BR・NFR、living の概要、fixed の契約の本
 		assert.equal(r.stdout, "");
 	}
 });
+
+test("guard: 共有の語彙を変える書き込みは、その docs に fixed の契約が 1 つでもあれば ask（approved-edit）、無ければ通す", (t) => {
+	const root = makeRoot(t);
+	const dir = "docs/goals/GOAL-01-x/UC-001-y";
+	const vocab = "docs/_shared/components.yaml";
+	put(root, `${dir}/UC.md`, doc("draft"));
+	put(root, `${dir}/contract.yaml`, "x-uc: UC-001\nx-status: draft\n");
+	put(root, vocab, "errorCodes:\n  NOT_FOUND: 見つからない\n");
+	const run = (tool_input) => runHook(root, { tool_input, cwd: root }, ["--code", "src/**"]);
+	const add = { file_path: vocab, old_string: "errorCodes:\n", new_string: "errorCodes:\n  CONFLICT: 競合\n" };
+
+	//  fixed の契約が無い間は、足しても変えても止めない
+	for (const r of [run(add), run({ file_path: vocab, content: "errorCodes: {}\n" })]) {
+		assert.equal(r.status, 0, r.stderr);
+		assert.equal(r.stdout, "");
+	}
+
+	//  fixed の契約が 1 つでもあれば、足すだけでも人に回す。新しく作る・書き込み後が分からないのも同じ
+	put(root, `${dir}/contract.yaml`, "x-uc: UC-001\nx-status: fixed\n");
+	assert.match(askOf(run(add)), /共有の語彙を変える（足すだけでも）/);
+	assert.match(askOf(run({ file_path: vocab, old_string: "この文は無い", new_string: "x" })), /判定できない/);
+	rmSync(join(root, vocab));
+	assert.match(askOf(run({ file_path: vocab, content: "errorCodes: {}\n" })), /共有の語彙を新しく作る/);
+	assert.deepEqual(readLog(root).map((l) => l.reason), ["approved-edit", "approved-edit", "approved-edit"]);
+
+	//  契約でない _shared の別のファイルは対象の外
+	const other = run({ file_path: "docs/_shared/memo.md", content: "# メモ\n" });
+	assert.equal(other.stdout, "");
+});
+
+test("guard: monorepo では git.units の各 unit の docs にも docs の判定を当てる。unit の設定が読めなければ ask", (t) => {
+	const root = makeRoot(t);
+	put(root, "harness.config.json", JSON.stringify({ git: { units: { "app-a": "apps/a", "app-b": "apps/b" } } }));
+	const ucDoc = `---\nid: UC-001\nstatus: active\nphase: 構造\n---\n\n# UC-001\n\n## 概要\n\n利用者が登録する。\n\n## 要件\n\n### REQ-001\n\n- pattern: Ubiquitous\n- status: active\n\n> 1 文\n`;
+	for (const u of ["apps/a", "apps/b"]) {
+		put(root, `${u}/harness.config.json`, JSON.stringify({ docs: { goals_dir: "docs/goals" } }));
+		put(root, `${u}/docs/rules/BR-001.md`, doc("active"));
+		put(root, `${u}/docs/goals/GOAL-01-x/UC-001-y/UC.md`, ucDoc);
+		put(root, `${u}/docs/goals/GOAL-01-x/UC-001-y/contract.yaml`, "x-uc: UC-001\nx-status: fixed\n");
+		put(root, `${u}/docs/_shared/components.yaml`, "errorCodes: {}\n");
+	}
+	//  ルートの --docs（docs/）には何も無い
+	const run = (tool_input) => runHook(root, { tool_input, cwd: root }, ["--code", "apps/*/src/**"]);
+
+	for (const u of ["apps/a", "apps/b"]) {
+		assert.match(askOf(run({ file_path: `${u}/docs/rules/BR-001.md`, old_string: "# 本文", new_string: "# 本文（改）" })), /active の X の本文/);
+		assert.match(askOf(run({ file_path: `${u}/docs/goals/GOAL-01-x/UC-001-y/UC.md`, old_string: "利用者が登録する。", new_string: "直した。" })), /active の UC の本文/);
+		assert.match(askOf(run({ file_path: `${u}/docs/rules/BR-001.md`, content: doc("draft") })), /active → draft/);
+		assert.match(askOf(run({ file_path: `${u}/docs/_shared/components.yaml`, content: "errorCodes:\n  A: a\n" })), /共有の語彙/);
+	}
+	assert.deepEqual(
+		readLog(root).map((l) => l.reason),
+		["approved-edit", "approved-edit", "status-down", "approved-edit", "approved-edit", "approved-edit", "status-down", "approved-edit"],
+	);
+	//  unit の docs で、承認前の文書の書き込みは止めない
+	const quiet = run({ file_path: "apps/a/docs/rules/BR-002.md", content: doc("draft") });
+	assert.equal(quiet.status, 0, quiet.stderr);
+
+	//  unit の設定が無い・読めない、ルートの設定が読めないときは、どの docs かを決められないので人に回す（fail-closed）
+	rmSync(join(root, "apps/b/harness.config.json"));
+	assert.match(askOf(run({ file_path: "apps/b/docs/rules/BR-002.md", content: doc("draft") })), /unit app-b（apps\/b）に harness\.config\.json が無い/);
+	put(root, "apps/b/harness.config.json", "{ 壊れた");
+	assert.match(askOf(run({ file_path: "apps/b/docs/rules/BR-002.md", content: doc("draft") })), /JSON として読めない/);
+	put(root, "harness.config.json", "{ 壊れた");
+	assert.match(askOf(run({ file_path: "apps/a/docs/rules/BR-002.md", content: doc("draft") })), /git\.units）を読めない/);
+});
+
+test("guard: UC と REQ を同じ書き込みで active にすれば、人に回るのは status-up-gate の 1 回だけ。後から REQ を active にすると approved-edit でもう一度回る", (t) => {
+	const root = makeRoot(t);
+	const file = "docs/goals/GOAL-01-x/UC-001-y/UC.md";
+	const ucDoc = (status, req) => `---\nid: UC-001\nstatus: ${status}\nphase: 定義\n---\n\n# UC-001\n\n## 要件\n\n### REQ-001\n\n- pattern: Ubiquitous\n- status: ${req}\n\n> 1 文\n`;
+	put(root, file, ucDoc("draft", "draft"));
+	const run = (content) => runHook(root, { tool_input: { file_path: file, content }, cwd: root }, ["--code", "src/**"]);
+	assert.match(askOf(run(ucDoc("active", "active"))), /draft → active/);
+	put(root, file, ucDoc("active", "draft"));
+	assert.match(askOf(run(ucDoc("active", "active"))), /REQ-001（draft）の小節を変える/);
+	assert.deepEqual(readLog(root).map((l) => l.reason), ["status-up-gate", "approved-edit"]);
+});
