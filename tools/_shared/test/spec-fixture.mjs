@@ -146,7 +146,6 @@ status: active
   - \`#empty\` — 名前が空
 - **尽きている根拠**: 空か否かの 2 値
 - **検証しない**: なし
-- **参照先**: \`tests/thing.test.mjs::doThing\`
 `,
 	);
 

@@ -57,7 +57,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 ## 6. 検証
 
 - **R-601 (MUST)** ケースの準備、操作、期待値の SSOT はテストコードです。文書に転記しません。
-- **R-602 (MUST)** テストは `@covers REQ-nnn#class` で要件を直接参照します（C3）。
+- **R-602 (MUST)** テストは `@covers REQ-nnn#class` で要件を直接参照します（C3）。どのテストがどの REQ を確かめるかは `harness index` が注釈から出すので、REQ の側にテストのファイルを書きません（ADR-0080）。
 - **R-603 (MUST)** 網羅表は `harness lint refs` の出力だけで、手書きしません。
 - **R-604 (MUST)** 検証方針には必ず「検証しない」ものと理由を書き、それ以外はテストコードから復元できない行だけを書きます。
 

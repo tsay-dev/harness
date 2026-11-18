@@ -84,6 +84,16 @@ test("coverage V6: 呼ばれなかった関数は、coverage.not_run に <ファ
 	assert.doesNotMatch(run(project(), "coverage").stdout, /anonymous/);
 });
 
+test("coverage V6: 違反の一覧は件数で切らず、全件を出す（coverage.not_run に書く名前を記録から拾い直さずに済む）", () => {
+	const names = Array.from({ length: 25 }, (_, i) => `left${String(i).padStart(2, "0")}`);
+	const lcov = LCOV.replace("FNDA:2,used", ["FNDA:2,used", ...names.flatMap((n, i) => [`FN:${10 + i},${n}`, `FNDA:0,${n}`])].join("\n"));
+	const r = run(project({ lcov }), "coverage");
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	assert.match(r.stdout, /1 回も呼ばれなかった関数が 25 件ある/);
+	for (const n of names) assert.match(r.stdout, new RegExp(`src/a\\.ts#${n}\\n`));
+	assert.doesNotMatch(r.stdout, /ほか \d+ 件/);
+});
+
 test("coverage V7: FNF:0 だけの記録は、functions を none にすれば通る（関数の単位では確かめていないと表示する）。none の文は記録の中身と食い違わない", () => {
 	const fnfOnly = LCOV.replace(/^FN:.*\n|^FNDA:.*\n/gm, "").replace(/^FNF:\d+$/gm, "FNF:0");
 	const r = run(project({ lcov: fnfOnly, cfg: change((c) => (c.coverage.functions = { none: "記録を出す道具が関数の情報を出さない" })) }), "coverage");

@@ -466,6 +466,7 @@ test("verify --hook: --level で、どこまで実行するかを選ぶ。実行
 	assert.deepEqual(calls(tools).map((c) => c.name), ["lint-config", "lint-spec", "lint-refs", "lint-entry", "lint-entries"]);
 	assert.match(a.stdout, /skip: run cases（--level lint では実行しない）/);
 	assert.match(a.stdout, /skip: commands\.test（--level lint では実行しない）/);
+	assert.match(a.stdout, /\[verify\] 終端ゲート通過（完了の判定ではない（level lint。テストもシナリオテストも実行していない）。5 検査、/);
 
 	//  fast: typecheck → lint → test → extra。system は実行しない
 	const b = runGate(root, stop(root), { tools, args: ["--level", "fast"] });

@@ -127,6 +127,8 @@ test("C13: DB で守る active な規則には、保留でないテストの @co
 	const none = run(project(t, { files: docs }), "--only", "C13,C22").stdout;
 	assert.match(none, /\[C13\] BR-001 は enforced_at に database を含むが、@covers BR-001 のテストが存在しない（規則に反する行を DB に直接入れて断られることを確かめるテスト/);
 	assert.doesNotMatch(none, /\[C22\]/);
+	//  表でも、br: に持つ REQ があるだけで OK と出さない（違反の一覧と食い違わない）
+	assert.match(run(project(t, { files: docs })).stdout, /NG BR-001 {2}\[active\] {2}br:REQ-001 {2}\(C13: DB に直接入れて断られるテストなし\)/);
 	const ok = run(project(t, { files: { ...docs, "tests/x.test.ts": DB_TEST } }));
 	assert.equal(ok.status, 0, ok.stdout + ok.stderr);
 	assert.match(ok.stdout, /OK BR-001 {2}\[active\] {2}tests\/x\.test\.ts:3, br:REQ-001/);
