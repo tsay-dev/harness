@@ -47,6 +47,7 @@ const COMMANDS = [
 	{ group: "補助", words: ["next-id"], desc: "次の空き ID を予約して出力する（goal|uc|req|br|nfr|adr）" },
 	{ group: "補助", words: ["index"], desc: "1 行 1 ID の索引を出力する" },
 	{ group: "補助", words: ["migrate", "reqs"], desc: "REQ-nnn.md を UC.md の「要件」の節へ移す（--write で書き換える）" },
+	{ group: "補助", words: ["migrate", "overview"], desc: "00-vision.md・02-actors.md・goals-backlog.md・GOAL.md を 1 枚の概要（00-overview.md）へ移す（--write で書き換える）" },
 	{ group: "補助", words: ["convert"], desc: "OpenAPI を契約の書式へ変換する" },
 ];
 
