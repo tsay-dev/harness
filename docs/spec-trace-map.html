@@ -370,7 +370,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     <table>
       <thead><tr><th>義務を生むもの</th><th>none にできないキー</th></tr></thead>
       <tbody>
-        <tr><td>active な REQ</td><td><code>source</code>、<code>tests</code>、<code>tests.pending_pattern</code></td></tr>
+        <tr><td>active な REQ</td><td><code>source</code>、<code>tests</code>、<code>tests.pending_pattern</code>。<code>source</code> を宣言していれば <code>coverage</code>（実行の記録）も none・省略にできない</td></tr>
         <tr><td>人間向けの active な UC</td><td><code>tests</code>、<code>tests.system</code>、<code>tests.system.pending_pattern</code></td></tr>
         <tr><td>active な UC</td><td><code>docs.glossary</code></td></tr>
         <tr><td>fixed 契約の inbound の操作</td><td><code>source</code>（owned かつ inbound）。入口の一覧 <code>commands.list_entries</code> を none にできないことは、exec-check の E4 が見る</td></tr>
@@ -394,9 +394,9 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>V3・V6</td><td>どのテストからも 1 行も実行されなかったファイル、1 回も呼ばれなかった名前のある関数がある</td><td><span class="tag anno">テスト → 本番コード</span></td></tr>
         <tr><td>V4</td><td><code>coverage.not_run</code> に認めたファイル・関数（<code>&lt;ファイル&gt;#&lt;関数の名前&gt;</code>）が実行されている、理由が無い、記録に無い</td><td><span class="tag anno">認めたもの → 実行の記録</span></td></tr>
         <tr><td>V5・V7</td><td>本番の組み立てがテストから呼ばれていない。記録に関数ごとの情報が無い（使わないなら <code>coverage.functions</code> を理由付きの none にする）</td><td><span class="tag anno">テスト → 本番コード</span></td></tr>
-        <tr><td>E1</td><td>アプリが出した一覧の入口が、撤回されていない契約の inbound の操作にも、<code>entries.outside_contract</code> にも無い（契約に無い入口）</td><td><span class="tag anno">入口 → 契約の操作</span></td></tr>
+        <tr><td>E1</td><td>アプリが出した一覧の入口が、撤回されていない契約の inbound の操作のどれにも合わない（契約に無い入口。認める宣言の手段は無く、生存確認や配信の入口も契約に書く）</td><td><span class="tag anno">入口 → 契約の操作</span></td></tr>
         <tr><td>E2</td><td>fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い</td><td><span class="tag anno">契約の操作 → 入口</span></td></tr>
-        <tr><td>E3・E4</td><td><code>entries.outside_contract</code> の古い宣言・形の誤り。一覧を読めない（<code>commands.list_entries</code> が未宣言、none にできないのに none、JSON でない行、同じ入口の重複）</td><td><span class="tag anno">入口の一覧</span></td></tr>
+        <tr><td>E4</td><td>一覧を読めない（<code>commands.list_entries</code> が未宣言、none にできないのに none、inbound の操作があるのに 0 行、JSON でない行、同じ入口の重複）。廃止した設定のキー <code>entries</code> が残っている。E3 は欠番</td><td><span class="tag anno">入口の一覧</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -425,7 +425,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>実行されたコードが本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、<code>@covers BR-nnn</code> のテストが入口を通さず DB に直接入れているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>どの規則も説明しない制約がスキーマに無いか（機械はスキーマの制約を読まない）。<code>coverage.not_run</code> と <code>entries.outside_contract</code> の理由が妥当か。none の宣言を含む <code>harness.config.json</code> の変更は人間が承認する（gate-hook が確認を求める）。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>どの規則も説明しない制約がスキーマに無いか（機械はスキーマの制約を読まない）。<code>coverage.not_run</code> の理由が妥当か。none の宣言を含む <code>harness.config.json</code> の変更は人間が承認する（gate-hook が確認を求める）。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>NFR のテストや <code>measured_by</code> の計測が、閾値を本当に測っているか。C20 が見るのは、検証の所在が docs の外のファイルとして実在し、中に NFR の ID が現れることまで。外部の計測は runbook に ID と計測先を書く。</p></div>
     <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
     <div class="gap"><span class="who">主張の外</span><p>テストが実際に実行されたこと。trace-check は紐づきの有無を見るだけで、<code>@covers</code> したテストが CI で走って通ったかは突き合わせない（ADR-0056 の M9）。実行の記録が示すのは、どのコードがどれかのテストから実行されたかまでで、どの要件のテストから実行されたかは示さない。</p></div>

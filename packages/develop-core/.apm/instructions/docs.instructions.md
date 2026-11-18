@@ -70,7 +70,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-702 (MUST)** 層の依存方向は lint / C6（`harness.config.json` の `layering`）で強制します。
 - **R-703 (MUST)** 実装のエラーコードは `_shared` の `errorCodes` に含まれ（C7）、`errorCodes` のコードはどれかの契約の `errors` で使われます（C24）。
 - **R-704 (MUST)** DB 設計の SSOT は利用プロジェクトのスキーマ正本（`harness.config.json` の `schema`）であり文書ではありません。`enforced_at` が DB の BR は、その正本の制約として実現し、制約が効くことを、規則に反する行を DB に直接入れて断られるテスト（`@covers BR-nnn`）で確かめます（C13）。複数箇所で強制できるルールは、どの箇所を除くと正しさが壊れるかで保証の SSOT を決め、ADR に記録します。
-- **R-705 (MUST)** 実装と仕様の対応は、印ではなく実行で確かめます。すべての `active` REQ に保留でないテストがあり（C1）、範囲に入るソースのファイルと名前のある関数は、どれかのテストから実行されます（`harness lint coverage`。実行されないことを認めるものは、`harness.config.json` の `coverage.not_run` に理由と一緒に書く）。要件を撤回したら、そのテストと、テストだけが使っていたコードを同じ変更で消します。実行されたコードが文を実現するかは reviewer に残ります（R-901）。
+- **R-705 (MUST)** 実装と仕様の対応は、印ではなく実行で確かめます。すべての `active` REQ に保留でないテストがあり（C1）、範囲に入るソースのファイルと名前のある関数は、どれかのテストから実行されます（`harness lint coverage`。実行されないことを認めるものは、`harness.config.json` の `coverage.not_run` に理由と一緒に書く）。active な REQ とソースがあるプロジェクトは、実行の記録（`coverage`）を none にできません（C26）。要件を撤回したら、そのテストと、テストだけが使っていたコードを同じ変更で消します。実行されたコードが文を実現するかは reviewer に残ります（R-901）。
 
 ## 8. 変更手順
 
@@ -118,5 +118,5 @@ C10 / C11 / C15 が保証するのは宣言と存在の一致です。分割が�
 - **R-1203 (MUST)** OS 契約（Info.plist、entitlements、manifest）は機械可読なのでそれ自身が SSOT です。
 - **R-1204 (SHOULD)** モジュール間は言語の型システムが契約、コンパイラーと C6 が検査者です。テストが契約操作を呼ぶ入口は、フレームワークの testing 末端ファイルの「operation → entry」規約で操作名から導出し、ルールパッケージがなければ利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に命名規則として 1 回宣言します（操作ごとの表にせず、規則に従わないものだけを挙げます）。テストの足場（境界フェイク、fixture、テスト用 app）の使い方の正本はそのテストコードの型とコメントで、作業指針に写しません。実装を読んで導出しません。
 - **R-1205 (SHOULD)** 外部 API はクライアント側で防御的に扱います（DTO 層、記録した応答 fixture、未知フィールドを無視するデコード）。
-- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界の入口と契約の操作は、アプリが出す入口の一覧（`commands.list_entries`）で双方向に対応させます（`harness lint entries`。契約に無い入口と、入口の無い fixed の操作が違反。契約に書かない入口は `entries.outside_contract` に理由と一緒に書く）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
+- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界の入口と契約の操作は、アプリが出す入口の一覧（`commands.list_entries`）で双方向に対応させます（`harness lint entries`。契約に無い入口と、入口の無い fixed の操作が違反）。アプリの入口は、生存確認や静的なファイル・画面の配信も含めて、すべて契約の操作として書きます（契約の外に置く宣言は無い。運用のための入口は、それをまとめる UC の契約に置く。書き方は `"${HARNESS_ROOT}/tools/exec-check/README.md"`）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
 - **R-1207 (MUST)** 失敗条件の評価順序は `contract.yaml` の `errors:` 一覧順だけに置き、最初の一致を採用します。`when` はラベルで排他性の証明ではなく、順序を UC / BR / ADR / スキーマコメント / 操作配下の `x-*` に再記述しません（spec-lint が `x-*` を拒否）。隣接項目の優先順位は両条件を満たす例（`contract-run`）またはテストクラスで反証します。

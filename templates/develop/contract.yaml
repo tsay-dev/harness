@@ -33,7 +33,10 @@ operations:
   # 実装へ到達するため、ここの名前はコードが公開する名前とする。実装のコードに操作の印（注釈）は書かない（ADR-0070）。
   # このアプリが呼ばれる操作（direction: inbound）は、アプリが出す入口の一覧（harness.config.json の commands.list_entries）と
   # 突き合わせる: http は wire の method と path、deeplink / push / stream は entry、それ以外は操作名が、一覧の入口と一致すること。
-  # fixed の owned な inbound の操作に合う入口が無いこと、契約に無い入口があることを、harness lint entries が違反にする
+  # fixed の owned な inbound の操作に合う入口が無いこと、契約に無い入口があることを、harness lint entries が違反にする。
+  # 契約の外に入口を置く手段は無い。生存確認、静的なファイルや画面の配信も、運用のための入口をまとめる UC の契約に操作として書く。
+  # 何でも受ける経路は wire.path に /assets/* のように書く。応答が JSON でない操作は、アダプターが返す JSON の形
+  # （contentType など、確かめたい事実）を response と実例に書く（tools/exec-check/README.md「機能の仕様ではない入口」）
   # 操作配下のキーは閉じた集合（transport / direction / owned / source / auth / summary / wire /
   # entry / requires / request / response / errors / examples）。spec-lint は x-* を含む他のキーを拒否する。
   # 規則と状態遷移は UC / REQ / BR に置き、評価順序は errors の順序に置く

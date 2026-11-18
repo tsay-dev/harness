@@ -12,9 +12,9 @@ const TEMP = [];
 after(() => TEMP.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
 //  lcov の 1 件分。hits = 行ごとの実行回数（空なら、実行する行の無いファイル）
-//  fns = { 関数の名前: 呼ばれた回数 }
+//  fns = { 関数の名前: 呼ばれた回数 }。関数の情報を出す道具と同じく、関数を持たないファイルにも FNF:0 を書く
 const record = (file, hits, fns = {}) =>
-	[`SF:${file}`, ...Object.keys(fns).map((n, i) => `FN:${i + 1},${n}`), ...Object.entries(fns).map(([n, c]) => `FNDA:${c},${n}`), ...hits.map((h, i) => `DA:${i + 1},${h}`), "end_of_record"].join("\n");
+	[`SF:${file}`, ...Object.keys(fns).map((n, i) => `FN:${i + 1},${n}`), ...Object.entries(fns).map(([n, c]) => `FNDA:${c},${n}`), `FNF:${Object.keys(fns).length}`, ...hits.map((h, i) => `DA:${i + 1},${h}`), "end_of_record"].join("\n");
 
 const SOURCES = { "src/compose.ts": "export function assemble() {}\n", "src/a.ts": "export const a = 1;\n", "src/types.ts": "export type T = 1;\n", "src/server.ts": "listen();\n" };
 const LCOV = [record("src/compose.ts", [1, 1]), record("src/a.ts", [3, 0], { used: 2, "(anonymous_0)": 0, anonymous_7: 0, "<anonymous>": 0 }), record("src/types.ts", []), record("src/server.ts", [0, 0])].join("\n");
@@ -129,6 +129,11 @@ const BAD_COV = [
 	["V5", "組み立てのファイルは読み込まれたが、関数は 1 回も呼ばれていない", { lcov: LCOV.replace("SF:src/compose.ts\n", "SF:src/compose.ts\nFN:1,assemble\nFNDA:0,assemble\n") }, /本番の組み立ての関数 assemble（src\/compose\.ts）が、テストから 1 回も呼ばれていない/],
 	["V6", "呼ばれなかった関数", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:9,left\nFNDA:0,left") }, /1 回も呼ばれなかった関数が 1 件ある[^]*src\/a\.ts#left/],
 	["V7", "記録に関数ごとの情報が無い", { lcov: LCOV.replace(/^FN.*\n/gm, "") }, /関数ごとの情報（FN \/ FNDA）が 1 つも無い: coverage\/lcov\.info[^]*coverage\.functions を \{ "none": "<理由>" \}/],
+	["V7", "記録に関数の情報があるのに functions を none にしている", { cfg: change((c) => (c.coverage.functions = { none: "出せないと思っていた" })) }, /coverage\.functions を none にできない（実行の記録 coverage\/lcov\.info に、関数ごとの情報 FN \/ FNDA がある）[^]*（none の理由: 出せないと思っていた）/],
+	["V7", "一部のファイルにだけ関数の情報が無い", { lcov: LCOV.replace("SF:src/compose.ts\nFNF:0\n", "SF:src/compose.ts\n") }, /関数ごとの情報（FN \/ FNDA \/ FNF）が 1 行も無いソースが 1 件ある[^]*src\/compose\.ts/],
+	["V6", "同じ名前の関数がどれも呼ばれていない（1 件として数える）", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,twice\nFN:9,twice\nFNDA:0,twice\nFNDA:0,twice") }, /1 回も呼ばれなかった関数が 1 件ある[^]*src\/a\.ts#twice/],
+	["V6", "名前にカンマを含む関数（FN の名前を最後のカンマで切らない）", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,pair(int, int)\nFNDA:0,pair(int, int)") }, /src\/a\.ts#pair\(int, int\)\n/],
+	["V6", "開始行と終了行を持つ FN（FN:<開始行>,<終了行>,<名前>）", { lcov: LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,8,ranged\nFNDA:0,ranged\nFN:9,12,noCount") }, /1 回も呼ばれなかった関数が 2 件ある[^]*src\/a\.ts#ranged\n\s+src\/a\.ts#noCount/],
 	["V7", "functions の形が誤り", { cfg: change((c) => (c.coverage.functions = false)) }, /coverage\.functions は、関数の単位の検査を使わないときにだけ/],
 	["V7", "functions の none に理由が無い", { cfg: change((c) => (c.coverage.functions = { none: " " })) }, /coverage\.functions は、関数の単位の検査を使わないときにだけ/],
 	["V4", "認めた関数が呼ばれている", { cfg: change((c) => c.coverage.not_run.push({ path: "src/a.ts#used", reason: "x" })) }, /src\/a\.ts#used は呼ばれている。coverage\.not_run から消す/],
@@ -145,12 +150,12 @@ const BAD_COV = [
 	["V2", "source が無い", { cfg: change((c) => delete c.source) }, /source\.dirs が無いので、確かめるソースが決まらない/],
 	["V2", "scope に入るソースが無い", { cfg: change((c) => ((c.coverage.scope = ["lib"]), (c.coverage.not_run = []), delete c.entry)) }, /coverage\.scope に入るソースが 1 つも無い/],
 	["V3", "1 行も実行されなかったソース", { cfg: change((c) => (c.coverage.not_run = [])) }, /1 行も実行されなかったソースが 1 件ある[^]*src\/server\.ts/],
-	["V4", "認めたファイルが実行されている", { lcov: LCOV.replace("SF:src/server.ts\nDA:1,0", "SF:src/server.ts\nDA:1,5") }, /src\/server\.ts は実行されている。coverage\.not_run から消す/],
+	["V4", "認めたファイルが実行されている", { lcov: LCOV.replace("SF:src/server.ts\nFNF:0\nDA:1,0", "SF:src/server.ts\nFNF:0\nDA:1,5") }, /src\/server\.ts は実行されている。coverage\.not_run から消す/],
 	["V4", "認めたファイルがソースでない", { cfg: change((c) => c.coverage.not_run.push({ path: "src/gone.ts", reason: "x" })) }, /path がソースのファイルでない: src\/gone\.ts/],
 	["V4", "reason が無い", { cfg: change((c) => delete c.coverage.not_run[0].reason) }, /reason は 1 行の文で書く/],
 	["V4", "同じ path を 2 回", { cfg: change((c) => c.coverage.not_run.push({ ...c.coverage.not_run[0] })) }, /path が重複している: src\/server\.ts/],
 	["V4", "not_run が配列でない", { cfg: change((c) => (c.coverage.not_run = {})) }, /coverage\.not_run は配列で書く/],
-	["V5", "本番の組み立てが実行されていない", { lcov: LCOV.replace("SF:src/compose.ts\nDA:1,1\nDA:2,1", "SF:src/compose.ts\nDA:1,0\nDA:2,0"), cfg: change((c) => c.coverage.not_run.push({ path: "src/compose.ts", reason: "x" })) }, /本番の組み立て（src\/compose\.ts）が、テストから実行されていない/],
+	["V5", "本番の組み立てが実行されていない", { lcov: LCOV.replace("SF:src/compose.ts\nFNF:0\nDA:1,1\nDA:2,1", "SF:src/compose.ts\nFNF:0\nDA:1,0\nDA:2,0"), cfg: change((c) => c.coverage.not_run.push({ path: "src/compose.ts", reason: "x" })) }, /本番の組み立て（src\/compose\.ts）が、テストから実行されていない/],
 ];
 for (const [id, name, opts, re] of BAD_COV) {
 	test(`coverage ${id}: ${name} は違反`, () => {
@@ -172,8 +177,18 @@ test("coverage V6: 呼ばれなかった関数は、coverage.not_run に <ファ
 });
 
 test("coverage V6: 同じ名前の関数が 1 つのファイルに複数あれば、どれか 1 つが呼ばれていれば通る。1 行も実行されなかったファイルの関数は V3 だけで報告する", () => {
+	//  記録は名前でしか区別できないので、呼ばれた回数を足して数える（0 回 + 1 回 = 1 回 → 通る。認めた項目に書けば「呼ばれている」で違反）
 	const dup = LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,twice\nFN:9,twice\nFNDA:0,twice\nFNDA:1,twice");
-	assert.equal(run(project({ lcov: dup }), "coverage").status, 0);
+	const d = run(project({ lcov: dup }), "coverage");
+	assert.equal(d.status, 0, d.stdout);
+	assert.match(d.stdout, /確かめた名前のある関数 2 件/);
+	const admitted = run(project({ lcov: dup, cfg: change((c) => c.coverage.not_run.push({ path: "src/a.ts#twice", reason: "x" })) }), "coverage");
+	assert.match(admitted.stdout, /err  V4  src\/a\.ts#twice は呼ばれている/);
+	//  名前にカンマを含む関数も、FN と FNDA が同じ名前として読まれる（呼ばれていれば通る）
+	const comma = LCOV.replace("FNDA:2,used", "FNDA:2,used\nFN:5,pair(int, int)\nFNDA:3,pair(int, int)\nFN:9,12,ranged\nFNDA:1,ranged");
+	const c = run(project({ lcov: comma }), "coverage");
+	assert.equal(c.status, 0, c.stdout);
+	assert.match(c.stdout, /確かめた名前のある関数 3 件/);
 	const idle = run(project({ lcov: LCOV.replace("SF:src/server.ts", "SF:src/server.ts\nFN:1,listen\nFNDA:0,listen"), cfg: change((c) => (c.coverage.not_run = [])) }), "coverage");
 	assert.equal(idle.status, 1);
 	assert.match(idle.stdout, /err  V3  /);
@@ -237,7 +252,8 @@ const op = (name, { transport = "http", direction = "inbound", owned = true, met
 const contract = (uc, status, ops) => `x-uc: ${uc}\nx-status: ${status}\noperations:\n${ops.join("")}`;
 const ucDoc = (id, status = "active") => `---\nid: ${id}\ntitle: t\nstatus: ${status}\n---\n\n# ${id}\n`;
 const G = "docs/goals/GOAL-01-x";
-//  架空のアプリ: 会員を読む・作る（fixed）、通知を受け取る（fixed。push）、下書きの操作（draft）、撤回済みの UC の操作、外の API を呼ぶ操作（outbound）
+//  架空のアプリ: 会員を読む・作る（fixed）、通知を受け取る（fixed。push）、下書きの操作（draft）、撤回済みの UC の操作、外の API を呼ぶ操作（outbound）、
+//  運用のための入口（生存確認と静的なファイルの配信。これも契約の操作として書く）
 const DOCS = {
 	[`${G}/UC-001-members/UC.md`]: ucDoc("UC-001"),
 	[`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [
@@ -250,6 +266,8 @@ const DOCS = {
 	[`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("exportMembers", { path: "/api/members/export" })]),
 	[`${G}/UC-003-old/UC.md`]: ucDoc("UC-003", "withdrawn"),
 	[`${G}/UC-003-old/contract.yaml`]: contract("UC-003", "fixed", [op("oldReport", { path: "/api/old-report" })]),
+	[`${G}/UC-004-operate/UC.md`]: ucDoc("UC-004"),
+	[`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/*" })]),
 };
 const line = (o) => JSON.stringify(o);
 const LIST = [
@@ -257,9 +275,10 @@ const LIST = [
 	line({ kind: "http", method: "post", path: "/api/members/" }),
 	line({ kind: "push", name: "notice.updated" }),
 	line({ kind: "http", method: "GET", path: "/api/health" }),
+	line({ kind: "http", method: "GET", path: "/assets/*" }),
 ].join("\n");
 const entriesCfg = (f = () => {}) => {
-	const c = { docs: { goals_dir: "docs/goals" }, commands: { list_entries: "node scripts/list-entries.mjs" }, entries: { outside_contract: [{ entry: "GET /api/health", reason: "監視が呼ぶ生存確認" }] } };
+	const c = { docs: { goals_dir: "docs/goals" }, commands: { list_entries: "node scripts/list-entries.mjs" } };
 	f(c);
 	return c;
 };
@@ -268,13 +287,24 @@ const entries = ({ cfg = entriesCfg(), list = LIST, files = {} } = {}) => {
 	return run(d, "entries", ["--from", join(d, "entries.jsonl")]);
 };
 
-test("entries: 一覧の入口がすべて契約か outside_contract に合い、fixed の操作の入口が一覧にあれば通る（パラメーターの書き方・method の大小・末尾の / の違いは同じに扱う）", () => {
+test("entries: 一覧の入口がすべて契約の inbound の操作に合い、fixed の操作の入口が一覧にあれば通る（パラメーターの書き方・method の大小・末尾の / の違いは同じに扱う）", () => {
 	const r = entries();
 	assert.equal(r.status, 0, r.stdout + r.stderr);
-	assert.match(r.stdout, /契約に書かないことを認めた入口: GET \/api\/health（監視が呼ぶ生存確認）/);
-	assert.match(r.stdout, /OK: 入口 4 件（契約の操作に合うもの 3 件、契約に書かないことを認めたもの 1 件）、契約の inbound の操作 4 件/);
+	assert.match(r.stdout, /OK: 入口 5 件（すべて契約の inbound の操作に合う）、契約の inbound の操作 6 件/);
 	//  draft の契約の操作の入口は、あっても無くてもよい（あれば契約にある入口として通る）
 	assert.equal(entries({ list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/export" })}` }).status, 0);
+});
+
+test("entries: 契約の側も * と書いていれば、* の入口はそれとだけ合う。inbound の操作が無ければ、一覧が 0 行でも通る", () => {
+	const star = { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("serveFiles", { path: "/files/*" })]), [`${G}/UC-002-draft/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null };
+	const ok = entries({ files: star, list: line({ kind: "http", method: "GET", path: "/files/**" }) });
+	assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+	const param = entries({ files: star, list: line({ kind: "http", method: "GET", path: "/files/:name" }) });
+	assert.match(param.stdout, /err  E1  契約に無い入口: GET \/files\/:name/);
+	const none = { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("sendMail", { direction: "outbound", owned: false, method: "POST", path: "/v1/mail" })]), [`${G}/UC-002-draft/contract.yaml`]: null, [`${G}/UC-004-operate/contract.yaml`]: null };
+	const empty = entries({ files: none, list: "" });
+	assert.equal(empty.status, 0, empty.stdout + empty.stderr);
+	assert.match(empty.stdout, /OK: 入口 0 件/);
 });
 
 test("entries: 一覧は標準入力からも読める", () => {
@@ -289,24 +319,24 @@ const BAD_ENTRIES = [
 	["E1", "撤回済みの UC の契約にしか無い入口", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/old-report" })}` }, /契約に無い入口: GET \/api\/old-report/],
 	["E1", "outbound の操作と同じパスの入口", { list: `${LIST}\n${line({ kind: "http", method: "POST", path: "/v1/mail" })}` }, /契約に無い入口: POST \/v1\/mail/],
 	["E1", "http 以外で契約に無い入口", { list: `${LIST}\n${line({ kind: "deeplink", name: "app://open/{id}" })}` }, /契約に無い入口: deeplink app:\/\/open\/\{id\}/],
-	["E1", "outside_contract に書いていない入口", { cfg: entriesCfg((c) => delete c.entries) }, /契約に無い入口: GET \/api\/health/],
+	["E1", "契約に書いていない運用の入口（生存確認）は、認める宣言の手段が無く、必ず違反になる", { files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("serveAssets", { path: "/assets/*" })]) } }, /契約に無い入口: GET \/api\/health（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く）/],
+	["E4", "廃止した entries.outside_contract に書いても、入口は認められない", { cfg: entriesCfg((c) => (c.entries = { outside_contract: [{ entry: "GET /api/health", reason: "監視が呼ぶ生存確認" }] })), files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("serveAssets", { path: "/assets/*" })]) } }, /設定の entries は廃止した（契約の外の入口は置けない）[^]*err  E1  契約に無い入口: GET \/api\/health/],
+	["E4", "廃止した entries のキーが残っている（空でも）", { cfg: entriesCfg((c) => (c.entries = { outside_contract: [] })) }, /設定の entries は廃止した（契約の外の入口は置けない）。キーを削除し/],
+	["E1", "何でも受ける登録（/assets/*）は、契約が同じ * の書き方を持つときだけ合う（契約がパラメーターなら合わない）", { files: { [`${G}/UC-004-operate/contract.yaml`]: contract("UC-004", "fixed", [op("checkHealth", { path: "/api/health" }), op("serveAssets", { path: "/assets/{name}" })]) } }, /契約に無い入口: GET \/assets\/\*/],
 	["E2", "fixed の操作の入口が一覧に無い", { list: LIST.split("\n").slice(1).join("\n") }, /UC-001#getMember（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/api\/members\/\{accountId\}/],
 	["E2", "fixed の push の操作の入口が一覧に無い", { list: LIST.replace("notice.updated", "notice.created") }, /UC-001#receiveNotice（fixed、owned かつ inbound）に合う入口が、一覧に無い: push notice\.updated/],
-	["E3", "古い宣言（一覧に無い）", { list: LIST.split("\n").slice(0, 3).join("\n") }, /entries\.outside_contract の「GET \/api\/health」は、一覧のどの入口にも合わない/],
-	["E3", "契約にある入口を指す宣言", { cfg: entriesCfg((c) => c.entries.outside_contract.push({ entry: "GET /api/members/:id", reason: "x" })) }, /は、契約の操作 UC-001#getMember の入口（契約にあるので、宣言を消す）/],
-	["E3", "理由が無い", { cfg: entriesCfg((c) => delete c.entries.outside_contract[0].reason) }, /outside_contract\[0\]\.reason は 1 行の文で書く/],
-	["E3", "entry の形が誤り", { cfg: entriesCfg((c) => (c.entries.outside_contract[0].entry = "/api/health")) }, /outside_contract\[0\]\.entry は「GET \/api\/health」/],
-	["E3", "同じ宣言を 2 回", { cfg: entriesCfg((c) => c.entries.outside_contract.push({ ...c.entries.outside_contract[0] })) }, /outside_contract\[1\]\.entry が重複している/],
-	["E3", "知らないキー", { cfg: entriesCfg((c) => (c.entries.allow = [])) }, /entries に知らないキー「allow」/],
-	["E4", "JSON でない行", { list: `${LIST}\nGET /api/x` }, /一覧の 5 行目が JSON でない: GET \/api\/x/],
-	["E4", "kind が無い", { list: `${LIST}\n${line({ method: "GET", path: "/x" })}` }, /一覧の 5 行目: kind が無いか、知らない種類/],
+	["E2", "契約が * なのに、一覧の入口がパラメーター", { list: LIST.replace("/assets/*", "/assets/:name") }, /UC-004#serveAssets（fixed、owned かつ inbound）に合う入口が、一覧に無い: GET \/assets\/\*/],
+	["E4", "inbound の操作があるのに一覧が 0 行", { list: "", files: { [`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "draft", [op("getMember", { path: "/api/members/{accountId}" })]), [`${G}/UC-004-operate/contract.yaml`]: null } }, /入口の一覧が 0 行（撤回されていない契約に inbound の操作が 2 件ある。例: UC-001#getMember）/],
+	["E1", "何でも受ける登録（*）は、契約のパラメーターの入口とは数えない", { list: LIST.replace("/api/members/:accountId", "/api/members/*") }, /契約に無い入口: GET \/api\/members\/\*/],
+	["E4", "JSON でない行", { list: `${LIST}\nGET /api/x` }, /一覧の 6 行目が JSON でない: GET \/api\/x/],
+	["E4", "kind が無い", { list: `${LIST}\n${line({ method: "GET", path: "/x" })}` }, /一覧の 6 行目: kind が無いか、知らない種類/],
 	["E4", "path が無い", { list: `${LIST}\n${line({ kind: "http", method: "GET" })}` }, /kind が http の入口は、method（GET などの 1 語）と、\/ で始まる path を持つ/],
 	["E4", "name が無い", { list: `${LIST}\n${line({ kind: "push" })}` }, /kind が push の入口は、name/],
 	["E4", "知らない項目", { list: LIST.replace('"kind":"push"', '"kind":"push","file":"src/x.ts"') }, /知らない項目「file」がある/],
-	["E4", "同じ入口の重複", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/{id}" })}` }, /一覧の 5 行目: 同じ入口が 1 行目にもある/],
+	["E4", "同じ入口の重複", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: "/api/members/{id}" })}` }, /一覧の 6 行目: 同じ入口が 1 行目にもある/],
 	["E4", "list_entries が未宣言", { cfg: entriesCfg((c) => delete c.commands) }, /commands\.list_entries が宣言されていない/],
 	["E4", "list_entries の形が誤り", { cfg: entriesCfg((c) => (c.commands.list_entries = ["node"])) }, /commands\.list_entries は、文字列のコマンドか/],
-	["E4", "inbound の操作があるのに none", { cfg: entriesCfg((c) => ((c.commands.list_entries = { none: "入口は無い" }), delete c.entries)) }, /commands\.list_entries は none にできない（撤回されていない契約に inbound の操作が 4 件ある。例: UC-001#getMember）/],
+	["E4", "inbound の操作があるのに none", { cfg: entriesCfg((c) => (c.commands.list_entries = { none: "入口は無い" })) }, /commands\.list_entries は none にできない（撤回されていない契約に inbound の操作が 6 件ある。例: UC-001#getMember）/],
 	["E4", "none に理由が無い", { cfg: entriesCfg((c) => (c.commands.list_entries = { none: "" })) }, /commands\.list_entries の none は、理由の文字列だけを持つ/],
 	["E4", "docs.goals_dir が無い", { cfg: entriesCfg((c) => delete c.docs) }, /docs\.goals_dir が無いので、契約を読めない/],
 ];
@@ -319,18 +349,15 @@ for (const [id, name, opts, re] of BAD_ENTRIES) {
 	});
 }
 
-test("entries: none は、撤回されていない契約に inbound の操作が無い間だけ通り、確かめていないことを表示する。none のまま残った宣言は古い宣言", () => {
+test("entries: none は、撤回されていない契約に inbound の操作が無い間だけ通り、確かめていないことを表示する", () => {
 	const noInbound = {
 		[`${G}/UC-001-members/contract.yaml`]: contract("UC-001", "fixed", [op("sendMail", { direction: "outbound", owned: false, method: "POST", path: "/v1/mail" })]),
 		[`${G}/UC-002-draft/contract.yaml`]: null,
+		[`${G}/UC-004-operate/contract.yaml`]: null,
 	};
-	const none = (c) => ((c.commands.list_entries = { none: "外から呼ばれる入口を持たないバッチ" }), delete c.entries);
+	const none = (c) => (c.commands.list_entries = { none: "外から呼ばれる入口を持たないバッチ" });
 	const d = project({ cfg: entriesCfg(none), files: { ...DOCS, ...noInbound }, lcov: null });
 	const r = run(d, "entries");
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /commands\.list_entries = none（外から呼ばれる入口を持たないバッチ）: 契約に無い入口が無いかを確かめていない/);
-	const stale = project({ cfg: entriesCfg((c) => (c.commands.list_entries = { none: "入口は無い" })), files: { ...DOCS, ...noInbound }, lcov: null });
-	const s = run(stale, "entries");
-	assert.equal(s.status, 1);
-	assert.match(s.stdout, /err  E3  entries\.outside_contract の「GET \/api\/health」は、一覧のどの入口にも合わない（commands\.list_entries が none/);
 });

@@ -33,6 +33,7 @@ export const RETIRED_KEYS = [
 	["source.entry_file_pattern", NO_OPERATION],
 	["schema.constraint_pattern", "スキーマの制約の @implements は読まない。DB で守る規則は、規則に反する行を DB に直接入れて断られることを確かめるテストに @covers BR-nnn を書く"],
 	["schema.implements_placement", NO_IMPLEMENTS],
+	["entries", "契約の外の入口は置けない（entries.outside_contract は無くした）。入口はすべて、契約の inbound の操作として書く"],
 ];
 //  cfg に残っている廃止したキー: [[キー, 案内]]。親が none（{ "none": … }）やオブジェクトでないときは、子は無いものとして扱う
 export function retiredKeysIn(cfg) {

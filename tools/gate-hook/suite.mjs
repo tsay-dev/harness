@@ -132,7 +132,10 @@ const onStop = (sig) => {
 		currentAbort?.();
 	} else stopSelf();
 };
+//  検査の途中で作った一時フォルダ。止められたときは finally に戻らないので、ここから消す
+const tempDirs = new Set();
 function stopSelf() {
+	for (const d of tempDirs) rmSync(d, { recursive: true, force: true });
 	for (const s of STOP_SIGNALS) process.removeListener(s, onStop);
 	process.kill(process.pid, stopBy);
 }
@@ -273,11 +276,20 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		else {
 			//  一覧は標準出力だけを受け取る（標準エラーは、失敗したときの表示に残す）。置き場はプロジェクトの外（ツリーを変えない）
 			const dir = mkdtempSync(join(tmpdir(), "harness-entries-"));
+			tempDirs.add(dir);
 			const listFile = join(dir, "entries.jsonl");
+			//  コマンドの後ろに改行を置く（末尾が「# コメント」でも、閉じ括弧とリダイレクトがコメントに飲まれない）。
+			//  「a | b」の左側の失敗を見逃さないよう、シェルが対応していれば pipefail を付ける（対応していないシェルで
+			//  set -o pipefail をそのまま実行すると、シェルごと止まるので、先にサブシェルで試す）。
+			//  対応していないシェル（古い dash など）では、左側の失敗は終了コードに出ない。空や途中までの一覧は、E2・E4 が見る
+			const wrapped = posix
+				? `(set -o pipefail) 2>/dev/null && set -o pipefail\n(\n${listCmd}\n) > ${q(listFile)}`
+				: `(${listCmd}) > ${q(listFile)}`;
 			try {
-				if (await run(`list_entries${label}`, `(${listCmd}) > ${q(listFile)}`, unitRoot)) await run(`entries${label}`, `${entriesCheck} --from ${q(listFile)}`);
+				if (await run(`list_entries${label}`, wrapped, unitRoot)) await run(`entries${label}`, `${entriesCheck} --from ${q(listFile)}`);
 			} finally {
 				rmSync(dir, { recursive: true, force: true });
+				tempDirs.delete(dir);
 			}
 		}
 		if (level >= 1) await run(`contract-run${label}`, `node ${tool("contract-run")} --root ${q(unitRoot)} --config ${q(cfgPath)} --docs ${q(docsDir)}`);

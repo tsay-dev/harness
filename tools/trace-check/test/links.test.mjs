@@ -23,6 +23,8 @@ function project(t, { files = {}, configure = () => {} } = {}) {
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
 	delete cfg.layering;
+	//  active な REQ と source があるので、実行の記録の宣言が要る（C26。記録の中身は exec-check が読む）
+	cfg.coverage = { report: "coverage/lcov.info" };
 	configure(cfg);
 	const base = {
 		"harness.config.json": JSON.stringify(cfg, null, 2),
@@ -131,6 +133,11 @@ test("C26: 義務がある範囲の none、一致 0 件、active な UC があ�
 	assert.match(zero, /\[C26\] tests\.dirs に tests\.test_pattern に一致するテストが 1 件も無い（active な REQ がある/);
 	const src = run(project(t, { configure: (cfg) => (cfg.source = { none: "コードはまだ無い" }) }), "--only", "C26").stdout;
 	assert.match(src, /\[C26\] source は none にできない（active な REQ がある）/);
+	//  要件とソースがあるのに、実行の記録（coverage）を none・省略にすると、実装との対応の検査が 0 になる
+	const cov = run(project(t, { configure: (cfg) => (cfg.coverage = { none: "記録はまだ取っていない" }) }), "--only", "C26").stdout;
+	assert.match(cov, /\[C26\] coverage は none にできない（active な REQ があり、source を宣言している）。テストのコマンドが書き出す実行の記録を \{ "report": "<lcov のファイル>", "not_run": \[\] \} で宣言する.*（none の理由: 記録はまだ取っていない）/);
+	const omitted = run(project(t, { configure: (cfg) => delete cfg.coverage }), "--only", "C26").stdout;
+	assert.match(omitted, /\[C26\] coverage は省略できない（active な REQ があり、source を宣言している）/);
 	const missing = run(project(t, { files: { "docs/rules/.gitkeep": null } }), "--only", "C26").stdout;
 	assert.match(missing, /\[C26\] docs\.rules_dir の docs\/rules が無い（active な UC がある）。作る（ディレクトリなら \.gitkeep を置く）\n/);
 	//  active な UC が無い間は「未作成」と出すだけ（新規プロジェクトの最初のターン）
@@ -145,7 +152,8 @@ test("C26: 義務がある範囲の none、一致 0 件、active な UC があ�
 			[`${U}/contract.yaml`]: "x-uc: UC-001\nx-status: draft\noperations: {}\n",
 			"src/infra/routes.ts": "",
 		},
-		configure: (cfg) => (cfg.tests.pending_pattern = { none: "まだテストが無い" }),
+		//  active な REQ が無い間は、coverage も none のままで通る（ひな形の既定）
+		configure: (cfg) => ((cfg.tests.pending_pattern = { none: "まだテストが無い" }), (cfg.coverage = { none: "まだ宣言していない" })),
 	});
 	const r = run(draft, "--only", "C26");
 	assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -170,9 +178,15 @@ test("C13: DB で守る active な規則には、保留でないテストの @co
 	assert.match(ok.stdout, /OK BR-001 {2}\[active\] {2}tests\/x\.test\.ts:3, br:REQ-001/);
 	const pending = { ...docs, "tests/x.test.ts": '// @covers REQ-001#ok\ntest("ok", () => {});\n// @covers BR-001\ntest.skip("断られる", () => {});\n' };
 	assert.match(run(project(t, { files: pending }), "--only", "C13").stdout, /\[C13\] BR-001 は enforced_at に database を含むが、@covers BR-001 のテストは保留のテスト/);
-	//  DB で守らない規則には求めない
-	const domain = { ...docs, "docs/rules/BR-001.md": br("BR-001", "domain 層") };
-	assert.doesNotMatch(run(project(t, { files: domain }), "--only", "C13").stdout, /\[C13\]/);
+	//  DB で守らない規則には求めない。enforced_at の書き方は、英字（語として）のほか、日本語と全角も DB と読む
+	for (const at of ["domain 層", "usecase（adb は使わない）", "dbms の外"]) {
+		const other = { ...docs, "docs/rules/BR-001.md": br("BR-001", at) };
+		assert.doesNotMatch(run(project(t, { files: other }), "--only", "C13").stdout, /\[C13\]/, at);
+	}
+	for (const at of ["DB", "Database 層", "データベースの一意制約", "ＤＢ（一意制約）", "DBの制約"]) {
+		const db = { ...docs, "docs/rules/BR-001.md": br("BR-001", at) };
+		assert.match(run(project(t, { files: db }), "--only", "C13").stdout, /\[C13\] BR-001 /, at);
+	}
 	//  tests を none にしては通せない（義務表）
 	const noTests = run(project(t, { files: docs, configure: (cfg) => (cfg.tests = { none: "テストは後で" }) }), "--only", "C26").stdout;
 	assert.match(noTests, /\[C26\] tests は none にできない/);
@@ -215,6 +229,7 @@ test("廃止したキーと検査（ADR-0070）: 設定に残っていれば案�
 		[(cfg) => (cfg.source.entry_file_pattern = "use server"), /source\.entry_file_pattern は廃止した/],
 		[(cfg) => (cfg.schema.constraint_pattern = "(@unique)"), /schema\.constraint_pattern は廃止した（ADR-0070）。.*@covers BR-nnn を書く/],
 		[(cfg) => (cfg.schema.implements_placement = "before"), /schema\.implements_placement は廃止した/],
+		[(cfg) => (cfg.entries = { outside_contract: [] }), /entries は廃止した（ADR-0070）。契約の外の入口は置けない/],
 	];
 	for (const [configure, message] of cases) {
 		const r = run(project(t, { configure }));

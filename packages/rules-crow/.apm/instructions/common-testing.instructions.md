@@ -30,6 +30,7 @@ crow には (A) `engine/kernel/` のフレームワーク本体と (B) `db_desig
 | System | ブラウザーまたは実機を起動する。UC ごとに一つのシナリオテストだけを置く（`tests/` の外の `e2e/`） | UC で選択実行、全件は `commands.system` と CI |
 
 - 「一つのコマンドで実行し終了コードで red / green を決める」はスイートごとに一つのコマンドという意味。integration や system を既定スイートのコマンドに混ぜない。
+- DB で守る規則のテスト（`@covers BR-nnn`。規則に反する行を実 DB に直接入れて断られる）は integration に置き、integration のコマンドを `harness.config.json` の `commands.extra` に宣言して、完了の判定が実行するようにする（既定スイートのコマンドには混ぜない）。
 - バックエンドの契約適合テスト（入出力・純粋関数）は外部環境を起動しないため既定スイートに属し、integration へ移さない。Phase4 の red-green ループを担うのは BE テストである。
 - `e2e/` が空フォルダーなら、人が利用するすべての active UC に対する C15 違反。
 

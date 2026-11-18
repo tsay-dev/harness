@@ -41,7 +41,8 @@
 | K3 | `conventions` は `[{ "rule", "unchecked_because" }]`。どちらも 1 行の文。同じ `rule` を 2 回書かない |
 | K4 | `exceptions` は `[{ "what", "approved" }]`。`what` は 1 行の文、`approved` は実在する日付（`YYYY-MM-DD`）。先の日付は不可（時差があるので、明日の日付までは通す） |
 | K5 | `git.units` の値は、設定ファイルがあるディレクトリの中の、別のディレクトリ（相対パス）。外やルート自身を指す unit は読まずに違反にする |
-| K6 | 廃止したキーが残っていない。実装のコードの注釈を読むためのキー（`implements_pattern`・`operation_pattern`、`source` の `unit_dirs`・`support_dirs`・`unit_pattern`・`implements_placement`・`entry_pattern`・`entry_exclude`・`entry_file_pattern`、`schema` の `constraint_pattern`・`implements_placement`）は、ADR-0070 で廃止した。残っていれば、代わりにすることを添えて違反にする（黙って読み飛ばすと、もう検査されていない注釈と設定を保ち続けることになる）。一覧と案内の正本は `tools/_shared/config.mjs` の `RETIRED_KEYS` |
+| K6 | 廃止したキーが残っていない。実装のコードの注釈を読むためのキー（`implements_pattern`・`operation_pattern`、`source` の `unit_dirs`・`support_dirs`・`unit_pattern`・`implements_placement`・`entry_pattern`・`entry_exclude`・`entry_file_pattern`、`schema` の `constraint_pattern`・`implements_placement`）と、契約の外の入口を認める宣言 `entries` は、ADR-0070 で廃止した。残っていれば、代わりにすることを添えて違反にする（黙って読み飛ばすと、もう検査されていない注釈と設定を保ち続けることになる）。一覧と案内の正本は `tools/_shared/config.mjs` の `RETIRED_KEYS` |
+| K7 | monorepo のルートの設定（`git.units` を持つ設定）に、`commands.list_entries` のコマンドを書いていない。入口の一覧の検査は unit ごとに、unit の設定で実行するので、ルートに書いても実行されない。unit の設定に書くよう案内して違反にする（ひな形から写した none は通す）。ルートの `entry` は、同じく実行されないが、違反にしていない |
 
 検査するのは形だけである。次のことは確かめない。
 

@@ -748,7 +748,8 @@ function tableSections(text) {
 	return out.join("\n");
 }
 
-const DB_ENFORCED_RE = /\b(database|db)\b/i;
+//  enforced_at が DB を指す書き方。英字は語として（"dbms" や "adb" は数えない）、日本語と全角は含まれていれば数える
+const DB_ENFORCED_RE = /\b(?:database|db)\b|データベース|ＤＢ|ｄｂ/i;
 
 //  layer_pattern（既定 "{layer}" ＝ root 直下の第 1 階層）で、パスのどの階層が層名かを決める。
 //  "*/{layer}" なら Features/<機能>/Domain のような第 2 階層の層を読む（* は任意の 1 階層）
@@ -1141,6 +1142,14 @@ function runChecks(cfg, { asActive = false } = {}) {
 		if (cond) for (const k of keys) if (!obligations.has(k)) obligations.set(k, reason);
 	};
 	oblige(activeReqs.length, "active な REQ がある", ["source", "tests", "tests.pending_pattern"]);
+	//  実装との対応は、実行の記録でしか確かめていない（ADR-0070）。要件とソースがあるのに記録を宣言しなければ、その検査が 0 になる。
+	//  coverage は exec-check が読むキーだが、「要件があるのに確かめていない」ことは義務としてここで止める（省略も none と同じに扱う）
+	if (activeReqs.length && srcSec && (cfg.coverage === undefined || isNone(cfg.coverage)))
+		fail(
+			"C26",
+			`coverage は${cfg.coverage === undefined ? "省略できない" : " none にできない"}（active な REQ があり、source を宣言している）。テストのコマンドが書き出す実行の記録を { "report": "<lcov のファイル>", "not_run": [] } で宣言する（tools/exec-check/README.md。実装と仕様の対応を、実行の記録で確かめる）` +
+				(isNone(cfg.coverage) ? `（none の理由: ${cfg.coverage.none}）` : ""),
+		);
 	oblige(humanUcs.length, "人間がアクターの active な UC がある", ["tests", "tests.system", "tests.system.pending_pattern"]);
 	oblige(activeUcs.length, "active な UC がある", ["docs.glossary"]);
 	oblige(fixedOwned.some((o) => o.direction === "inbound"), "fixed 契約に owned かつ inbound の操作がある", ["source"]);

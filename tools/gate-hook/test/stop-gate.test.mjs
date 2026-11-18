@@ -383,7 +383,7 @@ test("stop-gate: monorepo（git.units）は unit ごとに、検査と unit の 
 	const root = makeRoot(t, { git: { units: { web: "apps/web", api: "apps/api", ui: "packages/ui" } } }, { gitInit: false });
 	const web = join(root, "apps", "web");
 	mkdirSync(join(web, "docs", "goals"), { recursive: true });
-	writeConfig(web, { commands: cmds({ test: "pwd > ran-test.txt" }) });
+	writeConfig(web, { commands: cmds({ test: "pwd > ran-test.txt", list_entries: "pwd > listed-in.txt" }) });
 	mkdirSync(join(root, "packages", "ui", "src"), { recursive: true }); //  docs も harness.config.json も無い
 
 	//  (a) web は検査、ui は「docs なし」、api（存在しない）も docs なし。設定の形はルートで 1 回、ほかは unit ごと
@@ -394,7 +394,10 @@ test("stop-gate: monorepo（git.units）は unit ごとに、検査と unit の 
 	const c = calls(tools);
 	assert.deepEqual(c.map((x) => x.name), ["config-lint", "spec-lint", "trace-check", "exec-check", "exec-check", "contract-run", "exec-check"]);
 	assert.deepEqual(c[3].args, ["entry", "--root", web, "--config", join(web, "harness.config.json")]);
-	assert.deepEqual(c[4].args, ["entries", "--root", web, "--config", join(web, "harness.config.json")]);
+	//  入口の一覧のコマンドも、unit のディレクトリで実行し、unit の設定と一緒に渡す
+	assert.deepEqual(c[4].args.slice(0, 6), ["entries", "--root", web, "--config", join(web, "harness.config.json"), "--from"]);
+	assert.equal(realpathSync(readFileSync(join(web, "listed-in.txt"), "utf8").trim()), realpathSync(web));
+	assert.ok(!existsSync(join(root, "listed-in.txt")));
 	assert.deepEqual(c[6].args.slice(0, 5), ["coverage", "--root", web, "--config", join(web, "harness.config.json")]);
 	assert.deepEqual(c[0].args, ["--config", join(root, "harness.config.json")]);
 	assert.deepEqual(c[1].args, ["validate", "--docs", join(web, "docs")]);
@@ -535,6 +538,23 @@ test("stop-gate: 入口の一覧は commands.list_entries に出させ、標準�
 	assert.deepEqual(last(root).failures, ["list_entries"]);
 	assert.match(f.stderr, /起動できない/);
 	assert.deepEqual(names(), ["config-lint", "spec-lint", "trace-check", "exec-check:entry", "contract-run", "exec-check:coverage"]);
+
+	//  コマンドの末尾が「# コメント」でも、出力の受け取りがコメントに飲まれない（構文エラーにならず、一覧が渡る）
+	rmSync(listPath, { force: true });
+	writeConfig(root, { commands: cmds({ list_entries: `echo '${list}' # 入口を出す` }) });
+	const cm = runGate(root, stop(root), { tools, args: ["--force"] });
+	assert.equal(cm.status, 0, cm.stderr);
+	assert.equal(readFileSync(listPath, "utf8"), `${list}\n`);
+	calls(tools);
+
+	//  「a | b」の左側が失敗したら、失敗にする（シェルが pipefail に対応している環境でだけ確かめられる。古い dash などは対応していない）
+	writeConfig(root, { commands: cmds({ list_entries: `sh -c 'echo "${list.replace(/"/g, '\\"')}"; exit 3' | cat` }) });
+	const pf = runGate(root, stop(root), { tools, args: ["--force"] });
+	if (spawnSync("(set -o pipefail) 2>/dev/null", { shell: true }).status === 0) {
+		assert.equal(pf.status, 2, pf.stdout);
+		assert.deepEqual(last(root).failures, ["list_entries"]);
+	} else assert.equal(pf.status, 0, pf.stderr); //  対応していないシェルでは、右側の終了コードになる（一覧は渡る）
+	calls(tools);
 
 	//  none の宣言は、level lint でも exec-check に判定させる（none にできるかは契約を読めば分かる）
 	writeConfig(root, { commands: cmds({ list_entries: { none: "外から呼ばれる入口が無い" } }) });

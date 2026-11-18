@@ -19,6 +19,8 @@
 //        （時差があるので、明日の日付までは通す）
 //        exceptions はどの検査も読まない。書いても、検査の違反は違反のまま（紐づきの義務は免除されない / ADR-0056）
 //    K5  git.units の値は、設定ファイルがあるディレクトリの中の、別のディレクトリ（外やルート自身を指す unit は読まない）
+//    K7  monorepo のルート（git.units を持つ設定）に、unit の設定にしか効かない宣言を書いていない: commands.list_entries のコマンド。
+//        入口の一覧の検査は unit ごとに、unit の設定で実行するので、ルートに書いても実行されない
 //    K6  廃止したキー（tools/_shared/config.mjs の RETIRED_KEYS。実装のコードの注釈を読むためのキー。ADR-0070）が残っていない。
 //        黙って読み飛ばすと、もう検査されていない注釈と設定を、利用プロジェクトが保ち続けることになる
 //  conventions は、違反が無くても毎回、件数と一覧を表示する（機械が見ていない範囲を見えるままにする）。
@@ -96,6 +98,10 @@ function lint(cfg, root, allowed) {
 		//  廃止したキーは K6 が案内する（「ひな形に無い」とだけ伝えると、消してよい理由が分からない）
 		if (!allowed.includes(k) && !retired.some(([keyPath]) => keyPath === k)) err("K1", `最上位のキー「${k}」は、ひな形に無い（使えるキー: ${allowed.join(" / ")}）`);
 	}
+
+	//  monorepo のルートに書いても、実行も表示もされない宣言（黙って読み飛ばさない）。ひな形から写した none は、何も宣言していないので通す
+	if (isMap(cfg.git) && isMap(cfg.git.units) && Object.keys(cfg.git.units).length && isMap(cfg.commands) && isText(cfg.commands.list_entries))
+		err("K7", "commands.list_entries は、monorepo のルートの設定に書いても実行されない（入口の一覧の検査は unit ごとに行う）。unit の設定（<unit のディレクトリ>/harness.config.json）に書く");
 
 	if ("rules" in cfg) {
 		if (!isMap(cfg.rules)) err("K2", "rules はオブジェクトで書く（{ <名前>: { source, check } }）");

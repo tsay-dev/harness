@@ -22,7 +22,6 @@
 //      "functions": { "none": "<理由>" }                        関数の単位の検査（V6・V7）を使わないとき。省略すると使う
 //    }
 //    "commands": { "list_entries": "node scripts/list-entries.mjs" }   アプリの入口の一覧を 1 行 1 件の JSON で標準出力に出すコマンド
-//    "entries": { "outside_contract": [{ "entry": "GET /api/health", "reason": "…" }] }   契約に書かないことを認めた入口
 //  entry と coverage は { "none": "<理由>" } と書ける。省略したものは「未宣言」と表示する（確かめていないことを見えるままにする）。
 //  commands.list_entries は、コマンドか { "none": "<理由>" } を必ず書く（none は、撤回されていない契約に inbound の操作が無い間だけ通る）。
 //
@@ -44,10 +43,12 @@
 //          名前の無い関数（記録の名前が ( や < で始まるものと anonymous_<数字>。無名のコールバックなど）は対象にしない
 //      V7  記録に関数ごとの情報（FN / FNDA）がある。出さない道具を使うなら coverage.functions を { "none": "<理由>" } にする
 //    entries（harness lint entries）
-//      E1  一覧にある入口が、撤回されていない契約の inbound の操作のどれにも合わず、entries.outside_contract にも無い（契約に無い入口）
+//      E1  一覧にある入口が、撤回されていない契約の inbound の操作のどれにも合わない（契約に無い入口）。
+//          契約の外の入口を認める宣言の口は無い。生存確認や静的なファイルの配信も、契約の操作として書く
 //      E2  fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い
-//      E3  entries.outside_contract の項目の形が誤っている、一覧のどの入口にも合わない（古い宣言）、または契約にある入口を指している
-//      E4  一覧を読めない: commands.list_entries が未宣言、none にできないのに none、JSON でない行、項目の欠落や知らない項目、同じ入口の重複
+//      E4  一覧を読めない: commands.list_entries が未宣言、none にできないのに none、inbound の操作があるのに 0 行、JSON でない行、
+//          項目の欠落や知らない項目、同じ入口の重複。廃止した設定のキー entries が残っている
+//      （E3 は欠番。契約に書かない入口の宣言 entries.outside_contract の検査だったが、宣言の口ごと無くした）
 //  確かめるのは「1 回も実行されなかったファイル・関数が無いこと」まで。行ごとの割合のしきい値は持たない。
 //
 //  使い方:
@@ -194,7 +195,8 @@ function sourceFiles(cfg, root) {
 
 //  ---- 実行の記録（lcov） -------------------------------------------------------
 
-//  戻り: { files: Map<root からの相対パス, { lines: 実行する行の数, hit: 実行された行の数, fns: Map<関数の名前, 実行回数> }>, outside: root の外を指していた SF の例 }
+//  戻り: { files: Map<root からの相対パス, { lines: 実行する行の数, hit: 実行された行の数, fns: Map<関数の名前, 実行回数>,
+//         fnInfo: 関数の情報（FN / FNDA / FNF）が 1 行でもあったか }>, outside: root の外を指していた SF の例 }
 //  記録のパスは、絶対パスか、テストを実行したディレクトリ（root）からの相対パス。git の最上位からの相対パスも受ける。
 //  行ごとの記録（DA）が無いファイルは、行の数の要約（LF / LH）を使う。
 function parseLcov(text, root) {
@@ -205,14 +207,32 @@ function parseLcov(text, root) {
 	let cur = null;
 	let summary = null; //  DA が無いときに使う LF / LH
 	let sawDA = false;
+	let fnDecls = []; //  この記録の FN: の行の中身（「<行>,<名前>」か「<開始行>,<終了行>,<名前>」）
+	let fndaNames = new Set(); //  この記録の FNDA: の名前
+	//  FN: の行から名前を取る。名前はカンマを含みうる（引数の型を含む名前など）ので、最後のカンマでは切れない。
+	//  同じ記録の FNDA: の名前と一致するほうを採る。FNDA が無い関数は、行が 2 つ並ぶ形ならその後ろ、そうでなければ最初のカンマの後ろ
+	const fnName = (decl) => {
+		const short = /^\d+,(.+)$/.exec(decl)?.[1];
+		const long = /^\d+,\d+,(.+)$/.exec(decl)?.[1];
+		if (short !== undefined && fndaNames.has(short)) return short;
+		if (long !== undefined && fndaNames.has(long)) return long;
+		return long ?? short ?? null;
+	};
 	const close = () => {
 		if (cur !== null && !sawDA && summary) {
 			cur.lines += summary.lf;
 			cur.hit += summary.lh;
 		}
+		if (cur !== null)
+			for (const decl of fnDecls) {
+				const name = fnName(decl);
+				if (name && !cur.fns.has(name)) cur.fns.set(name, 0);
+			}
 		cur = null;
 		summary = null;
 		sawDA = false;
+		fnDecls = [];
+		fndaNames = new Set();
 	};
 	for (const raw of text.split(/\r?\n/)) {
 		const line = raw.trim();
@@ -227,7 +247,7 @@ function parseLcov(text, root) {
 				continue;
 			}
 			const key = posixPath(rel);
-			if (!files.has(key)) files.set(key, { lines: 0, hit: 0, fns: new Map() });
+			if (!files.has(key)) files.set(key, { lines: 0, hit: 0, fns: new Map(), fnInfo: false });
 			cur = files.get(key);
 			summary = { lf: 0, lh: 0 };
 		} else if (cur === null) continue;
@@ -240,12 +260,19 @@ function parseLcov(text, root) {
 		} else if (line.startsWith("LF:")) summary.lf = Number(line.slice(3)) || 0;
 		else if (line.startsWith("LH:")) summary.lh = Number(line.slice(3)) || 0;
 		else if (line.startsWith("FNDA:")) {
+			//  同じ名前の関数が複数あれば、呼ばれた回数を足す（記録は名前でしか区別できない）
 			const m = /^FNDA:(\d+),(.+)$/.exec(line);
-			if (m) cur.fns.set(m[2], (cur.fns.get(m[2]) ?? 0) + Number(m[1]));
+			if (!m) continue;
+			cur.fnInfo = true;
+			fndaNames.add(m[2]);
+			cur.fns.set(m[2], (cur.fns.get(m[2]) ?? 0) + Number(m[1]));
 		} else if (line.startsWith("FN:")) {
-			const name = line.slice(3).split(",").pop();
-			if (name && !cur.fns.has(name)) cur.fns.set(name, 0);
-		} else if (line === "end_of_record") close();
+			cur.fnInfo = true;
+			fnDecls.push(line.slice(3));
+		}
+		//  関数を 1 つも持たないファイルにも、関数の情報を出す道具は「FNF:0」を書く。関数の情報が無いファイルと区別する印にする
+		else if (line.startsWith("FNF:")) cur.fnInfo = true;
+		else if (line === "end_of_record") close();
 	}
 	close();
 	return { files, outside };
@@ -323,13 +350,17 @@ function checkCoverage(cfg, root, since, entry) {
 	}
 	//  関数の単位（V6・V7）。1 行も実行されなかったファイル（V3）と、ファイルごと認めたもの（not_run）の中の関数は、重ねて数えない
 	const uncalled = [];
+	const noFnInfo = []; //  行の情報はあるのに、関数の情報が 1 行も無いファイル
 	let namedFns = 0;
-	let anyFnInfo = false;
+	const anyFnInfo = sources.some((f) => report.get(f)?.fnInfo);
+	//  none にできるのは、記録に関数の情報が 1 つも無いときだけ（出せる道具を使っているのに、粗い検査に落とさない）
+	if (fnOff && anyFnInfo && isNone(cov.functions))
+		errs.push(`V7  coverage.functions を none にできない（実行の記録 ${cov.report} に、関数ごとの情報 FN / FNDA がある）。coverage.functions を消して、関数の単位まで確かめる（none の理由: ${cov.functions.none.trim()}）`);
 	if (!fnOff) {
 		for (const f of sources) {
 			const r = report.get(f);
 			if (!r) continue;
-			if (r.fns.size) anyFnInfo = true;
+			if (anyFnInfo && !r.fnInfo && r.lines > 0 && !notRun.has(f)) noFnInfo.push(f);
 			if (notRun.has(f) || (r.lines > 0 && r.hit === 0)) continue;
 			for (const [name, count] of r.fns) {
 				if (isUnnamed(name)) continue;
@@ -367,6 +398,8 @@ function checkCoverage(cfg, root, since, entry) {
 	else if (withLines === 0 && missing.length < sources.length)
 		errs.push(`V1  実行の記録に、行の情報（DA、または LF / LH）を持つソースが 1 つも無い: ${cov.report}（行ごとの記録を書き出す設定にする）`);
 	//  関数の情報を出さない記録を、関数の単位まで確かめたことにしない
+	if (noFnInfo.length)
+		errs.push(`V7  実行の記録の中で、関数ごとの情報（FN / FNDA / FNF）が 1 行も無いソースが ${noFnInfo.length} 件ある（ほかのファイルにはある。記録をまとめるときに落ちていないか、道具の設定を確かめる。関数を持たないファイルにも「FNF:0」を出す設定にする）:${list(noFnInfo)}`);
 	if (!fnOff && !anyFnInfo && withLines > 0)
 		errs.push(`V7  実行の記録に、関数ごとの情報（FN / FNDA）が 1 つも無い: ${cov.report}（関数ごとの記録を書き出す設定にする。出せない道具なら、coverage.functions を { "none": "<理由>" } にして、関数の単位では確かめないことを宣言する）`);
 	const outside = allSources.length - sources.length;
@@ -382,11 +415,11 @@ function checkCoverage(cfg, root, since, entry) {
 
 //  ---- 入口の一覧と契約の突き合わせ（entries） -----------------------------------
 
-//  http 以外の入口の種類（契約の transport と同じ語）。一覧の kind と、outside_contract の entry の先頭の語に使う
+//  http 以外の入口の種類（契約の transport と同じ語）。一覧の kind に使う
 const NAMED_KINDS = ["deeplink", "push", "stream", "sdk", "local-store", "device", "internal"];
 const ENTRY_KINDS = ["http", ...NAMED_KINDS];
 
-//  パスのパラメーターの書き方の違いをならす: ?・# 以降と末尾の / を除き、${…} :x（:x{正規表現} と :x? を含む）[x] {x} * を同じものとみなす
+//  パスのパラメーターの書き方の違いをならす: ?・# 以降と末尾の / を除き、${…} :x（:x{正規表現} と :x? を含む）[x] {x} を同じものとみなす
 const PARAM_RE = /\$\{[^}]*\}|:[A-Za-z_]\w*(?:\{[^}]*\})?\??|\[[^\]]*\]|\{[^}]*\}/g;
 const normPath = (path) =>
 	"/" +
@@ -395,21 +428,13 @@ const normPath = (path) =>
 		.replace(PARAM_RE, "{}")
 		.split("/")
 		.filter(Boolean)
-		.map((seg) => (seg === "*" || seg === "**" ? "{}" : seg))
+		//  * と ** は「何でも受ける登録」で、パラメーター 1 つとは別のもの。契約の {id} には合わせない（契約の側も * と書いていれば合う）
+		.map((seg) => (seg === "**" ? "*" : seg))
 		.join("/");
 
 //  入口の同一性（突き合わせに使う鍵）と、表示の書き方。http は「METHOD パス」、それ以外は「種類 名前」
 const httpEntry = (method, path) => ({ key: `http ${method.toUpperCase()} ${normPath(path)}`, label: `${method.toUpperCase()} ${path}` });
 const namedEntry = (kind, name) => ({ key: `${kind} ${kind === "deeplink" ? name.replace(PARAM_RE, "{}") : name}`, label: `${kind} ${name}` });
-
-//  「GET /api/health」「deeplink myapp://item/{id}」の形の文字列を入口として読む。読めなければ null
-function parseEntryText(text) {
-	const m = /^(\S+)\s+(\S.*)$/.exec(text.trim());
-	if (!m) return null;
-	if (NAMED_KINDS.includes(m[1])) return namedEntry(m[1], m[2].trim());
-	if (/^[A-Za-z]+$/.test(m[1]) && m[2].startsWith("/")) return httpEntry(m[1], m[2].trim());
-	return null;
-}
 
 //  撤回されていない UC の契約の inbound の操作: [{ id: "UC-nnn#操作名", key, label, fixedOwned }]
 //  契約の読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。構文の誤りは spec-lint が報告し、ここは読めた分だけ使う
@@ -484,31 +509,6 @@ function parseEntryList(text) {
 	return { entries, errs };
 }
 
-//  entries.outside_contract を読む。戻り: { items: [{ key, label, reason }], errs }
-function readOutside(cfg) {
-	const errs = [];
-	const items = [];
-	if (cfg.entries === undefined) return { items, errs };
-	if (!isMap(cfg.entries)) return { items, errs: ['E3  entries は { "outside_contract": [{ "entry", "reason" }] } で書く'] };
-	for (const k of Object.keys(cfg.entries)) if (k !== "outside_contract" && !k.startsWith("_")) errs.push(`E3  entries に知らないキー「${k}」がある（outside_contract だけ）`);
-	const list = cfg.entries.outside_contract;
-	if (list === undefined) return { items, errs };
-	if (!Array.isArray(list)) return { items, errs: [...errs, 'E3  entries.outside_contract は配列で書く（[{ "entry", "reason" }]）'] };
-	const seen = new Set();
-	list.forEach((x, i) => {
-		const at = `entries.outside_contract[${i}]`;
-		if (!isMap(x)) return errs.push(`E3  ${at} は { "entry", "reason" } で書く`);
-		for (const k of Object.keys(x)) if (k !== "entry" && k !== "reason") errs.push(`E3  ${at} に知らないキー「${k}」がある（entry と reason だけ）`);
-		if (!isText(x.reason) || /[\r\n\u0000-\u001f]/.test(x.reason)) errs.push(`E3  ${at}.reason は 1 行の文で書く（なぜ契約に書かない入口なのか）`);
-		const e = isText(x.entry) ? parseEntryText(x.entry) : null;
-		if (!e) return errs.push(`E3  ${at}.entry は「GET /api/health」（method とパス）か「deeplink myapp://open」（種類と名前）の形で書く`);
-		if (seen.has(e.key)) return errs.push(`E3  ${at}.entry が重複している: ${e.label}`);
-		seen.add(e.key);
-		items.push({ ...e, reason: isText(x.reason) ? x.reason.trim() : "" });
-	});
-	return { items, errs };
-}
-
 function checkEntries(cfg, root, opts) {
 	const NOT_CHECKED = "契約に無い入口が無いかを確かめていない";
 	const ops = inboundOperations(cfg, root);
@@ -516,8 +516,10 @@ function checkEntries(cfg, root, opts) {
 		console.log(`  err  E4  設定の docs.goals_dir が無いので、契約を読めない（monorepo では unit のディレクトリを --root に指定する）`);
 		return 1;
 	}
-	const outside = readOutside(cfg);
-	const errs = [...outside.errs];
+	const errs = [];
+	//  契約の外の入口を認める宣言は無くした。残っていれば、黙って読み飛ばさない
+	if (cfg.entries !== undefined)
+		errs.push("E4  設定の entries は廃止した（契約の外の入口は置けない）。キーを削除し、そこに書いていた入口は、契約の inbound の操作として書く");
 	const decl = isMap(cfg.commands) ? cfg.commands.list_entries : undefined;
 	let listed = null;
 	if (decl === undefined) errs.push('E4  commands.list_entries が宣言されていない（アプリの入口の一覧を 1 行 1 件の JSON で標準出力に出すコマンドを書く。入口が無いなら { "none": "<理由>" }）');
@@ -526,7 +528,6 @@ function checkEntries(cfg, root, opts) {
 		else if (ops.length)
 			errs.push(`E4  commands.list_entries は none にできない（撤回されていない契約に inbound の操作が ${ops.length} 件ある。例: ${ops[0].id}）。入口の一覧を出すコマンドを書く（none の理由: ${decl.none.trim()}）`);
 		else console.log(`  commands.list_entries = none（${decl.none.trim()}）: ${NOT_CHECKED}`);
-		for (const o of outside.items) errs.push(`E3  entries.outside_contract の「${o.label}」は、一覧のどの入口にも合わない（commands.list_entries が none。宣言を消す）`);
 	} else if (!isText(decl)) errs.push('E4  commands.list_entries は、文字列のコマンドか { "none": "<理由>" } で書く');
 	else {
 		let text;
@@ -544,23 +545,20 @@ function checkEntries(cfg, root, opts) {
 		const parsed = parseEntryList(text);
 		errs.push(...parsed.errs);
 		listed = parsed.entries;
+		//  inbound の操作があるのに一覧が空なら、一覧を出すコマンドが入口を出せていない（none を認めない条件とそろえる）
+		if (!text.trim() && ops.length)
+			errs.push(`E4  入口の一覧が 0 行（撤回されていない契約に inbound の操作が ${ops.length} 件ある。例: ${ops[0].id}）。commands.list_entries のコマンドが、入口を標準出力に出しているかを確かめる`);
 	}
 
 	if (listed !== null) {
 		const opKeys = new Map(); //  鍵 -> 操作の ID（表示用）
 		for (const o of ops) if (!opKeys.has(o.key)) opKeys.set(o.key, o.id);
-		const outKeys = new Set(outside.items.map((o) => o.key));
 		const listedKeys = new Set(listed.map((e) => e.key));
 		for (const e of listed)
-			if (!opKeys.has(e.key) && !outKeys.has(e.key))
-				errs.push(`E1  契約に無い入口: ${e.label}（契約に inbound の操作として書くか、使っていなければ入口を消す。契約に書かない入口なら、理由を entries.outside_contract に書く）`);
+			if (!opKeys.has(e.key))
+				errs.push(`E1  契約に無い入口: ${e.label}（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く）`);
 		for (const o of ops)
 			if (o.fixedOwned && !listedKeys.has(o.key)) errs.push(`E2  ${o.id}（fixed、owned かつ inbound）に合う入口が、一覧に無い: ${o.label}（入口を実装するか、一覧を出すコマンドが載せているかを確かめる）`);
-		for (const o of outside.items) {
-			if (opKeys.has(o.key)) errs.push(`E3  entries.outside_contract の「${o.label}」は、契約の操作 ${opKeys.get(o.key)} の入口（契約にあるので、宣言を消す）`);
-			else if (!listedKeys.has(o.key)) errs.push(`E3  entries.outside_contract の「${o.label}」は、一覧のどの入口にも合わない（入口が無くなったなら、宣言を消す）`);
-			else console.log(`  契約に書かないことを認めた入口: ${o.label}（${o.reason}）`);
-		}
 	}
 	for (const e of errs) console.log(`  err  ${e}`);
 	if (errs.length) {
@@ -568,7 +566,7 @@ function checkEntries(cfg, root, opts) {
 		return 1;
 	}
 	if (listed !== null)
-		console.log(`${TAG} OK: 入口 ${listed.length} 件（契約の操作に合うもの ${listed.length - outside.items.length} 件、契約に書かないことを認めたもの ${outside.items.length} 件）、契約の inbound の操作 ${ops.length} 件`);
+		console.log(`${TAG} OK: 入口 ${listed.length} 件（すべて契約の inbound の操作に合う）、契約の inbound の操作 ${ops.length} 件`);
 	return 0;
 }
 

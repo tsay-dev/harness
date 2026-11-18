@@ -73,7 +73,7 @@ none が通るのは、それを求める active な文書・fixed な契約が�
 | `contract` | 必須 / 可 | 子: `error_source`（エラーコードの正本のファイル）、`error_code_pattern`（捕捉 1 = コード） | C7 |
 | `layering` | 任意 | 層の向き。紐づきではないので省略できる | C6 |
 
-`commands`・`policy`・`git`・`entry`・`coverage`・`entries` は trace-check の判定には使わない（`commands` は完了の判定と contract-run、`entry`・`coverage`・`entries` は exec-check が読む）。
+`commands`・`policy`・`git`・`entry`・`coverage` の中身は trace-check の判定には使わない（`commands` は完了の判定と contract-run、`entry`・`coverage` は exec-check が読む）。`coverage` だけは、宣言されているかどうかを義務表（C26）が見る。
 `git.units` がある monorepo のルートで宣言が足りなければ、「unit ごとに `--root <unit>` で実行する」と案内して exit 2 にする。
 
 - **範囲**（`source.dirs`、`tests.dirs`、`tests.system.dirs`、`schema.files` / `dirs`）は、
@@ -91,6 +91,7 @@ active な文書・fixed な契約は「義務」を生む。義務がある範�
 | 義務を生むもの | none にできないキー |
 | --- | --- |
 | active な REQ | `source`、`tests`、`tests.pending_pattern` |
+| active な REQ があり、`source` を宣言している | `coverage`（none も省略も違反。実装と仕様の対応を確かめる検査が、実行の記録のほかに無い） |
 | 人間がアクターの active な UC | `tests`、`tests.system`、`tests.system.pending_pattern` |
 | active な UC | `docs.glossary` |
 | fixed 契約に owned かつ inbound の操作 | `source`（入口の一覧 `commands.list_entries` を none にできないことは、exec-check の E4 が見る） |
@@ -144,11 +145,12 @@ active な文書・fixed な契約は「義務」を生む。義務がある範�
 
 テストは、規則（BR）を直接指せる。クラスは付けない（`// @covers BR-007`）。
 
-- **DB で守る規則**（`enforced_at` に `database` / `db` を含む active な BR）は、制約が効くことを確かめるテストを必ず持つ（C13）。
+- **DB で守る規則**（`enforced_at` に `database`・`db`（語として。大文字小文字は問わない）か、「データベース」「ＤＢ」を含む active な BR）は、制約が効くことを確かめるテストを必ず持つ（C13）。
   テストは、アプリの入口を通さずに、規則に反する行を DB に直接入れて、断られることを確かめる。入口を通すと、手前の検証が断ったのか
   DB の制約が断ったのかを区別できない。`br:` に持つ REQ があっても、このテストの代わりにはならない。
 - それ以外の active な BR は、`br:` に持つ active な REQ があるか、保留でないテストが `@covers BR-nnn` していれば通る（C22）。
 - `@covers BR-nnn` が、定義されていない規則や撤回済みの規則を指せば C3 の違反。
+- **テストが実行されること**は、C13 では確かめていない（見るのは `@covers BR-nnn` の注釈があることまで）。規則のテストは `tests.dirs` の中に置き、`tests.dirs` のテストは `commands.test` か `commands.extra` のどれかが実行する、という決まりにする。実 DB が要るので、スタックの規約が定める結合スイートに置くことが多い。そのスイートのコマンドを `commands.extra` に書かなければ、完了の判定は実行しない。
 - 「どの規則にも対応しない DB の制約」は検出しない（スキーマの制約は読まない）。
 
 ## 検査の一覧（C1〜C26）

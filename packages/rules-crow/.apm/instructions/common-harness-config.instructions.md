@@ -29,7 +29,7 @@ crow（crow3）アプリケーションで、harness のひな形 `harness.confi
 }
 ```
 
-- `module_*` の `action_*`（[backend-coding](backend-coding.instructions.md) §1）は、そのまま HTTP から呼ばれる入口になる。`commands.list_entries` は、`app/` の `module_*` の `public function action_*` を走査し、crow がその action に割り当てる URL と method を `{"kind":"http","method":…,"path":…}` で 1 行ずつ出すスクリプトにする（URL の決まり方は利用先の crow の版に従う）。画面遷移用の action も入口なので出す。契約に書かない画面遷移用の action は、`entries.outside_contract` に理由と一緒に書く。
+- `module_*` の `action_*`（[backend-coding](backend-coding.instructions.md) §1）は、そのまま HTTP から呼ばれる入口になる。`commands.list_entries` は、`app/` の `module_*` の `public function action_*` を走査し、crow がその action に割り当てる URL と method を `{"kind":"http","method":…,"path":…}` で 1 行ずつ出すスクリプトにする（URL の決まり方は利用先の crow の版に従う）。画面遷移用の action も入口なので出す。画面遷移用の action も、契約の inbound の操作として書く（契約の外の入口を認める宣言は無い）。
 - 注釈はテストにだけ書く。`@covers` はテストの印の直上の行コメント（`before`。[共通テスト規約](common-testing.instructions.md)）。ひな形の `comment_pattern` が PHP の `//`、`/*`、`*` を読み、`#[...]` の属性行は窓をつなぐ。
 - テストの印は PHPUnit の `public function test…(`。`markTestSkipped` / `markTestIncomplete` はテストの窓の外の本体に書くので、そのファイルの全テストが保留とみなされる。
 - `schema.extensions` を `.txt` にしないと `db_design.txt` は走査されない。`db_design.txt` のコメントが `#` で始まるなら `schema.comment_pattern` に `^\\s*#` を書く。DB で守る規則（一意制約・参照制約。[db](backend-db.instructions.md)）は、規則に反する行を DB に直接入れて断られるテスト（`@covers BR-nnn`）で確かめる。

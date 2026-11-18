@@ -42,5 +42,6 @@ harness は runner を固定しない。選択と設定、既定スイート全�
 | システム | ブラウザーを起動する。シナリオテスト（UC ごと 1 本）だけを持つ | `e2e/` | UC で選択実行、全件は `commands.system` と CI。[system-testing](system-testing.instructions.md) |
 
 - フォルダーで分け、結合・システムの配置を既定スイートの探索から除外する（runner 設定で ignore）。DB もブラウザーも利用できないマシンで既定スイートが Green になること。場所を変えるプロジェクトは `CLAUDE.md` に宣言する。
+- DB で守る規則のテスト（`@covers BR-nnn`。規則に反する行を実 DB に直接入れて断られる）は結合スイートに置き、結合スイートのコマンドを `harness.config.json` の `commands.extra` に宣言して、完了の判定が実行するようにする。
 - バックエンドの契約適合テスト（[backend-testing](backend-testing.instructions.md)）は外部環境を起動しないので既定スイートに属し、結合へ移さない。Red-Green ループは BE テストが担う。
 - Green は前提条件であり完了の定義ではない。coverage は手掛かりであり目標ではない。

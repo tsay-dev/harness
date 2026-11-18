@@ -4,7 +4,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -135,4 +135,18 @@ test("verify: 止められたら、実行中のコマンドが起動したプロ
 	await new Promise((res) => setTimeout(res, 600));
 	assert.equal(size(), before, "止められた後も、コマンドが起動したプロセスが動き続けている");
 	assert.ok(!existsSync(join(root, "system.txt")), "止められた後に、残りの検査が実行された");
+});
+
+test("verify: 入口の一覧のコマンドの途中で止められても、一覧の一時フォルダを残さない", { skip: process.platform === "win32" }, async () => {
+	const tools = makeTools();
+	const tmp = temp("harness verify tmp ");
+	const root = makeRoot({ commands: cmds({ list_entries: `node -e "require('fs').writeFileSync('started.txt', 'x'); setInterval(() => {}, 1000)"` }) });
+	const child = spawn(process.execPath, [VERIFY], { cwd: root, stdio: "ignore", env: { ...process.env, STOP_GATE_TOOLS_DIR: tools, TMPDIR: tmp } });
+	const ended = new Promise((res) => child.on("exit", (status, signal) => res({ status, signal })));
+	for (let i = 0; i < 100 && !existsSync(join(root, "started.txt")); i++) await new Promise((res) => setTimeout(res, 50));
+	assert.ok(existsSync(join(root, "started.txt")), "コマンドが起動していない");
+	assert.equal(readdirSync(tmp).filter((n) => n.startsWith("harness-entries-")).length, 1);
+	child.kill("SIGTERM");
+	assert.deepEqual(await ended, { status: null, signal: "SIGTERM" });
+	assert.deepEqual(readdirSync(tmp).filter((n) => n.startsWith("harness-entries-")), []);
 });

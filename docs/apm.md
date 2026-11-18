@@ -133,14 +133,14 @@ REQ は、`UC.md` の「要件」の節に小節として書く形に変わっ�
 
 1. **廃止したキーを設定から消す。** `implements_pattern`、`operation_pattern`、`source` の `unit_dirs`・`support_dirs`・`unit_pattern`・`implements_placement`・`entry_pattern`・`entry_exclude`・`entry_file_pattern`、`schema` の `constraint_pattern`・`implements_placement`。残っていると、`harness lint config`（K6）と `harness lint refs` が、キーごとに代わりにすることを添えて失敗する。`source` に残すのは `dirs`・`extensions`（と、使っていれば `comment_pattern`）、`schema` に残すのは `files` か `dirs`（と `extensions`・`comment_pattern`）。
 2. **`commands.list_entries` を宣言する。** アプリの入口の一覧を、標準出力へ 1 行 1 件の JSON で出すコマンドを用意して書く（形は `tools/exec-check/README.md` の「入口の一覧の検査」）。本番と同じ組み立てで作ったアプリから、登録済みの経路を取り出して出す。撤回されていない契約に inbound の操作が 1 つも無いプロジェクトは、`{ "none": "<理由>" }` と書く。未宣言は失敗する。
-3. **契約に書かない入口を宣言する。** 生存確認などは、`entries.outside_contract` に `{ "entry": "GET /api/health", "reason": "<理由>" }` と書く。`harness verify --level fast` で「契約に無い入口」（E1）として出たものは、契約に書くか、入口を消すか、ここに理由と一緒に書く。これまで `source.entry_exclude` で外していたファイルの入口も、ここに出る。
-4. **DB で守る規則にテストを書く。** `enforced_at` が database の active な BR ごとに、アプリの入口を通さず、規則に反する行を DB に直接入れて断られることを確かめるテストを `tests.dirs` に書き、`@covers BR-nnn` を付ける。無いと `harness lint refs` の C13 が失敗する。スキーマの制約に付けていた `@implements BR-nnn` の代わりになる。
+3. **契約に無い入口を、契約に書く。** `harness verify --level fast` で「契約に無い入口」（E1）として出たものは、契約の inbound の操作として書くか、入口を消す。契約の外に入口を置く宣言の手段は無い。これまで `source.entry_exclude` で外していたファイルの入口（生存確認、準備の確認、静的なファイルや画面の配信など）も、ここに出る。これらは、運用のための入口をまとめる UC を 1 つ立てて、その契約に書く（アクターの種別は「システム」。何でも受ける経路は `wire.path` に `/assets/*` のように書く。画像や HTML を返す操作の実例は、アダプターが返す JSON の形で書く。書き方は `tools/exec-check/README.md` の「機能の仕様ではない入口」）。その UC にも REQ とテストが要り、fixed にした契約の操作は実例で実行される。
+4. **DB で守る規則にテストを書く。** `enforced_at` が DB を指す（database・DB・データベース）active な BR ごとに、アプリの入口を通さず、規則に反する行を DB に直接入れて断られることを確かめるテストを `tests.dirs` に書き、`@covers BR-nnn` を付ける。実 DB が要るので、スタックの規約が定める結合スイートに置き、そのスイートのコマンドを `commands.extra` に書いて、完了の判定が実行するようにする（既定のテストで DB を動かせるスタックなら `commands.test` のままでよい）。無いと `harness lint refs` の C13 が失敗する。スキーマの制約に付けていた `@implements BR-nnn` の代わりになる。
 5. **コードの `@implements`・`@operation` を外す。** もう読まないので、残っていても検査は落ちないが、検査されない印は古くなる。実装とスキーマのコメントから消す。撤回済みの ID を指したままの印も、これで無くなる。
-6. **呼ばれていない関数を片付ける。** 実行の記録の検査が、ファイルの単位から関数の単位に細かくなった。`coverage` を宣言しているプロジェクトでは、版を上げると、どのテストからも 1 回も呼ばれなかった名前のある関数が違反（V6）として出る。1 件ずつ、使っていなければ消す、テストを足す、理由を書いて認める（`coverage.not_run` に `{ "path": "<ファイル>#<関数の名前>", "reason": "<理由>" }`）のどれかにする。記録に関数ごとの情報（lcov の `FN:` / `FNDA:`）が無いと V7 で失敗するので、テストのコマンドが出す設定にする。出せない道具なら、`coverage` に `"functions": { "none": "<理由>" }` を足す（その間は、ファイルの単位までしか確かめない）。
+6. **実行の記録を宣言し、呼ばれていない関数を片付ける。** active な REQ があり `source` を宣言しているプロジェクトは、`coverage` を none にも省略にもできなくなった（`harness lint refs` の C26）。テストのコマンドが lcov の記録を書き出すようにして、`"coverage": { "report": "<記録のファイル>", "not_run": [] }` を宣言する。既定のテストで実行しない範囲（画面のコードなど）は `coverage.scope` で外す。実行の記録の検査は、ファイルの単位から関数の単位に細かくなった。版を上げると、どのテストからも 1 回も呼ばれなかった名前のある関数が違反（V6）として出る。1 件ずつ、使っていなければ消す、テストを足す、理由を書いて認める（`coverage.not_run` に `{ "path": "<ファイル>#<関数の名前>", "reason": "<理由>" }`）のどれかにする。記録に関数ごとの情報（lcov の `FN:` / `FNDA:`）が無いと V7 で失敗するので、テストのコマンドが出す設定にする。出せない道具（記録に関数ごとの情報が 1 つも無い）のときだけ、`coverage` に `"functions": { "none": "<理由>" }` を足せる（その間は、ファイルの単位までしか確かめない）。
 7. **手順の中の検査の番号を直す。** trace-check の C5・C14・C19・C21・C23・C27 は欠番になった。CI や手順書で `--only` にこれらを渡していると、使い方エラー（exit 2）になる。
 8. `node .harness/bin/harness.mjs verify --level fast` を実行し、検査が通ることを確かめる。
 
-設定（`harness.config.json`）の変更は、これまでどおり人間が承認する。`templates/develop/harness.config.json` に、新しい形（`br_pattern`、`commands.list_entries`、`entries.outside_contract`）がある。
+設定（`harness.config.json`）の変更は、これまでどおり人間が承認する。`templates/develop/harness.config.json` に、新しい形（`br_pattern`、`commands.list_entries`）がある。monorepo では、`commands.list_entries` を unit の設定に書く（ルートの設定に書くと `harness lint config` の K7 で失敗する）。
 
 ## 検証手順
 

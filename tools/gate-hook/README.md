@@ -84,7 +84,7 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 | 1 | `config-lint --config <設定ファイル>`（設定の形。ルートで 1 回。unit の設定も config-lint が読む） | lint 以上 | 収集 |
 | 2 | `spec-lint validate --docs <docs>` | lint 以上 | 収集 |
 | 3 | `trace-check --root <root> --config <設定ファイル>`、続けて `exec-check entry`（テストの入口が、本番と同じ組み立てを呼んでいるか）。`commands.list_entries` がコマンドでない（未宣言・none）ときは、`exec-check entries` もここで実行する（none にできるかは、契約を読めば分かる） | lint 以上 | 収集 |
-| 4 | `commands.list_entries`（アプリの入口の一覧を出す。unit のディレクトリで実行し、標準出力だけを一時ファイルに書く） → `exec-check entries --from <一時ファイル>`（契約に無い入口と、入口の無い操作）。コマンドが失敗したら、失敗の名前は `list_entries` で、突き合わせは実行しない。続けて `contract-run --root <root> --config <設定ファイル> --docs <docs>`。実行する実例があるのにアダプターが無い場合と skip した例は、contract-run 自身が失敗にする | fast 以上 | 収集 |
+| 4 | `commands.list_entries`（アプリの入口の一覧を出す。unit のディレクトリで実行し、標準出力だけを一時ファイルに書く） → `exec-check entries --from <一時ファイル>`（契約に無い入口と、入口の無い操作）。コマンドが失敗したら、失敗の名前は `list_entries` で、突き合わせは実行しない。`a | b` の形のコマンドは、シェルが対応していれば pipefail を付けて実行する（左側の失敗も失敗にする）。止められたときも一時ファイルを残さない。monorepo では unit の設定のコマンドを unit のディレクトリで実行する。続けて `contract-run --root <root> --config <設定ファイル> --docs <docs>`。実行する実例があるのにアダプターが無い場合と skip した例は、contract-run 自身が失敗にする | fast 以上 | 収集 |
 | 5 | `commands.typecheck` → `commands.lint` → `commands.test` → `exec-check coverage`（`test` が書いた実行の記録を読む。`test` が通ったときだけ） → `commands.extra` の各コマンド（書いた順） | fast 以上 | 最初の失敗で停止 |
 | 6 | `commands.system`（シナリオテスト全件。ブラウザ / シミュレーター / 実機） | full | 5 が通ったときだけ実行 |
 
