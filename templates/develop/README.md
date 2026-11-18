@@ -9,11 +9,8 @@ lint spec はこのディレクトリのテンプレートから必須 frontmatt
 
 | テンプレート | 生成先（利用プロジェクト） | 作成者 |
 | --- | --- | --- |
-| `00-vision.md` | `docs/00-vision.md` | spec-author（🙋 人間ゲート → `frozen`） |
+| `00-overview.md` | `docs/00-overview.md`（1 枚の概要。課題・KPI・アクター・GOAL の表・全体の方針・やらないこと。ADR-0076） | spec-author（🙋 人間ゲート → `living`。GOAL の行は 🙋 → `active`、方針の書き換えは guard が確認を求める）。GOAL のフォルダは `docs/goals/GOAL-nn-<slug>/`（`planned` でない行だけ） |
 | `01-glossary.md` | `docs/01-glossary.md` | spec-author（🙋 → `living`） |
-| `02-actors.md` | `docs/02-actors.md` | spec-author（🙋 → `living`） |
-| `goals-backlog.md` | `docs/goals-backlog.md` | spec-author |
-| `GOAL.md` | `docs/goals/GOAL-nn-<slug>/GOAL.md` | spec-author（🙋 → `active`） |
 | `UC.md` | `docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/UC.md` | spec-author（🙋 → `active`）。`phase:` 行は orchestrator |
 | `UC.md` の「要件」の節 | `…/UC-nnn-<slug>/UC.md` の `## 要件`（`### REQ-nnn` の小節。ADR-0067） | spec-author（🙋 → `active`）。`#### 検証方針` は test-author |
 | `BR.md` | `docs/rules/BR-nnn.md` | spec-author（🙋 → `active`） |

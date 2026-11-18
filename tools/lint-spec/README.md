@@ -3,9 +3,9 @@
 docs の SSOT（単一文書、GOAL / UC / REQ、
 BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械的に検証する（`harness lint spec`。依存なしの Node）。
 
-- **検証する配置**: `docs/00-vision.md` `01-glossary.md` `02-actors.md`（任意で
-  `goals-backlog.md`、`design.md`、`verification/GLOBAL.md`、`verification/DEFERRED.md` —
-  凍結済みの、過去の保留の一覧。行のみ。ADR-0068）、`docs/goals/GOAL-nn-<slug>/GOAL.md`、
+- **検証する配置**: `docs/00-overview.md`（1 枚の概要。ADR-0076） `01-glossary.md`（任意で
+  `design.md`、`verification/GLOBAL.md`、`verification/DEFERRED.md` —
+  凍結済みの、過去の保留の一覧。行のみ。ADR-0068）、`docs/goals/GOAL-nn-<slug>/`（概要の `planned` でない行の GOAL だけ）、
   `…/UC-nnn-<slug>/`（`UC.md`（REQ は「要件」の節の `### REQ-nnn`。ADR-0067）、`contract.yaml`）、`docs/rules/BR-nnn.md`、`docs/nfr/NFR-nnn.md`、
   `docs/adr/ADR-nnnn-<slug>.md`、`docs/_shared/components.yaml`。
 - **検証する書式**: SSOT は `../../templates/develop/` のテンプレート。必須 frontmatter キー
@@ -59,9 +59,13 @@ baseline は無い（ADR-0056）。違反は 1 件でも失敗にする。廃止
 - UC ディレクトリにある `REQ-nnn.md`（REQ は `UC.md` の「要件」の節に書く。`harness migrate reqs --write` で移す）。
 - UC ディレクトリにある `UC.md` 以外の md（lint refs の対象に入らず紐づきの検査をすり抜ける。資料は `docs/attic` へ）。
 - `contract.yaml` の無い `active` UC（ファイルを省略せず、境界ゼロは `operations: {}` + `x-no-boundary` で宣言する）。
-- `02-actors.md` の表で、`種別` が `人間` か `システム` で始まらないアクター（lint refs の C15 は `システム` で始まるものだけを人間でないと数える）。
+- 概要の表（読み方は `tools/_shared/overview.mjs`）: 列の見出しがひな形と違う、ID の形の誤り、同じ ID の行、列の数の食い違い（`|` のエスケープ漏れ）、`種別` が `人間` か `システム` で始まらないアクター（lint refs の C15 は `システム` で始まるものだけを人間でないと数える）、GOAL の行の status が `planned | draft | active | withdrawn` の外、`withdrawn` でない行の目指す状態が空（`withdrawn` で備考が空なら warn）。
+- GOAL のフォルダ: 概要に行が無い、行が `planned`、同じ GOAL のフォルダが 2 つ、概要が無い。
+- 概要へ移した古い文書（`00-vision.md`・`02-actors.md`・`goals-backlog.md`・`GOAL.md`。名前を変えたものも frontmatter の id `VISION`・`ACTORS`・`GOALS_BACKLOG`・`GOAL-nn` で見つける）。`harness migrate overview` を案内する。
+- 例外系の走査: 並行性・外部依存の行は、概要の全体の方針の 3 つの小節が埋まり、概要が `living` のときだけ省ける。導出の欄の「方針の例外（<見出し>）: …。理由: …」は、見出しが方針の小節のどれか、理由が空でない、行に REQ-nnn があることを検査する。
+- 設定の `docs.overview` が `<docs>/00-overview.md` でも none でもない（使い方の誤り、exit 2）。
 - ディレクトリ名の違反（`GOAL-nn-<slug>`、`UC-nnn-<slug>`、`ADR-nnnn-<slug>.md`）、ディレクトリや
-  ファイル名に合わない `id`、重複 GOAL / UC id、`GOAL.md` / `UC.md` 欠落、ゴール直下の UC / REQ。
+  ファイル名に合わない `id`、重複 UC id、`UC.md` 欠落、ゴール直下の UC / REQ。
 - EARS 引用ブロックがゼロまたは複数の REQ（一要件一文 — R-401）、五つの EARS パターン外の `pattern`、
   ディレクトリに合わない `uc:`。
 - 確定 UC の状態 × イベント表の空セル（R-501）、または例外系走査の四軸の欠落（R-502）。

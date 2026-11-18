@@ -32,7 +32,7 @@ export function goalsRootOf({ docsDir = null, hostRoot = null, cfg = null } = {}
 
 //  仕様の木の 1 階層（根の直下 = ゴール、ゴールの直下 = UC）のフォルダを分ける。2 つの階層で同じ決まりを使う。
 //  戻り: { dirs: [絶対パス], stray: [絶対パス] }
-//    dirs   ゴール・UC のフォルダとして読むもの（名前が GOAL-nn-<slug>・UC-nnn-<slug> か、GOAL.md・UC.md があるかは、各コマンドが検査する）
+//    dirs   ゴール・UC のフォルダとして読むもの（名前が GOAL-nn-<slug>・UC-nnn-<slug> か、概要に GOAL の行があるか、UC.md があるかは、各コマンドが検査する）
 //    stray  _shared 以外の、_ で始まるフォルダ。どのコマンドもゴール・UC として読まない。lint refs が配置の違反として報告する
 //  . で始まるフォルダと _shared は、どのコマンドもゴール・UC として読まない（報告もしない）。
 //  ただし lint refs は、根の下の md を別に走査し、木に数えなかった場所の md が id を持てば、配置の違反（C9）にする
