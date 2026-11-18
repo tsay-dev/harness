@@ -26,6 +26,8 @@
 //        UC.md の active と契約の fixed への昇格（新規作成を含む）→ ask（status-up-gate）。実装着手ゲートを agent が自力で開けない
 //        アクター表で人間のアクターを削除する・種別をシステムに変える、active な UC の actor を変える → ask（actor-kind）。判定中の例外 → ask（status-down）
 //        保留の一覧（docs/verification/DEFERRED.md）を新しく作る・frozen_at を変える・行を足す → ask（deferred）。一覧は凍結済み（ADR-0068）
+//        active の UC.md・BR・NFR、living の概要、fixed の契約の本文（status / x-status 以外の行）を変える → ask（approved-edit。ADR-0078）。
+//          UC.md の phase だけの変更と、active の UC.md で draft の REQ の小節を足す・直すだけの変更は除く。判定に迷う形は ask
 //        それ以外の昇格と新規作成 → 許可し pass / status-up と記録
 //      status が変わらない書き込みは記録せずに許可。SSOT を書く行為はゲートの前提なので止めない。
 //    - .claude 等のプロバイダー出力・--code 非マッチ・--exclude マッチ → 許可（exit 0）。
@@ -43,7 +45,7 @@
 //    reason 語彙: misconfig | no-goals | no-active-phase | uc-not-active | req-draft |
 //                 contract-missing | contract-not-fixed | internal-error | ok（実装ゲート）、
 //                 harness-gate（block）、config | harness | hook-settings | workflow |
-//                 status-down | status-up-gate | actor-kind | deferred（ask）、status-up（pass）
+//                 status-down | status-up-gate | actor-kind | overview-policy | deferred | approved-edit（ask）、status-up（pass）
 //
 //  設定はフックコマンドの引数で渡す（設定ファイルを増やさない。submodule 配置でも
 //  取り込み先の settings.local.json に閉じる）:
@@ -227,6 +229,66 @@ function deferredUnfreeze(abs, input) {
 	const had = ids(before);
 	const added = ids(after).filter((id) => !had.includes(id));
 	if (added.length || ids(after).length > had.length) return `行を足す（${added.join(", ") || "ID の重複"}）`;
+	return null;
+}
+
+//  承認済みの文書の本文を変える書き込み（ADR-0078）。承認時の指紋で無効にはせず、ここで人に回す。
+//  対象: active の UC.md・BR・NFR、living の概要、fixed の契約。「本文」は frontmatter の status（契約は x-status）以外の行。
+//  ask にしないもの: UC.md の phase だけの変更（orchestrator が進める）、active の UC.md で draft の REQ の小節を足す・直すだけの変更。
+//  status を下げる書き込みは、この判定より前の status-down が扱う。
+//  読み方に迷う形（書き込み後の内容が分からない、「要件」の節の書き方の誤り、draft の小節を消す）は fail-closed で人に回す。
+//  戻り: 人に回す理由の文 | null
+const BR_NFR_FILE_RE = /^(br|nfr)-\d+/;
+const APPROVED_ID_RE = /^(UC|BR|NFR)-\d+$/;
+
+//  先頭の frontmatter から、keys の行を除く（本文を比べるため）
+function withoutFmKeys(text, keys) {
+	const m = /^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/.exec(text);
+	if (!m) return text;
+	const kept = m[2].split(/\r?\n/).filter((l) => !keys.some((k) => new RegExp(`^${k}\\s*:`).test(l)));
+	return m[1] + kept.join("\n") + m[3] + text.slice(m[0].length);
+}
+
+function approvedEdit(abs, rel, input, overviewLower) {
+	if (!existsSync(abs) || !statSync(abs).isFile()) return null; //  新規作成は status の判定（status-up-gate など）が扱う
+	const before = readFileSync(abs, "utf8");
+	const name = basename(rel).toLowerCase();
+	const isUc = name === "uc.md";
+	let what;
+	if (/\.ya?ml$/i.test(rel)) {
+		if (xStatus(before) !== "fixed") return null;
+		what = "fixed の契約";
+	} else if (rel.toLowerCase() === overviewLower) {
+		if (fm(before).status !== "living") return null;
+		what = "living の概要";
+	} else if (/\.md$/i.test(rel) && (isUc || BR_NFR_FILE_RE.test(name) || APPROVED_ID_RE.test(String(fm(before).id ?? "")))) {
+		if (fm(before).status !== "active") return null;
+		what = isUc ? "active の UC" : `active の ${fm(before).id || basename(rel)}`;
+	} else return null;
+
+	//  英数字で終わる名前（UC、BR-001）の後ろは 1 字空ける
+	what += /[A-Za-z0-9]$/.test(what) ? " " : "";
+	const after = afterContent(input, before);
+	if (after === undefined) return `${what}への書き込み後の内容を判定できない`;
+	if (/\.ya?ml$/i.test(rel)) {
+		const body = (t) => t.split(/\r?\n/).filter((l) => !/^x-status\s*:/.test(l)).join("\n");
+		return body(before) === body(after) ? null : `${what}の本文（x-status 以外）を変える`;
+	}
+	if (!isUc) return withoutFmKeys(before, ["status"]) === withoutFmKeys(after, ["status"]) ? null : `${what}の本文（status 以外）を変える`;
+
+	//  UC.md: UC 自身の部分（status・phase 以外）と、draft でない REQ の小節は変えない。draft の REQ の小節は足す・直すだけ
+	const a = reqDocsOf(rel, before, null);
+	const b = reqDocsOf(rel, after, null);
+	if (b.problems.length) return `${what}の「要件」の節の書き方に誤りがあり、変わる範囲を判定できない`;
+	if (withoutFmKeys(a.ucText, ["status", "phase"]) !== withoutFmKeys(b.ucText, ["status", "phase"])) return `${what}の本文（status・phase と「要件」の節以外）を変える`;
+	const now = new Map(b.docs.map((d) => [d.id, d]));
+	for (const d of a.docs) {
+		const n = now.get(d.id);
+		if (!n) return `${what}の ${d.id}（${d.status ?? "status なし"}）の小節を消す`;
+		if (d.status === "draft" ? n.status !== "draft" : n.text !== d.text) return `${what}の ${d.id}（${d.status ?? "status なし"}）の小節を変える`;
+	}
+	const had = new Set(a.docs.map((d) => d.id));
+	for (const n of b.docs) if (!had.has(n.id) && n.status !== "draft") return `${what}に ${n.id} を ${n.status ?? "status なし"} で足す`;
 	return null;
 }
 
@@ -427,9 +489,12 @@ function main() {
 			let change;
 			let downgraded = [];
 			let policy = null;
+			let edited = null;
 			try {
-				const isOverview = lower === overviewRel(root, docsDir).toLowerCase();
+				const overviewLower = overviewRel(root, docsDir).toLowerCase();
+				const isOverview = lower === overviewLower;
 				change = classifyStatusChange(abs, rel, input);
+				edited = approvedEdit(abs, rel, input, overviewLower);
 				if (isOverview) {
 					downgraded = actorDowngrades(abs, input);
 					const ov = overviewChange(abs, input);
@@ -454,20 +519,26 @@ function main() {
 					`${rel} の${policy.field}を変える。全体の方針の変更は、UC の並行性・外部依存の行を省けるか（省いた行が何を意味するか）を、すべての UC について一度に変えるため、人間の承認で行う（ADR-0076）。差分を確認してから許可する`,
 					ctx,
 				);
-			if (!change) process.exit(0); //  status が変わらない docs の書き込みは記録しない
-			const what = `${rel} の ${change.field} を ${change.isNew ? "（新規）" : change.from ?? "（なし）"} → ${change.to ?? "（なし）"} に変える`;
-			if (change.kind === "down")
+			const what = change && `${rel} の ${change.field} を ${change.isNew ? "（新規）" : change.from ?? "（なし）"} → ${change.to ?? "（なし）"} に変える`;
+			if (change?.kind === "down")
 				ask(
 					"status-down",
 					`${what}。降格は検査の義務（注釈・テスト・入口）を減らすため、人間の承認で行う（ADR-0057）。差分と理由を確認してから許可する`,
 					ctx,
 				);
-			if (change.kind === "up-gate")
+			if (change?.kind === "up-gate")
 				ask(
 					"status-up-gate",
 					`${what}。UC の active と契約の fixed は実装着手ゲート（develop §2）を開ける人間ゲートで、agent が自力で開けない（ADR-0057）。内容を確認してから許可する`,
 					ctx,
 				);
+			if (edited)
+				ask(
+					"approved-edit",
+					`${rel}: ${edited}。人が承認した後の文書を書き換えるため、人間の承認で行う（ADR-0078）。差分を確認してから許可する`,
+					ctx,
+				);
+			if (!change) process.exit(0); //  status が変わらない docs の書き込みは記録しない
 			log("pass", "status-up", ctx);
 			process.exit(0);
 		}

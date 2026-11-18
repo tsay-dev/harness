@@ -303,7 +303,8 @@ test("guard: パスは大文字小文字を無視して比べる（Docs/ の sta
 
 test("guard: 人間のアクターの削除・システムへの変更と、他プロバイダーやユーザーの hook 設定は ask", (t) => {
 	const root = makeRoot(t);
-	const table = (kind) => overview({ actors: [["ACT-01", "利用者", kind, "登録する"]] });
+	//  承認後の書き換え（approved-edit）と分けるため、概要は draft で組む
+	const table = (kind) => overview({ status: "draft", actors: [["ACT-01", "利用者", kind, "登録する"]] });
 	put(root, "docs/00-overview.md", table("人間"));
 	const run = (tool_input) => runHook(root, { tool_input, cwd: root }, ["--code", "src/**"]);
 	assert.match(askOf(run({ file_path: "docs/00-overview.md", old_string: "| 人間 |", new_string: "| システム |" })), /人間のアクター（ACT-01）/);
@@ -402,17 +403,16 @@ test("guard: REQ は UC.md の「要件」の節から読む。draft の REQ が
 	write(`${dir}/UC.md`, commented([["REQ-001", "active"], ["REQ-002", "active"]]));
 	const down2 = hook({ file_path: `${dir}/UC.md`, content: commented([["REQ-001", "active"], ["REQ-002", "draft"]]) });
 	assert.equal(ask(down2)?.permissionDecision, "ask", down2.stdout + down2.stderr);
-	//  コメントを足すだけの書き込みは、降格ではない
+	//  コメントを足すだけの書き込みは、降格ではない（active の UC の active の小節を変えるので、承認後の書き換えとして人に回す）
 	const addComment = hook({ file_path: `${dir}/UC.md`, content: commented([["REQ-001", "active"], ["REQ-002", "active"]]).replace("人間承認済み）", "人間承認済み）。補足") });
-	assert.equal(ask(addComment), null);
+	assert.match(ask(addComment)?.permissionDecisionReason ?? "", /REQ-001（active）の小節を変える[\s\S]*ADR-0078/);
 	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
-	//  REQ の昇格と、active での追加は、止めずに記録する（status-up）
+	//  active の UC で REQ を active にするのは、承認後の書き換え（approved-edit。ADR-0078）
 	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "draft"]]));
 	const up = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]) });
-	assert.equal(up.status, 0);
-	assert.equal(ask(up), null);
+	assert.match(ask(up)?.permissionDecisionReason ?? "", /REQ-002（draft）の小節を変える/);
 	const logged = readFileSync(join(root, ".harness-gate", "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).at(-1);
-	assert.deepEqual([logged.decision, logged.reason], ["pass", "status-up"]);
+	assert.deepEqual([logged.decision, logged.reason], ["ask", "approved-edit"]);
 	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
 	//  語彙の外の status と、節の外に書いた REQ があるときも、実装を止める
 	for (const bad of ["Draft", '"draft"', "draft#x"]) {
@@ -427,38 +427,40 @@ test("guard: REQ は UC.md の「要件」の節から読む。draft の REQ が
 	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "withdrawn"]]));
 	assert.equal(hook({ file_path: "src/a.ts", content: "x" }).status, 0);
 	write(`${dir}/UC.md`, ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]));
-	//  status が変わらない書き込みは、そのまま通す
+	//  status が変わらなくても、active の UC の active の REQ の文を直す書き込みは人に回す（ADR-0078）
 	const same = hook({ file_path: `${dir}/UC.md`, content: ucDoc([["REQ-001", "active"], ["REQ-002", "active"]]).replace("> 1 文", "> 1 文（直し）") });
 	assert.equal(same.status, 0);
-	assert.equal(ask(same), null);
+	assert.equal(ask(same)?.permissionDecision, "ask");
 });
 
 //  ---- 概要の GOAL の表と全体の方針（ADR-0076） ----
 
 test("guard: 概要の GOAL の行の削除と active からの降格は ask、planned から active への昇格は記録して通す", (t) => {
 	const root = makeRoot(t);
-	const base = overview({ goals: [goal("GOAL-01", "active"), goal("GOAL-02", "planned"), goal("GOAL-03", "draft")] });
+	//  living の概要は本文の書き換えがすべて approved-edit になるので、行の扱いは draft の概要で確かめる
+	const ov = (goals) => overview({ status: "draft", goals });
+	const base = ov([goal("GOAL-01", "active"), goal("GOAL-02", "planned"), goal("GOAL-03", "draft")]);
 	put(root, "docs/00-overview.md", base);
 	const run = (tool_input) => runHook(root, { tool_input, cwd: root }, ["--code", "src/**"]);
 	//  Write で丸ごと書き直し、active の行を消す
-	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-02", "planned"), goal("GOAL-03", "draft")] }) })), /GOAL-01 の行/);
+	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: ov([goal("GOAL-02", "planned"), goal("GOAL-03", "draft")]) })), /GOAL-01 の行/);
 	//  planned の行を消すのも、status によらず ask
-	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-01", "active"), goal("GOAL-03", "draft")] }) })), /GOAL-02 の行/);
+	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: ov([goal("GOAL-01", "active"), goal("GOAL-03", "draft")]) })), /GOAL-02 の行/);
 	//  行を消さずに HTML コメントへ入れる・表の外（2 つ目の表）へ動かすのも、検査の読み方からは消えるので ask
 	const row2 = base.split("\n").find((l) => /^\|\s*GOAL-02\s*\|/.test(l));
 	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: base.replace(row2, `<!--\n${row2}\n-->`) })), /GOAL-02 の行/);
 	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: base.replace(row2, "").replace(/\n## 全体の方針/, `\n| ID | 旧 |\n| --- | --- |\n${row2}\n\n## 全体の方針`) })), /GOAL-02 の行/);
 	//  active → draft
-	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-01", "draft"), goal("GOAL-02", "planned"), goal("GOAL-03", "draft")] }) })), /GOAL-01 の status を active → draft/);
+	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: ov([goal("GOAL-01", "draft"), goal("GOAL-02", "planned"), goal("GOAL-03", "draft")]) })), /GOAL-01 の status を active → draft/);
 	//  同じ ID の行が 2 つになり、片方だけ active のままでも、active でなくなった行があれば降格（読み方は重複の行を落とす）
-	const dup = overview({ goals: [goal("GOAL-01", "draft"), goal("GOAL-01", "active"), goal("GOAL-02", "planned"), goal("GOAL-03", "draft")] });
+	const dup = ov([goal("GOAL-01", "draft"), goal("GOAL-01", "active"), goal("GOAL-02", "planned"), goal("GOAL-03", "draft")]);
 	assert.match(askOf(run({ file_path: "docs/00-overview.md", content: dup })), /GOAL-01 の status/);
 	//  planned → active は記録して通す
-	const up = run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-01", "active"), goal("GOAL-02", "active"), goal("GOAL-03", "draft")] }) });
+	const up = run({ file_path: "docs/00-overview.md", content: ov([goal("GOAL-01", "active"), goal("GOAL-02", "active"), goal("GOAL-03", "draft")]) });
 	assert.equal(up.stdout, "", up.stderr);
 	assert.deepEqual(readLog(root).filter((l) => l.decision === "pass").map((l) => l.reason), ["status-up"]);
 	//  planned ↔ draft の行き来と行の追加（active でない）は何もしない
-	assert.equal(run({ file_path: "docs/00-overview.md", content: overview({ goals: [goal("GOAL-01", "active"), goal("GOAL-02", "draft"), goal("GOAL-03", "planned"), goal("GOAL-04", "planned")] }) }).stdout, "");
+	assert.equal(run({ file_path: "docs/00-overview.md", content: ov([goal("GOAL-01", "active"), goal("GOAL-02", "draft"), goal("GOAL-03", "planned"), goal("GOAL-04", "planned")]) }).stdout, "");
 });
 
 test("guard: 全体の方針の本文を変える書き込みは、概要が draft でも living でも ask", (t) => {
@@ -474,7 +476,75 @@ test("guard: 全体の方針の本文を変える書き込みは、概要が dra
 		assert.match(askOf(run({ file_path: "docs/00-overview.md", old_string: "競合を返す。", new_string: "再試行を促す。" })), /全体の方針/);
 		//  記入 → 未記入
 		assert.match(askOf(run({ file_path: "docs/00-overview.md", content: overview({ status }) })), /全体の方針/);
-		//  方針以外の本文の書き換えは通す
-		assert.equal(run({ file_path: "docs/00-overview.md", old_string: "課題", new_string: "利用者の課題" }).stdout, "");
+		//  方針以外の本文の書き換えは、draft なら通し、living なら承認後の書き換えとして人に回す（ADR-0078）
+		const other = run({ file_path: "docs/00-overview.md", old_string: "課題", new_string: "利用者の課題" });
+		if (status === "draft") assert.equal(other.stdout, "");
+		else assert.match(askOf(other), /living の概要の本文/);
+	}
+});
+
+//  ---- 承認後の書き換え（ADR-0078） ----
+
+test("guard: active の UC・BR・NFR、living の概要、fixed の契約の本文を変える書き込みは ask（approved-edit）", (t) => {
+	const root = makeRoot(t);
+	const dir = "docs/goals/GOAL-01-x/UC-001-y";
+	const ucDoc = (status, phase, reqs) =>
+		`---\nid: UC-001\nstatus: ${status}\nphase: ${phase}\n---\n\n# UC-001\n\n## 概要\n\n利用者が登録する。\n\n## 要件\n\n${reqs.map(([id, st, s = "1 文"]) => `### ${id}\n\n- pattern: Ubiquitous\n- status: ${st}\n\n> ${s}\n`).join("\n")}`;
+	const base = ucDoc("active", "構造", [["REQ-001", "active"], ["REQ-002", "draft"]]);
+	put(root, `${dir}/UC.md`, base);
+	put(root, `${dir}/contract.yaml`, "x-uc: UC-001\nx-status: fixed\noperations: {}\n");
+	put(root, "docs/rules/BR-001.md", doc("active"));
+	put(root, "docs/nfr/NFR-001.md", doc("active"));
+	put(root, "docs/00-overview.md", overview({ status: "living" }));
+	const run = (tool_input) => runHook(root, { tool_input, cwd: root }, ["--code", "src/**"]);
+	const uc = (content) => run({ file_path: `${dir}/UC.md`, content });
+
+	//  ask になる書き込み
+	const asks = [
+		[uc(base.replace("利用者が登録する。", "利用者が案件を登録する。")), /active の UC の本文（status・phase と「要件」の節以外）を変える/],
+		[uc(base.replace("> 1 文\n", "> 1 文（直し）\n")), /REQ-001（active）の小節を変える/],
+		[uc(ucDoc("active", "構造", [["REQ-001", "active"], ["REQ-002", "active"]])), /REQ-002（draft）の小節を変える/], //  draft の REQ を active にする
+		[uc(ucDoc("active", "構造", [["REQ-001", "active"]])), /REQ-002（draft）の小節を消す/], //  draft の小節を消すのも、迷う形として人に回す
+		[uc(ucDoc("active", "構造", [["REQ-001", "active"], ["REQ-002", "draft"], ["REQ-003", "active"]])), /REQ-003 を active で足す/],
+		[uc(base.replace("## 要件\n\n", "## 要件\n\n小節の外の行\n\n")), /書き方に誤り/],
+		[run({ file_path: `${dir}/UC.md`, old_string: "この文は無い", new_string: "x" }), /判定できない/],
+		[run({ file_path: "docs/rules/BR-001.md", old_string: "# 本文", new_string: "# 本文（改）" }), /active の X の本文（status 以外）/],
+		[run({ file_path: "docs/nfr/NFR-001.md", old_string: "# 本文", new_string: "# 本文（改）" }), /active の X の本文/],
+		[run({ file_path: "docs/00-overview.md", old_string: "課題", new_string: "利用者の課題" }), /living の概要の本文/],
+		[run({ file_path: `${dir}/contract.yaml`, old_string: "operations: {}", new_string: "operations: { a: 1 }" }), /fixed の契約の本文（x-status 以外）/],
+	];
+	for (const [r, re] of asks) assert.match(askOf(r), re);
+	assert.deepEqual(readLog(root).map((l) => l.reason), Array(asks.length).fill("approved-edit"));
+
+	//  ask にならない書き込み
+	const quiet = [
+		run({ file_path: `${dir}/UC.md`, old_string: "phase: 構造", new_string: "phase: 実装" }), //  phase だけの変更
+		uc(ucDoc("active", "構造", [["REQ-001", "active"], ["REQ-002", "draft"], ["REQ-003", "draft"]])), //  draft の REQ を足す
+		uc(ucDoc("active", "構造", [["REQ-001", "active"], ["REQ-002", "draft", "直した 1 文"]])), //  draft の REQ を直す
+		uc(ucDoc("active", "実装", [["REQ-001", "active"], ["REQ-002", "draft", "直した 1 文"], ["REQ-003", "draft"]])), //  phase と draft の REQ を同時に
+	];
+	for (const r of quiet) {
+		assert.equal(r.status, 0, r.stderr);
+		assert.equal(r.stdout, "");
+	}
+	//  status を下げる書き込みは、本文が変わっても status-down（既存の降格の扱い）
+	assert.match(askOf(uc(ucDoc("draft", "構造", [["REQ-001", "active"], ["REQ-002", "draft"]]).replace("利用者が登録する。", "直した。"))), /active → draft/);
+	assert.match(askOf(run({ file_path: "docs/rules/BR-001.md", content: doc("draft").replace("# 本文", "# 直した") })), /active → draft/);
+	assert.match(askOf(run({ file_path: `${dir}/contract.yaml`, content: "x-uc: UC-001\nx-status: draft\noperations: { a: 1 }\n" })), /fixed → draft/);
+	assert.deepEqual(readLog(root).slice(asks.length).map((l) => l.reason), ["status-down", "status-down", "status-down"]);
+
+	//  承認前（draft）の文書と、対象の外の living の文書（用語集）は、本文を変えても止めない
+	put(root, "docs/goals/GOAL-01-x/UC-002-z/UC.md", ucDoc("draft", "定義", [["REQ-010", "draft"]]));
+	put(root, "docs/goals/GOAL-01-x/UC-002-z/contract.yaml", "x-uc: UC-002\nx-status: draft\n");
+	put(root, "docs/01-glossary.md", doc("living"));
+	put(root, "docs/rules/BR-002.md", doc("draft"));
+	for (const r of [
+		run({ file_path: "docs/goals/GOAL-01-x/UC-002-z/UC.md", old_string: "利用者が登録する。", new_string: "直した。" }),
+		run({ file_path: "docs/goals/GOAL-01-x/UC-002-z/contract.yaml", content: "x-uc: UC-002\nx-status: draft\noperations: {}\n" }),
+		run({ file_path: "docs/01-glossary.md", old_string: "# 本文", new_string: "# 用語" }),
+		run({ file_path: "docs/rules/BR-002.md", old_string: "# 本文", new_string: "# 直した" }),
+	]) {
+		assert.equal(r.status, 0, r.stderr);
+		assert.equal(r.stdout, "");
 	}
 });

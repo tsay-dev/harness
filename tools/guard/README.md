@@ -5,7 +5,7 @@ develop skill の説得による停止線を構造にする、二つの hook と
 
 | hook | Claude Code イベント | 阻止するもの | コマンド |
 | --- | --- | --- | --- |
-| **実装開始ゲート**（§2） | `PreToolUse` (Write / Edit / MultiEdit / NotebookEdit) | UC とその REQs が `active`、契約が `fixed` になる前の実装コードの書き込み。検査の範囲・検査器・hook の設定・workflow・docs の status の変更は人間の承認に掛ける | `harness guard` |
+| **実装開始ゲート**（§2） | `PreToolUse` (Write / Edit / MultiEdit / NotebookEdit) | UC とその REQs が `active`、契約が `fixed` になる前の実装コードの書き込み。検査の範囲・検査器・hook の設定・workflow・docs の status の変更・承認済みの文書の書き換えは人間の承認に掛ける | `harness guard` |
 | **最終ゲート** | `Stop` | lint spec、lint refs、run cases、利用プロジェクトの typecheck / lint / test / system が失敗したままのターン終了 | `harness verify --hook` |
 | **拒否ログ** | （共有） | 全ゲート判断を JSONL 一行ずつ記録し、「このゲートは実際に阻止しているか」をデータで回答 | `tools/_shared/gate-log.mjs` |
 
@@ -41,8 +41,10 @@ orchestrator が SKILL の手順で `phase:` を進める限り、hook はその
 | 概要の全体の方針の小節の本文を変える（未記入→記入、記入→別の文、記入→未記入。概要の status によらず） | 人間の承認を求める。UC の並行性・外部依存の行を省けるかを、すべての UC について一度に変えるため（ADR-0076） | あり（`ask` / `overview-policy`） |
 | `verification/DEFERRED.md`（保留の一覧。`--docs` の場所によらず、monorepo の unit 配下も含む）を新しく作る、`frozen_at` を変える、行を足す（行を消すだけの書き込みは対象外）と、判定中の例外 | 人間の承認を求める。一覧は凍結済みで、足せば未決を持ち越せるため（ADR-0068） | あり（`ask` / `deferred`） |
 | `docs/` 配下で `UC.md` の `active`、契約の `fixed` への昇格（新規作成で書く場合も） | 人間の承認を求める。実装着手ゲートを開ける人間ゲートを agent が自力で開けないため | あり（`ask` / `status-up-gate`） |
-| `docs/` 配下でそれ以外の昇格（REQ / BR / NFR / GOAL の `draft` → `active`、単一文書の `draft` → `living` / `frozen`）と、status を持つ新規作成 | 許可 | あり（`pass` / `status-up`） |
-| `docs/` 配下でそれ以外（status が変わらない、status を持たない新規ファイル、`draft` ↔ `withdrawn` など義務の増減を伴わない変更） | 許可（SSOT の書き込みはゲートの前提条件） | なし |
+| `docs/` 配下で、承認済みの文書（`active` の `UC.md`・BR・NFR、`living` の概要、`fixed` の契約）の本文（frontmatter の `status`、契約の `x-status` 以外の行）を変える。active の `UC.md` で REQ を `active` にする・`active` で足す、draft の REQ の小節を消す、書き込み後の内容や「要件」の節の書き方が読めないときも含む（判定に迷う形は人に回す） | 人間の承認を求める。承認時の指紋で承認を無効にするのではなく、書き換えるたびに人が差分を見る（ADR-0078）。BR・NFR はファイル名（`BR-nnn` / `NFR-nnn`）か frontmatter の `id` で見分ける | あり（`ask` / `approved-edit`） |
+| 上の承認済みの文書のうち、`UC.md` の `phase:` だけを変える書き込みと、active の `UC.md` で draft の REQ の小節を足す・直すだけの書き込み | 許可。phase は orchestrator が進め、draft の REQ はまだ人が承認していないため。同じ書き込みで status を下げるなら上の `status-down` | なし |
+| `docs/` 配下でそれ以外の昇格（REQ（UC が active でないとき）/ BR / NFR / GOAL の `draft` → `active`、単一文書の `draft` → `living` / `frozen`）と、status を持つ新規作成 | 許可 | あり（`pass` / `status-up`） |
+| `docs/` 配下でそれ以外（承認前の文書で status が変わらない、status を持たない新規ファイル、`draft` ↔ `withdrawn` など義務の増減を伴わない変更） | 許可（SSOT の書き込みはゲートの前提条件） | なし |
 | `.claude/` / `.agents/` / `.codex/` / `.cursor/` / `.grok/` / `apm_modules/` 配下、`--exclude` に一致、または `--code` に不一致 | 許可（ゲート外） | なし |
 | 実装コード + `docs/goals` なし | **阻止**（`no-goals` → Phase 1） | あり |
 | 実装コード + phase が実装\|検証の UC なし | **阻止**（`no-active-phase`。開始前に UC の `phase:` を進める） | あり |
@@ -121,7 +123,7 @@ ask のメッセージには、ファイルと「旧 → 新」を書く。
 | `event` | `PreToolUse` \| `Stop` |
 | `session` | Claude Code の `session_id`、または `null` |
 | `decision` | `block` \| `pass` \| `skip` \| `release` \| `ask`（guard が止めずに人間の承認を求めた） |
-| `reason` | guard: 実装ゲートは `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `internal-error` `ok`。ask は `config` `harness` `hook-settings` `workflow` `status-down` `status-up-gate` `actor-kind` `deferred`。`pass` / `status-up`（docs の status の昇格・新規作成）、`block` / `harness-gate`（`.harness-gate/` への書き込み）。verify: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`、または阻止時の最初の失敗名（`lint spec` `lint refs` `run cases` `config` `commands.<k>` `typecheck` `lint` `test` `system`、`timeout:<step>`、monorepo では `<step>:<unit>`） |
+| `reason` | guard: 実装ゲートは `misconfig` `no-goals` `no-active-phase` `uc-not-active` `req-draft` `contract-missing` `contract-not-fixed` `internal-error` `ok`。ask は `config` `harness` `hook-settings` `workflow` `status-down` `status-up-gate` `actor-kind` `overview-policy` `deferred` `approved-edit`。`pass` / `status-up`（docs の status の昇格・新規作成）、`block` / `harness-gate`（`.harness-gate/` への書き込み）。verify: `ok` `no-changes` `wrong-event` `round-cap` `non-decreasing` `internal-error`、または阻止時の最初の失敗名（`lint spec` `lint refs` `run cases` `config` `commands.<k>` `typecheck` `lint` `test` `system`、`timeout:<step>`、monorepo では `<step>:<unit>`） |
 | `target` | guard: root からのゲート対象ファイル相対パス。それ以外は `null` |
 | `uc` | guard: 検査した進行中 UC の ID。それ以外は `null` |
 | `round` | verify: 阻止 / 解除時の回数。それ以外は `null` |
