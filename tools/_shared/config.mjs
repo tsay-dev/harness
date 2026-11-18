@@ -25,33 +25,39 @@ export function readHostConfig(hostRoot) {
 //  lint config の K1 は「ひな形のキー + これ」を使えるキーとする
 export const OPTIONAL_TOP_KEYS = ["comment_pattern"];
 
-//  廃止したキーと、代わりにすること（ADR-0070: 手で書く紐づきはテストの側だけにし、実装のコードの注釈を読まない）。
+//  廃止したキーと、代わりにすること、廃止を決めた ADR（[キー, 案内, ADR]）。
+//  ADR-0070: 手で書く紐づきはテストの側だけにし、実装のコードの注釈を読まない。ADR-0076: vision・アクター表・バックログを 1 枚の概要にまとめた。
 //  設定に残っていたら、lint config（K6）と lint refs が案内を付けて失敗にする。黙って無視すると、
 //  利用プロジェクトは「まだ検査されている」と思ったまま、注釈と設定を保ち続けることになる
 const NO_IMPLEMENTS = "実装とスキーマの @implements は読まない。紐づきはテストの @covers に書く";
 const NO_UNITS = "実現単位と技術部品の置き場の分類はやめた。実行されないソースは lint coverage（実行の記録）で見つける";
 const NO_OPERATION = "入口の @operation は読まない。入口は commands.list_entries の一覧と契約の突き合わせ（lint entries）で確かめる";
+const OVERVIEW = "ビジョン・アクター表・バックログは 1 枚の概要（docs.overview = <docs>/00-overview.md）にまとめた。harness migrate overview を参照";
 export const RETIRED_KEYS = [
-	["implements_pattern", NO_IMPLEMENTS],
-	["operation_pattern", NO_OPERATION],
-	["source.unit_dirs", NO_UNITS],
-	["source.support_dirs", NO_UNITS],
-	["source.unit_pattern", NO_UNITS],
-	["source.implements_placement", NO_IMPLEMENTS],
-	["source.entry_pattern", NO_OPERATION],
-	["source.entry_exclude", NO_OPERATION],
-	["source.entry_file_pattern", NO_OPERATION],
-	["schema.constraint_pattern", "スキーマの制約の @implements は読まない。DB で守る規則は、規則に反する行を DB に直接入れて断られることを確かめるテストに @covers BR-nnn を書く"],
-	["schema.implements_placement", NO_IMPLEMENTS],
-	["entries", "契約の外の入口は置けない（entries.outside_contract は無くした）。入口はすべて、契約の inbound の操作として書く"],
+	["implements_pattern", NO_IMPLEMENTS, "ADR-0070"],
+	["operation_pattern", NO_OPERATION, "ADR-0070"],
+	["source.unit_dirs", NO_UNITS, "ADR-0070"],
+	["source.support_dirs", NO_UNITS, "ADR-0070"],
+	["source.unit_pattern", NO_UNITS, "ADR-0070"],
+	["source.implements_placement", NO_IMPLEMENTS, "ADR-0070"],
+	["source.entry_pattern", NO_OPERATION, "ADR-0070"],
+	["source.entry_exclude", NO_OPERATION, "ADR-0070"],
+	["source.entry_file_pattern", NO_OPERATION, "ADR-0070"],
+	["schema.constraint_pattern", "スキーマの制約の @implements は読まない。DB で守る規則は、規則に反する行を DB に直接入れて断られることを確かめるテストに @covers BR-nnn を書く", "ADR-0070"],
+	["schema.implements_placement", NO_IMPLEMENTS, "ADR-0070"],
+	["entries", "契約の外の入口は置けない（entries.outside_contract は無くした）。入口はすべて、契約の inbound の操作として書く", "ADR-0070"],
+	//  1 枚の概要にまとめた文書の置き場（ADR-0076）
+	["docs.vision", OVERVIEW, "ADR-0076"],
+	["docs.actors", OVERVIEW, "ADR-0076"],
+	["docs.goals_backlog", OVERVIEW, "ADR-0076"],
 ];
-//  cfg に残っている廃止したキー: [[キー, 案内]]。親が none（{ "none": … }）やオブジェクトでないときは、子は無いものとして扱う
+//  cfg に残っている廃止したキー: [[キー, 案内, ADR]]。親が none（{ "none": … }）やオブジェクトでないときは、子は無いものとして扱う
 export function retiredKeysIn(cfg) {
 	const out = [];
-	for (const [keyPath, hint] of RETIRED_KEYS) {
+	for (const [keyPath, hint, adr] of RETIRED_KEYS) {
 		let node = cfg;
 		for (const k of keyPath.split(".")) node = node !== null && typeof node === "object" && !Array.isArray(node) && Object.hasOwn(node, k) ? node[k] : undefined;
-		if (node !== undefined) out.push([keyPath, hint]);
+		if (node !== undefined) out.push([keyPath, hint, adr]);
 	}
 	return out;
 }

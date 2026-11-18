@@ -21,7 +21,7 @@
 //    K5  git.units の値は、設定ファイルがあるディレクトリの中の、別のディレクトリ（外やルート自身を指す unit は読まない）
 //    K7  monorepo のルート（git.units を持つ設定）に、unit の設定にしか効かない宣言を書いていない: commands.list_entries のコマンド。
 //        入口の一覧の検査は unit ごとに、unit の設定で実行するので、ルートに書いても実行されない
-//    K6  廃止したキー（tools/_shared/config.mjs の RETIRED_KEYS。実装のコードの注釈を読むためのキー。ADR-0070）が残っていない。
+//    K6  廃止したキー（tools/_shared/config.mjs の RETIRED_KEYS。実装のコードの注釈を読むためのキー（ADR-0070）と、概要にまとめた文書の置き場（ADR-0076））が残っていない。
 //        黙って読み飛ばすと、もう検査されていない注釈と設定を、利用プロジェクトが保ち続けることになる
 //  conventions は、違反が無くても毎回、件数と一覧を表示する（機械が見ていない範囲を見えるままにする）。
 //  rules / conventions / exceptions は省略できる。省略したものは「未宣言」と表示する（0 件とは区別する）。
@@ -93,7 +93,7 @@ function lint(cfg, root, allowed) {
 	const err = (id, msg) => errs.push(`${id}  ${msg}`);
 
 	const retired = retiredKeysIn(cfg);
-	for (const [keyPath, hint] of retired) err("K6", `${keyPath} は廃止した（ADR-0070）。${hint}。キーを削除する`);
+	for (const [keyPath, hint, adr] of retired) err("K6", `${keyPath} は廃止した（${adr}）。${hint}。キーを削除する`);
 	for (const k of Object.keys(cfg)) {
 		//  廃止したキーは K6 が案内する（「ひな形に無い」とだけ伝えると、消してよい理由が分からない）
 		if (!allowed.includes(k) && !retired.some(([keyPath]) => keyPath === k)) err("K1", `最上位のキー「${k}」は、ひな形に無い（使えるキー: ${allowed.join(" / ")}）`);

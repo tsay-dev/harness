@@ -53,7 +53,9 @@ function printIndex(cfg) {
 	const out = ["# 索引（生成物 / harness index。コミット禁止）"];
 	for (const goal of Object.keys(corpus.goals).sort()) {
 		const g = corpus.goals[goal];
-		out.push("", `## ${goal} [${g.status}] ${basename(g.dir)}/`, `   ${firstQuote(join(g.dir, "GOAL.md"))}`);
+		//  GOAL の文は概要の GOAL の表の「目指す状態」（ADR-0076）。フォルダの無い planned・withdrawn の行も出す
+		out.push("", `## ${goal} [${g.status}] ${g.dir ? `${basename(g.dir)}/` : "（フォルダなし）"}`, `   ${g.sentence || ""}`);
+		if (!g.dir) continue;
 		for (const [uid, u] of Object.entries(corpus.ucs).sort()) {
 			if (u.goalDir !== g.dir) continue;
 			out.push(`   ${uid}/ [${u.status}${u.phase ? ` / ${u.phase}` : ""}]  ${frontmatter(u.file).title || ""}`);

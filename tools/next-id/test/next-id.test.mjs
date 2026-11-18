@@ -5,11 +5,13 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
+import { foldOverview } from "../../_shared/test/fold-overview.mjs";
 import { toolOf, makeRefRoot } from "../../_shared/test/refs-docs-fixture.mjs";
 
 //  lint refs と同じ読み方を使う、ほかのコマンド（next-id）を実行する
 function runTool(command, root, ...args) {
 	foldReqFiles(root);
+	foldOverview(root); //  入力の 00-vision.md・02-actors.md・GOAL.md を 00-overview.md に畳む（ADR-0076）
 	return spawnSync("node", [toolOf(command), ...args, "--root", root], { encoding: "utf8" });
 }
 
