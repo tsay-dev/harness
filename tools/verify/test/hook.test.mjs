@@ -196,7 +196,7 @@ test("verify --hook: 合格 → 変更なし skip → 不通過ブロック → 
 	const s = spawnSync("node", [GATE_LOG, "--summary", "--log", join(root, ".harness-gate", "log.jsonl"), "--since", "1"], { encoding: "utf8" });
 	assert.equal(s.status, 0, s.stderr);
 	assert.match(s.stdout, /verify: runs \d+ \/ block 2 \/ release 1 \/ skip/);
-	assert.match(s.stdout, /guard: gated 0 \/ block 0 \/ last block: なし \/ ask 0（config 0, harness 0, hook-settings 0, workflow 0, status-down 0, status-up-gate 0, actor-kind 0, deferred 0）\/ status-up 0/);
+	assert.match(s.stdout, /guard: gated 0 \/ block 0 \/ last block: なし \/ ask 0（config 0, harness 0, hook-settings 0, workflow 0, status-down 0, status-up-gate 0, actor-kind 0, overview-policy 0, deferred 0, approved-edit 0）\/ status-up 0/);
 	assert.match(s.stdout, /降格候補/);
 });
 

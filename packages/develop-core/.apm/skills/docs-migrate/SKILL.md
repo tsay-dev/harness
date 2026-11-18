@@ -41,4 +41,4 @@ description: プロジェクトの docs とコードを harness の SDD/SSOT 配
 - `harness lint spec` が `--ignore-legacy-layout` なしで exit 0、`harness lint refs` が exit 0。`draft` に残る文書と宣言の外のコード・テストは全件が返済 issue。
 - `OPEN-QUESTIONS.md` が空、または全項目に人間の回答あり。
 
-迷ったら [docs.instructions.md](../../instructions/docs.instructions.md) の規則 ID > テンプレート > この手順 > 常識の順で決め、決められなければ選択肢と推奨を `OPEN-QUESTIONS.md` に書いて停止します。仕様改善、harness 自体の修正、`design.md` の創作はこの skill の外です。
+迷ったら [docs.instructions.md](../../instructions/docs.instructions.md) の規則 ID > テンプレート > この手順 > 常識の順で決め、決められなければ選択肢と推奨を `OPEN-QUESTIONS.md` に書いて停止します。仕様改善、harness 自体の修正、設計書の創作はこの skill の外です。

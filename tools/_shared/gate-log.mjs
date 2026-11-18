@@ -33,7 +33,7 @@ import { exitWith } from "./stdio.mjs";
 const RECORD_KEYS = ["ts", "hook", "event", "session", "decision", "reason", "target", "uc", "round", "failures", "ms"];
 
 //  guard が人間の承認を求める理由（集計の内訳の並び順）
-export const ASK_REASONS = ["config", "harness", "hook-settings", "workflow", "status-down", "status-up-gate", "actor-kind", "deferred"];
+export const ASK_REASONS = ["config", "harness", "hook-settings", "workflow", "status-down", "status-up-gate", "actor-kind", "overview-policy", "deferred", "approved-edit"];
 
 //  既定のログ置き場: <root>/.harness-gate/log.jsonl（verify --hook の state.json も同じ場所）
 export function defaultLogPath(root) {

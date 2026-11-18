@@ -355,7 +355,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>C16</td><td>active な UC・REQ が、定義されていない・draft・撤回済みの BR を参照している</td><td><span class="tag ok">UC・REQ → BR</span></td></tr>
         <tr><td>C17</td><td>active な UC の表（状態 × イベント表・例外系の走査）が未定義・撤回済みの REQ や別の UC の REQ を指す、REQ が表のどのセルからも導出されていない、または UC に REQ が 1 件も無い</td><td><span class="tag ok">UC の表 ↔ REQ</span></td></tr>
         <tr><td>C18</td><td>active な GOAL・UC の actor、GOAL の origin が、アクター表・vision の KPI 表に無い</td><td><span class="tag ok">GOAL・UC → ACT・KPI</span></td></tr>
-        <tr><td>C20</td><td>active な NFR に、保留でない検証テスト（<code>@covers NFR-nnn</code>）も、条件を満たす <code>measured_by</code>（docs で宣言した文書の外のリポジトリ内のファイルで、中に ID が現れる。GLOBAL.md は不可）も無い、またはテストが未定義・撤回済みの NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
+        <tr><td>C20</td><td>active な NFR に、保留でない検証テスト（<code>@covers NFR-nnn</code>）も、条件を満たす <code>measured_by</code>（docs で宣言した文書の外のリポジトリ内のファイルで、中に ID が現れる）も無い、またはテストが未定義・撤回済みの NFR を指している</td><td><span class="tag anno">テスト・計測 → NFR</span></td></tr>
         <tr><td>C22</td><td>active な BR に、<code>br:</code> に持つ active な REQ も、保留でないテストの <code>@covers BR-nnn</code> も無い</td><td><span class="tag ok">REQ → BR ／ テスト → BR</span></td></tr>
         <tr><td>C24</td><td>撤回されていない契約があるとき、共有語彙のエラーコードがどの契約の errors でも使われていない</td><td><span class="tag ok">components → 契約</span></td></tr>
         <tr><td>C25</td><td>active な UC・REQ が使う用語の、用語集のコード識別子がソース（コメント行以外）に無い（用語集の status によらない）</td><td><span class="tag anno">用語集 → コード</span></td></tr>

@@ -14,7 +14,6 @@
     "rules_dir": "docs/rules",
     "nfr_dir": "docs/nfr",
     "adr_dir": "docs/adr",
-    "verification_global": "docs/verification/GLOBAL.md",
     "shared": {
       "none": "harness 自身は ADR だけを持ち、アプリのコードと仕様を持たない"
     },

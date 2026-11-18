@@ -27,6 +27,7 @@ export const OPTIONAL_TOP_KEYS = ["comment_pattern"];
 
 //  廃止したキーと、代わりにすること、廃止を決めた ADR（[キー, 案内, ADR]）。
 //  ADR-0070: 手で書く紐づきはテストの側だけにし、実装のコードの注釈を読まない。ADR-0076: vision・アクター表・バックログを 1 枚の概要にまとめた。
+//  ADR-0077: 設計書（design.md）と全体の検証方針（verification/GLOBAL.md）をやめた。
 //  設定に残っていたら、lint config（K6）と lint refs が案内を付けて失敗にする。黙って無視すると、
 //  利用プロジェクトは「まだ検査されている」と思ったまま、注釈と設定を保ち続けることになる
 const NO_IMPLEMENTS = "実装とスキーマの @implements は読まない。紐づきはテストの @covers に書く";
@@ -50,6 +51,8 @@ export const RETIRED_KEYS = [
 	["docs.vision", OVERVIEW, "ADR-0076"],
 	["docs.actors", OVERVIEW, "ADR-0076"],
 	["docs.goals_backlog", OVERVIEW, "ADR-0076"],
+	//  やめた文書の置き場（ADR-0077）
+	["docs.verification_global", "全体の検証方針（verification/GLOBAL.md）はやめた。中身を概要（00-overview.md）の全体の方針・NFR・ADR へ移して消す", "ADR-0077"],
 ];
 //  cfg に残っている廃止したキー: [[キー, 案内, ADR]]。親が none（{ "none": … }）やオブジェクトでないときは、子は無いものとして扱う
 export function retiredKeysIn(cfg) {

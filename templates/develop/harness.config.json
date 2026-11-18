@@ -17,7 +17,6 @@
     "rules_dir": "docs/rules",
     "nfr_dir": "docs/nfr",
     "adr_dir": "docs/adr",
-    "verification_global": "docs/verification/GLOBAL.md",
     "verification_deferred": "docs/verification/DEFERRED.md",
     "shared": "docs/_shared/components.yaml",
     "overview": "docs/00-overview.md",
