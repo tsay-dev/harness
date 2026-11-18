@@ -232,10 +232,7 @@ function runAdapter(cmd, root, requests, timeoutSec) {
 			if (!error) {
 				const missing = requests.filter((r) => !replies.has(r.id));
 				if (missing.length)
-					error = `応答が無い要求がある（id=${missing
-						.slice(0, 5)
-						.map((r) => r.id)
-						.join(",")}${missing.length > 5 ? ",…" : ""} / ${missing.length} 件）`;
+					error = `応答が無い要求がある（id=${missing.map((r) => r.id).join(",")} / ${missing.length} 件）`;
 			}
 			resolvePromise({ replies, stderr: stderrLines, error });
 		};
