@@ -28,9 +28,9 @@ test("どちらも無いとき、別の名前を --config で指したときは�
 });
 
 for (const [name, args] of [
-	["trace-check", ["trace-check/trace-check.mjs"]],
-	["git-lint", ["git-lint/git-lint.mjs", "branch", "--name", "feat/add-some-thing"]],
-	["contract-run", ["contract-run/contract-run.mjs"]],
+	["lint refs", ["lint-refs/lint-refs.mjs"]],
+	["lint git branch", ["lint-git-branch/lint-git-branch.mjs", "--name", "feat/add-some-thing"]],
+	["run cases", ["run-cases/run-cases.mjs"]],
 ]) {
 	test(`${name}: 古い名前のファイルは読まず、設定が無いことと改名の案内を出して失敗する`, () => {
 		const d = dir(["traceconfig.json"]);
@@ -41,19 +41,19 @@ for (const [name, args] of [
 	});
 }
 
-test("spec-lint gate: 古い名前のファイルだけがあるときは、単一ユニットと取り違えずに案内を出して失敗する", () => {
+test("lint git uc: 古い名前のファイルだけがあるときは、単一ユニットと取り違えずに案内を出して失敗する", () => {
 	const d = dir(["traceconfig.json"]);
-	const r = spawnSync(process.execPath, [join(TOOLS, "spec-lint/spec-lint.mjs"), "gate", "--uc", "UC-001"], { encoding: "utf8", input: "", cwd: d });
+	const r = spawnSync(process.execPath, [join(TOOLS, "lint-git-uc/lint-git-uc.mjs"), "--uc", "UC-001"], { encoding: "utf8", input: "", cwd: d });
 	assert.notEqual(r.status, 0);
 	assert.match(r.stderr, /harness\.config\.json が無い.*改名した/);
 });
 
-test("stop-gate: docs を持たない unit に古い名前のファイルだけがあるときは、「docs なし」で済ませず失敗する", () => {
+test("verify --hook: docs を持たない unit に古い名前のファイルだけがあるときは、「docs なし」で済ませず失敗する", () => {
 	const d = dir([]);
 	mkdirSync(join(d, "app"));
 	writeFileSync(join(d, "app", "traceconfig.json"), "{}");
 	writeFileSync(join(d, CONFIG_FILE), JSON.stringify({ git: { units: { app: "app" } }, commands: {} }));
-	const r = spawnSync(process.execPath, [join(TOOLS, "gate-hook/stop-gate.mjs"), "--force"], { encoding: "utf8", input: JSON.stringify({ hook_event_name: "Stop", cwd: d }), cwd: d });
+	const r = spawnSync(process.execPath, [join(TOOLS, "verify/verify.mjs"), "--hook", "--force"], { encoding: "utf8", input: JSON.stringify({ hook_event_name: "Stop", cwd: d }), cwd: d });
 	assert.equal(r.status, 2, r.stdout + r.stderr);
 	assert.match(r.stderr, /unit app（app）に app\/harness\.config\.json が無い.*改名した/);
 	assert.doesNotMatch(r.stdout + r.stderr, /unit app（app）: docs なし/);

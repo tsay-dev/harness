@@ -1,0 +1,151 @@
+#!/usr/bin/env node
+//  gate-log — guard（書き込み前の関門）と verify --hook（Stop フック）が共有する却下ログ（JSONL）と集計
+//
+//  2 つのフック（PreToolUse の実装着手ゲート、Stop の終端ゲート）は判定のたびに
+//  1 行の JSON を追記する。目的は「ゲートが実際に何かを止めているか」を事実で
+//  測ること。一定期間ブロック 0 件のゲートは降格候補だが、降格の判断はこのデータ
+//  を見た人間が行う（ツールは候補を示すだけ）。
+//
+//  記録の形（キー順は固定）:
+//    ts        ISO 時刻
+//    hook      "guard" | "verify"
+//    event     "PreToolUse" | "Stop"
+//    session   Claude Code の session_id（無ければ null）
+//    decision  "block" | "pass" | "skip" | "release" | "ask"（guard が止めずに人間の承認を求めた）
+//    reason    判定理由の語彙（各フックが定める）。guard の ask は ASK_REASONS、
+//              docs の status の昇格・新規作成の記録は pass / "status-up"、.harness-gate/ への書き込みの阻止は block / "harness-gate"
+//    target    書き込み対象の相対パス（guard のみ。他は null）
+//    uc        検査した UC id の配列（guard のみ。他は null）
+//    round     終端ゲートのラウンド番号（verify --hook のみ。他は null）
+//    failures  失敗した検査名の配列（verify --hook のブロック時のみ。他は null）
+//    ms        判定にかかった時間（ミリ秒）
+//
+//  ログの失敗はゲートを止めない（追記に失敗しても例外を握りつぶす）。
+//
+//  直接実行すると集計モードになる:
+//    node gate-log.mjs --summary [--log .harness-gate/log.jsonl] [--since 14]
+
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const RECORD_KEYS = ["ts", "hook", "event", "session", "decision", "reason", "target", "uc", "round", "failures", "ms"];
+
+//  guard が人間の承認を求める理由（集計の内訳の並び順）
+export const ASK_REASONS = ["config", "harness", "hook-settings", "workflow", "status-down", "status-up-gate", "actor-kind", "deferred"];
+
+//  既定のログ置き場: <root>/.harness-gate/log.jsonl（verify --hook の state.json も同じ場所）
+export function defaultLogPath(root) {
+	return join(root, ".harness-gate", "log.jsonl");
+}
+
+//  1 行追記。キー順を固定し、欠けたキーは null で埋める。失敗は握りつぶす（ログ都合でゲートを止めない）
+export function appendLog(path, record) {
+	try {
+		const ordered = {};
+		for (const k of RECORD_KEYS) ordered[k] = record[k] === undefined ? null : record[k];
+		mkdirSync(dirname(path), { recursive: true });
+		appendFileSync(path, JSON.stringify(ordered) + "\n");
+	} catch {
+		//  ログ失敗は無視
+	}
+}
+
+//  ---- 集計（--summary） ----------------------------------------------------
+
+function parseArgs(argv) {
+	const opts = { summary: false, log: null, since: 14 };
+	for (let i = 0; i < argv.length; i++) {
+		const a = argv[i];
+		if (a === "--summary") opts.summary = true;
+		else if (a === "--log") opts.log = argv[++i];
+		else if (a === "--since") opts.since = Number(argv[++i]);
+		else {
+			console.error(`gate-log: 不明な引数 ${a}`);
+			process.exit(2);
+		}
+	}
+	return opts;
+}
+
+function readRecords(path, sinceDays) {
+	const cutoff = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+	const out = [];
+	for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+		if (!line.trim()) continue;
+		let r;
+		try {
+			r = JSON.parse(line);
+		} catch {
+			continue; //  壊れた行は読み飛ばす
+		}
+		const t = Date.parse(r.ts);
+		if (Number.isNaN(t) || t < cutoff) continue;
+		out.push(r);
+	}
+	return out;
+}
+
+const count = (rs, pred) => rs.filter(pred).length;
+
+function reasonBreakdown(blocks) {
+	const m = new Map();
+	for (const b of blocks) m.set(b.reason ?? "(なし)", (m.get(b.reason ?? "(なし)") || 0) + 1);
+	return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([r, n]) => `    ${r}: ${n}`);
+}
+
+function summarize(records, sinceDays) {
+	const lines = [`gate-log: 直近 ${sinceDays} 日（${records.length} 件）`];
+
+	//  guard: 実装ゲートの母数はゲート判定に達した実装コードへの書き込みだけ（docs や対象外は記録されない）。
+	//  ask（人間の承認を求めた件数）、status-up（docs の status の昇格・新規作成の記録）、
+	//  .harness-gate/ への書き込みの阻止は実装ゲートの母数に含めず、別に数える
+	const ghAll = records.filter((r) => r.hook === "guard");
+	const ghAsk = ghAll.filter((r) => r.decision === "ask");
+	const ghUp = ghAll.filter((r) => r.decision === "pass" && r.reason === "status-up");
+	const ghSelf = ghAll.filter((r) => r.decision === "block" && r.reason === "harness-gate");
+	const gh = ghAll.filter((r) => !ghAsk.includes(r) && !ghUp.includes(r) && !ghSelf.includes(r));
+	const ghBlocks = gh.filter((r) => r.decision === "block");
+	const lastBlock = ghBlocks.length ? ghBlocks[ghBlocks.length - 1].ts : "なし";
+	const askBy = (reason) => count(ghAsk, (r) => r.reason === reason);
+	const others = count(ghAsk, (r) => !ASK_REASONS.includes(r.reason));
+	const askDetail = [...ASK_REASONS.map((r) => `${r} ${askBy(r)}`), ...(others ? [`その他 ${others}`] : [])].join(", ");
+	lines.push(
+		`guard: gated ${gh.length} / block ${ghBlocks.length} / last block: ${lastBlock} / ask ${ghAsk.length}（${askDetail}）/ status-up ${ghUp.length} / harness-gate block ${ghSelf.length}`,
+	);
+	if (ghBlocks.length === 0) lines.push("  降格候補（期間内のブロック 0 件。降格の判断は人間が行う）");
+	else lines.push(...reasonBreakdown(ghBlocks));
+
+	//  verify: runs は全記録（block / pass / skip / release）
+	const sg = records.filter((r) => r.hook === "verify");
+	const sgBlocks = sg.filter((r) => r.decision === "block");
+	lines.push(
+		`verify: runs ${sg.length} / block ${sgBlocks.length} / release ${count(sg, (r) => r.decision === "release")} / skip ${count(sg, (r) => r.decision === "skip")}`,
+	);
+	if (sgBlocks.length === 0) lines.push("  降格候補（期間内のブロック 0 件。降格の判断は人間が行う）");
+	else lines.push(...reasonBreakdown(sgBlocks));
+
+	return lines.join("\n");
+}
+
+function main() {
+	const opts = parseArgs(process.argv.slice(2));
+	if (!opts.summary) {
+		console.error("usage: gate-log.mjs --summary [--log <path>] [--since <days>]");
+		return 2;
+	}
+	if (!Number.isFinite(opts.since) || opts.since <= 0) {
+		console.error("gate-log: --since は正の日数");
+		return 2;
+	}
+	const path = resolve(opts.log ?? defaultLogPath(process.env.CLAUDE_PROJECT_DIR || process.cwd()));
+	if (!existsSync(path)) {
+		console.log(`gate-log: ログが無い: ${path}（まだ判定が記録されていない）`);
+		return 0;
+	}
+	console.log(summarize(readRecords(path, opts.since), opts.since));
+	return 0;
+}
+
+//  直接実行時だけ集計モード（import された場合は何もしない）
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main());

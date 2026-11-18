@@ -99,8 +99,8 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <p>手書きの図（docs → codes → checks）と同じ並びで、harness の現在の実装をそのまま描いています。根拠は <code>docs.instructions.md</code> の R- 規則、<code>templates/develop/</code>、<code>tools/</code> の各検査ツールのコードです。</p>
   <ul class="points">
     <li><strong>docs</strong> は GOAL → UC → REQ と BR に加えて、UC ごとの <code>contract.yaml</code> と共有語彙 <code>components.yaml</code> があり、これがコードとの 2 つ目の接点になっています。</li>
-    <li><strong>code</strong> には本番コードとテストの 2 種類があります。手で書く紐づきはテストの側だけで（ADR-0070）、テストが注釈（<code>@covers</code> / <code>@scenario</code>）で仕様の ID を指します。注釈として数えるのはコメントの中にあるものだけで、どのテストの注釈かはテストの印の直上（または直後）のコメント行の「窓」で決まります。本番コードには紐づきの印を書かず、実装との対応は、テストの実行の記録と、アプリが出す入口の一覧で確かめます（exec-check）。</li>
-    <li><strong>checks</strong> は 2 つではなく 3 層です。文書と注釈を読む静的検査（spec-lint、trace-check）、実際に動かす検査と、動かした記録を読む検査（contract-run、テスト、exec-check）、書き込み・終了・コミットで止める関所（gate-hook、stop-gate、spec-lint gate、git-lint）です。</li>
+    <li><strong>code</strong> には本番コードとテストの 2 種類があります。手で書く紐づきはテストの側だけで（ADR-0070）、テストが注釈（<code>@covers</code> / <code>@scenario</code>）で仕様の ID を指します。注釈として数えるのはコメントの中にあるものだけで、どのテストの注釈かはテストの印の直上（または直後）のコメント行の「窓」で決まります。本番コードには紐づきの印を書かず、実装との対応は、テストの実行の記録と、アプリが出す入口の一覧で確かめます（lint entry・lint coverage・lint entries）。</li>
+    <li><strong>checks</strong> は 2 つではなく 3 層です。文書と注釈を読む静的検査（lint spec、lint refs）、実際に動かす検査と、動かした記録を読む検査（run cases、テスト、lint entry・lint coverage・lint entries）、書き込み・終了・コミットで止める関所（guard、verify --hook、lint git uc、lint git branch）です。</li>
     <li>点線の紐づけは機械が検査せず、reviewer が担う線です。どの線にも、機械が見るのは注釈や参照の存在までで、意味の正しさは人間ゲートと reviewer が担います。</li>
     <li>紐づきに例外はありません（ADR-0056）。baseline も、コードに書く例外の印もありません。対象が本当に無い範囲だけを <code>harness.config.json</code> に理由付きの none で宣言し、active な文書が求める範囲は none にできません（義務表、C26）。</li>
   </ul>
@@ -168,13 +168,13 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <!-- contract → UC / components / REQ の状態 -->
         <line x1="555" y1="290" x2="555" y2="208" class="e ok" marker-end="url(#a-ok)"/>
         <text class="el end" x="548" y="246">x-uc · x-spec</text>
-        <g class="pill ok"><rect x="462" y="254" width="86" height="16" rx="8"/><text x="505" y="266">spec-lint・C9</text></g>
+        <g class="pill ok"><rect x="462" y="254" width="86" height="16" rx="8"/><text x="505" y="266">lint spec・C9</text></g>
         <line x1="642" y1="322" x2="726" y2="322" class="e ok" marker-end="url(#a-ok)"/>
         <text class="el mid" x="684" y="314">code・auth</text>
-        <g class="pill ok"><rect x="654" y="330" width="60" height="16" rx="8"/><text x="684" y="342">spec-lint</text></g>
+        <g class="pill ok"><rect x="654" y="330" width="60" height="16" rx="8"/><text x="684" y="342">lint spec</text></g>
         <line x1="632" y1="288" x2="742" y2="208" class="e ok" marker-end="url(#a-ok)"/>
         <text class="elj" x="696" y="250">fixed ⇐ REQ active</text>
-        <g class="pill ok"><rect x="704" y="258" width="60" height="16" rx="8"/><text x="734" y="270">spec-lint</text></g>
+        <g class="pill ok"><rect x="704" y="258" width="60" height="16" rx="8"/><text x="734" y="270">lint spec</text></g>
       </svg>
     </div>
     <figcaption>docs は GOAL → UC → REQ の木（ディレクトリもこの形）で、BR は木の外に置かれ、UC と REQ から参照されます。BR は C4 が「どこからも参照されない BR」を、C16 が「参照先の BR が無い・draft・撤回済み」を、C22 が「active な REQ の <code>br:</code> から参照されない BR」を検出します。C17 は UC の「状態 × イベント表」「例外系の走査」の節と REQ の 1 対 1（未定義・撤回済みの REQ、別の UC の REQ、表に無い REQ、REQ が 1 件も無い UC）を、C18 は GOAL・UC の actor と GOAL の origin が表に定義されているかを見ます（UC の actor は図では省略）。01-glossary は図 2 のシナリオテストにつながります。</figcaption>
@@ -185,7 +185,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <h2>2. docs と code のつながり</h2>
   <figure>
     <div class="scroll">
-      <svg viewBox="0 0 920 852" role="img" aria-label="docs と code をつなぐ 13 本の線。本番コードは注釈を持たず、テストの実行の記録と入口の一覧で仕様と対応する。テストは @covers で REQ の分割クラスと BR を、シナリオテストは @scenario で UC を指す。契約の実例は contract-run が実装に対して実行する。実現単位を置く場所の単位はすべて仕様を指し、ソースの全ファイルは実現単位か技術部品の置き場に分類される。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
+      <svg viewBox="0 0 920 852" role="img" aria-label="docs と code をつなぐ 13 本の線。本番コードは注釈を持たず、テストの実行の記録と入口の一覧で仕様と対応する。テストは @covers で REQ の分割クラスと BR を、シナリオテストは @scenario で UC を指す。契約の実例は run cases が実装に対して実行する。実現単位を置く場所の単位はすべて仕様を指し、ソースの全ファイルは実現単位か技術部品の置き場に分類される。NFR はテストか計測の所在を持つ。用語集からロケーターを導く線だけは機械が検査しない。">
         <defs>
           <marker id="b-anno" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-anno"/></marker>
           <marker id="b-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="mk-open"/></marker>
@@ -198,7 +198,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="670" y="30" width="230" height="44" rx="6"/><text class="ntj" x="785" y="57">本番コード（ファイルと関数）</text></g>
         <line x1="252" y1="52" x2="666" y2="52" class="e anno" marker-end="url(#b-anno)"/>
         <text class="elj mid" x="460" y="44">テストから実行されないコードを検出</text>
-        <g class="pill anno"><rect x="362" y="58" width="196" height="16" rx="8"/><text x="460" y="70">exec-check coverage V2 · V3 · V6</text></g>
+        <g class="pill anno"><rect x="362" y="58" width="196" height="16" rx="8"/><text x="460" y="70">lint coverage V2 · V3 · V6</text></g>
 
         <!-- 1 BR ← 規則を確かめるテスト -->
         <g class="node"><rect x="20" y="94" width="230" height="44" rx="6"/><text class="nt" x="135" y="121">BR-nnn</text></g>
@@ -212,7 +212,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="670" y="158" width="230" height="44" rx="6"/><text class="ntj" x="785" y="185">テストの入口・本番の組み立て</text></g>
         <line x1="252" y1="180" x2="666" y2="180" class="e anno" marker-end="url(#b-anno)"/>
         <text class="elj mid" x="460" y="172">テストが本番と同じ組み立てを通る</text>
-        <g class="pill anno"><rect x="366" y="186" width="188" height="16" rx="8"/><text x="460" y="198">exec-check entry X1 · X2 · V5</text></g>
+        <g class="pill anno"><rect x="366" y="186" width="188" height="16" rx="8"/><text x="460" y="198">lint entry X1 · X2 · V5</text></g>
 
         <!-- 3 REQ#class ← テスト -->
         <g class="node"><rect x="20" y="222" width="230" height="44" rx="6"/><text class="ntj" x="135" y="249">REQ の検証方針 #class</text></g>
@@ -240,7 +240,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="670" y="414" width="230" height="44" rx="6"/><text class="ntj" x="785" y="441">実装（契約アダプター経由）</text></g>
         <line x1="252" y1="436" x2="666" y2="436" class="e anno" marker-end="url(#b-anno)"/>
         <text class="elj mid" x="460" y="428">実例を実行して応答を照合</text>
-        <g class="pill anno"><rect x="410" y="442" width="100" height="16" rx="8"/><text x="460" y="454">contract-run</text></g>
+        <g class="pill anno"><rect x="410" y="442" width="100" height="16" rx="8"/><text x="460" y="454">run cases</text></g>
 
         <!-- 7 layering → import -->
         <g class="node"><rect x="20" y="478" width="230" height="44" rx="6"/><text class="ntj" x="135" y="505">harness.config.json の layering</text></g>
@@ -261,7 +261,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="670" y="606" width="230" height="44" rx="6"/><text class="ntj" x="785" y="633">実行されないファイル・関数</text></g>
         <line x1="252" y1="628" x2="666" y2="628" class="e anno" marker-end="url(#b-anno)"/>
         <text class="elj mid" x="460" y="620">認めたものが実行されたら違反（宣言を消す）</text>
-        <g class="pill anno"><rect x="380" y="634" width="160" height="16" rx="8"/><text x="460" y="646">exec-check coverage V4</text></g>
+        <g class="pill anno"><rect x="380" y="634" width="160" height="16" rx="8"/><text x="460" y="646">lint coverage V4</text></g>
 
         <!-- 10 NFR ← テスト / measured_by -->
         <g class="node"><rect x="20" y="670" width="230" height="44" rx="6"/><text class="nt" x="135" y="697">NFR-nnn</text></g>
@@ -275,7 +275,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="node"><rect x="670" y="734" width="230" height="44" rx="6"/><text class="ntj" x="785" y="761">アプリが出す入口の一覧</text></g>
         <line x1="668" y1="756" x2="254" y2="756" class="e anno" marker-start="url(#b-anno)" marker-end="url(#b-anno)"/>
         <text class="elj mid" x="460" y="748">method + path ／ entry を突き合わせる（双方向）</text>
-        <g class="pill anno"><rect x="372" y="762" width="176" height="16" rx="8"/><text x="460" y="774">exec-check entries E1〜E4</text></g>
+        <g class="pill anno"><rect x="372" y="762" width="176" height="16" rx="8"/><text x="460" y="774">lint entries E1〜E4</text></g>
 
         <!-- 12 用語集の識別子 → コード -->
         <g class="node"><rect x="20" y="798" width="230" height="44" rx="6"/><text class="ntj" x="135" y="825">用語集のコード識別子</text></g>
@@ -285,28 +285,28 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <g class="pill anno"><rect x="445" y="826" width="30" height="16" rx="8"/><text x="460" y="838">C25</text></g>
       </svg>
     </div>
-    <figcaption>手で書く紐づきは、テストの注釈だけです。コメントの中の注釈の「存在」と「参照先の実在」を検査します。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト、<code>tests.dirs</code> の注釈のないテスト、1 テストに REQ が 2 つ）で上下両方から締めます。<code>pending_pattern</code> に一致する保留のテスト（<code>test.fixme</code> など）は C1・C10・C13・C15・C20・C22 の被覆に数えません。DB で守る規則は、規則に反する行を DB に直接入れて断られるテスト（<code>@covers BR-nnn</code>）で確かめます（C13）。本番コードは、注釈ではなく実行で仕様と対応させます。どのテストからも実行されないファイルと名前のある関数は exec-check の coverage が、契約に無い入口と入口の無い fixed の操作は entries が違反にします。要件を撤回すると、そのテストは C3、契約から消した操作の入口は E1、どこからも呼ばれなくなった関数は V6 で見つかります。実装が意味として正しいかを動かして確かめるのは、contract-run（契約の形）とテストだけです。</figcaption>
+    <figcaption>手で書く紐づきは、テストの注釈だけです。コメントの中の注釈の「存在」と「参照先の実在」を検査します。テスト側は C10（宣言したクラスにテストがない）と C11（方針にないテスト、<code>tests.dirs</code> の注釈のないテスト、1 テストに REQ が 2 つ）で上下両方から締めます。<code>pending_pattern</code> に一致する保留のテスト（<code>test.fixme</code> など）は C1・C10・C13・C15・C20・C22 の被覆に数えません。DB で守る規則は、規則に反する行を DB に直接入れて断られるテスト（<code>@covers BR-nnn</code>）で確かめます（C13）。本番コードは、注釈ではなく実行で仕様と対応させます。どのテストからも実行されないファイルと名前のある関数は lint coverage が、契約に無い入口と入口の無い fixed の操作は lint entries が違反にします。要件を撤回すると、そのテストは C3、契約から消した操作の入口は E1、どこからも呼ばれなくなった関数は V6 で見つかります。実装が意味として正しいかを動かして確かめるのは、run cases（契約の形）とテストだけです。</figcaption>
   </figure>
 </section>
 
 <section>
   <h2>3. 検査がかかるタイミング</h2>
-  <p>同じ検査でも、誰がいつ実行するかで役割が違います。gate-hook と stop-gate は利用プロジェクトが明示的に有効にしたときだけ動き、無効ならオーケストレーターが同じ条件を自分で守ります。</p>
+  <p>同じ検査でも、誰がいつ実行するかで役割が違います。guard と verify --hook は利用プロジェクトが明示的に有効にしたときだけ動き、無効ならオーケストレーターが同じ条件を自分で守ります。</p>
   <div class="flow">
     <div class="step"><span class="when">1 · 仕様を書いた直後</span><h3>作成者の自己検査</h3>
-      <ul><li>ID 採番は <code>trace-check --next</code></li><li><code>spec-lint validate</code></li><li><code>trace-check --as-active --only …</code>（承認後に出る違反を先に見る）</li></ul>
-      <p>その後、人間が承認して <code>active</code> にする。UC の active と契約の fixed は gate-hook が承認を求める。</p></div>
-    <div class="step"><span class="when">2 · 実装を書く直前</span><h3>gate-hook（PreToolUse）</h3>
+      <ul><li>ID 採番は <code>harness next-id</code></li><li><code>lint spec</code></li><li><code>lint refs --as-active --only …</code>（承認後に出る違反を先に見る）</li></ul>
+      <p>その後、人間が承認して <code>active</code> にする。UC の active と契約の fixed は guard が承認を求める。</p></div>
+    <div class="step"><span class="when">2 · 実装を書く直前</span><h3>guard（PreToolUse）</h3>
       <ul><li>UC が active</li><li>REQ に draft がない</li><li>契約が fixed</li><li>UC の phase が 実装 / 検証</li></ul>
       <p>満たさなければ書き込みを止める。harness.config.json・検査器・hook の設定・workflow・status の降格は人間に承認を求める（ask）。</p></div>
-    <div class="step"><span class="when">3 · ターン終了時</span><h3>stop-gate（Stop）</h3>
-      <ul><li>spec-lint → trace-check → contract-run</li><li>typecheck → lint → test</li><li>system（シナリオテスト）</li></ul>
+    <div class="step"><span class="when">3 · ターン終了時</span><h3>verify --hook（Stop）</h3>
+      <ul><li>lint spec → lint refs → run cases</li><li>typecheck → lint → test</li><li>system（シナリオテスト）</li></ul>
       <p>コマンドは <code>harness.config.json</code> の <code>commands</code> だけから取る（4 キーは宣言か none が必須）。harness.config.json が無ければ失敗。例外でも止める（fail-closed）。</p></div>
-    <div class="step"><span class="when">4 · コミット時</span><h3>spec-lint gate</h3>
+    <div class="step"><span class="when">4 · コミット時</span><h3>lint git uc</h3>
       <ul><li><code>UC:</code> trailer の UC と REQ が active</li><li>契約が fixed</li></ul>
       <p>commit-msg hook への接続は任意。</p></div>
-    <div class="step"><span class="when">5 · PR / CI</span><h3>git-lint ほか</h3>
-      <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>spec-lint・trace-check（<code>harness_ref</code> で固定した版。unit ごと）</li><li>harness.config.json・status・workflow の変更をジョブ要約に出す</li></ul>
+    <div class="step"><span class="when">5 · PR / CI</span><h3>lint git branch ほか</h3>
+      <ul><li>ブランチ名 B1–B3</li><li>コミットヘッダー M1–M3</li><li>lint spec・lint refs（<code>harness_ref</code> で固定した版。unit ごと）</li><li>harness.config.json・status・workflow の変更をジョブ要約に出す</li></ul>
       <p><code>git</code> 未宣言なら「未検査」。merge で止めるのはブランチ保護と CODEOWNERS。</p></div>
     <div class="step"><span class="when">6 · スライス完了</span><h3>判定と人間ゲート</h3>
       <ul><li>reviewer の「阻止」がゼロ</li><li>reviewer の「問い」に人間が答え済み</li><li>UC の phase が 完了</li></ul>
@@ -320,20 +320,20 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     <table>
       <thead><tr><th>ツール</th><th>見るもの</th><th>見ないもの</th></tr></thead>
       <tbody>
-        <tr><td>spec-lint validate</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、frontmatter の曖昧な書き方、閉じた語彙（status・phase・pattern・transport・direction・アクターの種別）、UC ディレクトリの余分な md、contract.yaml の無い active な UC、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（trace-check の担当）</td></tr>
-        <tr><td>spec-lint gate</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
-        <tr><td>trace-check</td><td>下の C1–C26（C5・C14・C19・C21・C23・C27 は欠番）。docs 同士、docs とテスト、層の向き、ID の衝突、宣言と義務の矛盾。読む注釈はテストの <code>@covers</code> / <code>@scenario</code> だけ。紐づきの宣言が省略されていれば設定エラーで、対象が無い範囲は理由付きの none として報告に出す（baseline は無い）</td><td>本番コードの注釈（読まない。ADR-0070）、テストが文の意味を確かめているか</td></tr>
-        <tr><td>exec-check</td><td>テストの入口が本番の組み立てを呼んでいるか（entry）。テストの実行の記録（lcov）から、どのテストからも実行されないソースのファイルと名前のある関数（coverage）。アプリが出した入口の一覧と、fixed の契約の inbound の操作の突き合わせ（entries。契約に無い入口、契約が fixed でない入口、入口の無い fixed の操作）</td><td>実行されたコードが正しい結果を確かめられたか、まだ呼ばれている関数の中の枝、一覧を出すコマンドが載せ忘れた入口、名前の無い関数の中だけにある処理</td></tr>
-        <tr><td>contract-run</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。実行する実例があるのにアダプターが無い場合と skip は失敗</td></tr>
+        <tr><td>lint spec</td><td>docs の各ファイルの書式とライフサイクル。テンプレートから導く必須 frontmatter と必須節、frontmatter の曖昧な書き方、閉じた語彙（status・phase・pattern・transport・direction・アクターの種別）、UC ディレクトリの余分な md、contract.yaml の無い active な UC、プレースホルダーの残り、状態 × イベント表の空セル、例外系 4 分類の行、要件文が 1 文か、契約の構造（13 キー、errors のコードが共有語彙にあるか、エラーコードごとの失敗例）、draft UC が phase を進めていないか、fixed 契約の UC・REQ が active か、ADR の supersedes、DEFERRED.md の行文法、作業指針 150 行以下</td><td>内容の正しさ、文書をまたぐ参照の大半（lint refs の担当）</td></tr>
+        <tr><td>lint git uc</td><td>コミットの <code>UC:</code> trailer が指す UC と REQ が active で、契約が fixed か</td><td>trailer のないコミット</td></tr>
+        <tr><td>lint refs</td><td>下の C1–C26（C5・C14・C19・C21・C23・C27 は欠番）。docs 同士、docs とテスト、層の向き、ID の衝突、宣言と義務の矛盾。読む注釈はテストの <code>@covers</code> / <code>@scenario</code> だけ。紐づきの宣言が省略されていれば設定エラーで、対象が無い範囲は理由付きの none として報告に出す（baseline は無い）</td><td>本番コードの注釈（読まない。ADR-0070）、テストが文の意味を確かめているか</td></tr>
+        <tr><td>lint entry / lint coverage / lint entries</td><td>テストの入口が本番の組み立てを呼んでいるか（entry）。テストの実行の記録（lcov）から、どのテストからも実行されないソースのファイルと名前のある関数（coverage）。アプリが出した入口の一覧と、fixed の契約の inbound の操作の突き合わせ（entries。契約に無い入口、契約が fixed でない入口、入口の無い fixed の操作）</td><td>実行されたコードが正しい結果を確かめられたか、まだ呼ばれている関数の中の枝、一覧を出すコマンドが載せ忘れた入口、名前の無い関数の中だけにある処理</td></tr>
+        <tr><td>run cases</td><td>fixed 契約の実例を契約アダプター経由で実装に流し、成功例は応答の形、失敗例はエラーコードを照合</td><td>REQ の意味（各 REQ のテストの担当）。実行する実例があるのにアダプターが無い場合と skip は失敗</td></tr>
         <tr><td>typecheck / lint / test / system</td><td>利用プロジェクト自身の検査。<code>commands</code> に宣言したものだけ</td><td>宣言のないもの（推測で補わない）</td></tr>
-        <tr><td>gate-hook</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか。harness.config.json・検査器・hook の設定・workflow への書き込みと、status の降格、UC の active・契約の fixed への昇格は人間に承認を求める</td><td>Bash による書き込み、Claude Code 以外のプロバイダー、monorepo の unit の docs の status</td></tr>
-        <tr><td>stop-gate</td><td>ターン終了時に上の検査を順に実行</td><td>ツリーに変更がないとき（省略）</td></tr>
-        <tr><td>git-lint</td><td>ブランチ名の形（B1–B3）、コミットヘッダーの type・末尾ピリオド・monorepo の scope（M1–M3）</td><td>差分と名前が合っているか（reviewer）</td></tr>
+        <tr><td>guard</td><td>実装コードを書く瞬間に、仕様が承認済みで契約が確定しているか。harness.config.json・検査器・hook の設定・workflow への書き込みと、status の降格、UC の active・契約の fixed への昇格は人間に承認を求める</td><td>Bash による書き込み、Claude Code 以外のプロバイダー、monorepo の unit の docs の status</td></tr>
+        <tr><td>verify --hook</td><td>ターン終了時に上の検査を順に実行</td><td>ツリーに変更がないとき（省略）</td></tr>
+        <tr><td>lint git branch</td><td>ブランチ名の形（B1–B3）、コミットヘッダーの type・末尾ピリオド・monorepo の scope（M1–M3）</td><td>差分と名前が合っているか（reviewer）</td></tr>
       </tbody>
     </table>
   </div>
 
-  <h3>trace-check の検査（C1–C26）と、図のどの線か</h3>
+  <h3>lint refs の検査（C1–C26）と、図のどの線か</h3>
   <p>C5・C14・C19・C21・C23・C27 は欠番です。本番コードとスキーマの注釈（<code>@implements</code> / <code>@operation</code>）を読む検査だったので廃止しました（ADR-0070）。番号は詰めません。</p>
   <div class="table">
     <table>
@@ -373,7 +373,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
         <tr><td>active な REQ</td><td><code>source</code>、<code>tests</code>、<code>tests.pending_pattern</code>。<code>source</code> を宣言していれば <code>coverage</code>（実行の記録）も none・省略にできない</td></tr>
         <tr><td>人間向けの active な UC</td><td><code>tests</code>、<code>tests.system</code>、<code>tests.system.pending_pattern</code></td></tr>
         <tr><td>active な UC</td><td><code>docs.glossary</code></td></tr>
-        <tr><td>fixed 契約の inbound の操作</td><td><code>source</code>（owned かつ inbound）。入口の一覧 <code>commands.list_entries</code> を none にできないことは、exec-check の E4 が見る</td></tr>
+        <tr><td>fixed 契約の inbound の操作</td><td><code>source</code>（owned かつ inbound）。入口の一覧 <code>commands.list_entries</code> を none にできないことは、lint entries の E4 が見る</td></tr>
         <tr><td>fixed 契約の errors</td><td><code>contract</code>（owned の操作に errors がある）</td></tr>
         <tr><td>撤回されていない契約の errors</td><td><code>contract</code>、<code>docs.shared</code></td></tr>
         <tr><td>DB で守る active な BR</td><td><code>schema</code>、<code>tests</code>、<code>tests.pending_pattern</code></td></tr>
@@ -384,7 +384,7 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   </div>
   <p>義務がある範囲で、テストの印の一致が 0 件なのも違反です。宣言した固定パスが無いことは、active な UC があれば違反（作るか、理由付きの none にする）、それ以外はレポートに「未作成」と出すだけです。</p>
 
-  <h3>exec-check の検査: 実装との対応を実行で確かめる</h3>
+  <h3>lint entry・lint coverage・lint entries の検査: 実装との対応を実行で確かめる</h3>
   <div class="table">
     <table>
       <thead><tr><th>#</th><th>失敗する条件</th><th>線</th></tr></thead>
@@ -400,9 +400,9 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
       </tbody>
     </table>
   </div>
-  <p>割合のしきい値は持ちません。入口の一覧は、利用プロジェクトのコマンド（<code>commands.list_entries</code>）が、本番と同じ組み立てから列挙して出します。完了の判定がコマンドを実行し、出力を exec-check に渡します。</p>
+  <p>割合のしきい値は持ちません。入口の一覧は、利用プロジェクトのコマンド（<code>commands.list_entries</code>）が、本番と同じ組み立てから列挙して出します。完了の判定がコマンドを実行し、出力を lint entries に渡します。</p>
 
-  <h3>gate-hook が人間に承認を求める書き込み（ask）</h3>
+  <h3>guard が人間に承認を求める書き込み（ask）</h3>
   <div class="table">
     <table>
       <thead><tr><th>書き込み</th><th>理由</th></tr></thead>
@@ -425,12 +425,12 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
   <div class="gaps">
     <div class="gap"><span class="who">人間ゲート</span><p>仕様の内容が正しいか（docs の承認で active・frozen・living にする）、UI の見た目（目視）、DB スキーマ。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>実行されたコードが本当に要件を実現しているか、テストの assertion が EARS 文の意味を検証しているか、<code>@covers BR-nnn</code> のテストが入口を通さず DB に直接入れているか、分割クラスが入力空間を尽くすか、ロケーターが用語集と契約から導かれているか。</p></div>
-    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>どの規則も説明しない制約がスキーマに無いか（機械はスキーマの制約を読まない）。<code>coverage.not_run</code> の理由が妥当か。none の宣言を含む <code>harness.config.json</code> の変更は人間が承認する（gate-hook が確認を求める）。</p></div>
+    <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>どの規則も説明しない制約がスキーマに無いか（機械はスキーマの制約を読まない）。<code>coverage.not_run</code> の理由が妥当か。none の宣言を含む <code>harness.config.json</code> の変更は人間が承認する（guard が確認を求める）。</p></div>
     <div class="gap"><span class="who">reviewer（別コンテキスト）</span><p>NFR のテストや <code>measured_by</code> の計測が、閾値を本当に測っているか。C20 が見るのは、検証の所在が docs の外のファイルとして実在し、中に NFR の ID が現れることまで。外部の計測は runbook に ID と計測先を書く。</p></div>
-    <div class="gap"><span class="who">補足</span><p>contract-run が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
-    <div class="gap"><span class="who">主張の外</span><p>テストが実際に実行されたこと。trace-check は紐づきの有無を見るだけで、<code>@covers</code> したテストが CI で走って通ったかは突き合わせない（ADR-0056 の M9）。実行の記録が示すのは、どのコードがどれかのテストから実行されたかまでで、どの要件のテストから実行されたかは示さない。</p></div>
+    <div class="gap"><span class="who">補足</span><p>run cases が確かめるのは応答の形とエラーコードまで。その背後の要件が満たされているかは、各 REQ に宣言したテストが担う。</p></div>
+    <div class="gap"><span class="who">主張の外</span><p>テストが実際に実行されたこと。lint refs は紐づきの有無を見るだけで、<code>@covers</code> したテストが CI で走って通ったかは突き合わせない（ADR-0056 の M9）。実行の記録が示すのは、どのコードがどれかのテストから実行されたかまでで、どの要件のテストから実行されたかは示さない。</p></div>
     <div class="gap"><span class="who">主張の外</span><p>撤回した要件のためのコードが、まだ呼ばれている関数の中の枝として残ること。名前の無い関数（無名のコールバック）の中だけにある処理。入口の一覧を出すコマンドが載せ忘れた入口。コードを読んだその場では、どの要件のためのコードかは分からない（<code>harness index</code> で要件のテストを引き、そのテストが実行するコードを見る）。</p></div>
-    <div class="gap"><span class="who">ブランチ保護</span><p>Bash や Claude Code 以外のプロバイダーでの <code>harness.config.json</code> と status の変更は、gate-hook の承認を通らない。<code>harness.config.json</code>・<code>docs/</code>・<code>.github/workflows/</code> を CODEOWNERS とブランチ保護で必須レビューにしない限り、機械では止まらない。monorepo の unit の docs の status も ask しない。</p></div>
+    <div class="gap"><span class="who">ブランチ保護</span><p>Bash や Claude Code 以外のプロバイダーでの <code>harness.config.json</code> と status の変更は、guard の承認を通らない。<code>harness.config.json</code>・<code>docs/</code>・<code>.github/workflows/</code> を CODEOWNERS とブランチ保護で必須レビューにしない限り、機械では止まらない。monorepo の unit の docs の status も ask しない。</p></div>
   </div>
 
   <h3>横断文書</h3>
@@ -438,13 +438,13 @@ td:first-child { font-family: var(--font-mono); font-weight: 500; white-space: n
     <table>
       <thead><tr><th>文書</th><th>役割</th><th>かかる検査</th></tr></thead>
       <tbody>
-        <tr><td>NFR-nnn</td><td>非機能要件（閾値と計測方法、検証の所在）</td><td>spec-lint（書式）・C12・C20</td></tr>
-        <tr><td>ADR-nnnn</td><td>判断の記録。変更は supersedes を持つ新 ADR</td><td>spec-lint（書式・supersedes の解決）・C12</td></tr>
-        <tr><td>verification/GLOBAL.md</td><td>プロジェクト全体で検証しない範囲と理由（NFR の計測の所在は持たない）</td><td>spec-lint（書式）</td></tr>
-        <tr><td>verification/DEFERRED.md</td><td>凍結済みの、過去の保留の一覧（新しい行は足さない）</td><td>spec-lint（行文法）</td></tr>
-        <tr><td>goals-backlog.md</td><td>未着手のゴール。着手時にディレクトリへ昇格</td><td>spec-lint（書式）</td></tr>
-        <tr><td>CLAUDE.md / AGENTS.md</td><td>利用プロジェクトの作業指針（地図）</td><td>spec-lint（150 行以下）</td></tr>
-        <tr><td>harness.config.json</td><td>検査の設定（範囲、none の宣言、注釈とコメントの正規表現、保留の印、commands、entry・coverage・entries、layering、policy、git）</td><td>config-lint が形と廃止したキーを検査（K1–K6）、trace-check が宣言を検査（設定エラー・C26）。変更は人間が承認（gate-hook の ask）</td></tr>
+        <tr><td>NFR-nnn</td><td>非機能要件（閾値と計測方法、検証の所在）</td><td>lint spec（書式）・C12・C20</td></tr>
+        <tr><td>ADR-nnnn</td><td>判断の記録。変更は supersedes を持つ新 ADR</td><td>lint spec（書式・supersedes の解決）・C12</td></tr>
+        <tr><td>verification/GLOBAL.md</td><td>プロジェクト全体で検証しない範囲と理由（NFR の計測の所在は持たない）</td><td>lint spec（書式）</td></tr>
+        <tr><td>verification/DEFERRED.md</td><td>凍結済みの、過去の保留の一覧（新しい行は足さない）</td><td>lint spec（行文法）</td></tr>
+        <tr><td>goals-backlog.md</td><td>未着手のゴール。着手時にディレクトリへ昇格</td><td>lint spec（書式）</td></tr>
+        <tr><td>CLAUDE.md / AGENTS.md</td><td>利用プロジェクトの作業指針（地図）</td><td>lint spec（150 行以下）</td></tr>
+        <tr><td>harness.config.json</td><td>検査の設定（範囲、none の宣言、注釈とコメントの正規表現、保留の印、commands、entry・coverage・entries、layering、policy、git）</td><td>lint config が形と廃止したキーを検査（K1–K6）、lint refs が宣言を検査（設定エラー・C26）。変更は人間が承認（guard の ask）</td></tr>
       </tbody>
     </table>
   </div>

@@ -16,7 +16,7 @@ Next.js（App Router）でなければ破棄する。シナリオテストの定
 
 ## シナリオテストの形
 
-UC ごとに 1 ファイル、ファイルごとに 1 つの `test`、テスト名は `UC-nnn <UC の題名>`。`// @scenario UC-nnn` は `test(` の直前行（`trace-check` の `scenario_pattern` がそこで読む）。
+UC ごとに 1 ファイル、ファイルごとに 1 つの `test`、テスト名は `UC-nnn <UC の題名>`。`// @scenario UC-nnn` は `test(` の直前行（`harness lint refs` の `scenario_pattern` がそこで読む）。
 
 ```ts
 // @scenario UC-012

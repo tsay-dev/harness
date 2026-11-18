@@ -4,19 +4,29 @@
 //  「設定が無い」とだけ伝えると原因が分からないので、改名したことを添える。古い名前のファイルは読まない
 //  （読む名前が 2 つあると、どちらが効いているかが分からなくなる）。
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 export const CONFIG_FILE = "harness.config.json";
 const OLD_CONFIG_FILE = "traceconfig.json";
 
+//  フォルダ hostRoot の設定を読む。無い・読めないときは null（読めないことは、設定の形の検査と紐づきの検査が報告する）。
+//  読めないことを自分で報告しない場面（仕様の木の根を決めるとき、アクター表の場所を引くとき）で使う
+export function readHostConfig(hostRoot) {
+	try {
+		return JSON.parse(readFileSync(join(hostRoot, CONFIG_FILE), "utf8"));
+	} catch {
+		return null;
+	}
+}
+
 //  ひな形（templates/develop/harness.config.json）に無いが、最上位に書いてよいキー。
 //  既定の動きを変えるときだけ書くキーで、ひな形に値を置くと既定を上書きしてしまうもの。
-//  config-lint の K1 は「ひな形のキー + これ」を使えるキーとする
+//  lint config の K1 は「ひな形のキー + これ」を使えるキーとする
 export const OPTIONAL_TOP_KEYS = ["comment_pattern"];
 
 //  廃止したキーと、代わりにすること（ADR-0070: 手で書く紐づきはテストの側だけにし、実装のコードの注釈を読まない）。
-//  設定に残っていたら、config-lint（K6）と trace-check が案内を付けて失敗にする。黙って無視すると、
+//  設定に残っていたら、lint config（K6）と lint refs が案内を付けて失敗にする。黙って無視すると、
 //  利用プロジェクトは「まだ検査されている」と思ったまま、注釈と設定を保ち続けることになる
 const NO_IMPLEMENTS = "実装とスキーマの @implements は読まない。紐づきはテストの @covers に書く";
 const NO_UNITS = "実現単位と技術部品の置き場の分類はやめた。実行されないソースは lint coverage（実行の記録）で見つける";

@@ -5,7 +5,7 @@ applyTo: "**/harness.config.json"
 
 # 🔗 crow — harness.config.json のスタックの値
 
-crow（crow3）アプリケーションで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README、`entry`・`coverage`・`commands.list_entries` は exec-check の README が正本。パスは `harness.config.json` を置くアプリケーションルート（`app/`、`tests/`、`e2e/` を持つ階層）からの既定の配置の例で、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
+crow（crow3）アプリケーションで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は `harness lint refs` の README、`entry`・`coverage`・`commands.list_entries` は `harness lint entry`・`lint coverage`・`lint entries` の README が正本。パスは `harness.config.json` を置くアプリケーションルート（`app/`、`tests/`、`e2e/` を持つ階層）からの既定の配置の例で、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
 
 ```json
 {

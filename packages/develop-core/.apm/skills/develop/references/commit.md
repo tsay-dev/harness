@@ -1,6 +1,6 @@
 # コミット（オーケストレーター自身が git を実行する）
 
-スライスはあなたが git コミットとして記録します（人間の依頼があれば PR も作ります）。意図を把握しているあなたが分割を決め、メッセージを書きます。メッセージと PR の書式はこのファイル末尾の書式リファレンスが SSOT で、機械で決まる部分は `tools/git-lint` が検査します（ADR-0039）。コミットメッセージと PR 本文は日本語です（`type`、scope、trailer は英語）。
+スライスはあなたが git コミットとして記録します（人間の依頼があれば PR も作ります）。意図を把握しているあなたが分割を決め、メッセージを書きます。メッセージと PR の書式はこのファイル末尾の書式リファレンスが SSOT で、機械で決まる部分は `harness lint git branch / lint git message` が検査します（ADR-0039）。コミットメッセージと PR 本文は日本語です（`type`、scope、trailer は英語）。
 
 ## ブランチを切る
 
@@ -15,7 +15,7 @@
 | `harness.config.json` に `git.units` がある（モノレポ） | `<unit>/<topic>` | `<unit>` は宣言済みの名前。スライスのユーザー価値が現れるアプリ → 変更が収まる共有パッケージ → どれでもなければ `repo` の順で選ぶ。`<unit>` 単独のブランチは禁止 |
 | `git.units` がない | `<type>/<topic>` | `<type>` はスライスの主変更のコミット `type`。利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に独自規約があればそれに従う |
 
-単位をディレクトリ構成から推測しません。未宣言なら人間に尋ね、`git.units` に記録してから切ります。切った直後に `node "${HARNESS_ROOT}/tools/git-lint/git-lint.mjs" branch` を実行します（`git` ブロックがなければ「未検査」であり合格ではありません）。
+単位をディレクトリ構成から推測しません。未宣言なら人間に尋ね、`git.units` に記録してから切ります。切った直後に `node "${HARNESS_ROOT}/bin/harness.mjs" lint git branch` を実行します（`git` ブロックがなければ「未検査」であり合格ではありません）。
 
 ## コミットしてよい条件
 
@@ -71,7 +71,7 @@
 ### body / footer
 
 - **body**: 変更理由と背景（変更内容は差分で分かる）。約 72 文字で折り返す。
-- **footer**: `Refs: #123` / `ADR-0007`、対応するユースケース `UC: UC-012`、破壊的変更 `BREAKING CHANGE: <説明>`。`UC:` trailer は `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" gate --message <file>` が UC と REQ の `active`、契約の `fixed` を検証します（モノレポではヘッダーの `scope` が示す単位の docs で引くため、`UC:` を持つコミットの scope を `repo` にしない）。`Co-Authored-By:` trailer は任意。
+- **footer**: `Refs: #123` / `ADR-0007`、対応するユースケース `UC: UC-012`、破壊的変更 `BREAKING CHANGE: <説明>`。`UC:` trailer は `node "${HARNESS_ROOT}/bin/harness.mjs" lint git uc --message <file>` が UC と REQ の `active`、契約の `fixed` を検証します（モノレポではヘッダーの `scope` が示す単位の docs で引くため、`UC:` を持つコミットの scope を `repo` にしない）。`Co-Authored-By:` trailer は任意。
 
 ```
 feat(reservation): 予約フォームの入力検証を追加
@@ -99,7 +99,7 @@ UC: UC-012
 ## テスト
 - [ ] 追加/更新したテストと観点（失敗・空・境界・権限を含む）
 - [ ] ローカルで緑（テスト緑は前提であって完成条件ではない）
-- [ ] `spec-lint` / `trace-check` / `contract-run` の違反ゼロ（マージ条件 R-803）
+- [ ] `harness lint spec` / `harness lint refs` / `harness run cases` の違反ゼロ（マージ条件 R-803）
 
 ## 関連
 - Issue: #

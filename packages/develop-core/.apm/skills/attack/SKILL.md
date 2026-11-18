@@ -22,7 +22,7 @@ attacker が返した「壊すことに成功した攻撃の一覧」と「未�
 
 ## attacker への入力
 
-- `scope`（`slice` / `system`）と対象。`slice` は UC ディレクトリ `docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/` とそれが参照する BR、`system` は `docs/00-vision.md`、`docs/nfr/`、`docs/rules/` と地図としての `trace-check --index`。両方なら 2 つの Task（依存がなければ並行）。
+- `scope`（`slice` / `system`）と対象。`slice` は UC ディレクトリ `docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/` とそれが参照する BR、`system` は `docs/00-vision.md`、`docs/nfr/`、`docs/rules/` と地図としての `harness index`。両方なら 2 つの Task（依存がなければ並行）。
 - 本番相当ランタイムの手掛かり（起動方法が分かるパスまたはコマンド）。
 - 攻撃予算。
 - 再攻撃時は前回の欠陥一覧と変更範囲。

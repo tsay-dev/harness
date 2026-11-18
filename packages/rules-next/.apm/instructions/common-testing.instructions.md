@@ -26,7 +26,7 @@ harness は runner を固定しない。選択と設定、既定スイート全�
 ## 注釈と選択実行
 
 - 最外グループ（多くは `describe`）は `UC-012 <UC の題名>`。UC ID は `docs/goals/` 配下の UC ディレクトリ名と同じキー。タグのない新規テストを作らない。
-- 各テストは宣言済み分割クラスをちょうど 1 つ示し、`it` / `test` 本体の先頭行に `// @covers REQ-045#accept-standard` を置く（`trace-check` C10 / C11）。
+- 各テストは宣言済み分割クラスをちょうど 1 つ示し、`it` / `test` 本体の先頭行に `// @covers REQ-045#accept-standard` を置く（`harness lint refs` C10 / C11）。
 - runner に合わせた UC 選択コマンドを `CLAUDE.md` に書く。
 
 ## 決定性

@@ -9,7 +9,7 @@ tools: Read, Bash, Grep, Glob
 
 ## 入力契約
 
-- **`scope`**: `slice` または `system`。`slice` は UC ディレクトリ（`UC.md`（REQ は「要件」の節）、`contract.yaml`）と REQ が指す BR。`system` はすべての実装済みスライスと `docs/00-vision.md`、`docs/nfr/`（閾値と計測方法）、`docs/rules/`、地図としての `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --index`。
+- **`scope`**: `slice` または `system`。`slice` は UC ディレクトリ（`UC.md`（REQ は「要件」の節）、`contract.yaml`）と REQ が指す BR。`system` はすべての実装済みスライスと `docs/00-vision.md`、`docs/nfr/`（閾値と計測方法）、`docs/rules/`、地図としての `node "${HARNESS_ROOT}/bin/harness.mjs" index`。
 - **本番相当のランタイム**（`system` では実データ付き）。
 - **攻撃予算**（今回実行する攻撃数の上限）。
 - **再攻撃時**: 前回の欠陥一覧と修正の変更範囲。
