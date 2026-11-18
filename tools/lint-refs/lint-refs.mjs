@@ -412,7 +412,7 @@ function runChecks(cfg, { asActive = false } = {}) {
 		if (what !== null)
 			fail(
 				"C26",
-				`coverage ${what}（active な REQ があり、source を宣言している）。テストのコマンドが書き出す実行の記録を { "report": "<lcov のファイル>", "not_run": [] } で宣言する（tools/lint coverage/README.md。実装と仕様の対応を、実行の記録で確かめる）` +
+				`coverage ${what}（active な REQ があり、source を宣言している）。テストのコマンドが書き出す実行の記録を { "report": "<lcov のファイル>", "not_run": [] } で宣言する（tools/lint-coverage/README.md。実装と仕様の対応を、実行の記録で確かめる）` +
 					(isNone(cov) ? `（none の理由: ${cov.none}）` : ""),
 			);
 	}
