@@ -402,5 +402,5 @@ function internalError(e, payload, opts, statePath, session, log) {
 //  ==== 入口 ======================================================================
 
 const argv = process.argv.slice(2);
-if (argv.includes("--hook")) process.exit(await runHook(argv.filter((a) => a !== "--hook")));
+if (argv.includes("--hook")) process.exitCode = await runHook(argv.filter((a) => a !== "--hook"));
 else process.exitCode = await runOnce(argv);

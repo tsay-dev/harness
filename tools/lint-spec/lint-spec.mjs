@@ -1130,4 +1130,4 @@ function cmdValidate(docsDir, opts) {
 }
 
 const opts = parseArgs(COMMAND, process.argv.slice(2));
-process.exit(cmdValidate(opts.docs, opts));
+process.exitCode = cmdValidate(opts.docs, opts);

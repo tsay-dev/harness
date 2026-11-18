@@ -94,4 +94,4 @@ function cmdMessage(root, cfg, opts) {
 	return report(TAG, problems, `コミットメッセージ OK: ${checked} 件`);
 }
 
-process.exit(runGitLint(COMMAND, cmdMessage));
+process.exitCode = runGitLint(COMMAND, cmdMessage);
