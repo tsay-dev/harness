@@ -1,14 +1,14 @@
-# contract-run
+# run cases
 
 harness に同梱する依存なしの Node ツール。利用プロジェクトの実装に対して境界契約を**実行**する。
-`../spec-lint/` は契約の*書式*、`../trace-check/` は docs とコードの*参照*の解決を証明する。
+`harness lint spec` は契約の*書式*、`harness lint refs` は docs とコードの*参照*の解決を証明する。
 このツールは残る隔たり、すなわち実装が契約どおりに応答することを確認する。
 
 ## 検査内容
 
 すべての `fixed` 契約（仕様の木の UC のフォルダの `contract.yaml`）は、操作ごとに実値の `examples` を持つ。
-少なくとも成功例一つと、各 `errors[].code` の失敗例一つがある（spec-lint が保証）。それらを fixture とする。
-contract-run は各例を**利用プロジェクトが書いたアダプタープロセス**で実装へ渡し、応答を例に照らして判定する。
+少なくとも成功例一つと、各 `errors[].code` の失敗例一つがある（lint spec が保証）。それらを fixture とする。
+run cases は各例を**利用プロジェクトが書いたアダプタープロセス**で実装へ渡し、応答を例に照らして判定する。
 
 - 成功例（`response:` があり `error:` がない）は、例の response を含む形状の response を返す必要がある
   （部分集合の一致。下記参照）。
@@ -21,7 +21,7 @@ contract-run は各例を**利用プロジェクトが書いたアダプター�
 ## 使い方
 
 ```bash
-node tools/contract-run/contract-run.mjs [--root <host root>] [--config harness.config.json] [--docs docs]
+harness run cases [--root <host root>] [--config harness.config.json] [--docs docs]
                                           [--uc UC-012 ...] [--all] [--include-external] [--json] [--timeout 120]
 ```
 
@@ -29,7 +29,7 @@ node tools/contract-run/contract-run.mjs [--root <host root>] [--config harness.
 | --- | --- |
 | `--root` | 利用プロジェクト直下（既定: 現在のディレクトリ）。アダプターはここを cwd に実行 |
 | `--config` | 読む `harness.config.json`（既定: `<root>/harness.config.json`）。設定欠落は exit `2`。探索はしない |
-| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は、`<docs>/goals` の直下のゴールのフォルダの、直下の UC のフォルダの `contract.yaml`（数え方は spec-lint・trace-check・exec-check と同じ `../_shared/goals-tree.mjs`。それより深い場所や、`.`・`_` で始まるフォルダの契約は、どのツールも読まない）。`<docs>/goals` が無いか、設定の `docs.goals_dir` と別の場所を指していれば exit `2` |
+| `--docs` | root からの docs 相対ディレクトリ（既定: `docs`）。契約は、`<docs>/goals` の直下のゴールのフォルダの、直下の UC のフォルダの `contract.yaml`（数え方は lint spec・lint refs・lint entries と同じ `../_shared/spec-tree.mjs`。それより深い場所や、`.`・`_` で始まるフォルダの契約は、どのツールも読まない）。`<docs>/goals` が無いか、設定の `docs.goals_dir` と別の場所を指していれば exit `2` |
 | `--uc` | `x-uc` が一致する契約だけ（繰り返し指定、またはカンマ区切り） |
 | `--all` | `draft` 契約も実行（既定: `x-status: fixed` のみ） |
 | `--include-external` | `owned: false` 操作も実行（既定: `owned: true` のみ）。外部境界は写しであり自身のものではないため明示選択 |
@@ -55,7 +55,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 `commands.contract_adapter` が**未宣言**で、実行する実例があれば失敗（`1`）にする（ADR-0056）:
 
 ```
-[contract-run] commands.contract_adapter 未宣言: 実行する実例が 2 件あるのに実行できない（アダプタを書いて宣言する）
+[run cases] commands.contract_adapter 未宣言: 実行する実例が 2 件あるのに実行できない（アダプタを書いて宣言する）
 ```
 
 実行する実例が 1 件も無い（fixed 契約が無い、すべて `operations: {}` など）ときだけ、アダプターなしで `0` で終える。
@@ -63,9 +63,9 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 
 ## アダプターの契約
 
-アダプターだけが利用プロジェクトの実装への到達方法を知る。contract-run は:
+アダプターだけが利用プロジェクトの実装への到達方法を知る。run cases は:
 
-1. `commands.contract_adapter` を**一実行につき一度**起動する（`shell: true`、`cwd` = 利用プロジェクト直下）。POSIX では、アダプターを別のプロセスグループで起動する。制限時間や応答の異常で止めるときに、シェルの子として動くアダプター（とその子）までまとめて止めるためである。端末の Ctrl-C などグループ宛てのシグナルはアダプターに直接は届かないので、contract-run が `SIGINT` / `SIGTERM` / `SIGHUP` を受けたらアダプターを止めてから終わる。`SIGKILL` で止められたときは止められず、アダプターが残る。Windows ではシェルだけを止める。
+1. `commands.contract_adapter` を**一実行につき一度**起動する（`shell: true`、`cwd` = 利用プロジェクト直下）。POSIX では、アダプターを別のプロセスグループで起動する。制限時間や応答の異常で止めるときに、シェルの子として動くアダプター（とその子）までまとめて止めるためである。端末の Ctrl-C などグループ宛てのシグナルはアダプターに直接は届かないので、run cases が `SIGINT` / `SIGTERM` / `SIGHUP` を受けたらアダプターを止めてから終わる。`SIGKILL` で止められたときは止められず、アダプターが残る。Windows ではシェルだけを止める。
 2. **例ごとに JSON 一行**を契約順で stdin に書き、stdin を閉じる。
 3. stdout を**一行ずつ**読み、`id` でリクエストと応答を対応付ける。
 4. 終了を待つ。
@@ -112,7 +112,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 
 ## 応答が JSON でない操作
 
-画像、HTML、ファイルを返す操作（静的なファイルや画面の配信など）も、契約に書いて実例で実行する。契約の `response` と実例には、アダプターが返す JSON の形を書く。アダプターは、実装の応答から確かめたい事実だけを JSON にして返す（例: `{"id":3,"response":{"contentType":"image/png"}}`）。本文そのものは実例に書かない。判定は、ほかの操作と同じ部分集合の一致である。何でも受ける経路（`wire.path: /assets/*`）の実例は、`request` に具体的なパスを書く。書き方の全体は `../exec-check/README.md` の「機能の仕様ではない入口」。
+画像、HTML、ファイルを返す操作（静的なファイルや画面の配信など）も、契約に書いて実例で実行する。契約の `response` と実例には、アダプターが返す JSON の形を書く。アダプターは、実装の応答から確かめたい事実だけを JSON にして返す（例: `{"id":3,"response":{"contentType":"image/png"}}`）。本文そのものは実例に書かない。判定は、ほかの操作と同じ部分集合の一致である。何でも受ける経路（`wire.path: /assets/*`）の実例は、`request` に具体的なパスを書く。書き方の全体は `../lint entries/README.md` の「機能の仕様ではない入口」。
 
 ## アダプターの作成
 
@@ -134,7 +134,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
   境界を切り出す。`skip` は失敗に数えるので、到達できないままにはできない。
 - **外部境界**（`owned: false`）— `--include-external` の場合だけ記録済み fixture または sandbox アカウントで実行し、
   本番には接続してはならない。既定では `owned: false` の操作は実行しない（写しであり自身の実装ではない。
-  このアプリが呼ばれる側の操作の入口は、exec-check の `lint entries` が入口の一覧と突き合わせる）。
+  このアプリが呼ばれる側の操作の入口は、`harness lint entries` が入口の一覧と突き合わせる）。
 
 ## 判定規則
 
@@ -143,7 +143,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 - プリミティブ（string / number / boolean / null）は厳密に等しい（`===`）。
 - 配列は**同じ長さ**で、各要素が同じ index の要素の部分集合。
 - object は例の全キーが応答に存在し、その部分集合であること。**応答の追加キーは許可**する
-  （契約の `additionalProperties` は spec-lint の関心であり、このツールの対象ではない）。
+  （契約の `additionalProperties` は lint spec の関心であり、このツールの対象ではない）。
 
 最初の不一致をパスで報告する: `items[0].status: 期待 "ok" / 実際 "pending"`。
 欠落キーは `実際 (無し)`、長さの不一致は `期待 長さ 2 / 実際 長さ 3`。
@@ -165,13 +165,13 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 
 | ツール | 証明するもの | 証明しないもの |
 | --- | --- | --- |
-| `spec-lint` | 契約の書式とライフサイクル（語彙、`examples` の存在と `request` との整合） | コードの存在 |
-| `trace-check` | 参照の解決: テストの `@covers` / `@scenario`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、層 | コードの動作 |
-| `exec-check` | テストが本番と同じ組み立てを通ること、どのテストからも実行されないソースと関数が無いこと、アプリの入口と契約の inbound の操作が双方向に合うこと（`lint entries`） | 入口の先の動作 |
-| **`contract-run`** | 実装が各例に契約の**形状**と**コード**で応答すること | REQ の**意味** |
+| `lint spec` | 契約の書式とライフサイクル（語彙、`examples` の存在と `request` との整合） | コードの存在 |
+| `lint refs` | 参照の解決: テストの `@covers` / `@scenario`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、層 | コードの動作 |
+| `lint entry`・`lint coverage`・`lint entries` | テストが本番と同じ組み立てを通ること、どのテストからも実行されないソースと関数が無いこと、アプリの入口と契約の inbound の操作が双方向に合うこと（`lint entries`） | 入口の先の動作 |
+| **`run cases`** | 実装が各例に契約の**形状**と**コード**で応答すること | REQ の**意味** |
 | テスト（`## 検証方針`） | 分割クラスごとの REQ の意味 | — |
 
-contract-run は形状を実行する。正常な実行 + テスト成功 + trace-check 違反ゼロは、
+run cases は形状を実行する。正常な実行 + テスト成功 + lint refs 違反ゼロは、
 「機械で確認できる範囲で docs と実装が一致する」状態。
 
 ## `harness.config.json` への宣言
@@ -185,18 +185,18 @@ contract-run は形状を実行する。正常な実行 + テスト成功 + trac
 }
 ```
 
-`commands` ブロックは `tools/gate-hook`（最終ゲート）とこのツールだけが読み、trace-check は無視する。
+`commands` ブロックは 完了の判定（`harness verify`）とこのツールだけが読み、lint refs は無視する。
 `contract_adapter` はテンプレートに無い。アダプターを書いてから宣言する（`harness.config.json` の変更なので人間が承認する。ADR-0057）。
-アダプターができるまでは、実行する実例があれば contract-run は失敗する。推測でアダプターを作らない。
+アダプターができるまでは、実行する実例があれば run cases は失敗する。推測でアダプターを作らない。
 
 ## 制約
 
 - アダプターは利用プロジェクトのコード。正しさ（正しいハンドラー、分離データ、誠実なエラー変換）は
-  利用プロジェクトの責任。contract-run は伝えられた内容を信頼する。
+  利用プロジェクトの責任。run cases は伝えられた内容を信頼する。
 - **ベースラインファイルはない。** 実行結果は台帳化する負債ではない。`fail` は正本（契約または実装）で
   直すか、例が誤っている。
 - skip は失敗。集計は未実行の例の数を示し、終了コードを `1` にする。
 - 一実行一プロセス。アダプターは一つの寿命で全例を扱う。例間の分離が必要ならアダプターが行う
   （一行ごとのトランザクション、新規メモリー内ストア）。
-- YAML reader は spec-lint・trace-check と共有する `tools/_shared/strict-yaml.mjs`（厳格な部分集合。anchors、aliases、
-  block scalars はエラー）。二重引用符の中のエスケープ（`\n`・`\t`・`\u0000`・`\\` など）は YAML の決まりどおりに解き、知らないエスケープは違反にする。単一引用符の中は解かない（`''` だけを `'` に戻す）。正規表現のように `\d` を書く値は、単一引用符で囲むか `\\d` と書く。ツールごとに契約を違う値に読まない（ADR-0056）。spec-lint が拒否する契約は、ここでは `fail` でなく exit `2`。
+- YAML reader は lint spec・lint refs と共有する `tools/_shared/strict-yaml.mjs`（厳格な部分集合。anchors、aliases、
+  block scalars はエラー）。二重引用符の中のエスケープ（`\n`・`\t`・`\u0000`・`\\` など）は YAML の決まりどおりに解き、知らないエスケープは違反にする。単一引用符の中は解かない（`''` だけを `'` に戻す）。正規表現のように `\d` を書く値は、単一引用符で囲むか `\\d` と書く。ツールごとに契約を違う値に読まない（ADR-0056）。lint spec が拒否する契約は、ここでは `fail` でなく exit `2`。

@@ -1,7 +1,7 @@
-# spec-lint
+# lint spec
 
-harness に同梱する依存なしの Node ツール。docs の SSOT（単一文書、GOAL / UC / REQ、
-BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械的に検証する。
+docs の SSOT（単一文書、GOAL / UC / REQ、
+BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械的に検証する（`harness lint spec`。依存なしの Node）。
 
 - **検証する配置**: `docs/00-vision.md` `01-glossary.md` `02-actors.md`（任意で
   `goals-backlog.md`、`design.md`、`verification/GLOBAL.md`、`verification/DEFERRED.md` —
@@ -20,11 +20,11 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
 - **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
   作業指針は地図だけを持つ）。
 - **トレーサビリティは担当外**: カバレッジ、`@covers` / `@scenario` の解決、配置 ↔ frontmatter
-  （C9）、採番衝突、参照先の実在は `../trace-check/` の検査（C1〜C26）の担当。
+  （C9）、採番衝突、参照先の実在は `harness lint refs` の検査（C1〜C26。`../lint-refs/README.md`）の担当。
 - **撤回済みの文書**: `status: withdrawn` の UC・REQ・BR・NFR には、必須の節（検証方針、状態 × イベント表、例外系の走査など）とその中身を求めない。frontmatter・ID・要件文（REQ と NFR）は検査する。
 - **共有パーサー**: frontmatter は `../_shared/frontmatter.mjs`、契約と共有語彙の YAML は `../_shared/strict-yaml.mjs` で読む。
   引用符付きの値は YAML の決まりどおりに読む（二重引用符の中のエスケープを解く。知らないエスケープは違反。単一引用符の中は解かない）。改行・タブ・NUL を含む例は `"a\nb"`・`"\u0000"` のように書ける。
-  trace-check・contract-run・gate-hook も同じものを使うので、同じ文書をツールごとに違う値（一方は active、他方は draft）に読まない（ADR-0056）。
+  lint refs・run cases・guard も同じものを使うので、同じ文書をコマンドごとに違う値（一方は active、他方は draft）に読まない（ADR-0056）。
 - **契約検証の範囲**: 契約は **OpenAPI ではない**。harness 独自の境界契約書式（理由: `docs/adr/ADR-0001`）。
   意図的に狭い YAML 部分集合用の手書き parser（`../_shared/strict-yaml.mjs`。理由: `docs/adr/ADR-0002`）で構造を検査する:
   `transport` / `direction` / `owned` の妥当性、`wire` は `http` のみ、inbound の `http` の操作の `wire.method` と `wire.path` は空でない文字列（入口の一覧と文字どおり比べるため。形は解釈しない。撤回済みの UC の契約は対象にしない）、`entry` は `deeplink` / `push` / `stream` のみ（`deeplink` / `push` は inbound 限定）、`stream` の `observers` と例の `events`、
@@ -34,42 +34,22 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   成功 `examples` が宣言 `request` と一致すること（失敗例は反例なので禁止キーを含んでよい）、
   操作キーがテンプレートの 13 個に閉じていること、`fixed` 後は全宣言エラーコードを少なくとも一例が返すこと。
   **検査器がすべて判定するため、準拠判定のために agent が契約を全文読む必要はない。**
-- **使い方**: 作成者が直接実行して成果物を機械検証する。`gate` を commit-msg hook に接続してもよい
-  （任意。各プロジェクト側で設定）。
+- **使い方**: 作成者が直接実行して成果物を機械検証する。
 
 ```bash
-node spec-lint.mjs validate [--docs docs]     # 書式 + ライフサイクル不変条件 + docs の健全性
-node spec-lint.mjs validate --ignore-legacy-layout   # docs/specs/ が残る移行中も新配置を検査
-node spec-lint.mjs gate --message <file>       # コミットの UC: trailer を検証（UC / REQs が active、契約が fixed）
-node spec-lint.mjs gate --uc UC-012            # 一 UC に同じ検査 [モノレポ直下では --unit <name>]
-node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
+harness lint spec [--docs docs]              # 書式 + ライフサイクル不変条件 + docs の健全性
+harness lint spec --ignore-legacy-layout     # docs/specs/ が残る移行中も新配置を検査
 ```
 
-終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー、`validate` で docs の隣の設定の `docs.goals_dir` が `<docs>/goals` と別の場所を指している（trace-check・exec-check と別の木を読むことになる。根の決め方は `../_shared/goals-tree.mjs`）、または `validate` で `<docs>/goals` が無い（`--docs` の指定を確かめるか、
+コミットが指す UC の状態の検査は `harness lint git uc`（`../lint-git-uc/README.md`）、旧 OpenAPI 契約の変換は `harness convert`（`../convert/README.md`）。
+
+終了コード: `0` = 正常 / `1` = 違反 / `2` = 使用法エラー、docs の隣の設定の `docs.goals_dir` が `<docs>/goals` と別の場所を指している（lint refs・lint entries と別の木を読むことになる。根の決め方は `../_shared/spec-tree.mjs`）、または `<docs>/goals` が無い（`--docs` の指定を確かめるか、
 `<docs>/goals/` を作る。空なら `.gitkeep` を置く）。docs の場所の書き損じで検証が黙って空回りしないため（ADR-0056）。Node のみ（外部依存なし）。
 baseline は無い（ADR-0056）。違反は 1 件でも失敗にする。廃止した `--update-baseline` / `--strict` / `--baseline` は
 使用法エラー、残った `.spec-baseline.json` は読まずに警告する。
-モノレポの利用プロジェクト（`harness.config.json` が `git.units` を宣言し、repository 直下から実行）では docs と
-UC 番号は単位ごと。`gate` は一単位の `docs/` を検索する。`--message` はコミットヘッダーの `scope` から、
-`--uc` は `--unit` から単位を取る。宣言済み単位でない scope（`repo`、なし）で `UC:` を持つコミットは失敗する。
-trailer のないコミットは、ほかと同様、そのまま通す（ADR-0040）。
-回帰テスト: `node --test "tools/spec-lint/test/*.test.mjs"`（ケースごとに一時ディレクトリへ最小 docs ツリーを書く）。
+回帰テスト: `node --test "tools/lint-spec/test/*.test.mjs"`（ケースごとに一時ディレクトリへ最小 docs ツリーを書く）。
 旧配置（`docs/specs/F-xxx-<slug>/`）検出時は `/docs-migrate` を案内して `1` を返す。
 `--ignore-legacy-layout` 指定時は旧ディレクトリを警告にし、新配置を完全に検査する。
-
-## convert（旧 OpenAPI 契約 → harness 契約）
-
-`convert` は `docs/adr/ADR-0001` で決めた書式変更の機械処理部分。緩い parser（block scalar を畳む）で
-OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
-`paths.*.<method>`（`operationId`）→ `transport: http` と `wire` 付きの `operations.<name>`、path / query
-`parameters` + `requestBody` → 一つの `request` object、最初の 2xx → `response`、各 4xx / 5xx → `errors[]`
-（`code` は `x-error-code`、なければ response schema の `code` の `const` / `enum`、なければ 400 の
-`INVALID_INPUT` などステータス既定値）、`example(s)` → `examples`、`components.schemas` → 契約の最上位
-`schemas:`（`$ref` を `#/schemas/<Name>` に書き換え）、`security` → `auth`（`[]` = `none`）、`x-status` は引き継ぐ。
-判断できないもの — direction（`--direction`、既定 `outbound` = このアプリが API を呼ぶ。サーバー自身の API は
-`inbound`）、欠落した `security`、推測したエラーコード、欠落した `summary`、UC（`--uc`）— はすべて
-ファイル末尾の `# convert:` 注記として残し、stderr に表示する。旧契約に 4xx がない操作は `errors: []` にする
-（失敗経路を創作しない）。注記を解消後に `validate` を通すことを意図した結果。
 
 ## エラーとして扱うもの（ライフサイクルと参照の不変条件）
 
@@ -77,9 +57,9 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
 - frontmatter の曖昧な書き方: 先頭が空白の行、キーの重複、区切りもどき（`--- ` や `---x`）、終わりの `---` の閉じ忘れ、
   `キー: 値` でない行。ツールごとに読みが割れてすり抜けになるため（ADR-0056）。
 - UC ディレクトリにある `REQ-nnn.md`（REQ は `UC.md` の「要件」の節に書く。`harness migrate reqs --write` で移す）。
-- UC ディレクトリにある `UC.md` 以外の md（trace-check の対象に入らず紐づきの検査をすり抜ける。資料は `docs/attic` へ）。
+- UC ディレクトリにある `UC.md` 以外の md（lint refs の対象に入らず紐づきの検査をすり抜ける。資料は `docs/attic` へ）。
 - `contract.yaml` の無い `active` UC（ファイルを省略せず、境界ゼロは `operations: {}` + `x-no-boundary` で宣言する）。
-- `02-actors.md` の表で、`種別` が `人間` か `システム` で始まらないアクター（trace-check の C15 は `システム` で始まるものだけを人間でないと数える）。
+- `02-actors.md` の表で、`種別` が `人間` か `システム` で始まらないアクター（lint refs の C15 は `システム` で始まるものだけを人間でないと数える）。
 - ディレクトリ名の違反（`GOAL-nn-<slug>`、`UC-nnn-<slug>`、`ADR-nnnn-<slug>.md`）、ディレクトリや
   ファイル名に合わない `id`、重複 GOAL / UC id、`GOAL.md` / `UC.md` 欠落、ゴール直下の UC / REQ。
 - EARS 引用ブロックがゼロまたは複数の REQ（一要件一文 — R-401）、五つの EARS パターン外の `pattern`、
@@ -88,7 +68,7 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
 - 確定文書に残るテンプレートプレースホルダー（`UC-000`、`YYYY-MM-DD`、`<...>` など）。`<...>` は
   テンプレートが使う文字列、または後続語に接着していない非 ASCII の `<…>` を数える（`<言語>.lproj` は
   メタ変数であり空欄ではない）。HTML コメント、コード span / fence、YAML コメントは走査しない。
-  REQ の `## 検証方針` は除外し、内容は trace-check の C2 / C10 が扱う。
+  REQ の `## 検証方針` は除外し、内容は lint refs の C2 / C10 が扱う。
 - UC またはいずれかの REQ が `draft` の `fixed` 契約、`phase` が `定義` を超えた `draft` UC、
   解決しない `x-spec` / `$ref`、存在しない ADR の `supersedes`、承認済み（`proposed` でない）の ADR が置き換えたのに `superseded` になっていない ADR。
 - 受理する YAML 部分集合外の構文: anchors / aliases（`&` / `*`）、block scalars（`|` / `>`）、tabs、
@@ -108,7 +88,8 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
   既存の「全失敗例は宣言済みコードを指定する」の逆。`errors: []` は除外）。例のない失敗経路はテストで実行できない。
 - `docs/verification/DEFERRED.md`（既存のものだけ。凍結済み。ADR-0068）: `frozen_at`（一覧を凍結した日）が無い・実在する日付でない・未来の日付、`frozen_at` より後の `起票日` の行（保留は新しく足さない）、`living` 以外の `status`、セルがちょうど七つでない行、
   `DEF-nnn` に一致しない / 重複した `ID`、`YYYY-MM-DD` でない / 未来の `起票日`、空の `出所` / `対象` /
-  `指摘` / `理由`、`spec-lint | trace-check | contract-run | test | typecheck | lint | hook | 未定` 外の `昇格先`。
+  `指摘` / `理由`、`spec-lint | trace-check | contract-run | test | typecheck | lint | hook | 未定` 外の `昇格先`
+  （凍結済みの行が持っている語。行を書き換えないので、ツールの改名の後も語は変えない）。
   ヘッダー行だけの表は有効。
 
 導入前に書かれた契約へこれらの規則を適用する利用プロジェクトは、違反を直すまで契約を `draft` に戻す
@@ -134,5 +115,5 @@ OpenAPI 3.x 契約を読み、形状を保持して harness 契約を書く:
 | 例外系走査でケースを導出する UC なのに契約に `errors` がない（理由の有無にかかわらず `なし` / `—` / `-` で始まる導出セルは導出なしと数える） | 契約 | 失敗経路が境界の形状を持たない |
 | `PRD.md` があり、単一文書が欠落 | docs 直下 | 旧配置の残骸。`/docs-migrate` |
 
-エラーにしない理由: 既存プロジェクトの `validate` が即座に終了しないようにするため
+エラーにしない理由: 既存プロジェクトの `lint spec` が即座に終了しないようにするため
 （差分更新の機会に段階的に整理する）。

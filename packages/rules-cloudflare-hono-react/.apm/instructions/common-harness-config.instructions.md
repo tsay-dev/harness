@@ -5,7 +5,7 @@ applyTo: "**/harness.config.json"
 
 # Cloudflare / Hono / React — harness.config.json のスタックの値
 
-harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README、`entry`・`coverage`・`commands.list_entries` は exec-check の README が正本。パスは[共通コーディング](common-coding.instructions.md)の既定の配置で、`harness.config.json` の場所から書く。逸脱は利用プロジェクトの地図に合わせる。正規表現は `u` フラグでコンパイルされる。
+harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は `harness lint refs` の README、`entry`・`coverage`・`commands.list_entries` は `harness lint entry`・`lint coverage`・`lint entries` の README が正本。パスは[共通コーディング](common-coding.instructions.md)の既定の配置で、`harness.config.json` の場所から書く。逸脱は利用プロジェクトの地図に合わせる。正規表現は `u` フラグでコンパイルされる。
 
 ```json
 {

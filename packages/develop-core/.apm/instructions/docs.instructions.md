@@ -6,13 +6,13 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 # 📚 docs の SDD / SSOT 規約（ID 付きルール）
 
 > 対象はすべてのプラットフォームの `docs/` 配下の全ファイルです。指摘では ID で引用します（`R-101`）。
-> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `"${HARNESS_ROOT}/tools/spec-lint"`（書式、ライフサイクル）と `"${HARNESS_ROOT}/tools/trace-check"`（トレーサビリティ C1–C26）と `"${HARNESS_ROOT}/tools/exec-check"`（実行の記録と入口の一覧による、実装との対応）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
+> 各成果物の書式の正本は `${HARNESS_ROOT}/templates/develop/`、機械検査は `harness lint spec`（書式、ライフサイクル）と `harness lint refs`（トレーサビリティ C1–C26）と `harness lint entry` / `lint coverage` / `lint entries`（実行の記録と入口の一覧による、実装との対応）です。この末端ファイルが持つのは、テンプレートにもツールにも置けない原則と、誰が何を書いてよいかだけです。機械が検査する規則には検査器を添えます。
 
 ## 1. SSOT の原則
 
 - **R-101 (MUST)** 事実の本文はリポジトリ内のちょうど 1 箇所にあり、ほかは ID またはパスで参照します。
 - **R-102 (MUST)** 機械可読にできる事実（型、スキーマ、制約、定数、設定）の SSOT を文書にしません。文書は存在と意図だけを持ち、値と構造はコード、DB、契約に置きます。
-- **R-103 (MUST)** 参照は下流 → 上流の一方向です。上流文書は下流を列挙せず、逆引きは `trace-check` が導出します。
+- **R-103 (MUST)** 参照は下流 → 上流の一方向です。上流文書は下流を列挙せず、逆引きは `harness lint refs` が導出します。
 - **R-104 (MUST)** 検証手段（テスト、検査、計測）のない文を要件やルールにしません。検証できなければ方針として vision か ADR の Context に置きます。
 - **R-105 (SHOULD)** 同じ文が 2 つの UC に現れたら BR へ抽出します。active な BR は、少なくとも 1 つの active な REQ の `br:` から参照します（C22。規則を REQ のテストで検証する）。
 
@@ -21,7 +21,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 - **R-201 (MUST)** ID は不変、内容は変更可能です。廃止は `status: withdrawn` であり削除ではありません。撤回した文書は、frontmatter（必須の項目は撤回済みでも全部要る）・題・撤回の理由（REQ は `- note:`、ほかは本文の 1 文。決定の記録があれば番号を添える）と、REQ・NFR・GOAL なら元の要件文の 1 文だけの短い形にします。効いていた頃の節（検証方針、状態 × イベント表、例外系の走査など）は残しません（経緯は git と ADR が持つ）。
 - **R-202 (MUST)** `GOAL-nn` / `UC-nnn` / `REQ-nnn` / `BR-nnn` / `NFR-nnn` / `ADR-nnnn` / `ACT-nn` / `KPI-nn`。番号は再利用しません。桁幅は `harness.config.json` で変えます。
 - **R-203 (MUST)** 1 ID に 1 ファイル、frontmatter の `id:` に宣言します（例外は `goals-backlog.md` の `###` 見出しと ACT / KPI 表だけ）。本文に現れるほかの ID は参照で、参照先の定義は C16（BR）・C17（REQ）・C18（ACT・KPI）が検査します。
-- **R-204 (MUST)** 採番は `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --next <goal|uc|req|br|nfr|adr>`（原子的な予約。`--reserve N` で連番、`--next req` は UC 表が予約した ID も数える）。二重定義は C12 が検出します。
+- **R-204 (MUST)** 採番は `node "${HARNESS_ROOT}/bin/harness.mjs" next-id <goal|uc|req|br|nfr|adr>`（原子的な予約。`--reserve N` で連番、`next-id req` は UC 表が予約した ID も数える）。二重定義は C12 が検出します。
 - **R-205 (MUST)** 数値部は固定幅のゼロ埋めです。番号に所属や分類を埋め込みません（所属は frontmatter、R-1007）。
 
 ## 3. 各文書に書いてよいもの
@@ -33,7 +33,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 | --- | --- | --- |
 | `00-vision.md` | 課題、対象者、計測可能な成功指標（KPI）、対象外 | 機能一覧、画面、技術選定 |
 | `01-glossary.md` | 用語、1 文の定義、コード識別子（active な仕様が使う語はコードに存在すること。C25）、禁止同義語 | クラス設計、テーブル定義 |
-| `02-actors.md` | actor の閉じた集合（`ACT-nn`、システム actor を含む。種別は「人間」か「システム」で始め、「システム」で始まる actor だけが人間でない。spec-lint / C15） | goal を実現する UC（R-103） |
+| `02-actors.md` | actor の閉じた集合（`ACT-nn`、システム actor を含む。種別は「人間」か「システム」で始め、「システム」で始まる actor だけが人間でない。lint spec / C15） | goal を実現する UC（R-103） |
 | `GOAL.md` / `goals-backlog.md` | R-301 の達成状態を actor の言葉で 1 文、`actor`、`origin`（KPI）、`domain`（R-1009。backlog の書式はテンプレート） | 達成手段、操作手順、配下 UC の一覧 |
 | `UC.md` | R-302 のシナリオ、状態 × イベント表、事前・事後条件、BR の**参照** | 実装設計、BR 本文、REQ 本文、導出 REQ の一覧、契約のエラー評価順序（R-1207） |
 | `UC.md` の「要件」の節の `### REQ-nnn` | 項目（`pattern`、`br`、`status`）、EARS 1 文、検証方針 | 実装手段、UI 詳細、テストケースの内容 |
@@ -46,22 +46,22 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 ## 4. 要件（EARS）
 
-- **R-401 (MUST)** 1 要件に 1 文、外部から観測可能な振る舞いだけです。判定: 実装の全行を置き換えてもその文は真か。偽になり得るなら設計です（文の数は spec-lint）。
-- **R-402 (MUST)** `pattern:` に `Ubiquitous` / `Event-driven` / `State-driven` / `Unwanted behaviour` / `Optional` のいずれかを明示します（spec-lint）。
+- **R-401 (MUST)** 1 要件に 1 文、外部から観測可能な振る舞いだけです。判定: 実装の全行を置き換えてもその文は真か。偽になり得るなら設計です（文の数は lint spec）。
+- **R-402 (MUST)** `pattern:` に `Ubiquitous` / `Event-driven` / `State-driven` / `Unwanted behaviour` / `Optional` のいずれかを明示します（lint spec）。
 - **R-403 (SHOULD)** 各 UC に最低 1 つの `Unwanted behaviour` 要件を置きます。
 - **R-404 (MUST)** REQ を導出したセルは UC の表が保持し、対応をほかに置きません。表と UC の REQ は 1 対 1 です（C17）。
 
 ## 5. ユースケース
 
-- **R-501 (MUST)** 状態 × イベント表のすべてのセルを埋め、不可能なセルには `不可` と理由を書きます（spec-lint）。
-- **R-502 (MUST)** 主シナリオの各ステップを権限、不変条件違反、並行性、外部依存の 4 分類で走査します（spec-lint）。
+- **R-501 (MUST)** 状態 × イベント表のすべてのセルを埋め、不可能なセルには `不可` と理由を書きます（lint spec）。
+- **R-502 (MUST)** 主シナリオの各ステップを権限、不変条件違反、並行性、外部依存の 4 分類で走査します（lint spec）。
 - **R-503 (SHOULD)** UC は「一度の着席で完了する価値の単位」です。login / logout に細分化しません。
 
 ## 6. 検証
 
 - **R-601 (MUST)** ケースの準備、操作、期待値の SSOT はテストコードです。文書に転記しません。
 - **R-602 (MUST)** テストは `@covers REQ-nnn#class` で要件を直接参照します（C3）。
-- **R-603 (MUST)** 網羅表は `trace-check` の出力だけで、手書きしません。
+- **R-603 (MUST)** 網羅表は `harness lint refs` の出力だけで、手書きしません。
 - **R-604 (MUST)** 検証方針には必ず「検証しない」ものと理由を書き、それ以外はテストコードから復元できない行だけを書きます。
 
 ## 7. コードとの接続
@@ -76,7 +76,7 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 - **R-801 (MUST) 上流優先。** 実装が仕様の誤りや穴を示したら、上流 SSOT を更新して再導出します（契約 → テスト → 実装）。
 - **R-802 (MUST)** 判断の変更は `supersedes:` を持つ新 ADR の追加で行い、既存 ADR を書き換えません。
-- **R-803 (MUST)** マージ条件はテスト成功かつ `spec-lint` / `trace-check` の違反ゼロです。
+- **R-803 (MUST)** マージ条件はテスト成功かつ `harness lint spec` / `harness lint refs` の違反ゼロです。
 - **R-804 (MUST)** 紐づきに例外を作りません。既知の違反を通す baseline、コードに書く例外の印、検査の黙った省略は持たず、対象が無いことは `harness.config.json` に理由付きで宣言します（`{ "none": "<理由>" }`。それを求める active な文書・fixed な契約が無い間だけ通る。C26）。`harness.config.json` の変更は人間が承認します（ADR-0057）。既存資料への導入は宣言の範囲を広げて進めます（ADR-0056）。
 
 ## 9. 統制の種類
@@ -87,14 +87,14 @@ applyTo: "docs/**,harness.config.json,**/CLAUDE.md,**/AGENTS.md"
 
 - **R-1001 (MUST)** GOAL / UC / BR / NFR / ADR は 1 ID に 1 ファイルです。REQ は、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節（`### REQ-nnn`）として書きます。ファイル名は ID（ノードファイルは `GOAL.md` と `UC.md`、ADR は `ADR-nnnn-<slug>.md`）。
 - **R-1002 (MUST)** REQ の検証方針は、その REQ の小節の中の `#### 検証方針` に置きます（C2）。プロジェクト全体の除外だけを `docs/verification/GLOBAL.md` に置きます。
-- **R-1003 (MUST)** 索引は生成し、コミットしません（`trace-check --index`）。
+- **R-1003 (MUST)** 索引は生成し、コミットしません（`harness index`）。
 - **R-1004 (MUST)** ディレクトリ全体の読み取りを既定にせず、参照（UC の `goal:`、REQ の `br:`）から読むものを決めます。
 - **R-1005 (SHOULD)** 1 ファイルはおおむね 100 行以下です。超えたら分割するか、値を機械可読にします。
 - **R-1006 (MUST)** GOAL → UC → REQ は木なので、`docs/goals/<GOAL-nn-slug>/<UC-nnn-slug>/` に `UC.md`（REQ は `UC.md` の「要件」の節に小節として書く。ADR-0067）と `contract.yaml` を置き、横断領域（BR / NFR / ADR / glossary / `_shared`）は `docs/` 直下に集約します。
 - **R-1007 (MUST)** 所属の SSOT は frontmatter で、ディレクトリは配置です。一致は C9 が検査し、再構成時は先に frontmatter を更新します。
 - **R-1008 (SHOULD)** 未着手 goal は `docs/goals-backlog.md` に置き、着手時にディレクトリへ昇格します。
 - **R-1009 (MUST)** vision に複数ドメインがあれば、各 goal は `domain:`（backlog は `- **ドメイン**:` 行）で所属を宣言し、許容値の閉じた集合は `00-vision.md` が持ちます。
-- **R-1010 (MUST)** 利用プロジェクトの作業指針（`docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md`）は地図です。構成、層の向き、命名規則、`harness.config.json` に置けない逸脱、正本へのリンクだけを持ち、コード・設定・テストに正本がある事実（部品の振る舞い、環境変数、フェイクの使い方）と人の運用手順（README へ）を写しません。150 行以下（spec-lint）。REQ を持たない技術部品の振る舞いの正本は、その単位の doc comment です（ADR-0051）。
+- **R-1010 (MUST)** 利用プロジェクトの作業指針（`docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md`）は地図です。構成、層の向き、命名規則、`harness.config.json` に置けない逸脱、正本へのリンクだけを持ち、コード・設定・テストに正本がある事実（部品の振る舞い、環境変数、フェイクの使い方）と人の運用手順（README へ）を写しません。150 行以下（lint spec）。REQ を持たない技術部品の振る舞いの正本は、その単位の doc comment です（ADR-0051）。
 
 ## 11. 分割クラス（テスト生成の下限と上限）
 
@@ -118,5 +118,5 @@ C10 / C11 / C15 が保証するのは宣言と存在の一致です。分割が�
 - **R-1203 (MUST)** OS 契約（Info.plist、entitlements、manifest）は機械可読なのでそれ自身が SSOT です。
 - **R-1204 (SHOULD)** モジュール間は言語の型システムが契約、コンパイラーと C6 が検査者です。テストが契約操作を呼ぶ入口は、フレームワークの testing 末端ファイルの「operation → entry」規約で操作名から導出し、ルールパッケージがなければ利用プロジェクトの `CLAUDE.md` / `AGENTS.md` に命名規則として 1 回宣言します（操作ごとの表にせず、規則に従わないものだけを挙げます）。テストの足場（境界フェイク、fixture、テスト用 app）の使い方の正本はそのテストコードの型とコメントで、作業指針に写しません。実装を読んで導出しません。
 - **R-1205 (SHOULD)** 外部 API はクライアント側で防御的に扱います（DTO 層、記録した応答 fixture、未知フィールドを無視するデコード）。
-- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界の入口と契約の操作は、アプリが出す入口の一覧（`commands.list_entries`）で双方向に対応させます（`harness lint entries`。fixed の契約の操作に合わない入口と、入口の無い fixed の操作が違反。draft の契約の操作に合うだけの入口は通らない）。アプリの入口は、生存確認や静的なファイル・画面の配信も含めて、すべて契約の操作として書きます（契約の外に置く宣言は無い。運用のための入口は、それをまとめる UC の契約に置く。書き方は `"${HARNESS_ROOT}/tools/exec-check/README.md"`）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
-- **R-1207 (MUST)** 失敗条件の評価順序は `contract.yaml` の `errors:` 一覧順だけに置き、最初の一致を採用します。`when` はラベルで排他性の証明ではなく、順序を UC / BR / ADR / スキーマコメント / 操作配下の `x-*` に再記述しません（spec-lint が `x-*` を拒否）。隣接項目の優先順位は両条件を満たす例（`contract-run`）またはテストクラスで反証します。
+- **R-1206 (MUST)** 各 UC に `contract.yaml` を置きます（harness 書式、ADR-0001）。境界の入口と契約の操作は、アプリが出す入口の一覧（`commands.list_entries`）で双方向に対応させます（`harness lint entries`。fixed の契約の操作に合わない入口と、入口の無い fixed の操作が違反。draft の契約の操作に合うだけの入口は通らない）。アプリの入口は、生存確認や静的なファイル・画面の配信も含めて、すべて契約の操作として書きます（契約の外に置く宣言は無い。運用のための入口は、それをまとめる UC の契約に置く。書き方は `"${HARNESS_ROOT}/tools/lint-entries/README.md"`）。境界を越えない UC は `operations: {}` と `x-no-boundary: <reason>` で宣言し、欠落させません。HTTP でない境界に HTTP 操作を捏造しません。
+- **R-1207 (MUST)** 失敗条件の評価順序は `contract.yaml` の `errors:` 一覧順だけに置き、最初の一致を採用します。`when` はラベルで排他性の証明ではなく、順序を UC / BR / ADR / スキーマコメント / 操作配下の `x-*` に再記述しません（lint spec が `x-*` を拒否）。隣接項目の優先順位は両条件を満たす例（`harness run cases`）またはテストクラスで反証します。

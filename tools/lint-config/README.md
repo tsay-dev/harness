@@ -1,4 +1,4 @@
-# config-lint
+# lint config
 
 プロジェクトの設定（`harness.config.json`）の形を検査し、機械で確かめていない決めごとを一覧する。入口からは `harness lint config`。
 
@@ -6,7 +6,7 @@
 
 | 種類 | キー | 書くもの |
 | --- | --- | --- |
-| harness が直接使う事実 | `docs` / `source` / `tests` / `schema` / `contract` / `commands` / `git` / `entry` / `coverage` など | 値そのもの。意味と検査は、読むツールの README が正本（`tools/trace-check/README.md` など） |
+| harness が直接使う事実 | `docs` / `source` / `tests` / `schema` / `contract` / `commands` / `git` / `entry` / `coverage` など | 値そのもの。意味と検査は、読むツールの README が正本（`tools/lint refs/README.md` など） |
 | ほかに正本がある決めごと | `rules` | 正本のファイルと、確かめる `commands` のキーだけ。決めごとの中身は書き写さない |
 | ほかに置き場が無い決めごと | `conventions` | 決めごとを 1 文と、機械で確かめていない理由 |
 | 人間が認めた例外 | `exceptions` | 何を認めたかを 1 文と、認めた日 |
@@ -50,7 +50,7 @@
 - `conventions` に書くべき決めごとが、書かれずに残っていないか。
 - `exceptions` の項目が、`conventions` のどの決めごとに対する例外か（対応を書く欄は無い）。
 - `source` がシンボリックリンクの場合の、リンクの先（リンクそのものが中にあれば通す）。
-- `exceptions` の日付に、人間が本当に認めたか。設定ファイルへの書き込みは、gate-hook が人間の承認を求める（ADR-0057）。
+- `exceptions` の日付に、人間が本当に認めたか。設定ファイルへの書き込みは、guard が人間の承認を求める（ADR-0057）。
 - `docs` / `source` / `tests` / `commands` などの値が正しいか。それぞれを読むツールが検査する。
 
 monorepo（`git.units`）では、ルートの設定に続けて、設定ファイルを持つ unit を検査する。`rules` の `source` と unit は、設定ファイルがあるディレクトリから探す（`--config` で別の場所を指しても同じ。`--root` と `--config` は同時に指定できない）。unit に古い名前（`traceconfig.json`）のファイルだけが残っていれば、改名の案内を出して 2 で終わる。
@@ -58,8 +58,8 @@ monorepo（`git.units`）では、ルートの設定に続けて、設定ファ�
 ## 使い方
 
 ```bash
-node tools/config-lint/config-lint.mjs [--root <プロジェクトのルート>]
-node tools/config-lint/config-lint.mjs --config <設定ファイル>
+harness lint config [--root <プロジェクトのルート>]
+harness lint config --config <設定ファイル>
 ```
 
 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 使い方の誤り、設定ファイルが無い、JSON として読めない。
@@ -67,5 +67,5 @@ node tools/config-lint/config-lint.mjs --config <設定ファイル>
 ## テスト
 
 ```bash
-node --test tools/config-lint/test/*.test.mjs < /dev/null
+node --test tools/lint-config/test/*.test.mjs < /dev/null
 ```

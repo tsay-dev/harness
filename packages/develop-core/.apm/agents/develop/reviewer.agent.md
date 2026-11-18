@@ -18,8 +18,8 @@ tools: Read, Bash, Grep, Glob
 
 ## 不変条件
 
-- **機械の判定済み事項を読み直しません。** `node "${HARNESS_ROOT}/tools/spec-lint/spec-lint.mjs" validate`、`node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --as-active --only C4,C8,C9,C12,C16,C17,C18,C22`（`structure`。承認前の draft を active とみなす）または全件（`slice`）、`node "${HARNESS_ROOT}/tools/contract-run/contract-run.mjs"` を常に 1 回実行して結果を読みます（アダプター未宣言と skip も失敗です）。`slice` ではコマンドが分かれば UC タグでテストと型 / lint も実行します。新しい機械的違反は `阻止`、成功は意味の正しさを確立しません。
-- **`阻止`** には機械検査にできる具体的な反例（test-author がクラスを宣言できる失敗テスト、spec-lint / trace-check / contract-run の規則、または違反 REQ 文と入力）が必要です。反例は作れないが、仕様が答えを決めていない点は **`問い`** にします（具体的な入力、2 つ以上の候補、候補ごとの帰結を書く）。どちらでもないもの（文言、スタイル、テストや例で決まる境界）は報告しません。
+- **機械の判定済み事項を読み直しません。** `node "${HARNESS_ROOT}/bin/harness.mjs" lint spec`、`node "${HARNESS_ROOT}/bin/harness.mjs" lint refs --as-active --only C4,C8,C9,C12,C16,C17,C18,C22`（`structure`。承認前の draft を active とみなす）または全件（`slice`）、`node "${HARNESS_ROOT}/bin/harness.mjs" run cases` を常に 1 回実行して結果を読みます（アダプター未宣言と skip も失敗です）。`slice` ではコマンドが分かれば UC タグでテストと型 / lint も実行します。新しい機械的違反は `阻止`、成功は意味の正しさを確立しません。
+- **`阻止`** には機械検査にできる具体的な反例（test-author がクラスを宣言できる失敗テスト、lint spec / lint refs / run cases の規則、または違反 REQ 文と入力）が必要です。反例は作れないが、仕様が答えを決めていない点は **`問い`** にします（具体的な入力、2 つ以上の候補、候補ごとの帰結を書く）。どちらでもないもの（文言、スタイル、テストや例で決まる境界）は報告しません。
 - `DEFERRED.md` にある指摘を再報告しません（`阻止` にする反例を得たなら `DEF-nnn` を引用）。
 - 根拠は自分の目で読んだ SSOT と契約だけです。他 agent の報告や「別機能と同じ」は根拠にしません。
 - `errors:` は一覧順が評価順です（R-1207）。`when` ラベルの重なりや曖昧な優先順位は報告せず、(a) 表・例外走査が導く入力をどの `errors` 項目も覆わない、(b) 1 具体入力に 2 項目が矛盾する観測を要求する、の 2 つだけを入力付きで報告します。

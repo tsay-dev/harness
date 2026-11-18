@@ -10,7 +10,7 @@ harness が目指すのは、**人間が承認した仕様から、実装とそ�
 
 - **仕様は人間が承認した 1 箇所にある。** `docs/` の SSOT は人間ゲートで `active` になり、コードは正本になりません。人間ゲートは SSOT、UI の見た目、DB スキーマの 3 つだけです。
 - **検証は実装から独立に導出される。** テストは仕様と契約から実装を読まずに書かれ、判定者は作成者と別コンテキストです。
-- **紐づきは機械で検査できる。** spec-lint（書式とライフサイクル）、trace-check（C1–C26 のトレーサビリティ）、exec-check（実行の記録と入口の一覧による、実装との対応）、contract-run（契約 examples の実行）、ホストの typecheck / lint / test / system が判定します。
+- **紐づきは機械で検査できる。** `harness lint spec`（書式とライフサイクル）、`harness lint refs`（C1–C26 のトレーサビリティ）、`harness lint entry` / `lint coverage` / `lint entries`（実行の記録と入口の一覧による、実装との対応）、`harness run cases`（契約 examples の実行）、ホストの typecheck / lint / test / system が判定します。
 - **完了は閉じたリストで判定される。** 上記がすべて exit 0 で reviewer の `阻止` がゼロで、reviewer の `問い`（仕様が答えを決めていない点）のすべてに人間が答えているときだけ完了です。ホストが Stop hook に `harness verify --hook` を設置すると機械が強制します。CI と手元では、同じ検査を `harness verify` で実行します（ADR-0065）。
 
 ## 必要な用途とスタックだけを選ぶ
@@ -46,7 +46,7 @@ dependencies:
 apm install
 ```
 
-`tools/`、`bin/`、`templates/` は APM パッケージ外です。spec-lint / trace-check やテンプレートを使う工程では、このリポジトリを別途 `.harness/` などへ取得して版を固定します。同梱ツールは `node .harness/bin/harness.mjs <コマンド>` の 1 つの入口から呼べます（引数なしで一覧を表示。ADR-0063）。フック、CI、ブランチ保護の設置と検証コマンドの宣言は消費プロジェクトの責務です。公開前のローカル検証、対象の選択、固定版、既存ホストの移行は [APM 導入ガイド](docs/apm.md) にあります。
+`tools/`、`bin/`、`templates/` は APM パッケージ外です。同梱ツール（`harness lint spec`、`harness lint refs` など）やテンプレートを使う工程では、このリポジトリを別途 `.harness/` などへ取得して版を固定します。同梱ツールは `node .harness/bin/harness.mjs <コマンド>` の 1 つの入口から呼べます（引数なしで一覧を表示。コマンドの名前と、`tools/` のファイルの名前は 1 つ。ADR-0071）。フック、CI、ブランチ保護の設置と検証コマンドの宣言は消費プロジェクトの責務です。公開前のローカル検証、対象の選択、固定版、既存ホストの移行は [APM 導入ガイド](docs/apm.md) にあります。
 
 ## 常駐ゼロ
 
@@ -79,7 +79,9 @@ harness/
     rules-swiftui/
     grilling/
   bin/harness.mjs                   # 同梱ツールの入口（harness <コマンド>）。APM 外
-  tools/                            # spec-lint、trace-check、exec-check、contract-run、gate-hook、git-lint、config-lint、docs-migrate、apm。APM 外
+  tools/<コマンド>/                 # コマンド 1 つに 1 つの置き場（lint-spec、lint-refs、verify、guard など。harness lint spec → tools/lint-spec/lint-spec.mjs）。APM 外
+  tools/_shared/                    # 2 つ以上のコマンドが使う処理
+  tools/apm/ tools/codex-sync/      # APM の展開の検査と、プロバイダーごとのモデルの対応表（コマンドではない）
   templates/                        # 文書書式。APM 外
   docs/apm.md
   docs/adr/
@@ -89,7 +91,7 @@ develop の agent は `spec-author`、`test-author`（`track: backend-logic / sc
 
 ## docs の SDD / SSOT
 
-成果物は 1 ID 1 ファイルです（REQ だけは、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節として書きます。ADR-0067）。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は `docs/` 直下に置きます。DB 設計はホストのネイティブスキーマが正本です。人間ゲートの文書は `draft → active → withdrawn`、契約は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません。手で書く紐づきはテストの側だけです（ADR-0070）。テストは `@covers REQ-nnn#class`（NFR と、DB で守る規則などの BR も `@covers` で指せます）、シナリオテストは `@scenario UC-nnn` で上流を指し、trace-check が検査します。実装のコードには紐づきの印を書きません。実装との対応は、テストの実行の記録（どのテストからも実行されないソースと関数）と、アプリが出す入口の一覧（契約に無い入口）で、exec-check が確かめます。書式の正本は [templates/develop](templates/develop/README.md) です。
+成果物は 1 ID 1 ファイルです（REQ だけは、属する UC の `UC.md` の「要件」の節に、1 ID を 1 つの小節として書きます。ADR-0067）。縦の `GOAL → UC → REQ` は `docs/goals/GOAL-nn/UC-nnn/` の木に一致させ、横断する BR / NFR / ADR / glossary は `docs/` 直下に置きます。DB 設計はホストのネイティブスキーマが正本です。人間ゲートの文書は `draft → active → withdrawn`、契約は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、導出できる台帳はコミットしません。手で書く紐づきはテストの側だけです（ADR-0070）。テストは `@covers REQ-nnn#class`（NFR と、DB で守る規則などの BR も `@covers` で指せます）、シナリオテストは `@scenario UC-nnn` で上流を指し、lint refs が検査します。実装のコードには紐づきの印を書きません。実装との対応は、テストの実行の記録（どのテストからも実行されないソースと関数）と、アプリが出す入口の一覧（契約に無い入口）で、`harness lint coverage` と `harness lint entries` が確かめます。書式の正本は [templates/develop](templates/develop/README.md) です。
 
 ## このリポジトリを編集するとき
 

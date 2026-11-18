@@ -1,41 +1,34 @@
-# trace-check
+# lint refs
 
-harness に同梱する依存なしの Node ツール。docs の SSOT（GOAL → UC → REQ、BR、NFR、契約、用語集）とコード
-（テスト、ソース、スキーマ）の**トレーサビリティ**を機械的に検証する。対象はカバレッジ、参照、配置、
+docs の SSOT（GOAL → UC → REQ、BR、NFR、契約、用語集）とコード
+（テスト、ソース、スキーマ）の**トレーサビリティ**を機械的に検証する（`harness lint refs`。依存なしの Node）。対象はカバレッジ、参照、配置、
 層、契約語彙。sdd-kit の `trace_check.py` の Node 移植（移植理由: `docs/adr/ADR-0003`）。
 
 - **検証するもの**: 下記の 21 検査（C1〜C26。C5・C14・C19・C21・C23 と C27 は欠番）。**書式とライフサイクル**（frontmatter、節、ステータス語彙、
-  契約構造）は `../spec-lint/` の担当。両ツールは重複しない。frontmatter と契約 YAML は `../_shared/` の
-  共有パーサーで読むので、spec-lint・gate-hook と同じ値に読む。
+  契約構造）は `harness lint spec`（`../lint-spec/README.md`）の担当。2 つは重複しない。frontmatter と契約 YAML は `../_shared/` の
+  共有パーサーで読むので、lint spec・guard と同じ値に読む。
 - **例外を作らない**（ADR-0056）: baseline（既知の違反を通す台帳）、コードに書く例外の印、検査の黙った省略は無い。
   違反は 1 件でも失敗にする。対象が本当に無い範囲だけを、`harness.config.json` に理由付きで宣言する（下記「宣言」）。
   宣言の変更は人間が承認する（ADR-0057）。
 - **手で書く紐づきはテストの側だけ**（ADR-0070）: 読む注釈は、テストの `@covers`（REQ のクラス、NFR、BR）と、シナリオテストの `@scenario` だけ。
   実装とスキーマのコードの注釈（`@implements` / `@operation`）は読まない。実装との対応は、注釈ではなく実行して確かめる:
-  どのテストからも実行されないソースと関数は `harness lint coverage`、契約に無い入口と入口の無い操作は `harness lint entries`（どちらも `../exec-check/`）。
+  どのテストからも実行されないソースと関数は `harness lint coverage`、契約に無い入口と入口の無い操作は `harness lint entries`（`../lint-coverage/README.md`、`../lint-entries/README.md`）。
 - **読むもの**: 利用プロジェクト直下の `harness.config.json`（`templates/develop/harness.config.json` から一度ひな形を置き、
   利用プロジェクトが維持する）。注釈は正規表現で探し、
   **コメントの中にあるものだけ**を数える（下記「注釈と窓」）ので、任意の言語に対応する。
-- **生成するもの**: カバレッジ行列（レポート）と全プロジェクト索引（`--index`）。
-  両方とも導出物であり、コミットしてはならない（R-1003 / R-603）。
+- **生成するもの**: カバレッジ行列（レポート）。全プロジェクトの索引は `harness index`（`../index/README.md`）が、同じ読み方で生成する。
+  両方とも導出物であり、コミットしてはならない（R-1003 / R-603）。次の空き ID の予約は `harness next-id`（`../next-id/README.md`）。
 - **使い方**: 作成者が直接実行する（`--only` で関心範囲に絞る）。orchestrator がスライスの最後に実行する
-  （merge 条件はテスト成功 + 違反ゼロ、R-803）。stop-gate と CI（spec-gate.yml）でも実行する。
+  （merge 条件はテスト成功 + 違反ゼロ、R-803）。完了の判定（`harness verify`。Stop フックと CI の `verify.yml`）でも実行する。
 
 ```bash
-node trace-check.mjs [--root .] [--config harness.config.json]   # 検査。違反が 1 件でもあれば exit 1
-node trace-check.mjs --as-active                              # draft の文書を active とみなして検査（承認前の自己検査）
-node trace-check.mjs --only C9,C12                            # 指定検査だけを判定（作成者の自己検査）。出力に「部分検査」と出す
-node trace-check.mjs --index                                  # 全プロジェクトの対応図。ID ごとに一行と、それを確かめるテストのファイル
-node trace-check.mjs --next req [--reserve N]                 # 次の空き ID を N 個（goal|uc|req|br|nfr|adr）、一行ずつ — R-204。原子的:
-                                                              # mkdir ロックで .trace-reservations.json に番号を予約するため、
-                                                              # 並行 Tasks がすべて呼んでも同じ番号を受け取らない。req は
-                                                              # UC.md の表が予約する ID もファイル作成前から使用済みと数える
+harness lint refs [--root .] [--config harness.config.json]   # 検査。違反が 1 件でもあれば exit 1
+harness lint refs --as-active                              # draft の文書を active とみなして検査（承認前の自己検査）
+harness lint refs --only C9,C12                            # 指定検査だけを判定（作成者の自己検査）。出力に「部分検査」と出す
 ```
 
 - `--as-active`: spec-author と reviewer が承認前に、文書が active になったときに出る違反（C16〜C18、C22 など）を先に見る。
 - `--only`: 未知の ID（`C99`）、欠番（`C5` など）、空は使い方エラー（exit 2）。宣言の不足・設定エラーは `--only` でも exit 2。
-- `--index`: REQ・BR・NFR には `tests:`、UC には `scenario:` の行で、その ID を `@covers` / `@scenario` するテストのファイルを出す
-  （保留のテストしか無いファイルは `(保留)` を付ける）。実装のファイルは出さない（どのコードが実行されたかは、実行の記録が持つ）。
 
 終了コード: `0` = 違反なし / `1` = 違反あり / `2` = 使用法・設定エラー（宣言の不足、型の誤り、コンパイルできない正規表現、
 廃止したキーやフラグを含む）。Node のみ。
@@ -43,7 +36,7 @@ node trace-check.mjs --next req [--reserve N]                 # 次の空き ID 
 `source.exempt_pattern`・`contract.exclude_codes`・`source.entry_files`（設定エラー）。残った `.trace-baseline.json` は読まずに警告する。
 実装の注釈を読むためのキー（`implements_pattern`・`operation_pattern`、`source` の `unit_dirs`・`support_dirs`・`unit_pattern`・
 `implements_placement`・`entry_pattern`・`entry_exclude`・`entry_file_pattern`、`schema` の `constraint_pattern`・`implements_placement`）も
-設定エラーにする（ADR-0070。一覧と案内の正本は `../_shared/config.mjs`。config-lint の K6 も同じ一覧で失敗にする）。
+設定エラーにする（ADR-0070。一覧と案内の正本は `../_shared/config.mjs`。`harness lint config` の K6 も同じ一覧で失敗にする）。
 
 走査は `node_modules` と `.git` だけを除き、ドットで始まるディレクトリも見る（壊れたシンボリックリンクとディレクトリへのシンボリックリンクは辿らない）。違反の位置はリポジトリ直下からの相対パス:行で出す。
 
@@ -66,14 +59,14 @@ none が通るのは、それを求める active な文書・fixed な契約が�
 | `docs.actors` / `docs.vision` | 必須 / 可 | アクター表、KPI 表 | C15 / C18 |
 | `docs.glossary` | 必須 / 可 | 用語集 | C25 |
 | `docs.shared` | 必須 / 可 | 共有語彙（`errorCodes`） | C7 / C24 |
-| `source` | 必須 / 可 | 本番コード。子: `dirs`・`extensions`（必須）、`comment_pattern`（任意）。注釈は読まない。用語集の識別子を探す範囲（C25）と層の拡張子（C6）に使い、exec-check の実行の記録の検査も同じ範囲を読む | C6 / C25 |
+| `source` | 必須 / 可 | 本番コード。子: `dirs`・`extensions`（必須）、`comment_pattern`（任意）。注釈は読まない。用語集の識別子を探す範囲（C25）と層の拡張子（C6）に使い、lint coverage の実行の記録の検査も同じ範囲を読む | C6 / C25 |
 | `tests` | 必須 / 可 | 仕様のテスト。子: `dirs`・`extensions`・`test_pattern`（必須 / 不可）、`pending_pattern`（必須 / 可）、`covers_placement`・`comment_pattern`（任意）、`system` | C1 / C3 / C10 / C11 / C13 / C20 / C22 |
 | `tests.system` | 必須 / 可 | シナリオテスト。子: `dirs`・`extensions`・`test_pattern`（必須 / 不可）、`pending_pattern`（必須 / 可）、`scenario_placement`・`comment_pattern`（任意） | C15 / C20 |
 | `schema` | 必須 / 可 | スキーマ源。子: `files` か `dirs`（どちらか必須）、`extensions`（任意、既定 `.sql` `.prisma`）、`comment_pattern`（任意）。注釈は読まない。用語集の識別子を探す範囲に使う | C25 |
 | `contract` | 必須 / 可 | 子: `error_source`（エラーコードの正本のファイル）、`error_code_pattern`（捕捉 1 = コード） | C7 |
 | `layering` | 任意 | 層の向き。紐づきではないので省略できる | C6 |
 
-`commands`・`policy`・`git`・`entry`・`coverage` の中身は trace-check の判定には使わない（`commands` は完了の判定と contract-run、`entry`・`coverage` は exec-check が読む）。`coverage` だけは、宣言されているかどうかを義務表（C26）が見る。
+`commands`・`policy`・`git`・`entry`・`coverage` の中身は lint refs の判定には使わない（`commands` は完了の判定と run cases、`entry`・`coverage` は lint coverage が読む）。`coverage` だけは、宣言されているかどうかを義務表（C26）が見る。
 `git.units` がある monorepo のルートで宣言が足りなければ、「unit ごとに `--root <unit>` で実行する」と案内して exit 2 にする。
 
 - **範囲**（`source.dirs`、`tests.dirs`、`tests.system.dirs`、`schema.files` / `dirs`）は、
@@ -94,7 +87,7 @@ active な文書・fixed な契約は「義務」を生む。義務がある範�
 | active な REQ があり、`source` を宣言している | `coverage`（none も省略も違反。記録のファイル `report` を指していない形（`{}`、`null`、文字列）も違反。実装と仕様の対応を確かめる検査が、実行の記録のほかに無い） |
 | 人間がアクターの active な UC | `tests`、`tests.system`、`tests.system.pending_pattern` |
 | active な UC | `docs.glossary` |
-| fixed 契約に owned かつ inbound の操作 | `source`（入口の一覧 `commands.list_entries` を none にできないことは、exec-check の E4 が見る） |
+| fixed 契約に owned かつ inbound の操作 | `source`（入口の一覧 `commands.list_entries` を none にできないことは、lint coverage の E4 が見る） |
 | fixed 契約の owned の操作に `errors` | `contract` |
 | 撤回されていない契約に `errors` | `contract`、`docs.shared` |
 | `enforced_at` が database の active な BR | `schema`、`tests`、`tests.pending_pattern` |
@@ -184,7 +177,7 @@ C5・C14・C19・C21・C23・C27 は欠番。実装とスキーマの注釈（`@
 
 C1 / C2 / C8 / C10 / C13 / C15–C18 / C20 / C22 は `active` docs が対象。`draft` はまだ要求せず、
 `withdrawn` はもう要求しない（`withdrawn` を指す参照は C3 / C15–C17 / C20 が違反にする）。C11 はすべてのテストに適用する。
-C16–C18 は HTML コメントの中の ID と、番号が 0 だけのプレースホルダー（`BR-000` など。残っていれば spec-lint が報告する）を数えない。
+C16–C18 は HTML コメントの中の ID と、番号が 0 だけのプレースホルダー（`BR-000` など。残っていれば lint spec が報告する）を数えない。
 
 ## 既存プロジェクトへの導入
 
@@ -192,7 +185,7 @@ baseline は無い（ADR-0056）。既知の違反を台帳に載せて通すこ
 
 - 義務が無い間（active な文書・fixed な契約が無い間）は、none も空の範囲も通る。文書を active にした時点で義務表が宣言を求める。
 - 紐づきの揃っていない文書は `draft` に留める。`active` にするのは、テストと注釈が揃ってから。
-- テストの無い既存のコードは、特性テストを書くまで、実行の記録の範囲（`coverage.scope`）の外に置くか、`coverage.not_run` に理由と一緒に書く（`../exec-check/README.md`）。揃った範囲から広げる。
+- テストの無い既存のコードは、特性テストを書くまで、実行の記録の範囲（`coverage.scope`）の外に置くか、`coverage.not_run` に理由と一緒に書く（`../lint-coverage/README.md`）。揃った範囲から広げる。
 - 宣言を変えるたびに `harness.config.json` の変更として人間が承認する（ADR-0057）。
 
 手順は `/docs-migrate` が持つ。
@@ -214,18 +207,18 @@ active NFR は検証するテストか計測の所在を持つ。UC の表と RE
 人間向け active UC はシナリオテストを持ち、シナリオテストはすべて UC を指す。用語集のコード識別子はコードに存在する。
 配置と frontmatter が一致し、依存方向が守られる。検査しなかった範囲は、レポート末尾の「宣言された不在」と「未作成」にすべて現れる。
 
-実装の側は、trace-check ではなく exec-check が確かめる（ADR-0070）: テストが本番と同じ組み立てを通ること（`lint entry`）、
+実装の側は、lint refs ではなく、実行で確かめる 3 つの検査が受け持つ（ADR-0070）: テストが本番と同じ組み立てを通ること（`lint entry`）、
 どのテストからも実行されないソースのファイルと関数が無いこと（`lint coverage`）、アプリの入口と契約の操作が双方向に合うこと（`lint entries`）。
 
 主張の外:
 
-- **テストが実際に実行されたこと**（ADR-0056 の M9）。trace-check は紐づきの有無を見るだけで、`@covers` したテストが CI で走って通ったかは突き合わせない。
-  実行は stop-gate と利用プロジェクトの CI が `commands` の宣言どおりに行う。
+- **テストが実際に実行されたこと**（ADR-0056 の M9）。lint refs は紐づきの有無を見るだけで、`@covers` したテストが CI で走って通ったかは突き合わせない。
+  実行は完了の判定（`harness verify`）と利用プロジェクトの CI が `commands` の宣言どおりに行う。
 - 行単位の正規表現で拾えない書き方のテスト。義務のある範囲の 0 件は C26 が落とすが、一部の取りこぼしは見えない。
-- コードを読んだその場で、どの要件のためのコードかは分からない（実装に注釈を書かない。ADR-0070）。辿るには、`--index` で要件のテストを引き、
+- コードを読んだその場で、どの要件のためのコードかは分からない（実装に注釈を書かない。ADR-0070）。辿るには、`harness index` で要件のテストを引き、
   そのテストが実行するコードを実行の記録で見る。
 - 撤回した要件のためのコードが、ほかのテストから実行されている限り残ること（撤回した要件を `@covers` するテストは C3、契約から消した操作の入口は
-  exec-check の E1、どこからも呼ばれなくなった関数は V6 が見つける。まだ呼ばれている関数の中の枝として残る処理は見つからない）。
+  lint entries の E1、どこからも呼ばれなくなった関数は lint coverage の V6 が見つける。まだ呼ばれている関数の中の枝として残る処理は見つからない）。
 - どの規則にも対応しない DB の制約（スキーマの制約は読まない）。
 
 レビューに残るもの（R-901）: 分割が入力空間を尽くすか、アサーションが EARS 文の意味を検証するか、
@@ -234,7 +227,7 @@ EARS 文そのものが正しいか、`@covers BR-nnn` のテストが実際に�
 
 ## 宣言の変更を守る（推奨）
 
-`harness.config.json` と docs の status の変更は、gate-hook が Claude Code の Write / Edit で人間の承認を求める（ADR-0057）。
+`harness.config.json` と docs の status の変更は、guard が Claude Code の Write / Edit で人間の承認を求める（ADR-0057）。
 Bash や Claude Code 以外のプロバイダーでの変更は止まらないので、利用プロジェクトは merge 時に CODEOWNERS とブランチ保護で
 必須レビューにする（harness はテンプレートを置かない）。呼び出し側の CI ワークフローも PR で書き換えられるので、`.github/workflows/**` も含める。
 
@@ -243,7 +236,7 @@ Bash や Claude Code 以外のプロバイダーでの変更は止まらない�
 **/harness.config.json      @<レビューする人かチーム>
 docs/                    @<レビューする人かチーム>
 /.github/workflows/      @<レビューする人かチーム>
-# commands が呼ぶテストの設定も（書き換えれば stop-gate の test / system を空振りにできる）
+# commands が呼ぶテストの設定も（書き換えれば完了の判定の test / system を空振りにできる）
 package.json             @<レビューする人かチーム>
 vitest.config.*          @<レビューする人かチーム>
 playwright.config.*      @<レビューする人かチーム>

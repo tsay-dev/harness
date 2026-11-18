@@ -36,5 +36,5 @@ applyTo: "**/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx,**/__tests__/**,
 
 ## 注釈と決定性
 
-- 最外 `describe` を `UC-nnn <UC の題名>`（`docs/goals/` の UC ディレクトリ名と同じキー）とし、選択実行は `jest -t "UC-nnn"`。各テスト本体の先頭行に `// @covers REQ-nnn#class` を置く（`trace-check` C10 / C11。クラスは先に REQ の `## 検証方針` で宣言する）。シナリオテストは[システムテスト](system-testing.instructions.md)の注釈を使う。
+- 最外 `describe` を `UC-nnn <UC の題名>`（`docs/goals/` の UC ディレクトリ名と同じキー）とし、選択実行は `jest -t "UC-nnn"`。各テスト本体の先頭行に `// @covers REQ-nnn#class` を置く（`harness lint refs` C10 / C11。クラスは先に REQ の `## 検証方針` で宣言する）。シナリオテストは[システムテスト](system-testing.instructions.md)の注釈を使う。
 - 実時間の sleep で待たない。animation の完了を待たず検証対象にしない。`InteractionManager` は fake timer で進める。`onLayout` の寸法に依存する分岐を検証しない。native bridge をまたぐ非同期応答は mock で直ちに解決する。

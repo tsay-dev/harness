@@ -5,7 +5,7 @@ applyTo: "**/harness.config.json"
 
 # 🔗 Next.js — harness.config.json のスタックの値
 
-Next.js（App Router）のプロジェクトで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま。示した値（文字列、配列、`forbidden` の表）は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README、`entry`・`coverage`・`commands.list_entries` は exec-check の README が正本で、ここでは繰り返さない。パスは `src/` を使う配置の例であり、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
+Next.js（App Router）のプロジェクトで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま。示した値（文字列、配列、`forbidden` の表）は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は `harness lint refs` の README、`entry`・`coverage`・`commands.list_entries` は `harness lint entry`・`lint coverage`・`lint entries` の README が正本で、ここでは繰り返さない。パスは `src/` を使う配置の例であり、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
 
 ```json
 {

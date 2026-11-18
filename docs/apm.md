@@ -55,7 +55,7 @@ APM は中立拡張の `x-model-tier` を provider の model field に変換し�
 
 ## tools / bin / templates を別途用意する
 
-APM packages は tools / bin / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。spec-lint / trace-check / contract-run / gate-hook は `tools/_shared/`（厳格 YAML、frontmatter、glob の共有モジュール）を相対パスで読むため、個々のツールのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。入口の `bin/harness.mjs` は `../tools/` を相対パスで読むので、`bin/` も同じ checkout のまま置く。入口は名前から同梱ツールを選んで引数をそのまま渡すだけで、ツールのファイルを直接呼んでも検査の結果は同じ（ADR-0063。対応は `bin/harness.mjs` の表が正本）。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。
+APM packages は tools / bin / templates を含まない。develop の検証と文書生成に必要なアセットは、消費プロジェクトの `.harness/` にこのリポジトリの別 checkout として用意し、版を固定する。コマンドのファイル（`tools/<コマンド>/<コマンド>.mjs`）は `tools/_shared/`（複数のコマンドが使う処理）を相対パスで読むため、個々のコマンドのディレクトリだけを取り出して配置せず、`tools/` をディレクトリごと（`_shared/` を含めて）置く。入口の `bin/harness.mjs` は `../tools/` を相対パスで読むので、`bin/` も同じ checkout のまま置く。利用プロジェクトは、入口のコマンド（`harness <コマンド>`）で呼ぶ。入口は、コマンドの語を `-` でつないだものを置き場とファイルの名前にして、引数をそのまま渡す（`harness lint git branch` → `tools/lint-git-branch/lint-git-branch.mjs`。ADR-0071）。各手続きは `HARNESS_ROOT` をその絶対パスとして解決する（このリポジトリ自身では root）。
 
 ```bash
 # <release-tag> を実在する、package と整合するタグに置き換える
@@ -71,12 +71,12 @@ node .harness/bin/harness.mjs lint entries --from <一覧>  # アプリの入口
 node .harness/bin/harness.mjs lint git branch    # harness.config.json に git を宣言したホストのみ実行される
 node .harness/bin/harness.mjs run cases          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
 node .harness/bin/harness.mjs verify --level fast  # 完了の判定（Stop フックと CI と同じ検査の並び。lint / fast / full）
-node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-gate の拒否ログ集計
+node .harness/tools/_shared/gate-log.mjs --summary   # 2 つのフック（guard、verify --hook）の拒否ログ集計（これだけは入口にコマンドが無い）
 ```
 
-- Stop hook の終端ゲート（`harness verify --hook`。`tools/gate-hook/stop-gate.mjs`）と PreToolUse の着手ゲート（`gate-hook.mjs`）は、ホストが `.claude/settings.local.json` に明示して設置する（`tools/gate-hook/README.md`）。
-- ブランチ名とコミットメッセージの書式（`tools/git-lint`）は、ホストが `harness.config.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/spec-gate.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/git-lint/README.md`）。
-- 同じ再利用ワークフローが、完了の判定（`harness verify`）も実行する。既定の level は `lint`（設定の形・仕様の書式・紐づき。読むだけ）。テストまで CI で実行するなら、`with:` に `level: fast`（シナリオテストまでなら `full`）と、依存を入れる `setup_command` を渡す（`tools/gate-hook/README.md`）。
+- Stop hook の終端ゲート（`harness verify --hook`）と PreToolUse の着手ゲート（`harness guard`）は、ホストが `.claude/settings.local.json` に明示して設置する（設定例は `tools/guard/README.md`）。
+- ブランチ名とコミットメッセージの書式（`harness lint git branch`、`harness lint git message`）は、ホストが `harness.config.json` に `git` を宣言すると有効になる。PR での強制は再利用ワークフロー `.github/workflows/verify.yml` が担い（検査器は `harness_ref` の版を checkout して使い、`uses:` の ref と同じ値にする）、merge を止めるにはホストが既定ブランチの保護でそのジョブを必須チェックにする（`tools/lint-git-branch/README.md`）。
+- 同じ再利用ワークフローが、完了の判定（`harness verify`）も実行する。既定の level は `lint`（設定の形・仕様の書式・紐づき。読むだけ）。テストまで CI で実行するなら、`with:` に `level: fast`（シナリオテストまでなら `full`）と、依存を入れる `setup_command` を渡す（`tools/verify/README.md`）。
 
 ## 旧方式からの移行
 
@@ -96,13 +96,13 @@ node .harness/tools/gate-hook/gate-log.mjs --summary       # gate-hook / stop-ga
 1. プロジェクトのルートと、monorepo なら設定を持つ unit のそれぞれで、`git mv traceconfig.json harness.config.json` を実行する。
 2. プロジェクトの側で `traceconfig.json` を名指ししている場所を直す。フックの設定、CI のワークフロー、`CLAUDE.md` / `AGENTS.md`、変更されたファイルから unit を選ぶスクリプトなど。
 3. `node .harness/bin/harness.mjs lint` を実行し、設定を読めていることを確かめる。
-4. gate-hook の拒否ログの理由 `traceconfig` は `config` に変わった。古いログを集計している場合は、名前を読み替える。
+4. 書き込み前の関門（`harness guard`）の拒否ログの理由 `traceconfig` は `config` に変わった。古いログを集計している場合は、名前を読み替える。
 
 古い名前のファイルだけが残っていると、完了の判定と CI が、改名したことを添えて失敗する。
 
 ## REQ を UC の文書へ移す（REQ-nnn.md → UC.md の「要件」の節）
 
-REQ は、`UC.md` の「要件」の節に小節として書く形に変わった（ADR-0067）。`REQ-nnn.md` が残っていると、spec-lint と trace-check が失敗する。意味を変えずに移すスクリプトがある。自動では移らない。
+REQ は、`UC.md` の「要件」の節に小節として書く形に変わった（ADR-0067）。`REQ-nnn.md` が残っていると、`harness lint spec` と `harness lint refs` が失敗する。意味を変えずに移すスクリプトがある。自動では移らない。
 
 1. 文書を持つディレクトリ（monorepo では unit ごと）で、`node .harness/bin/harness.mjs migrate reqs` を実行し、移せることを確かめる。移せないものがあれば、表示された理由を直す。
 2. `node .harness/bin/harness.mjs migrate reqs --write` で書き換える。
@@ -122,8 +122,8 @@ REQ は、`UC.md` の「要件」の節に小節として書く形に変わっ�
 
 レビューの指摘を保留の一覧に書く運用をやめた（ADR-0068）。指摘は、機械検査にするか、そのスライスの中で人間に聞いて仕様に書く。
 
-- `docs/verification/DEFERRED.md` を持つプロジェクトは、frontmatter に `frozen_at: YYYY-MM-DD`（版を上げた日）を足す。これが無いと spec-lint が失敗する。書き込み前の関門を有効にしていれば、この書き込みも人間の承認に回る（`frozen_at` の変更に当たるため）ので、許可する。その日より後の起票日の行を足しても失敗する。
-- 残っている行は、そのままでよい。解消したら消す。残っている件数は、spec-lint が毎回 1 行で表示する。
+- `docs/verification/DEFERRED.md` を持つプロジェクトは、frontmatter に `frozen_at: YYYY-MM-DD`（版を上げた日）を足す。これが無いと `harness lint spec` が失敗する。書き込み前の関門を有効にしていれば、この書き込みも人間の承認に回る（`frozen_at` の変更に当たるため）ので、許可する。その日より後の起票日の行を足しても失敗する。
+- 残っている行は、そのままでよい。解消したら消す。残っている件数は、`harness lint spec` が毎回 1 行で表示する。
 - 一覧を持たないプロジェクトは、新しく作らない。
 - 書き込み前の関門（`harness guard`）を有効にしていれば、一覧を新しく作る・`frozen_at` を変える・行を足す書き込みは、人間の承認に回る。
 
@@ -132,15 +132,45 @@ REQ は、`UC.md` の「要件」の節に小節として書く形に変わっ�
 実装とスキーマのコードの注釈（`@implements`・`@operation`）を読むのをやめた。手で書く紐づきは、テストの `@covers`（REQ のクラス、NFR、BR）とシナリオテストの `@scenario` だけになる。実装との対応は、テストの実行の記録と、アプリが出す入口の一覧で確かめる。自動では移らない。版を上げたら、文書を持つディレクトリ（monorepo では unit ごと）で次を行う。
 
 1. **廃止したキーを設定から消す。** `implements_pattern`、`operation_pattern`、`source` の `unit_dirs`・`support_dirs`・`unit_pattern`・`implements_placement`・`entry_pattern`・`entry_exclude`・`entry_file_pattern`、`schema` の `constraint_pattern`・`implements_placement`。残っていると、`harness lint config`（K6）と `harness lint refs` が、キーごとに代わりにすることを添えて失敗する。`source` に残すのは `dirs`・`extensions`（と、使っていれば `comment_pattern`）、`schema` に残すのは `files` か `dirs`（と `extensions`・`comment_pattern`）。
-2. **`commands.list_entries` を宣言する。** アプリの入口の一覧を、標準出力へ 1 行 1 件の JSON で出すコマンドを用意して書く（形は `tools/exec-check/README.md` の「入口の一覧の検査」）。本番と同じ組み立てで作ったアプリから、登録済みの経路を取り出して出す。撤回されていない UC の fixed の契約に inbound の操作が 1 つも無いプロジェクトは、`{ "none": "<理由>" }` と書く。未宣言は失敗する。
-3. **契約に無い入口を、契約に書く。** `harness verify --level fast` で「契約に無い入口」（E1）として出たものは、契約の inbound の操作として書くか、入口を消す。突き合わせ先は fixed の契約の操作だけで、draft の契約に操作を書いただけの入口は「契約が fixed でない入口」（同じ E1）として残る。突き合わせは文字の完全一致なので、一覧の `method`・`path`・`name` は、契約の `wire.method`・`wire.path`・`entry` に書いたとおりの文字で出す（パラメーターの書き方と名前、末尾の `/`、大文字小文字も含めて。`tools/exec-check/README.md` の「一覧の形」）。契約の外に入口を置く宣言の手段は無い。これまで `source.entry_exclude` で外していたファイルの入口（生存確認、準備の確認、静的なファイルや画面の配信など）も、ここに出る。これらは、運用のための入口をまとめる UC を 1 つ立てて、その契約に書く（アクターの種別は「システム」。何でも受ける経路は `wire.path` に `/assets/*` のように書く。画像や HTML を返す操作の実例は、アダプターが返す JSON の形で書く。書き方は `tools/exec-check/README.md` の「機能の仕様ではない入口」）。その UC にも REQ とテストが要り、fixed にした契約の操作は実例で実行される。
+2. **`commands.list_entries` を宣言する。** アプリの入口の一覧を、標準出力へ 1 行 1 件の JSON で出すコマンドを用意して書く（形は `tools/lint-entries/README.md` の「一覧の形」）。本番と同じ組み立てで作ったアプリから、登録済みの経路を取り出して出す。撤回されていない UC の fixed の契約に inbound の操作が 1 つも無いプロジェクトは、`{ "none": "<理由>" }` と書く。未宣言は失敗する。
+3. **契約に無い入口を、契約に書く。** `harness verify --level fast` で「契約に無い入口」（E1）として出たものは、契約の inbound の操作として書くか、入口を消す。突き合わせ先は fixed の契約の操作だけで、draft の契約に操作を書いただけの入口は「契約が fixed でない入口」（同じ E1）として残る。突き合わせは文字の完全一致なので、一覧の `method`・`path`・`name` は、契約の `wire.method`・`wire.path`・`entry` に書いたとおりの文字で出す（パラメーターの書き方と名前、末尾の `/`、大文字小文字も含めて。`tools/lint-entries/README.md` の「一覧の形」）。契約の外に入口を置く宣言の手段は無い。これまで `source.entry_exclude` で外していたファイルの入口（生存確認、準備の確認、静的なファイルや画面の配信など）も、ここに出る。これらは、運用のための入口をまとめる UC を 1 つ立てて、その契約に書く（アクターの種別は「システム」。何でも受ける経路は `wire.path` に `/assets/*` のように書く。画像や HTML を返す操作の実例は、アダプターが返す JSON の形で書く。書き方は `tools/lint-entries/README.md` の「機能の仕様ではない入口」）。その UC にも REQ とテストが要り、fixed にした契約の操作は実例で実行される。
 4. **DB で守る規則にテストを書く。** `enforced_at` が DB を指す（database・DB・データベース）active な BR ごとに、アプリの入口を通さず、規則に反する行を DB に直接入れて断られることを確かめるテストを `tests.dirs` に書き、`@covers BR-nnn` を付ける。実 DB が要るので、スタックの規約が定める結合スイートに置き、そのスイートのコマンドを `commands.extra` に書いて、完了の判定が実行するようにする（既定のテストで DB を動かせるスタックなら `commands.test` のままでよい）。無いと `harness lint refs` の C13 が失敗する。スキーマの制約に付けていた `@implements BR-nnn` の代わりになる。
 5. **コードの `@implements`・`@operation` を外す。** もう読まないので、残っていても検査は落ちないが、検査されない印は古くなる。実装とスキーマのコメントから消す。撤回済みの ID を指したままの印も、これで無くなる。
 6. **実行の記録を宣言し、呼ばれていない関数を片付ける。** active な REQ があり `source` を宣言しているプロジェクトは、`coverage` を none にも省略にもできなくなった（`harness lint refs` の C26）。テストのコマンドが lcov の記録を書き出すようにして、`"coverage": { "report": "<記録のファイル>", "not_run": [] }` を宣言する（`report` の無い形も C26 で失敗する）。既定のテストで実行しない範囲（画面のコードなど）は `coverage.scope` で外す。実行の記録の検査は、ファイルの単位から関数の単位に細かくなった。版を上げると、どのテストからも 1 回も呼ばれなかった名前のある関数が違反（V6）として出る。1 件ずつ、使っていなければ消す、テストを足す、理由を書いて認める（`coverage.not_run` に `{ "path": "<ファイル>#<関数の名前>", "reason": "<理由>" }`）のどれかにする。記録に関数ごとの情報（lcov の `FN:` / `FNDA:`）が無いと V7 で失敗するので、テストのコマンドが出す設定にする。出せない道具（記録に関数ごとの情報が 1 つも無い）のときだけ、`coverage` に `"functions": { "none": "<理由>" }` を足せる（その間は、ファイルの単位までしか確かめない）。
-7. **手順の中の検査の番号を直す。** trace-check の C5・C14・C19・C21・C23・C27 は欠番になった。CI や手順書で `--only` にこれらを渡していると、使い方エラー（exit 2）になる。
+7. **手順の中の検査の番号を直す。** `harness lint refs` の C5・C14・C19・C21・C23・C27 は欠番になった。CI や手順書で `--only` にこれらを渡していると、使い方エラー（exit 2）になる。
 8. `node .harness/bin/harness.mjs verify --level fast` を実行し、検査が通ることを確かめる。
 
 設定（`harness.config.json`）の変更は、これまでどおり人間が承認する。`templates/develop/harness.config.json` に、新しい形（`br_pattern`、`commands.list_entries`）がある。monorepo では、`commands.list_entries` を unit の設定に書く（ルートの設定に書くと `harness lint config` の K7 で失敗する）。
+
+## 同梱ツールのファイルの名前を、コマンドの名前にそろえる（ADR-0071）
+
+同梱ツールのファイルと置き場の名前を、コマンドの名前と 1 つにした。`harness <コマンド>` で呼んでいるプロジェクトは、コマンドの名前も引数も変わらないので、次の 1〜3 に当たる箇所だけを直す。自動では移らない。
+
+| これまで（ファイルを直接実行） | これから |
+| --- | --- |
+| `tools/config-lint/config-lint.mjs` | `harness lint config`（`tools/lint-config/lint-config.mjs`） |
+| `tools/spec-lint/spec-lint.mjs validate` | `harness lint spec`（`tools/lint-spec/lint-spec.mjs`） |
+| `tools/spec-lint/spec-lint.mjs gate` | `harness lint git uc`（`tools/lint-git-uc/lint-git-uc.mjs`） |
+| `tools/spec-lint/spec-lint.mjs convert` | `harness convert`（`tools/convert/convert.mjs`） |
+| `tools/trace-check/trace-check.mjs` | `harness lint refs`（`tools/lint-refs/lint-refs.mjs`） |
+| `tools/trace-check/trace-check.mjs --next <種類>` | `harness next-id <種類>`（`tools/next-id/next-id.mjs`） |
+| `tools/trace-check/trace-check.mjs --index` | `harness index`（`tools/index/index.mjs`） |
+| `tools/exec-check/exec-check.mjs entry` / `coverage` / `entries` | `harness lint entry` / `harness lint coverage` / `harness lint entries`（`tools/lint-entry/`、`tools/lint-coverage/`、`tools/lint-entries/`） |
+| `tools/git-lint/git-lint.mjs branch` / `message` | `harness lint git branch` / `harness lint git message`（`tools/lint-git-branch/`、`tools/lint-git-message/`） |
+| `tools/contract-run/contract-run.mjs` | `harness run cases`（`tools/run-cases/run-cases.mjs`） |
+| `tools/gate-hook/gate-hook.mjs` | `harness guard`（`tools/guard/guard.mjs`） |
+| `tools/gate-hook/stop-gate.mjs` | `harness verify --hook`（`tools/verify/verify.mjs`） |
+| `tools/gate-hook/verify.mjs` | `harness verify`（`tools/verify/verify.mjs`） |
+| `tools/docs-migrate/merge-reqs.mjs` | `harness migrate reqs`（`tools/migrate-reqs/migrate-reqs.mjs`） |
+| `tools/gate-hook/gate-log.mjs --summary` | `tools/_shared/gate-log.mjs --summary`（入口にコマンドは無い） |
+| `.github/workflows/spec-gate.yml` | `.github/workflows/verify.yml` |
+
+1. **ツールのファイルを直接実行している箇所を、入口のコマンドに直す。** フックの設定（`.claude/settings.local.json` の PreToolUse と Stop、`.git/hooks/commit-msg` など）、CI、手順書、`package.json` のスクリプトで、上の表の左の列のパスを呼んでいれば、右の列の `node .harness/bin/harness.mjs <コマンド>` に書き換える。古いパスのファイルはもう無いので、直さないとフックが「ファイルが無い」で失敗する。Claude Code のフック（PreToolUse、Stop）は、終了コードが 2 でない失敗では書き込みも終了も止めないので、直し忘れると関門が黙って外れた状態になる。版を上げたら、フックが止めることを 1 回確かめる（`tools/guard/README.md` の「動作確認」）。`trace-check.mjs --next adr` のように、1 つのファイルにオプションで別の役目をさせていた呼び方は、コマンドが分かれた（`harness next-id adr`）。`harness lint refs --next adr` や `harness lint refs --index` は、使い方エラー（exit 2）になる。
+2. **再利用ワークフローの名前を直す。** 呼び出し側のワークフローの `uses:` を `tsay-dev/harness/.github/workflows/verify.yml@<版>` に変える。入力の `spec_lint_args: --ignore-legacy-layout` は、`ignore_legacy_layout: true` に変わった（ほかの入力は同じ）。ジョブの名前を `spec-gate` のままにするか `verify` に変えるかは、呼び出し側が決める。ブランチ保護の必須チェックは「呼び出し側のジョブの名前 / `verify`」になるので、保護の設定の名前を合わせる（合わせないと、必須チェックが報告されないままになり、merge できなくなる）。
+3. **出力の頭の名前を読んでいる箇所を直す。** 検査の出力の頭に付く名前は、コマンドの名前になった（`spec-lint: OK` → `lint spec: OK`、`[git-lint]` → `[lint git branch]`・`[lint git message]`、`[exec-check]` → `[lint entry]`・`[lint coverage]`・`[lint entries]`、`[gate-hook]` → `[guard]`、`[stop-gate]` → `[verify]` など）。完了の判定が出す検査の名前も同じ（`spec-lint` → `lint spec`、`trace-check` → `lint refs`、`config-lint` → `lint config`、`contract-run` → `run cases`。`entry`・`entries`・`coverage`・`typecheck`・`lint`・`test`・`system` は変わらない）。出力を文字で照合しているスクリプトがあれば直す。違反の文、検査の番号（C・X・V・E・K・B・M）、終了コードは変わっていない。
+4. **拒否ログ（`.harness-gate/log.jsonl`）の `hook` の値が変わった。** `gate-hook` → `guard`、`stop-gate` → `verify`。集計（`gate-log.mjs --summary`）は新しい値だけを数えるので、版を上げる前の行は集計に入らない。自分で集計しているなら、名前を読み替える。
+5. **テスト用の環境変数の名前が変わった。** 完了の判定が実行するコマンドの探索先を差し替える `STOP_GATE_TOOLS_DIR` は、入口と同じ `HARNESS_TOOLS_DIR` になった（harness 自身のテストだけが使う）。
+6. **変わらないもの。** 入口のコマンドの名前と引数、設定（`harness.config.json`）のキー、フックの記録の置き場（`.harness-gate/`）、採番の予約のファイル（`.trace-reservations.json`）、凍結済みの保留の一覧（`DEFERRED.md`）の `昇格先` の語（`spec-lint`・`trace-check`・`contract-run` など。行を書き換えないので、語も変えない）。
 
 ## 検証手順
 
@@ -148,7 +178,7 @@ REQ は、`UC.md` の「要件」の節に小節として書く形に変わっ�
 
 ```bash
 python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
-node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / config-lint / exec-check / 入口
+node --test tools/*/test/*.test.mjs bin/test/*.test.mjs < /dev/null   # コマンドごとのテスト（tools/<コマンド>/test/）、共有の処理のテスト（tools/_shared/test/）、入口と名前の決まり（bin/test/）
 node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint entry → lint git branch（lint coverage と lint entries は、記録や一覧が要るので入らない）
 node bin/harness.mjs verify --level fast # 上の検査とテストを、完了の判定と同じ並びでまとめて実行する（harness 自身の設定に宣言したコマンド）
 ```

@@ -12,7 +12,7 @@ phase: 定義            # 定義 | 構造 | 実装 | 検証 | 完了 — 進捗
 <!--
 配置: docs/goals/GOAL-00-<slug>/UC-000-<slug>/UC.md — ファイル名は常に UC.md（R-1006）。
 このディレクトリが垂直スライス: UC.md（REQ は末尾の「要件」の節）+ contract.yaml。`ls` が範囲を定義する。
-所属の SSOT は上記 frontmatter。ディレクトリは配置（trace-check C9 が一致を確認する）。
+所属の SSOT は上記 frontmatter。ディレクトリは配置（lint refs C9 が一致を確認する）。
 下流のすべての作成者と oracle が別コンテキストでこのファイルを全文読む。薄く保つ。
 本文は日本語で書く。
 -->

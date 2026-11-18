@@ -1,7 +1,7 @@
 # 境界契約 — 一 UC（一垂直スライス）一ファイル
 # 隣接する UC.md（REQ は「要件」の節）とともにスライスの MIS を構成する（境界の形状のみを持ち、動作と規則は UC.md / REQ / BR に置く）
 # OpenAPI ではない。一つの書式で HTTP・非 HTTP の境界を扱う（理由: docs/adr/0001）
-# 準拠は `node tools/spec-lint/spec-lint.mjs validate` が判定する。自身の読解を成功の根拠にしてはならない
+# 準拠は `harness lint spec` が判定する。自身の読解を成功の根拠にしてはならない
 # 受理する YAML は厳格な部分集合（理由: docs/adr/0002）:
 #   - anchors と aliases（& / *）はエラー。代わりに _shared/components.yaml を通じて共有する
 #   - block scalars（| / >）はエラー。長い文章は UC.md または REQ に置く
@@ -22,7 +22,7 @@
 #   言語の型システムが契約（R-1204）。プロセス内境界しかない UC は operations: {} + x-no-boundary を宣言する。
 #   internal はその ADR に基づく場合だけ全 UC で統一して使う。契約に「何か」を置くために
 #   プロセス内呼び出しを http や sdk にしてはならない
-x-uc: UC-000                 # ディレクトリ名 UC-000-<slug> の ID 部分と一致させる（trace-check C9）
+x-uc: UC-000                 # ディレクトリ名 UC-000-<slug> の ID 部分と一致させる（lint refs C9）
 x-status: draft              # draft | fixed（呼び出し元が fixed にする。自身で行ってはならない）
 x-spec: ./UC.md              # 動作の SSOT（このディレクトリの UC.md。REQ は「要件」の節）
 x-updated: YYYY-MM-DD
@@ -36,12 +36,12 @@ operations:
   # fixed の owned な inbound の操作に合う入口が無いこと、契約に無い入口があることを、harness lint entries が違反にする。
   # 契約の外に入口を置く手段は無い。生存確認、静的なファイルや画面の配信も、運用のための入口をまとめる UC の契約に操作として書く。
   # 入口との突き合わせは文字の完全一致（何でも受ける経路も、一覧に出すのと同じ文字で wire.path に書く。例: /assets/*）。応答が JSON でない操作は、アダプターが返す JSON の形
-  # （contentType など、確かめたい事実）を response と実例に書く（tools/exec-check/README.md「機能の仕様ではない入口」）
+  # （contentType など、確かめたい事実）を response と実例に書く（tools/lint-entries/README.md「機能の仕様ではない入口」）
   # 操作配下のキーは閉じた集合（transport / direction / owned / source / auth / summary / wire /
-  # entry / requires / request / response / errors / examples）。spec-lint は x-* を含む他のキーを拒否する。
+  # entry / requires / request / response / errors / examples）。lint spec は x-* を含む他のキーを拒否する。
   # 規則と状態遷移は UC / REQ / BR に置き、評価順序は errors の順序に置く
   <operationName>:
-    transport: http          # http | sdk | local-store | deeplink | push | device | internal | stream（権威である spec-lint が保証）
+    transport: http          # http | sdk | local-store | deeplink | push | device | internal | stream（権威である lint spec が保証）
     direction: outbound      # outbound = このアプリが外部を呼ぶ / inbound = このアプリが呼ばれる
     owned: true              # true = 自身が形状を決める / false = 他者の形状を書き写す（source: を追加）
     auth: <scheme>           # _shared authSchemes の定義名、または none。省略禁止。「忘れた」と「不要」を区別する
@@ -80,12 +80,12 @@ operations:
         when: <発生条件を 1 行>
         wire: { status: 403 }
     examples:                # fixed 後は必須。実値による成功例を少なくとも一つ、errors[] のコードごとに失敗例一つ
-                             # を置く（spec-lint）。tools/contract-run が利用プロジェクトの契約アダプター
+                             # を置く（lint spec）。harness run cases が利用プロジェクトの契約アダプター
                              # （harness.config.json commands.contract_adapter）で全例を実行する。これらは契約自身のテスト。
                              # 二つの失敗条件が同時に成立する場合、先のコードを期待するその入力の例を追加し、
                              # 評価順序を実行検査にする。
                              # 失敗例は request が禁止するキー（additionalProperties: false / not:）を持ってよい。
-                             # 反例が目的なので、spec-lint は成功例だけを request.properties と照合する
+                             # 反例が目的なので、lint spec は成功例だけを request.properties と照合する
       ok:
         request: { i_xxx: "abc" }
         response: { id: 1, status: ok }
@@ -157,7 +157,7 @@ operations:
 #
 #  持続する接続のメッセージ — 送るメッセージ（outbound）と届くイベント（inbound）を別の操作として書く。
 #  誰に届くかは、契約の最上位 observers:（名前: 1 行の説明）に宣言した観測者と、予約語 self（例の主体の接続）で名指す。
-#  例の events: は観測者ごとに届くイベントを順に列挙する。contract-run は種別・件数・順序の一致と payload の部分集合で照合する。
+#  例の events: は観測者ごとに届くイベントを順に列挙する。run cases は種別・件数・順序の一致と payload の部分集合で照合する。
 #  書いた観測者の [] は「届かない」の宣言で、書いていない観測者は照合しない。fixed の stream の例は events: を省略できない。
 #  届くイベントの形は request: に書く（push と同じ）。response: と errors: は持たない。
 #  操作によらず届くイベント（時間経過、失効など）は、そのイベント自身の例（events: だけ）に書き、アダプターが状況を作る。

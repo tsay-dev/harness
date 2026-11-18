@@ -23,11 +23,11 @@ Icon?
 .agents/
 .codex/agents/
 
-# trace-check の採番予約とロック（一時状態。番号は使われた時点で台帳から落ちる）
+# harness next-id の採番予約とロック（一時状態。番号は使われた時点で台帳から落ちる）
 .trace-reservations.json
 .trace-next.lock
 
-# gate-hook / stop-gate の拒否ログと状態（一時。ゲート降格判断のデータ）
+# harness guard / harness verify --hook の拒否ログと状態（一時。ゲート降格判断のデータ）
 .harness-gate/
 
 # 全ベンダー向け prompt は packages/ からの生成物
