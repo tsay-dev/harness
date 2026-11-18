@@ -66,7 +66,8 @@ node .harness/bin/harness.mjs lint config        # 設定（harness.config.json�
 node .harness/bin/harness.mjs lint spec          # 仕様の文書の書式と状態の決まり
 node .harness/bin/harness.mjs lint refs          # 仕様・コード・テストの ID の紐づき
 node .harness/bin/harness.mjs lint entry         # テストの入口が、本番と同じ組み立てを呼んでいるか
-node .harness/bin/harness.mjs lint coverage      # テストの実行の記録から、どのテストからも実行されなかったソースを洗い出す
+node .harness/bin/harness.mjs lint coverage      # テストの実行の記録から、どのテストからも実行されなかったソースと関数を洗い出す
+node .harness/bin/harness.mjs lint entries --from <一覧>  # アプリの入口の一覧を契約と突き合わせる（一覧は commands.list_entries が出す）
 node .harness/bin/harness.mjs lint git branch    # harness.config.json に git を宣言したホストのみ実行される
 node .harness/bin/harness.mjs run cases          # 実行する実例があれば commands.contract_adapter が必要（未宣言は失敗）
 node .harness/bin/harness.mjs verify --level fast  # 完了の判定（Stop フックと CI と同じ検査の並び。lint / fast / full）
@@ -126,6 +127,21 @@ REQ は、`UC.md` の「要件」の節に小節として書く形に変わっ�
 - 一覧を持たないプロジェクトは、新しく作らない。
 - 書き込み前の関門（`harness guard`）を有効にしていれば、一覧を新しく作る・`frozen_at` を変える・行を足す書き込みは、人間の承認に回る。
 
+## 実装の注釈をやめ、紐づきをテストの側に集める（ADR-0070）
+
+実装とスキーマのコードの注釈（`@implements`・`@operation`）を読むのをやめた。手で書く紐づきは、テストの `@covers`（REQ のクラス、NFR、BR）とシナリオテストの `@scenario` だけになる。実装との対応は、テストの実行の記録と、アプリが出す入口の一覧で確かめる。自動では移らない。版を上げたら、文書を持つディレクトリ（monorepo では unit ごと）で次を行う。
+
+1. **廃止したキーを設定から消す。** `implements_pattern`、`operation_pattern`、`source` の `unit_dirs`・`support_dirs`・`unit_pattern`・`implements_placement`・`entry_pattern`・`entry_exclude`・`entry_file_pattern`、`schema` の `constraint_pattern`・`implements_placement`。残っていると、`harness lint config`（K6）と `harness lint refs` が、キーごとに代わりにすることを添えて失敗する。`source` に残すのは `dirs`・`extensions`（と、使っていれば `comment_pattern`）、`schema` に残すのは `files` か `dirs`（と `extensions`・`comment_pattern`）。
+2. **`commands.list_entries` を宣言する。** アプリの入口の一覧を、標準出力へ 1 行 1 件の JSON で出すコマンドを用意して書く（形は `tools/exec-check/README.md` の「入口の一覧の検査」）。本番と同じ組み立てで作ったアプリから、登録済みの経路を取り出して出す。撤回されていない契約に inbound の操作が 1 つも無いプロジェクトは、`{ "none": "<理由>" }` と書く。未宣言は失敗する。
+3. **契約に書かない入口を宣言する。** 生存確認などは、`entries.outside_contract` に `{ "entry": "GET /api/health", "reason": "<理由>" }` と書く。`harness verify --level fast` で「契約に無い入口」（E1）として出たものは、契約に書くか、入口を消すか、ここに理由と一緒に書く。これまで `source.entry_exclude` で外していたファイルの入口も、ここに出る。
+4. **DB で守る規則にテストを書く。** `enforced_at` が database の active な BR ごとに、アプリの入口を通さず、規則に反する行を DB に直接入れて断られることを確かめるテストを `tests.dirs` に書き、`@covers BR-nnn` を付ける。無いと `harness lint refs` の C13 が失敗する。スキーマの制約に付けていた `@implements BR-nnn` の代わりになる。
+5. **コードの `@implements`・`@operation` を外す。** もう読まないので、残っていても検査は落ちないが、検査されない印は古くなる。実装とスキーマのコメントから消す。撤回済みの ID を指したままの印も、これで無くなる。
+6. **呼ばれていない関数を片付ける。** 実行の記録の検査が、ファイルの単位から関数の単位に細かくなった。`coverage` を宣言しているプロジェクトでは、版を上げると、どのテストからも 1 回も呼ばれなかった名前のある関数が違反（V6）として出る。1 件ずつ、使っていなければ消す、テストを足す、理由を書いて認める（`coverage.not_run` に `{ "path": "<ファイル>#<関数の名前>", "reason": "<理由>" }`）のどれかにする。記録に関数ごとの情報（lcov の `FN:` / `FNDA:`）が無いと V7 で失敗するので、テストのコマンドが出す設定にする。出せない道具なら、`coverage` に `"functions": { "none": "<理由>" }` を足す（その間は、ファイルの単位までしか確かめない）。
+7. **手順の中の検査の番号を直す。** trace-check の C5・C14・C19・C21・C23・C27 は欠番になった。CI や手順書で `--only` にこれらを渡していると、使い方エラー（exit 2）になる。
+8. `node .harness/bin/harness.mjs verify --level fast` を実行し、検査が通ることを確かめる。
+
+設定（`harness.config.json`）の変更は、これまでどおり人間が承認する。`templates/develop/harness.config.json` に、新しい形（`br_pattern`、`commands.list_entries`、`entries.outside_contract`）がある。
+
 ## 検証手順
 
 リポジトリ直下で実行する。
@@ -133,7 +149,7 @@ REQ は、`UC.md` の「要件」の節に小節として書く形に変わっ�
 ```bash
 python3 tools/apm/test_projection.py     # パッケージ境界、リンク到達性、参照方向、行数上限、モデルの対応表
 node --test "tools/**/*.test.mjs" "bin/**/*.test.mjs" < /dev/null   # spec-lint / trace-check / gate-hook / stop-gate / contract-run / git-lint / config-lint / exec-check / 入口
-node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint entry → lint git branch
+node bin/harness.mjs lint                # lint config → lint spec → lint refs → lint entry → lint git branch（lint coverage と lint entries は、記録や一覧が要るので入らない）
 node bin/harness.mjs verify --level fast # 上の検査とテストを、完了の判定と同じ並びでまとめて実行する（harness 自身の設定に宣言したコマンド）
 ```
 

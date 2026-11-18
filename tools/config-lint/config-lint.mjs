@@ -19,6 +19,8 @@
 //        （時差があるので、明日の日付までは通す）
 //        exceptions はどの検査も読まない。書いても、検査の違反は違反のまま（紐づきの義務は免除されない / ADR-0056）
 //    K5  git.units の値は、設定ファイルがあるディレクトリの中の、別のディレクトリ（外やルート自身を指す unit は読まない）
+//    K6  廃止したキー（tools/_shared/config.mjs の RETIRED_KEYS。実装のコードの注釈を読むためのキー。ADR-0070）が残っていない。
+//        黙って読み飛ばすと、もう検査されていない注釈と設定を、利用プロジェクトが保ち続けることになる
 //  conventions は、違反が無くても毎回、件数と一覧を表示する（機械が見ていない範囲を見えるままにする）。
 //  rules / conventions / exceptions は省略できる。省略したものは「未宣言」と表示する（0 件とは区別する）。
 //
@@ -35,7 +37,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CONFIG_FILE, OPTIONAL_TOP_KEYS, renamedConfigHint } from "../_shared/config.mjs";
+import { CONFIG_FILE, OPTIONAL_TOP_KEYS, renamedConfigHint, retiredKeysIn } from "../_shared/config.mjs";
 
 const TAG = "[config-lint]";
 const TEMPLATE =
@@ -45,8 +47,8 @@ const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isText = (v) => typeof v === "string" && v.trim() !== "";
 //  1 行の文: 改行も、端末の表示を乱す制御文字も含まない
 const oneLine = (v) => isText(v) && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(v);
-//  commands のキーのうち、決めごとを確かめるコマンドではないもの（説明の欄と、契約の実例を実行するプロセス）
-const NOT_A_CHECK = (k) => k.startsWith("_") || k === "contract_adapter";
+//  commands のキーのうち、決めごとを確かめるコマンドではないもの（説明の欄、契約の実例を実行するプロセス、入口の一覧を出すコマンド）
+const NOT_A_CHECK = (k) => k.startsWith("_") || k === "contract_adapter" || k === "list_entries";
 //  p が root の外にあるか（"..foo" のように .. で始まるだけの名前は中）
 const outside = (root, p) => {
 	const rel = relative(root, p);
@@ -88,8 +90,11 @@ function lint(cfg, root, allowed) {
 	const errs = [];
 	const err = (id, msg) => errs.push(`${id}  ${msg}`);
 
+	const retired = retiredKeysIn(cfg);
+	for (const [keyPath, hint] of retired) err("K6", `${keyPath} は廃止した（ADR-0070）。${hint}。キーを削除する`);
 	for (const k of Object.keys(cfg)) {
-		if (!allowed.includes(k)) err("K1", `最上位のキー「${k}」は、ひな形に無い（使えるキー: ${allowed.join(" / ")}）`);
+		//  廃止したキーは K6 が案内する（「ひな形に無い」とだけ伝えると、消してよい理由が分からない）
+		if (!allowed.includes(k) && !retired.some(([keyPath]) => keyPath === k)) err("K1", `最上位のキー「${k}」は、ひな形に無い（使えるキー: ${allowed.join(" / ")}）`);
 	}
 
 	if ("rules" in cfg) {

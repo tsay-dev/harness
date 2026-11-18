@@ -105,7 +105,7 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	//  (a) 全部通過。none は理由を表示して skip
 	const a = runGate(root, stop(root), opt);
 	assert.equal(a.status, 0, a.stderr + a.stdout);
-	assert.match(a.stdout, /\[stop-gate\] 終端ゲート通過（7 検査、skip: typecheck, lint, system）/);
+	assert.match(a.stdout, /\[stop-gate\] 終端ゲート通過（8 検査、skip: typecheck, lint, system）/);
 	assert.match(a.stdout, /skip: commands\.typecheck = none（テストでは使わない）/);
 	assert.equal(last(root).decision, "pass");
 	assert.equal(last(root).session, "s1");
@@ -115,15 +115,17 @@ test("stop-gate: 合格 → 変更なし skip → 不通過ブロック → ラ�
 	assert.ok(state.last_pass.fingerprint);
 	//  contract-run に --docs を渡す。spec-lint は docs、trace-check は root と config
 	const c1 = calls(tools);
-	//  exec-check は 2 回: 入口の検査（entry）と、test の後の実行の記録の検査（coverage）
-	assert.deepEqual(c1.map((c) => c.name), ["config-lint", "spec-lint", "trace-check", "exec-check", "contract-run", "exec-check"]);
+	//  exec-check は 3 回: テストの入口の検査（entry）、入口の一覧の突き合わせ（entries）、test の後の実行の記録の検査（coverage）
+	assert.deepEqual(c1.map((c) => c.name), ["config-lint", "spec-lint", "trace-check", "exec-check", "exec-check", "contract-run", "exec-check"]);
 	assert.deepEqual(c1[3].args, ["entry", "--root", root, "--config", join(root, "harness.config.json")]);
-	assert.deepEqual(c1[5].args.slice(0, 6), ["coverage", "--root", root, "--config", join(root, "harness.config.json"), "--since"]);
-	assert.ok(Math.abs(Number(c1[5].args[6]) - Date.now()) < 60_000, "--since が test を始めた時刻になっていない");
+	//  commands.list_entries がコマンドでない（ここでは未宣言）ときは、一覧を渡さずに呼ぶ（宣言の判定は exec-check がする）
+	assert.deepEqual(c1[4].args, ["entries", "--root", root, "--config", join(root, "harness.config.json")]);
+	assert.deepEqual(c1[6].args.slice(0, 6), ["coverage", "--root", root, "--config", join(root, "harness.config.json"), "--since"]);
+	assert.ok(Math.abs(Number(c1[6].args[6]) - Date.now()) < 60_000, "--since が test を始めた時刻になっていない");
 	assert.deepEqual(c1[0].args, ["--config", join(root, "harness.config.json")]);
 	assert.deepEqual(c1[1].args, ["validate", "--docs", join(root, "docs")]);
 	assert.deepEqual(c1[2].args, ["--root", root, "--config", join(root, "harness.config.json")]);
-	assert.deepEqual(c1[4].args, ["--root", root, "--config", join(root, "harness.config.json"), "--docs", join(root, "docs")]);
+	assert.deepEqual(c1[5].args, ["--root", root, "--config", join(root, "harness.config.json"), "--docs", join(root, "docs")]);
 
 	//  (b) 同じ木で再度 Stop → 再検査しない（.harness-gate/ が増えても指紋は変わらない）
 	const b = runGate(root, stop(root), opt);
@@ -272,7 +274,7 @@ test("stop-gate: commands の typecheck / lint / test / system は宣言か none
 	writeConfig(root, { tests: { none: "テストを持たない" }, commands: cmds({ test: NONE }) });
 	const e = runGate(root, stop(root), opt);
 	assert.equal(e.status, 0, e.stderr);
-	assert.match(e.stdout, /終端ゲート通過（5 検査、skip: typecheck, lint, test, system）/);
+	assert.match(e.stdout, /終端ゲート通過（6 検査、skip: typecheck, lint, test, system）/);
 
 	//  (f) harness.config.json の JSON 構文の誤りは例外でなく失敗の 1 項目
 	writeConfig(root, "{ not json");
@@ -306,7 +308,7 @@ test("stop-gate: commands.system は test の後に 1 回走り、test が赤な
 	writeConfig(root, { commands: cmds({ test: "exit 0", system: "exit 0" }) });
 	const c = runGate(root, stop(root, { session_id: "s3" }), opt);
 	assert.equal(c.status, 0, c.stderr);
-	assert.match(c.stdout, /終端ゲート通過（8 検査、skip: typecheck, lint）/);
+	assert.match(c.stdout, /終端ゲート通過（9 検査、skip: typecheck, lint）/);
 
 	//  (d) 検査器の失敗は全部集める（spec-lint と contract-run の両方）
 	const d = runGate(root, stop(root, { session_id: "s4" }), { ...opt, args: ["--force"], fail: "spec-lint,contract-run" });
@@ -390,13 +392,14 @@ test("stop-gate: monorepo（git.units）は unit ごとに、検査と unit の 
 	assert.match(a.stdout, /unit ui（packages\/ui）: docs なし/);
 	assert.match(a.stdout, /unit api（apps\/api）: docs なし/);
 	const c = calls(tools);
-	assert.deepEqual(c.map((x) => x.name), ["config-lint", "spec-lint", "trace-check", "exec-check", "contract-run", "exec-check"]);
+	assert.deepEqual(c.map((x) => x.name), ["config-lint", "spec-lint", "trace-check", "exec-check", "exec-check", "contract-run", "exec-check"]);
 	assert.deepEqual(c[3].args, ["entry", "--root", web, "--config", join(web, "harness.config.json")]);
-	assert.deepEqual(c[5].args.slice(0, 5), ["coverage", "--root", web, "--config", join(web, "harness.config.json")]);
+	assert.deepEqual(c[4].args, ["entries", "--root", web, "--config", join(web, "harness.config.json")]);
+	assert.deepEqual(c[6].args.slice(0, 5), ["coverage", "--root", web, "--config", join(web, "harness.config.json")]);
 	assert.deepEqual(c[0].args, ["--config", join(root, "harness.config.json")]);
 	assert.deepEqual(c[1].args, ["validate", "--docs", join(web, "docs")]);
 	assert.deepEqual(c[2].args, ["--root", web, "--config", join(web, "harness.config.json")]);
-	assert.deepEqual(c[4].args, ["--root", web, "--config", join(web, "harness.config.json"), "--docs", join(web, "docs")]);
+	assert.deepEqual(c[5].args, ["--root", web, "--config", join(web, "harness.config.json"), "--docs", join(web, "docs")]);
 	//  unit の commands は unit のディレクトリで実行する
 	assert.equal(realpathSync(readFileSync(join(web, "ran-test.txt"), "utf8").trim()), realpathSync(web));
 
@@ -455,7 +458,7 @@ test("stop-gate: --level で、どこまで実行するかを選ぶ。実行し�
 	const a = runGate(root, stop(root), { tools, args: ["--level", "lint"] });
 	assert.equal(a.status, 0, a.stderr);
 	assert.equal(ran(), "");
-	assert.deepEqual(calls(tools).map((c) => c.name), ["config-lint", "spec-lint", "trace-check", "exec-check"]);
+	assert.deepEqual(calls(tools).map((c) => c.name), ["config-lint", "spec-lint", "trace-check", "exec-check", "exec-check"]);
 	assert.match(a.stdout, /skip: contract-run（--level lint では実行しない）/);
 	assert.match(a.stdout, /skip: commands\.test（--level lint では実行しない）/);
 
@@ -463,7 +466,7 @@ test("stop-gate: --level で、どこまで実行するかを選ぶ。実行し�
 	const b = runGate(root, stop(root), { tools, args: ["--level", "fast"] });
 	assert.equal(b.status, 0, b.stderr);
 	assert.equal(ran(), "tux");
-	assert.equal(calls(tools).length, 6);
+	assert.equal(calls(tools).length, 7);
 	assert.match(b.stdout, /skip: commands\.system（--level fast では実行しない）/);
 	reset();
 
@@ -491,6 +494,52 @@ test("stop-gate: --level で、どこまで実行するかを選ぶ。実行し�
 
 	//  知らない level は使い方の誤り
 	assert.equal(runGate(root, stop(root), { tools, args: ["--level", "all"] }).status, 2);
+});
+
+test("stop-gate: 入口の一覧は commands.list_entries に出させ、標準出力だけを一時ファイルに書いて exec-check entries に渡す（level lint では実行しない）", (t) => {
+	const tools = makeTools(t);
+	//  渡された一覧のファイルの中身を、呼び出しの記録に残す偽の exec-check
+	writeFileSync(
+		join(tools, "exec-check", "exec-check.mjs"),
+		STUB + `import { readFileSync as rf, appendFileSync as af } from "node:fs";\nconst at = process.argv.indexOf("--from");\nif (at > 0) af(process.env.STUB_LOG + ".list", rf(process.argv[at + 1], "utf8"));\n`,
+	);
+	const list = '{"kind":"http","method":"GET","path":"/api/members/:id"}';
+	const root = makeRoot(t, { commands: cmds({ list_entries: `echo '${list}'; echo 読み込みの記録 >&2; pwd > listed-in.txt` }) }, { gitInit: false });
+	const names = () => calls(tools).map((c) => `${c.name}${c.name === "exec-check" ? `:${c.args[0]}` : ""}`);
+	const listPath = join(tools, "calls.jsonl.list");
+
+	const a = runGate(root, stop(root), { tools });
+	assert.equal(a.status, 0, a.stderr);
+	const p = join(tools, "calls.jsonl");
+	const entriesCall = readFileSync(p, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).find((c) => c.args[0] === "entries");
+	assert.deepEqual(entriesCall.args.slice(0, 6), ["entries", "--root", root, "--config", join(root, "harness.config.json"), "--from"]);
+	assert.ok(!existsSync(entriesCall.args[6]), "一覧の一時ファイルが残っている");
+	assert.ok(!entriesCall.args[6].startsWith(root), "一覧の一時ファイルをプロジェクトの中に置いている");
+	assert.equal(readFileSync(listPath, "utf8"), `${list}\n`, "標準出力だけを渡す（標準エラーを混ぜない）");
+	assert.equal(realpathSync(readFileSync(join(root, "listed-in.txt"), "utf8").trim()), realpathSync(root));
+	assert.deepEqual(names(), ["config-lint", "spec-lint", "trace-check", "exec-check:entry", "exec-check:entries", "contract-run", "exec-check:coverage"]);
+	assert.match(a.stdout, /終端ゲート通過（9 検査、/);
+
+	//  level lint では、利用プロジェクトのコマンドを実行しないので、突き合わせも実行せず、skip として表示する
+	rmSync(join(root, "listed-in.txt"));
+	const l = runGate(root, stop(root), { tools, args: ["--level", "lint", "--force"] });
+	assert.equal(l.status, 0, l.stderr);
+	assert.ok(!existsSync(join(root, "listed-in.txt")));
+	assert.deepEqual(names(), ["config-lint", "spec-lint", "trace-check", "exec-check:entry"]);
+	assert.match(l.stdout, /skip: entries（--level lint では、入口の一覧を出すコマンド commands\.list_entries を実行しない）/);
+
+	//  一覧を出すコマンドが失敗したら、失敗の名前は list_entries。読めない一覧で突き合わせをしない（ほかの検査は続ける）
+	writeConfig(root, { commands: cmds({ list_entries: "echo 起動できない >&2; exit 3" }) });
+	const f = runGate(root, stop(root), { tools, args: ["--force"] });
+	assert.equal(f.status, 2, f.stdout);
+	assert.deepEqual(last(root).failures, ["list_entries"]);
+	assert.match(f.stderr, /起動できない/);
+	assert.deepEqual(names(), ["config-lint", "spec-lint", "trace-check", "exec-check:entry", "contract-run", "exec-check:coverage"]);
+
+	//  none の宣言は、level lint でも exec-check に判定させる（none にできるかは契約を読めば分かる）
+	writeConfig(root, { commands: cmds({ list_entries: { none: "外から呼ばれる入口が無い" } }) });
+	assert.equal(runGate(root, stop(root), { tools, args: ["--level", "lint", "--force"] }).status, 0);
+	assert.deepEqual(names(), ["config-lint", "spec-lint", "trace-check", "exec-check:entry", "exec-check:entries"]);
 });
 
 test("stop-gate: 実行の記録の検査は test が通った直後にだけ実行し、落ちたら extra と system を実行しない", (t) => {
@@ -688,9 +737,9 @@ test("stop-gate: 実際の spec-lint / trace-check / contract-run とテンプ�
 	cfg.schema = { none: "空の skeleton" };
 	cfg.docs.shared = { none: "空の skeleton" };
 	cfg.docs.glossary = { none: "空の skeleton" };
-	cfg.commands = { typecheck: NONE, lint: NONE, test: "exit 0", system: NONE };
+	cfg.commands = { typecheck: NONE, lint: NONE, test: "exit 0", system: NONE, list_entries: { none: "空の skeleton（契約が無い）" } };
 	const root = makeRoot(t, cfg);
 	const r = runGate(root, stop(root));
 	assert.equal(r.status, 0, r.stderr + r.stdout);
-	assert.match(r.stdout, /終端ゲート通過（7 検査、skip: typecheck, lint, system）/);
+	assert.match(r.stdout, /終端ゲート通過（8 検査、skip: typecheck, lint, system）/);
 });

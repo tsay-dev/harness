@@ -5,16 +5,14 @@ applyTo: "**/harness.config.json"
 
 # Expo — harness.config.json のスタックの値
 
-Expo（expo-router）のアプリで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README が正本。パスは `app/`（ルート）と `src/`（それ以外）に分ける配置の例で、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
+Expo（expo-router）のアプリで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README、`entry`・`coverage`・`commands.list_entries`・`entries` は exec-check の README が正本。パスは `app/`（ルート）と `src/`（それ以外）に分ける配置の例で、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
 
 ```json
 {
   "source": {
-    "dirs": ["app", "src", "!**/*.test.*", "!**/*.spec.*", "!**/__tests__/**"],
-    "unit_dirs": ["src/features/*/api/**"],
-    "support_dirs": ["app/**", "src/**", "!src/features/*/api/**"],
-    "entry_pattern": { "none": "受信する owned の操作（deeplink / push）が無い" }
+    "dirs": ["app", "src", "!**/*.test.*", "!**/*.spec.*", "!**/__tests__/**"]
   },
+  "commands": { "list_entries": { "none": "受信する操作（deeplink / push）が契約に無い" } },
   "tests": {
     "dirs": ["src/**/__tests__/**", "src/**/*.test.*", "tests/**"],
     "covers_placement": "after",
@@ -31,8 +29,8 @@ Expo（expo-router）のアプリで、harness のひな形 `harness.config.json
 }
 ```
 
-- 実現単位は契約の操作と同名の関数を export する module（[テストの接続](common-testing.instructions.md)の操作 → 入口の API・永続化・OS 機能 module）。例では feature の `api/` に置く。route、コンポーネント、hook、store は技術部品。
-- deeplink / push を owned の inbound 操作として固定すると `entry_pattern` の none は通らない。そのときは受信入口を包む module の、操作と同名の export に一致する正規表現を宣言し、その窓に `@operation` を書く。
+- `commands` の例は `list_entries` だけを示す（ほかのキーはひな形に続けて書く）。アプリが呼ぶ側の操作（outbound）しか契約に無い間は none でよい。deeplink / push を inbound の操作として契約に書くと none は通らない。そのときは、受信を登録している 1 か所（deeplink の対応表、通知の種別の一覧）から `{"kind":"deeplink","name":"<契約の entry>"}` / `{"kind":"push","name":"<契約の entry>"}` を 1 行ずつ出すスクリプトにする。
+- 実行の記録（`coverage`）で確かめる範囲は、契約の操作と同名の関数を export する module（[テストの接続](common-testing.instructions.md)の操作 → 入口。例では `coverage.scope` に `src/features/*/api/**`）。route、コンポーネント、hook、store は Maestro のシナリオで確かめるので、範囲の外に置く。
 - `@covers` はテスト本体の先頭行に置くので `after`。
 - シナリオ flow は YAML なので `#` を行コメントとして読む `comment_pattern` を置く。テストの印は flow の最上位の `name:` で、`# @scenario` はその直上の行（[システムテスト](system-testing.instructions.md)）。`pending` tag の flow は保留で、被覆に数えない。
 - Maestro の workspace 設定（`config.yaml`）と subflow は UC のシナリオではないので、除外の glob で範囲から外す。subflow の置き場が違えば glob を合わせる。`e2e/` に置くなら `dirs` をそちらにする。

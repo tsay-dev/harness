@@ -5,21 +5,21 @@ applyTo: "**/harness.config.json"
 
 # Righthub / Hono / React — harness.config.json のスタックの値
 
-harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README が正本。パスは[共通コーディング](common-coding.instructions.md)の既定の配置で、`harness.config.json` の場所から書く。逸脱は利用プロジェクトの地図に合わせる。正規表現は `u` フラグでコンパイルされる。
+harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま、示した値は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README、`entry`・`coverage`・`commands.list_entries`・`entries` は exec-check の README が正本。パスは[共通コーディング](common-coding.instructions.md)の既定の配置で、`harness.config.json` の場所から書く。逸脱は利用プロジェクトの地図に合わせる。正規表現は `u` フラグでコンパイルされる。
 
 ```json
 {
-  "source": {"dirs": ["apps/api/src", "apps/web/src", "packages/shared/src", "!**/*.test.*", "!**/*.spec.*"], "unit_dirs": ["apps/api/src/features/**/*.service.ts"], "support_dirs": ["apps/api/src/**", "!apps/api/src/features/**/*.service.ts", "apps/web/src/**", "packages/shared/src/**"]},
+  "source": {"dirs": ["apps/api/src", "apps/web/src", "packages/shared/src", "!**/*.test.*", "!**/*.spec.*"]},
   "tests": {"dirs": ["tests/**", "apps/api/src/**/*.test.ts"], "covers_placement": "after"},
-  "schema": {"files": ["prisma/schema.prisma"], "constraint_pattern": "^\\s*(\\w+)\\s+\\S+(?:(?!\\/\\/).)*@unique\\b|^\\s*@@unique\\(\\s*(?:fields:\\s*)?\\[([^\\]]+)\\]"},
+  "schema": {"files": ["prisma/schema.prisma"]},
   "contract": {"error_source": "packages/shared/src/errors.ts"}
 }
 ```
 
 - `layering` は削除する。層は機能内のファイル接尾辞（`*.routes.ts` → `*.service.ts` → `*.repository.ts`）で分かれ、C6 のディレクトリ階層では表せない。
-- 実現単位は `*.service.ts`（[バックエンドの境界](backend-coding.instructions.md)のユースケースの役割）。routes、repository、middleware、SPA、共有スキーマは技術部品。
-- `entry_pattern` はひな形のまま（チェーンの `.get("/…")` などを読む）。Hono のルートは印が無くても入口として動くので `entry_file_pattern` は使わない。
-- スキーマは `prisma/schema.prisma` の `@unique` / `@@unique` を走査する。SQL でだけ表せる制約を採用する場合は、その正本も `schema` の範囲と `constraint_pattern` に追加して C13 で検査できるようにする。
+- `commands.list_entries` は、本番の組み立て（`entry.compose`）で作った Hono のアプリの `app.routes`（登録済みの method と path の一覧）を、1 行 1 件の JSON で出すスクリプトにする。ミドルウェアだけの登録（method が `ALL` のもの）は出さず、入口のハンドラーだけを出す。ルーターの登録を書き写した一覧にはしない（載せ忘れた入口が見つからない）。生存確認など契約に書かない入口は `entries.outside_contract` に理由と一緒に書く。
+- 実行の記録（`coverage`）で確かめる範囲は、API と共有コード（`coverage.scope` に `apps/api/src` と `packages/shared/src`）。画面（`apps/web/src`）はシナリオテストで確かめるので、範囲の外に置く。
+- スキーマ源は `prisma/schema.prisma`。SQL でだけ表せる制約を採用する場合は、その正本も `schema` の範囲に追加する。DB で守る規則（`@unique` / `@@unique` など）は、規則に反する行を DB に直接入れて断られるテスト（`@covers BR-nnn`）で確かめる（C13）。
 - 共有エラーコードはブラウザも読むので `packages/shared/src` に置く。
 - `@covers` はテスト本文の先頭行に置く（[テストの接続](common-testing.instructions.md)）ので `after`。シナリオテストはひな形のまま。
 - 技術部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!apps/api/src/middleware/**"`）。外さなければ `@covers` の無いテストとして C11 になる。

@@ -192,3 +192,30 @@ test("--root と --config を同時に指定すると 2 で終わる", () => {
 test("知らない引数は 2 で終わる", () => {
 	assert.equal(run(project(base()), ["--fix"]).status, 2);
 });
+
+test("K6: 廃止したキー（実装の注釈を読むためのキー。ADR-0070）が残っていれば、代わりにすることを添えて違反にする", () => {
+	const cfg = change((c) => {
+		c.implements_pattern = "@implements\\s+(REQ-\\d{3})";
+		c.operation_pattern = "@operation\\s+(UC-\\d{3})#(\\w+)";
+		c.source = { dirs: ["src"], extensions: [".ts"], unit_dirs: ["src/usecase/**"], support_dirs: { none: "無い" }, unit_pattern: "x", implements_placement: "before", entry_pattern: "x", entry_exclude: [], entry_file_pattern: "x" };
+		c.schema = { files: ["db/schema.sql"], constraint_pattern: "x", implements_placement: "after" };
+	});
+	const r = run(project(cfg));
+	assert.equal(r.status, 1, r.stdout + r.stderr);
+	for (const k of ["implements_pattern", "operation_pattern", "source.unit_dirs", "source.support_dirs", "source.unit_pattern", "source.implements_placement", "source.entry_pattern", "source.entry_exclude", "source.entry_file_pattern", "schema.constraint_pattern", "schema.implements_placement"])
+		assert.match(r.stdout, new RegExp(`err  K6  ${k.replace(".", "\\.")} は廃止した（ADR-0070）。.*キーを削除する`));
+	assert.match(r.stdout, /K6  implements_pattern .*実装とスキーマの @implements は読まない。紐づきはテストの @covers に書く/);
+	assert.match(r.stdout, /K6  source\.entry_pattern .*入口は commands\.list_entries の一覧と契約の突き合わせ（lint entries）で確かめる/);
+	assert.match(r.stdout, /K6  schema\.constraint_pattern .*@covers BR-nnn を書く/);
+	//  最上位の廃止したキーは、K1（ひな形に無い）ではなく K6 だけで案内する
+	assert.doesNotMatch(r.stdout, /K1  最上位のキー「(implements_pattern|operation_pattern)」/);
+	assert.match(r.stdout, /違反 11 件/);
+	//  source や schema が none のときは、子のキーは無い
+	assert.equal(run(project(change((c) => ((c.source = { none: "コードが無い" }), (c.schema = { none: "DB が無い" }))))).status, 0);
+});
+
+test("K2: commands.list_entries は決めごとを確かめるコマンドではないので、rules.check に書けない", () => {
+	const r = run(project(change((c) => ((c.commands.list_entries = "node list.mjs"), (c.rules.layers.check = "list_entries")))));
+	assert.equal(r.status, 1);
+	assert.match(r.stdout, /K2  rules\.layers\.check の「list_entries」は、決めごとを確かめるコマンドではない/);
+});

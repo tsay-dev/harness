@@ -41,6 +41,7 @@
 | K3 | `conventions` は `[{ "rule", "unchecked_because" }]`。どちらも 1 行の文。同じ `rule` を 2 回書かない |
 | K4 | `exceptions` は `[{ "what", "approved" }]`。`what` は 1 行の文、`approved` は実在する日付（`YYYY-MM-DD`）。先の日付は不可（時差があるので、明日の日付までは通す） |
 | K5 | `git.units` の値は、設定ファイルがあるディレクトリの中の、別のディレクトリ（相対パス）。外やルート自身を指す unit は読まずに違反にする |
+| K6 | 廃止したキーが残っていない。実装のコードの注釈を読むためのキー（`implements_pattern`・`operation_pattern`、`source` の `unit_dirs`・`support_dirs`・`unit_pattern`・`implements_placement`・`entry_pattern`・`entry_exclude`・`entry_file_pattern`、`schema` の `constraint_pattern`・`implements_placement`）は、ADR-0070 で廃止した。残っていれば、代わりにすることを添えて違反にする（黙って読み飛ばすと、もう検査されていない注釈と設定を保ち続けることになる）。一覧と案内の正本は `tools/_shared/config.mjs` の `RETIRED_KEYS` |
 
 検査するのは形だけである。次のことは確かめない。
 

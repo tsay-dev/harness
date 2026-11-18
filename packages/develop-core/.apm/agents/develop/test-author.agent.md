@@ -30,8 +30,8 @@ tools: Read, Write, Bash, Grep, Glob
 
 - 先に対象 REQ の `#### 検証方針`（`UC.md` の「要件」の節の、その REQ の小節の中）に分割クラスを宣言します（R-1101–R-1105）。その検証方針だけがあなたの担当で、要件文と項目は触りません。クラス一覧が必要なテスト全体の SSOT（C10 が下限、C11 が上限）です。
 - テストは契約の操作を**その入口**で呼びます。入口は届いた規約の「operation → entry」対応表です。実装内部のシンボルは呼ばず、implementer が別の場所に置いたら implementer が動きます。契約アダプター（contract-run が契約の例を同じ入口へ渡すテスト側の資産。プロトコルは `${HARNESS_ROOT}/tools/contract-run/README.md`）もあなたが書き、`commands.contract_adapter` に宣言するコマンドを報告します（`harness.config.json` はオーケストレーターが書く）。
-- 各テストにちょうど 1 つの `@covers REQ-nnn#class`（位置は `tests.covers_placement`）。`errors[]` の各項目と隣接ペアごとに 1 クラスを宣言し、両条件を満たす入力で先のコードを検証します（R-1207）。担当 NFR は閾値を検証するテストに `@covers NFR-nnn`（クラスなし、REQ の `@covers` とは別に数える）を付け、テストで計測できないものは `measured_by` の候補として報告します。`tests.pending_pattern` に一致する保留のテストは被覆に数えられないので、このトラックでは保留にしません。
-- 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C3,C10,C11,C20` で担当 REQ・NFR の違反ゼロを確認します。
+- 各テストにちょうど 1 つの `@covers REQ-nnn#class`（位置は `tests.covers_placement`）。`errors[]` の各項目と隣接ペアごとに 1 クラスを宣言し、両条件を満たす入力で先のコードを検証します（R-1207）。担当 NFR は閾値を検証するテストに `@covers NFR-nnn`（クラスなし、REQ の `@covers` とは別に数える）を付け、テストで計測できないものは `measured_by` の候補として報告します。`enforced_at` が DB の担当 BR ごとに、入口を通さず、規則に反する行を DB に直接入れて断られることを確かめるテストを書き、`@covers BR-nnn`（クラスなし）を付けます（C13。入口を通すと、手前の検証と DB の制約のどちらが断ったのかを区別できません）。`tests.pending_pattern` に一致する保留のテストは被覆に数えられないので、このトラックでは保留にしません。
+- 返却前に `node "${HARNESS_ROOT}/tools/trace-check/trace-check.mjs" --only C3,C10,C11,C13,C20,C22` で担当 REQ・NFR・BR の違反ゼロを確認します。
 
 ### `track: scenario`
 
@@ -42,6 +42,6 @@ tools: Read, Write, Bash, Grep, Glob
 
 ## 出力契約
 
-- **`backend-logic`**: (1) 記入済みの検証方針（要件文と項目は不変）。(2) Red の backend ロジックテスト（と NFR のテスト、契約アダプターと宣言するコマンド）と、新テストだけの選択実行結果（並行実装で成功していたら報告し、調整しない）。(3) 手戻り時は指摘 ID → 宣言クラス・作成テストの表。
+- **`backend-logic`**: (1) 記入済みの検証方針（要件文と項目は不変）。(2) Red の backend ロジックテスト（と NFR のテスト、DB で守る BR のテスト、契約アダプターと宣言するコマンド）と、新テストだけの選択実行結果（並行実装で成功していたら報告し、調整しない）。(3) 手戻り時は指摘 ID → 宣言クラス・作成テストの表。
 - **`scenario`**: (1) シナリオテストファイル、UC タグ、`@scenario` 行、保留マーカーの位置。(2) 導出ロケーター表（ステップ → 文言または識別子）。(3) そのテストだけの選択実行結果と `trace-check --only C15` の結果。
 - **入力の不足**を見つけたら作成を停止し、書けないものと理由を報告します。入力は修正しません。

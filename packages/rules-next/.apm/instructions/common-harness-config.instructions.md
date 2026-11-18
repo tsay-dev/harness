@@ -5,16 +5,12 @@ applyTo: "**/harness.config.json"
 
 # 🔗 Next.js — harness.config.json のスタックの値
 
-Next.js（App Router）のプロジェクトで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま。示した値（文字列、配列、`forbidden` の表）は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README が正本で、ここでは繰り返さない。パスは `src/` を使う配置の例であり、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
+Next.js（App Router）のプロジェクトで、harness のひな形 `harness.config.json` から変える値だけを示す。示さないキーはひな形のまま。示した値（文字列、配列、`forbidden` の表）は丸ごと置き換える。キーの意味、宣言の必須、`none`、義務は trace-check の README、`entry`・`coverage`・`commands.list_entries`・`entries` は exec-check の README が正本で、ここでは繰り返さない。パスは `src/` を使う配置の例であり、利用先の `CLAUDE.md` の配置に合わせて書き換える。正規表現は `u` フラグでコンパイルされる。
 
 ```json
 {
   "source": {
-    "dirs": ["src", "!**/*.test.*", "!**/*.spec.*", "!**/__tests__/**"],
-    "unit_dirs": ["src/use-cases/**"],
-    "support_dirs": ["src/app/**", "src/actions/**", "src/components/**", "src/features/**", "src/domain/**", "src/infrastructure/**", "src/middleware.*"],
-    "entry_pattern": "^export\\s+(?:(?:async\\s+)?function\\s+(\\w+)|const\\s+(\\w+)\\s*=\\s*async\\b)",
-    "entry_file_pattern": "^\\s*[\"']use server[\"']|^export\\s+(?:async\\s+)?function\\s+(?:GET|POST|PUT|PATCH|DELETE)\\b"
+    "dirs": ["src", "!**/*.test.*", "!**/*.spec.*", "!**/__tests__/**"]
   },
   "tests": {
     "dirs": ["src/**/__tests__/**", "src/**/*.test.*", "src/**/*.spec.*", "tests/**"],
@@ -30,9 +26,9 @@ Next.js（App Router）のプロジェクトで、harness のひな形 `harness.
 }
 ```
 
-- 実現単位はユースケース（[backend-coding](backend-coding.instructions.md) の Use case）。domain、infrastructure、外側の入口、UI は技術部品の置き場に入れる。`layering.forbidden` は同じ文書の依存の方向をディレクトリ名で写したもの。
-- 入口は Server Actions（`"use server"` のファイルの export）と Route Handlers（`route.ts` の HTTP メソッド名の export）。Next.js ではこの印の無いファイルは入口として動かないので、`entry_file_pattern` で入口を探すファイルを絞る。`entry_file_pattern` で範囲を絞ってよいのは、その印が無ければ入口として動かないフレームワークだけで、Hono / Express では使わない。
-- 入口の捕捉は操作名か HTTP メソッド名で `/` で始まらないので、`wire.path` との照合は行われない。
+- `layering.forbidden` は [backend-coding](backend-coding.instructions.md) の依存の方向をディレクトリ名で写したもの。
+- 入口は Route Handlers（`route.ts` の HTTP メソッド名の export）と Server Actions（`"use server"` のファイルの export）。Next.js ではこの形のファイルだけが入口として動くので、`commands.list_entries` は、その形のファイルを走査して 1 行 1 件の JSON を出すスクリプトにする。Route Handlers は、ファイルの場所から決まるパスと export した method を `{"kind":"http",…}` で出す。Server Actions は、契約がその操作に付けた transport に合わせる（`internal` なら `{"kind":"internal","name":"<操作名>"}`）。
+- 実行の記録（`coverage`）で確かめる範囲は、テストから実行する層（`coverage.scope` に `src/use-cases`、`src/domain`、`src/infrastructure` など）。画面（`src/app`、`src/components`）はシナリオテストで確かめるので、範囲の外に置く。
 - `@covers` はテスト本体の先頭行に置く（[common-testing](common-testing.instructions.md)）ので `after`。
-- シナリオテスト（`e2e/`、`test.fixme` の保留）と `commands` はひな形のまま使える。スキーマ源が Prisma でなければ `schema` を合わせる。
+- シナリオテスト（`e2e/`、`test.fixme` の保留）と `commands` はひな形のまま使える。スキーマ源が Prisma でなければ `schema` を合わせる。DB で守る規則は、規則に反する行を DB に直接入れて断られるテスト（`@covers BR-nnn`）で確かめる。
 - 技術部品の自己検査（`@covers` を持たないテスト）を同居させる置き場は、`tests.dirs` から `!` で外す（例: `"!src/infrastructure/**"`）。外さなければ `@covers` の無いテストとして C11 になる。

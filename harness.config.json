@@ -9,7 +9,6 @@
     "adr": "\\bADR-\\d{4}\\b"
   },
   "covers_pattern": "@covers\\s+(REQ-\\d{3})(?:#([\\w-]+))?",
-  "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?:\\s*[,/]\\s*(?:REQ|BR|UC)-\\d{3})*)",
   "docs": {
     "goals_dir": "docs/goals",
     "goals_backlog": "docs/goals-backlog.md",
@@ -46,7 +45,8 @@
     "typecheck": { "none": "同梱ツールは型注釈の無い JavaScript で、型検査の道具を入れていない" },
     "lint": { "none": "コードの lint の道具を入れていない" },
     "test": "node --test tools/*/test/*.test.mjs bin/test/*.test.mjs && python3 tools/apm/test_projection.py",
-    "system": { "none": "harness 自身は画面を持たない" }
+    "system": { "none": "harness 自身は画面を持たない" },
+    "list_entries": { "none": "harness 自身は契約を持たず、外から呼ばれるアプリの入口も持たない" }
   },
   "git": {},
   "rules": {},

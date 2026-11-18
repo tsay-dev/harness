@@ -130,7 +130,7 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
   境界を切り出す。`skip` は失敗に数えるので、到達できないままにはできない。
 - **外部境界**（`owned: false`）— `--include-external` の場合だけ記録済み fixture または sandbox アカウントで実行し、
   本番には接続してはならない。既定では `owned: false` の操作は実行しない（写しであり自身の実装ではない。
-  実装との紐づきは trace-check C21 の `@operation` が見る）。
+  このアプリが呼ばれる側の操作の入口は、exec-check の `lint entries` が入口の一覧と突き合わせる）。
 
 ## 判定規則
 
@@ -162,7 +162,8 @@ pass 2 / fail 1 / skip 1 (skip は検査されていないので失敗に数え�
 | ツール | 証明するもの | 証明しないもの |
 | --- | --- | --- |
 | `spec-lint` | 契約の書式とライフサイクル（語彙、`examples` の存在と `request` との整合） | コードの存在 |
-| `trace-check` | 参照の解決: `@covers` / `@implements`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、入口と契約の操作の `@operation`（C21）、層 | コードの動作 |
+| `trace-check` | 参照の解決: テストの `@covers` / `@scenario`、エラーコード ⊆ `_shared` の `errorCodes`（C7）、層 | コードの動作 |
+| `exec-check` | テストが本番と同じ組み立てを通ること、どのテストからも実行されないソースと関数が無いこと、アプリの入口と契約の inbound の操作が双方向に合うこと（`lint entries`） | 入口の先の動作 |
 | **`contract-run`** | 実装が各例に契約の**形状**と**コード**で応答すること | REQ の**意味** |
 | テスト（`## 検証方針`） | 分割クラスごとの REQ の意味 | — |
 

@@ -57,6 +57,7 @@ const ROUTES = [
 	[["lint", "refs"], "trace-check/trace-check.mjs", []],
 	[["lint", "entry"], "exec-check/exec-check.mjs", ["entry"]],
 	[["lint", "coverage"], "exec-check/exec-check.mjs", ["coverage"]],
+	[["lint", "entries"], "exec-check/exec-check.mjs", ["entries"]],
 	[["lint", "git", "branch"], "git-lint/git-lint.mjs", ["branch"]],
 	[["lint", "git", "message"], "git-lint/git-lint.mjs", ["message"]],
 	[["lint", "git", "uc"], "spec-lint/spec-lint.mjs", ["gate"]],

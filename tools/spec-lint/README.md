@@ -19,8 +19,8 @@ BR / NFR / ADR、境界契約）の**書式とライフサイクル**を機械�
   ADR で明示的に契約化を決めたプロセス内境界。R-1204 の既定ではその境界は操作ではない）/ `direction`。
 - **利用プロジェクトの作業指針**: `docs/` と同じ階層の `CLAUDE.md` / `AGENTS.md` が 150 行を超えたら err（R-1010。
   作業指針は地図だけを持つ）。
-- **トレーサビリティは担当外**: カバレッジ、`@covers` / `@implements` の解決、配置 ↔ frontmatter
-  （C9）、採番衝突、参照先の実在は `../trace-check/` の 27 検査の担当。
+- **トレーサビリティは担当外**: カバレッジ、`@covers` / `@scenario` の解決、配置 ↔ frontmatter
+  （C9）、採番衝突、参照先の実在は `../trace-check/` の検査（C1〜C26）の担当。
 - **撤回済みの文書**: `status: withdrawn` の UC・REQ・BR・NFR には、必須の節（検証方針、状態 × イベント表、例外系の走査など）とその中身を求めない。frontmatter・ID・要件文（REQ と NFR）は検査する。
 - **共有パーサー**: frontmatter は `../_shared/frontmatter.mjs`、契約と共有語彙の YAML は `../_shared/strict-yaml.mjs` で読む。
   引用符付きの値は YAML の決まりどおりに読む（二重引用符の中のエスケープを解く。知らないエスケープは違反。単一引用符の中は解かない）。改行・タブ・NUL を含む例は `"a\nb"`・`"\u0000"` のように書ける。
