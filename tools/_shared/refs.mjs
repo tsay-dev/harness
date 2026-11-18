@@ -5,8 +5,8 @@
 //  検査が数えた ID と、採番が使用済みとみなす ID と、索引に出る ID が食い違わない。
 //
 //  前提の構成（rules/develop/docs.md §10–11）:
-//    docs/goals/<GOAL-nn-slug>/GOAL.md
-//                             └ <UC-nnn-slug>/UC.md（REQ は「要件」の節の小節）+ contract.yaml（縦は互いに素）
+//    docs/00-overview.md（GOAL の ID は GOAL の表の行で定義する。ADR-0076）
+//    docs/goals/<GOAL-nn-slug>/<UC-nnn-slug>/UC.md（REQ は「要件」の節の小節）+ contract.yaml（縦は互いに素）
 //    docs/rules/BR-*.md  docs/nfr/NFR-*.md  docs/adr/ADR-*.md（横は中央）
 //    所属の SSOT は frontmatter。パスは配置であり、両者の整合を C9 が検査する。
 //
@@ -22,6 +22,7 @@ import { isMap, parseStrictYaml } from "./strict-yaml.mjs";
 import { reqDocsOf, splitUc } from "./reqs.mjs";
 import { goalsRootOf, specDirs } from "./spec-tree.mjs";
 import { CONFIG_FILE, renamedConfigHint, retiredKeysIn } from "./config.mjs";
+import { MIGRATE_HINT, OVERVIEW_FILE, actorKindsOf, overviewPathOf, readOverviewFile, retiredDocsIn } from "./overview.mjs";
 
 //  出力の頭に付けるコマンドの名前（"lint refs" など）。コマンドのファイルが、最初に useCommandName で決める
 let command = "";
@@ -201,7 +202,10 @@ export function checkDeclarations(cfg) {
 	};
 
 	for (const k of DOC_PATHS) need(k, "path", { allowNone: false });
-	for (const k of ["docs.actors", "docs.vision", "docs.glossary", "docs.shared"]) need(k, "path");
+	for (const k of ["docs.overview", "docs.glossary", "docs.shared"]) need(k, "path");
+	//  概要の置き場は 1 つ（<docs>/00-overview.md か none。docs は docs.goals_dir の親）
+	const ovPath = overviewPathOf({ hostRoot: cfg._root, cfg });
+	if (ovPath.error) errors.push(ovPath.error);
 	need("covers_pattern", "regex", { allowNone: false });
 	need("id_patterns.br", "regex", { allowNone: false });
 	need("id_patterns.req", "regex", { allowNone: false });
@@ -264,8 +268,8 @@ export function checkDeclarations(cfg) {
 		["source.entry_files", "入口は commands.list_entries の一覧と契約の突き合わせ（lint entries）で確かめる（ADR-0070）"],
 	])
 		if (lookup(cfg, keyPath) !== undefined) errors.push(`${keyPath} は廃止した。${hint}。キーを削除する`);
-	//  実装の注釈を読むためのキー（ADR-0070）。残っていれば、まだ検査されていると誤解させるので止める
-	for (const [keyPath, hint] of retiredKeysIn(cfg)) errors.push(`${keyPath} は廃止した（ADR-0070）。${hint}。キーを削除する`);
+	//  廃止したキー（tools/_shared/config.mjs）。残っていれば、まだ検査されていると誤解させるので止める
+	for (const [keyPath, hint, adr] of retiredKeysIn(cfg)) errors.push(`${keyPath} は廃止した（${adr}）。${hint}。キーを削除する`);
 	//  monorepo のルートは紐づきを宣言しない（unit ごとに docs と harness.config.json を持つ）
 	if (errors.length && isMap(cfg.git?.units) && Object.keys(cfg.git.units).length)
 		errors.unshift(`git.units がある monorepo のルートでは、unit ごとに --root <unit のディレクトリ> で実行する（${Object.values(cfg.git.units).join(", ")}）`);
@@ -293,7 +297,7 @@ export function loadDocs(dir, asActive) {
 
 export class Corpus {
 	constructor(cfg, asActive = false) {
-		this.goals = {}; //  id -> { status, actor, origin, dir }
+		this.goals = {}; //  id -> { status, actor, origin, sentence, note, dir（フォルダ。無ければ null） }
 		this.ucs = {}; //  id -> { goal, actor, status, phase, dir, goalDir, file }
 		this.reqs = {}; //  id -> { uc, status, dir, goalDir, file, hasPolicy, classes, br }
 		this.pathViolations = [];
@@ -301,6 +305,20 @@ export class Corpus {
 		const goalsDir = goalsRootOf({ hostRoot: cfg._root, cfg }).root;
 		const r = (x) => rel(cfg, x);
 		const known = new Set();
+		//  GOAL の定義は概要の GOAL の表の行（ADR-0076）。フォルダは planned でない行の GOAL だけに置ける
+		const ovFile = overviewFileOf(cfg);
+		const ov = ovFile ? readOverviewFile(ovFile) : null;
+		for (const g of ov?.goals ?? [])
+			this.goals[g.id] = { status: g.status === "planned" ? "planned" : statusOf(g.status, asActive), actor: g.actor, origin: g.origin, sentence: g.sentence, note: g.note, dir: null };
+		if (ov) for (const p of ov.problems) this.pathViolations.push(`${r(ovFile)}:${p.line}: ${p.msg}`);
+		//  概要へ移した古い文書（名前か frontmatter の id で見つける）。GOAL.md は下の「配置外の md」と 2 重に出さない
+		const docsDir = cfg.docs && typeof cfg.docs.goals_dir === "string" ? join(cfg._root, cfg.docs.goals_dir, "..") : null;
+		if (docsDir)
+			for (const x of retiredDocsIn(docsDir)) {
+				known.add(x.file);
+				this.pathViolations.push(`${r(x.file)}: ${x.why} の文書は置かない（1 枚の概要 ${OVERVIEW_FILE} にまとめた）。${MIGRATE_HINT}`);
+			}
+		const goalDirOf = {};
 
 		//  フォルダの数え方は tools/_shared/spec-tree.mjs（. で始まるフォルダと _shared は木の外。ほかの検査ツールと同じ）
 		const stray = (dir) => this.pathViolations.push(`${r(dir)}: _shared 以外の _ ディレクトリは検査の対象にならない（GOAL-nn-<slug>・UC-nnn-<slug> にするか、goals の外へ移す）`);
@@ -310,16 +328,17 @@ export class Corpus {
 			const name = basename(gdir);
 			const m = name.match(GOAL_DIR_RE);
 			const dirGoal = m ? m[1] : null;
-			const gfile = join(gdir, "GOAL.md");
-			if (!m || !existsSync(gfile)) {
-				this.pathViolations.push(`${r(gdir)}: GOAL-nn で始まる名前と直下の GOAL.md が必要`);
+			if (!m) {
+				this.pathViolations.push(`${r(gdir)}: GOAL-nn で始まる名前にする`);
 				continue;
 			}
-			known.add(gfile);
-			const gfm = frontmatter(gfile);
-			if (gfm.id !== dirGoal)
-				this.pathViolations.push(`${r(gfile)}: frontmatter id (${gfm.id}) がディレクトリ名 (${dirGoal}) と一致しない`);
-			this.goals[gfm.id || dirGoal] = { status: statusOf(gfm.status, asActive), actor: gfm.actor || "", origin: gfm.origin || "", dir: gdir };
+			if (goalDirOf[dirGoal]) this.pathViolations.push(`${r(gdir)}: ${dirGoal} のフォルダが 2 つある（${r(goalDirOf[dirGoal])} と）`);
+			goalDirOf[dirGoal] = gdir;
+			const row = this.goals[dirGoal];
+			if (!ovFile) this.pathViolations.push(`${r(gdir)}: GOAL のフォルダがあるのに docs.overview が none（GOAL は概要の GOAL の表の行で定義する）`);
+			else if (!row) this.pathViolations.push(`${r(gdir)}: ${dirGoal} の行が概要（${r(ovFile)}）の GOAL の表に無い`);
+			else if (row.status === "planned") this.pathViolations.push(`${r(gdir)}: ${dirGoal} は概要で planned（未着手）なのにフォルダがある（着手したら行の status を draft にする）`);
+			else if (!row.dir) row.dir = gdir;
 
 			//  旧形式（ゴール直下の UC-*.md / REQ-*.md）は配置違反
 			for (const f of listFiles(gdir, (n) => /^(UC|REQ)-\d+.*\.md$/.test(n))) {
@@ -376,7 +395,7 @@ export class Corpus {
 			if (known.has(f)) continue;
 			const id = frontmatter(f).id;
 			if (id)
-				this.pathViolations.push(`${r(f)}: id (${id}) を持つが GOAL.md / UC.md の配置に無いので検査の対象にならない（ファイル名か置き場を直す）`);
+				this.pathViolations.push(`${r(f)}: id (${id}) を持つが UC.md の配置に無いので検査の対象にならない（ファイル名か置き場を直す）`);
 		}
 	}
 }
@@ -385,11 +404,19 @@ export class Corpus {
 
 export function collectDefinitions(cfg) {
 	const registry = {}; //  id -> [file]
+	//  GOAL の ID は概要の GOAL の表の行（planned・withdrawn も含む。ADR-0076）。同じ ID の行が 2 つあれば重複
+	const ovFile = overviewFileOf(cfg);
+	if (ovFile && existsSync(ovFile))
+		for (const l of read(ovFile).split(/\r?\n/)) {
+			const m = /^\|\s*(GOAL-\d+)\s*\|/.exec(l);
+			if (m) (registry[m[1]] ||= []).push(ovFile);
+		}
 	for (const key of ["docs.goals_dir", "docs.rules_dir", "docs.nfr_dir", "docs.adr_dir"]) {
 		const base = p(cfg, key);
 		for (const f of walk(base, [".md"])) {
 			const fm = frontmatter(f);
-			if (fm.id && ID_KIND_RE.test(fm.id)) (registry[fm.id] ||= []).push(f);
+			//  残った GOAL.md は C9 が報告する（定義には数えない）
+			if (fm.id && ID_KIND_RE.test(fm.id) && basename(f) !== "GOAL.md") (registry[fm.id] ||= []).push(f);
 			//  REQ は UC.md の「要件」の節の小節（ADR-0067）。同じ ID の小節が、別の UC.md や同じ UC.md に 2 つあれば重複
 			if (key === "docs.goals_dir" && basename(f) === "UC.md") for (const r of splitUc(read(f)).reqs) (registry[r.id] ||= []).push(f);
 		}
@@ -569,27 +596,22 @@ export function schemaFiles(cfg) {
 
 //  ---- docs の表 -----------------------------------------------------------------
 
-//  docs.actors の表から ACT-nn -> 種別 を読む。人間でないと数えるのは 種別 が「システム」で始まるものだけ
-//  （語彙は 02-actors.md のテンプレートで閉じ、lint spec が検査する）。表に無い actor は人間とみなす（要求を外す根拠が無い）
+//  概要のファイル（docs.overview が none なら null）。置き場の誤りは checkDeclarations が設定エラーにする
+export function overviewFileOf(cfg) {
+	if (!declared(cfg.docs?.overview)) return null;
+	return overviewPathOf({ hostRoot: cfg._root, cfg }).file;
+}
+
+//  概要のアクター表から ACT-nn -> 種別 を読む（読み方は tools/_shared/overview.mjs）。人間でないと数えるのは 種別 が「システム」で始まるものだけ
+//  （語彙は lint spec が検査する）。表に無い actor は人間とみなす（要求を外す根拠が無い）
 export function actorKinds(cfg) {
-	const kinds = {};
-	const file = declared(cfg.docs?.actors) ? join(cfg._root, cfg.docs.actors) : null;
-	if (!file || !existsSync(file)) return kinds;
-	for (const line of read(file).split(/\r?\n/)) {
-		const cells = line.split("|").map((c) => c.trim());
-		if (cells.length < 4 || !/^ACT-\d+$/.test(cells[1])) continue;
-		kinds[cells[1]] = cells[3];
-	}
-	return kinds;
+	return actorKindsOf(readOverviewFile(overviewFileOf(cfg)));
 }
 export const isHumanActor = (kinds, actor) => !(actor in kinds) || !kinds[actor].startsWith("システム");
 
-//  docs.vision の「成功の定義」表から KPI-nn を読む（先頭セルが KPI-nn で始まる行）
-export function visionKpis(cfg) {
-	const file = join(cfg._root, cfg.docs.vision);
-	const kpis = new Set();
-	if (existsSync(file)) for (const m of read(file).matchAll(/^\|\s*(KPI-\d+)\b/gm)) kpis.add(m[1]);
-	return kpis;
+//  概要の「成功の定義」表の KPI-nn
+export function overviewKpis(cfg) {
+	return new Set((readOverviewFile(overviewFileOf(cfg))?.kpis ?? []).map((k) => k.id));
 }
 
 //  文書の本文が参照する ID。HTML コメントは案内文なので除く。番号が 0 だけの ID はテンプレートのプレースホルダーで、

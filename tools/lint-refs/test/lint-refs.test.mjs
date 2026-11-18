@@ -6,10 +6,12 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
+import { foldOverview } from "../../_shared/test/fold-overview.mjs";
 import { toolOf, TEMPLATE, NONE, makeRefRoot } from "../../_shared/test/refs-docs-fixture.mjs";
 
 function run(root, ...args) {
 	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
+	foldOverview(root); //  入力の 00-vision.md・02-actors.md・GOAL.md を 00-overview.md に畳む（ADR-0076）
 	return spawnSync("node", [toolOf("lint-refs"), "--root", root, ...args], { encoding: "utf8" });
 }
 
@@ -93,18 +95,23 @@ test("C18: active な GOAL / UC の actor と GOAL の origin が表に無けれ
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const r = run(root, "--only", "C18");
 	assert.equal(r.status, 1, r.stdout + r.stderr);
-	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09 が docs\/02-actors\.md に無い/);
-	assert.match(r.stdout, /\[C18\] GOAL-01 の origin KPI-02 が docs\/00-vision\.md に無い/);
-	assert.match(r.stdout, /\[C18\] UC-001 の actor ACT-08 が docs\/02-actors\.md に無い/);
+	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09 が docs\/00-overview\.md のアクター表に無い/);
+	assert.match(r.stdout, /\[C18\] GOAL-01 の origin KPI-02 が docs\/00-overview\.md の KPI の表（成功の定義）に無い/);
+	assert.match(r.stdout, /\[C18\] UC-001 の actor ACT-08 が docs\/00-overview\.md のアクター表に無い/);
 	for (const id of ["KPI-01", "ACT-01", "ACT-06", "ACT-07", "KPI-07"]) assert.doesNotMatch(r.stdout, new RegExp(`\\[C18\\].*${id}`));
 });
 
-test("C18: docs.vision が none なら origin を判定しない", (t) => {
-	const root = makeRefRoot({ vision: false });
+test("C18 / C9: docs.overview が none なら表との突き合わせはせず、GOAL のフォルダは C9 が違反にする（ADR-0076）", (t) => {
+	const root = makeRefRoot();
 	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const r = run(root, "--only", "C18");
-	assert.doesNotMatch(r.stdout, /origin/);
-	assert.match(r.stdout, /\[C18\] GOAL-01 の actor ACT-09/);
+	foldOverview(root);
+	const file = join(root, "harness.config.json");
+	const cfg = JSON.parse(readFileSync(file, "utf8"));
+	cfg.docs.overview = { none: "概要を持たない" };
+	writeFileSync(file, JSON.stringify(cfg, null, 2));
+	const r = run(root, "--only", "C9,C18");
+	assert.doesNotMatch(r.stdout, /\[C18\]/);
+	assert.match(r.stdout, /\[C9\] docs\/goals\/GOAL-01-register: GOAL のフォルダがあるのに docs\.overview が none/);
 });
 
 //  設定エラー用: source を宣言したプロジェクト
