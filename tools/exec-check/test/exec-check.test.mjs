@@ -383,6 +383,12 @@ const BAD_ENTRIES = [
 	["E4", "契約の wire.path が空", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: '""' })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: 空でない文字列でない（実際: ""）/],
 	["E4", "契約の wire.method が文字列でない", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { method: "1", path: "/a" })]) } }, /E4  契約の操作 UC-002#getA の wire\.method を読めない: 空でない文字列でない（実際: 1）/],
 	["E4", "契約の deeplink の操作に entry が無い", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("openItem", { transport: "deeplink" })]) } }, /E4  契約の操作 UC-002#openItem の entry を読めない: 空でない文字列でない（実際: null）/],
+	["E4", "契約の push の entry が数（文字列でない）", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("onNotice", { transport: "push", entry: "123" })]) } }, /E4  契約の操作 UC-002#onNotice の entry を読めない: 空でない文字列でない（実際: 123）/],
+	["E4", "契約の wire.path が空白だけ（空とみなす。一覧に同じ空白を出しても合わない）", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("getA", { path: '" "' })]) } }, /E4  契約の操作 UC-002#getA の wire\.path を読めない: 空でない文字列でない（実際: " "）/],
+	["E4", "契約の inbound の操作の transport が、入口の種類に無い", { files: { [`${G}/UC-002-draft/contract.yaml`]: contract("UC-002", "draft", [op("call", { transport: "grpc" })]) } }, /E4  契約の操作 UC-002#call の transport を読めない: 入口の種類（http \/ deeplink/],
+	["E4", "一覧の path が空白だけ", { list: `${LIST}\n${line({ kind: "http", method: "GET", path: " " })}` }, /kind が http の入口は、method と path を、空でない文字列で持つ/],
+	["E4", "一覧の name が空白だけ", { list: `${LIST}\n${line({ kind: "push", name: " " })}` }, /kind が push の入口は、name を、空でない文字列で持つ/],
+	["E1", "method と path の境目をまたぐ文字（改行）で、別の入口と同じ鍵にならない", { files: only([op("getA", { path: '"/a\\nb"' })]), list: line({ kind: "http", method: "GET\n/a", path: "b" }) }, /契約に無い入口: GET\n\/a b/],
 	["E4", "JSON でない行", { list: `${LIST}\nGET /api/x` }, /一覧の 6 行目が JSON でない: GET \/api\/x/],
 	["E4", "kind が無い", { list: `${LIST}\n${line({ method: "GET", path: "/x" })}` }, /一覧の 6 行目: kind が無いか、知らない種類/],
 	["E4", "path が無い", { list: `${LIST}\n${line({ kind: "http", method: "GET" })}` }, /kind が http の入口は、method と path を、空でない文字列で持つ/],
@@ -418,3 +424,16 @@ test("entries: none は、撤回されていない UC の fixed の契約に inb
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /commands\.list_entries = none（外から呼ばれる入口を持たないバッチ）: 契約に無い入口が無いかを確かめていない/);
 });
+
+//  フォルダの数え方は spec-lint・trace-check・gate-hook と同じ（tools/_shared/goals-tree.mjs）。
+//  spec-lint が検査しないフォルダに置いた「fixed の契約」を、入口の突き合わせ先に数えない
+for (const dir of ["docs/goals/.stash/x", "docs/goals/_shared/x", "docs/goals/_tmp/x", `${G}/.hidden`]) {
+	test(`entries E1: ほかの検査ツールが読まないフォルダ（${dir}）の契約は、突き合わせ先に数えない`, () => {
+		const hidden = { [`${dir}/UC.md`]: ucDoc("UC-900"), [`${dir}/contract.yaml`]: contract("UC-900", "fixed", [op("wipe", { method: "DELETE", path: "/admin/everything" })]) };
+		const r = entries({ files: hidden, list: `${LIST}\n${h("DELETE", "/admin/everything")}` });
+		assert.equal(r.status, 1, r.stdout + r.stderr);
+		assert.match(r.stdout, /err  E1  契約に無い入口: DELETE \/admin\/everything/);
+		//  入口が無ければ、そのフォルダの操作は入口を求めもしない（E2 にならない）
+		assert.equal(entries({ files: hidden }).status, 0);
+	});
+}

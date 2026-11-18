@@ -640,3 +640,26 @@ test("契約: 撤回済みの UC の契約には、wire.path と wire.method の
 	const r = validate({ contract: httpContract({ path: "123" }), hostFiles: withdrawnUc });
 	assert.doesNotMatch(r.out, /空でない文字列で書く/, r.out);
 });
+
+test("契約: 入口の一覧と比べる項目は、exec-check と同じ判定（空でない文字列。空白だけは空）で検査する", () => {
+	assert.match(validate({ contract: httpContract({ path: '" "' }) }).out, /wire\.path は、空でない文字列で書く（実際: " "。/);
+	const push = (entry) => `x-uc: UC-001\nx-status: draft\nx-spec: ./UC.md\nx-updated: 2026-09-01\n\noperations:\n  onNotice:\n    transport: push\n    direction: inbound\n    owned: true\n    auth: none\n    summary: 通知を受け取る\n    entry: ${entry}\n    request: { type: object }\n`;
+	for (const [entry, shown] of [["123", "123"], ['" "', '" "'], ["[a]", '["a"]']]) {
+		const r = validate({ contract: push(entry) });
+		assert.equal(r.status, 1, r.out);
+		assert.ok(r.out.includes(`operations.onNotice: transport が push なら entry（URL パターン / ペイロード識別子 / メッセージ種別）を、空でない文字列で書く（実際: ${shown}）`), r.out);
+	}
+	assert.doesNotMatch(validate({ contract: push("notice.updated") }).out, /entry（URL パターン/);
+});
+
+test("フォルダの数え方: goals の直下の . と _ で始まるフォルダ、ゴールの直下の . で始まるフォルダの契約は読まない（exec-check も数えない）", () => {
+	const bad = "x-uc: UC-900\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n";
+	const files = {};
+	for (const dir of ["docs/goals/.stash/x", "docs/goals/_shared/x", "docs/goals/_tmp/x", "docs/goals/GOAL-01-a/.hidden"]) {
+		files[`${dir}/UC.md`] = "---\nid: UC-900\nstatus: active\n---\n";
+		files[`${dir}/contract.yaml`] = bad;
+	}
+	const r = validate({ hostFiles: files });
+	assert.equal(r.status, 0, r.out);
+	assert.doesNotMatch(r.out, /UC-900|wipe/);
+});

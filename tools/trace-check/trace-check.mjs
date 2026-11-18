@@ -68,6 +68,7 @@ import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope, isGlob } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { reqDocsOf, splitUc } from "../_shared/reqs.mjs";
+import { goalDirs, ucDirs } from "../_shared/goals-tree.mjs";
 import { CONFIG_FILE, renamedConfigHint, retiredKeysIn } from "../_shared/config.mjs";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
@@ -350,13 +351,12 @@ class Corpus {
 		const r = (x) => rel(cfg, x);
 		const known = new Set();
 
-		for (const gdir of listDirs(goalsDir)) {
+		//  フォルダの数え方は tools/_shared/goals-tree.mjs（. で始まるフォルダと _shared は木の外。ほかの検査ツールと同じ）
+		const tree = goalDirs(goalsDir);
+		for (const gdir of tree.stray)
+			this.pathViolations.push(`${r(gdir)}: _shared 以外の _ ディレクトリは検査の対象にならない（GOAL-nn-<slug> にするか、goals の外へ移す）`);
+		for (const gdir of tree.goals) {
 			const name = basename(gdir);
-			if (name === "_shared" || name.startsWith(".")) continue; //  _shared は木の外
-			if (name.startsWith("_")) {
-				this.pathViolations.push(`${r(gdir)}: _shared 以外の _ ディレクトリは検査の対象にならない（GOAL-nn-<slug> にするか、goals の外へ移す）`);
-				continue;
-			}
 			const m = name.match(GOAL_DIR_RE);
 			const dirGoal = m ? m[1] : null;
 			const gfile = join(gdir, "GOAL.md");
@@ -376,8 +376,7 @@ class Corpus {
 				this.pathViolations.push(`${r(f)}: UC / REQ はゴール直下ではなく UC ディレクトリ配下に置く`);
 			}
 
-			for (const udir of listDirs(gdir)) {
-				if (basename(udir).startsWith(".")) continue;
+			for (const udir of ucDirs(gdir)) {
 				const um = basename(udir).match(UC_DIR_RE);
 				const dirUc = um ? um[1] : null;
 				const ufile = join(udir, "UC.md");

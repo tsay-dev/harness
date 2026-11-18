@@ -66,7 +66,7 @@
 | V7 | 記録に、関数ごとの情報（`FN:` / `FNDA:`）がある。出さない道具を使うなら、`coverage.functions` を `{ "none": "<理由>" }` にする。記録に `FN:` / `FNDA:` があるのに none にしていれば違反。ほかのファイルには `FN:` / `FNDA:` があるのに、行の情報を持つファイルに、`FN:` / `FNDA:` も、関数を持たないことを示す `FNF:0` も無ければ違反。`FNF:0` は関数を持たないファイルの見分けにだけ使い、`FNF:0` だけの記録は、関数ごとの情報がある記録に数えない |
 | E1 | 一覧にある入口が、撤回されていない UC の fixed の契約の、inbound の操作のどれにも合わない。合う操作がどの契約にも無い入口は「契約に無い入口」、合う操作が fixed でない契約にしか無い入口は「契約が fixed でない入口」と、文を分けて報告する。認める宣言の手段は無い |
 | E2 | fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い |
-| E4 | 一覧か、契約の操作の入口を読めない: `commands.list_entries` が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに一覧が 0 行、JSON でない行、項目の欠落、知らない項目、空でない文字列でない `method`・`path`・`name`、同じ入口の重複。契約の inbound の操作の `wire.method`・`wire.path`・`entry` が空でない文字列でない（owned と `x-status` によらない。撤回済みの UC の契約は対象外）。廃止した設定のキー `entries` が残っている |
+| E4 | 一覧か、契約の操作の入口を読めない: `commands.list_entries` が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに一覧が 0 行、JSON でない行、項目の欠落、知らない項目、空でない文字列でない `method`・`path`・`name`（空白だけは空とみなす）、同じ入口の重複。契約の inbound の操作の `wire.method`・`wire.path`・`entry` が空でない文字列でない、`transport` が入口の種類に無い（owned と `x-status` によらない。撤回済みの UC の契約は対象外）。廃止した設定のキー `entries` が残っている |
 
 E3 は欠番（契約に書かない入口の宣言の検査だった。その宣言を廃止したので、番号は詰めずに空ける）。
 
@@ -123,7 +123,8 @@ E3 は欠番（契約に書かない入口の宣言の検査だった。その�
 
 - **E1**（一覧 → 契約）: 撤回されていない UC の、`x-status: fixed` の契約の、`direction: inbound` の操作。owned が false でも、合えば通る。outbound の操作（外の API を呼ぶ側）と同じパスの入口は、契約にある入口とは数えない。
   - **fixed でない契約の操作は、突き合わせ先に数えない。** 契約を fixed にするには人間の承認が要り（gate-hook）、fixed の契約の操作には実例が必須になる（spec-lint）。draft の契約は、人の承認なしに書ける。draft の契約の操作を突き合わせ先に数えると、操作を 1 つ書き足すだけで、REQ もテストも実例も無い入口が通る。合う操作が fixed でない契約にしか無い入口は、「契約が fixed でない入口」として違反にし、合う操作の ID と、その契約の `x-status` を表示する。契約を fixed にするまで、この検査は通らない（fixed の契約を改訂のために draft に戻した間も同じ）。
-- **比べられない操作**: inbound の http の操作の `wire.method`・`wire.path` と、deeplink / push / stream の操作の `entry` は、空でない文字列でなければ比べられない。`harness lint spec` が draft の段階から違反にし（http の `wire.method`・`wire.path`。`entry` が無いことは、以前から違反）、exec-check も黙って捨てずに E4 で報告する。撤回済みの UC の契約は、どちらも対象にしない。
+- **比べられない操作**: inbound の http の操作の `wire.method`・`wire.path` と、deeplink / push / stream の操作の `entry` は、空でない文字列でなければ比べられない（空白だけは空とみなす。数や真偽値は文字列でない）。`harness lint spec` が draft の段階から違反にし、exec-check も黙って捨てずに E4 で報告する。2 つは同じ判定（`tools/_shared/goals-tree.mjs`）を使う。撤回済みの UC の契約は、exec-check は対象にしない（lint spec は、http の 2 項目を対象にしない）。
+- **どのフォルダの契約を読むか**: `docs.goals_dir` の直下のゴールのフォルダと、その直下の UC のフォルダ。数え方は spec-lint・trace-check・gate-hook と同じ（同じ `tools/_shared/goals-tree.mjs`）で、`.` や `_` で始まるフォルダの契約は読まない。lint spec が検査しないフォルダに置いた契約を、突き合わせ先に数えない。
 - **E2**（契約 → 一覧）: 撤回されていない UC の、`x-status: fixed` の契約の、`owned: true` かつ `direction: inbound` の操作。draft の契約の操作は、入口を求めない。
 - **none と 0 行の一覧**: `commands.list_entries` を `{ "none": "<理由>" }` にできるのは、撤回されていない UC の fixed の契約に inbound の操作が 1 つも無い間だけ。一覧が 0 行で通る条件も同じである。fixed の契約に inbound の操作があるのに、none にしているか、一覧が 0 行なら、E4 の違反にする。inbound の操作が draft の契約にしか無い間は、none でも 0 行でも通る。none の間は一覧を読まないので、その間に置いた入口は見ない。
 

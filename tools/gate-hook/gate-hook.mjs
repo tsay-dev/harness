@@ -60,6 +60,7 @@ import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { appendLog, defaultLogPath } from "./gate-log.mjs";
 import { CONFIG_FILE } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { goalDirs, ucDirs } from "../_shared/goals-tree.mjs";
 
 //  ---- 引数 ----------------------------------------------------------------
 
@@ -82,15 +83,12 @@ const fm = (text) => parseFrontmatter(text).data;
 
 const ACTIVE_PHASES = new Set(["実装", "検証"]);
 
-const listDirs = (dir) =>
-	existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(dir, d.name)).sort() : [];
-
 //  docs/goals/**/UC-*/UC.md を全部読む（工程台帳は UC.md の phase: / R-1003 で台帳ファイルは持たない）
 function collectUcs(goalsRoot) {
 	const ucs = [];
-	for (const gdir of listDirs(goalsRoot)) {
-		if (basename(gdir).startsWith("_") || basename(gdir).startsWith(".")) continue;
-		for (const udir of listDirs(gdir)) {
+	//  フォルダの数え方は tools/_shared/goals-tree.mjs（ほかの検査ツールと同じ）
+	for (const gdir of goalDirs(goalsRoot).goals) {
+		for (const udir of ucDirs(gdir)) {
 			const ufile = join(udir, "UC.md");
 			if (!existsSync(ufile)) continue;
 			const d = fm(readFileSync(ufile, "utf8"));

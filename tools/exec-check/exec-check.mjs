@@ -51,8 +51,8 @@
 //          契約の外の入口を認める宣言は無い。生存確認や静的なファイルの配信も、契約の操作として書く
 //      E2  fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い
 //      E4  一覧か、契約の操作の入口を読めない: commands.list_entries が未宣言、none にできないのに none、fixed の契約に inbound の操作があるのに 0 行、
-//          JSON でない行、項目の欠落や知らない項目、空でない文字列でない method・path・name、同じ入口の重複。
-//          契約の inbound の操作の wire.method・wire.path・entry が空でない文字列でない（owned・x-status によらない）。
+//          JSON でない行、項目の欠落や知らない項目、method・path・name が空でない文字列でない（空白だけは空とみなす）、同じ入口の重複。
+//          契約の inbound の操作の wire.method・wire.path・entry が空でない文字列でない、transport が入口の種類に無い（owned・x-status によらない）。
 //          廃止した設定のキー entries が残っている
 //      （E3 は欠番。契約に書かない入口の宣言 entries.outside_contract の検査だったが、その宣言を廃止した）
 //  確かめるのは「1 回も実行されなかったファイル・関数が無いこと」まで。行ごとの割合のしきい値は持たない。
@@ -69,6 +69,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
+import { goalDirs, isFilledText, ucDirs } from "../_shared/goals-tree.mjs";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope } from "../_shared/glob.mjs";
 import { parseStrictYaml } from "../_shared/strict-yaml.mjs";
@@ -433,13 +434,14 @@ const ENTRY_KINDS = ["http", ...NAMED_KINDS];
 //  契約に entry を持つ種類（それ以外の名前の入口は、操作の名前で比べる）
 const ENTRY_FIELD_KINDS = ["deeplink", "push", "stream"];
 
-//  入口の同一性（突き合わせに使う鍵）と、表示の書き方。区切りに改行を使う（method・path・name は 1 行の文字列）
-const httpEntry = (method, path) => ({ key: `http\n${method}\n${path}`, label: `${method} ${path}` });
-const namedEntry = (kind, name) => ({ key: `${kind}\n${name}`, label: `${kind} ${name}` });
-const isFilled = (v) => typeof v === "string" && v !== "";
+//  入口の同一性（突き合わせに使う鍵）と、表示の書き方。鍵は、項目の並びを JSON にしたもの（項目の中の文字で、別の入口と同じ鍵にならない）
+const httpEntry = (method, path) => ({ key: JSON.stringify(["http", method, path]), label: `${method} ${path}` });
+const namedEntry = (kind, name) => ({ key: JSON.stringify([kind, name]), label: `${kind} ${name}` });
+//  「書いてある」の判定は spec-lint と同じもの（空白だけは空とみなす）
+const isFilled = isFilledText;
 
-//  契約の操作 1 つから、入口を読む。戻り: null（inbound でない、入口を持つ transport でない） / { key, label } /
-//  { label, field, problem }（比べる項目が、空でない文字列になっていない。黙って捨てると、合うはずの入口が「契約に無い入口」としてだけ見える）
+//  契約の操作 1 つから、入口を読む。戻り: null（inbound でない） / { key, label } /
+//  { label, field, problem }（比べる項目が、空でない文字列になっていない。transport が入口の種類に無い）
 function inboundEntryOf(name, op) {
 	if (!isMap(op) || op.direction !== "inbound") return null;
 	if (op.transport === "http") {
@@ -448,23 +450,23 @@ function inboundEntryOf(name, op) {
 			if (!isFilled(wire[k])) return { label: `http（wire.${k}: ${JSON.stringify(wire[k] ?? null)}）`, field: `wire.${k}`, problem: `空でない文字列でない（実際: ${JSON.stringify(wire[k] ?? null)}）` };
 		return httpEntry(wire.method, wire.path);
 	}
-	if (!NAMED_KINDS.includes(op.transport)) return null;
+	if (!NAMED_KINDS.includes(op.transport)) return { label: `transport: ${JSON.stringify(op.transport ?? null)}`, field: "transport", problem: `入口の種類（${ENTRY_KINDS.join(" / ")}）に無い` };
 	if (!ENTRY_FIELD_KINDS.includes(op.transport)) return namedEntry(op.transport, name);
 	if (!isFilled(op.entry)) return { label: `${op.transport}（entry: ${JSON.stringify(op.entry ?? null)}）`, field: "entry", problem: `空でない文字列でない（実際: ${JSON.stringify(op.entry ?? null)}）` };
 	return namedEntry(op.transport, op.entry);
 }
 
 //  撤回されていない UC の契約の inbound の操作: [{ id: "UC-nnn#操作名", key, label, status, fixed, fixedOwned }]
-//  比べる項目（wire.method・wire.path・entry）が空でない文字列でない操作は { id, label, field, problem } で、key を持たない
+//  入口を読めない操作（wire.method・wire.path・entry が空でない文字列でない、transport が入口の種類に無い）は { id, label, field, problem } で、key を持たない
 //  status は契約の x-status（無ければ null）。入口の突き合わせ先（E1）にするのは fixed の契約の操作だけ（draft の契約は、人が承認していない）
 //  契約の読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。構文の誤りは spec-lint が報告し、ここは読めた分だけ使う
 function inboundOperations(cfg, root) {
 	const goals = isMap(cfg.docs) && isText(cfg.docs.goals_dir) ? resolve(root, cfg.docs.goals_dir) : null;
 	if (goals === null) return null;
 	const out = [];
-	const dirs = (d) => (existsSync(d) ? readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join(d, e.name)).sort() : []);
-	for (const gdir of dirs(goals))
-		for (const udir of dirs(gdir)) {
+	//  フォルダの数え方は tools/_shared/goals-tree.mjs（spec-lint が検査しないフォルダの契約を、突き合わせ先に数えない）
+	for (const gdir of goalDirs(goals).goals)
+		for (const udir of ucDirs(gdir)) {
 			const ucFile = join(udir, "UC.md");
 			const file = join(udir, "contract.yaml");
 			if (!existsSync(ucFile) || !existsSync(file)) continue;
@@ -538,8 +540,8 @@ function checkEntries(cfg, root, opts) {
 	//  none を認める条件と、0 行の一覧を認める条件は同じ: fixed の契約に inbound の操作が無い間だけ
 	const fixedOps = ops.filter((o) => o.fixed);
 	const readableOps = ops.filter((o) => !o.problem);
-	//  比べる項目が空でない文字列でない契約の操作は、どの入口とも合わない。spec-lint が先に止めるが、ここでも黙って捨てずに出す
-	//  （owned・x-status によらない）
+	//  入口を読めない契約の操作（比べる項目が空でない文字列でない、transport が入口の種類に無い）は、どの入口とも合わない。
+	//  同じ操作は spec-lint も違反にする（判定は tools/_shared/goals-tree.mjs の isFilledText）。ここでも、owned・x-status によらず報告する
 	for (const o of ops)
 		if (o.problem) errs.push(`E4  契約の操作 ${o.id} の ${o.field} を読めない: ${o.problem}（契約の書き方の誤りで、このままではどの入口とも合わない）`);
 	//  契約の外の入口を認める宣言は廃止した。残っていれば、黙って読み飛ばさない

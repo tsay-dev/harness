@@ -45,6 +45,7 @@ import { lineOf, parseStrictYaml, stripComment } from "../_shared/strict-yaml.mj
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
+import { goalDirs, isFilledText, ucDirs } from "../_shared/goals-tree.mjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop");
 
@@ -655,7 +656,7 @@ function validateContract(file, text, dirId, xKeys, shared, entryScope = true) {
 		//  比べられるよう、空でない文字列であることだけを求める（パスの形は解釈しない）。撤回済みの UC の契約は、突き合わせの対象でないので求めない
 		if (entryScope && transport === "http" && direction === "inbound" && isMap(wire))
 			for (const k of ["method", "path"])
-				if (wire[k] !== undefined && wire[k] !== null && (typeof wire[k] !== "string" || wire[k] === ""))
+				if (wire[k] !== undefined && wire[k] !== null && !isFilledText(wire[k]))
 					err(at(lineOf(wire, k) || lineOf(op, "wire")), `${label}: wire.${k} は、空でない文字列で書く（実際: ${JSON.stringify(wire[k])}。入口の一覧の ${k} と、文字どおり比べる）`);
 
 		//  写し取りの契約は出所が要る
@@ -666,8 +667,9 @@ function validateContract(file, text, dirId, xKeys, shared, entryScope = true) {
 
 		//  呼ばれる側は入口の識別子が要る
 		if (ENTRY_TRANSPORTS.includes(transport)) {
-			if (!op["entry"] || String(op["entry"]).trim().length === 0)
-				err(fieldAt("entry"), `${label}: transport が ${transport} なら entry（URL パターン / ペイロード識別子 / メッセージ種別）が要る`);
+			//  入口の一覧の name と文字どおり比べるので、空でない文字列で書く（判定は exec-check と同じ。数や真偽値は文字列でない）
+			if (!isFilledText(op["entry"]))
+				err(fieldAt("entry"), `${label}: transport が ${transport} なら entry（URL パターン / ペイロード識別子 / メッセージ種別）を、空でない文字列で書く（実際: ${JSON.stringify(op["entry"] ?? null)}）`);
 			if (INBOUND_ONLY_TRANSPORTS.includes(transport) && direction !== "inbound")
 				err(fieldAt("direction"), `${label}: transport が ${transport} なら direction は inbound`);
 		} else if (op["entry"] !== undefined) {
@@ -960,9 +962,9 @@ function loadModel(docsDir) {
 	const ucs = new Map(); //  id -> { file, dir, status, phase, goal, hasExceptionDerivation, reqs: [] }
 	const contracts = new Map(); //  id -> { file, status, errorCount, text }
 
-	for (const gname of listDirs(goalsRoot)) {
-		if (gname.startsWith("_") || gname.startsWith(".")) continue;
-		const gdir = join(goalsRoot, gname);
+	//  フォルダの数え方は tools/_shared/goals-tree.mjs（ほかの検査ツールと同じ。_ で始まるフォルダは trace-check が配置の違反にする）
+	for (const gdir of goalDirs(goalsRoot).goals) {
+		const gname = basename(gdir);
 		const gid = (gname.match(/^GOAL-\d+/) || [null])[0];
 		if (!GOAL_DIR_RE.test(gname)) err(gdir, `ディレクトリ名が GOAL-nn-<slug>（slug は小文字ケバブ）でない`);
 		const gfile = join(gdir, "GOAL.md");
@@ -976,8 +978,8 @@ function loadModel(docsDir) {
 		}
 		for (const f of listFiles(gdir, /^(UC|REQ)-\d+.*\.md$/)) err(f, `UC / REQ はゴール直下ではなく UC ディレクトリ配下に置く（R-1006）`);
 
-		for (const uname of listDirs(gdir)) {
-			const udir = join(gdir, uname);
+		for (const udir of ucDirs(gdir)) {
+			const uname = basename(udir);
 			const uid = (uname.match(/^UC-\d+/) || [null])[0];
 			if (!UC_DIR_RE.test(uname)) err(udir, `ディレクトリ名が UC-nnn-<slug>（slug は小文字ケバブ）でない`);
 			const ufile = join(udir, "UC.md");
@@ -1122,8 +1124,9 @@ function report() {
 //  --- gate コマンド（draft なのに実装、を防ぐ） ---
 function findUcDir(docsDir, id) {
 	const goalsRoot = join(docsDir, "goals");
-	for (const g of listDirs(goalsRoot)) {
-		const hit = listDirs(join(goalsRoot, g)).find((d) => d === id || d.startsWith(id + "-"));
+	for (const gdir of goalDirs(goalsRoot).goals) {
+		const g = basename(gdir);
+		const hit = ucDirs(gdir).map((d) => basename(d)).find((d) => d === id || d.startsWith(id + "-"));
 		if (hit) return join(goalsRoot, g, hit);
 	}
 	return null;
