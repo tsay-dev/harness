@@ -1,4 +1,4 @@
-//  merge-reqs（REQ-nnn.md を UC.md の「要件」の節へ移す）と、節の読み方（tools/_shared/reqs.mjs）のテスト
+//  migrate reqs（REQ-nnn.md を UC.md の「要件」の節へ移す）と、節の読み方（tools/_shared/reqs.mjs）のテスト
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { reqDocsOf, sectionFromReqDoc, splitUc } from "../../_shared/reqs.mjs";
 
-const TOOL = join(dirname(fileURLToPath(import.meta.url)), "..", "merge-reqs.mjs");
+const TOOL = join(dirname(fileURLToPath(import.meta.url)), "..", "migrate-reqs.mjs");
 const TEMP = [];
 after(() => TEMP.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
@@ -17,7 +17,7 @@ const req = (id, { uc = "UC-001", br = "BR-016", status = "active          # dra
 	`---\nid: ${id}\npattern: Event-driven\nuc: ${uc}\n${br ? `br: ${br}\n` : ""}status: ${status}\n${extra}---\n\n# ${id}\n\n> ${id} の要件文。\n\n## 検証方針\n\n<!--\n要件作成者ではなくテスト設計者が所有する（要件作成者は以下のひな形のまま残す）。\n本文は日本語で書く。\n-->\n\n- **分割クラス**:\n  - \`#first\` — 最初\n  - \`#second\` — 次\n- **参照先**: \`tests/a.test.ts\`\n\n### 補足\n\n\`\`\`\n# コードの中の見出しはずらさない\n\`\`\`\n`;
 
 function project(files) {
-	const d = mkdtempSync(join(tmpdir(), "merge-reqs-"));
+	const d = mkdtempSync(join(tmpdir(), "migrate-reqs-"));
 	TEMP.push(d);
 	for (const [f, body] of Object.entries(files)) {
 		mkdirSync(dirname(join(d, f)), { recursive: true });

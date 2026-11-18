@@ -1,4 +1,4 @@
-//  verify（CI と手元から呼ぶ完了の判定）のテスト。検査の並びそのものは stop-gate.test.mjs が固定するので、
+//  verify（CI と手元から呼ぶ完了の判定）のテスト。検査の並びそのものは hook.test.mjs が固定するので、
 //  ここでは、標準入力なしで 1 回実行して終了コードで結果を返すこと、--hook で Stop フックとして動くこと、
 //  止められたときに実行中のコマンドを残さないことを確かめる。
 import { after, test } from "node:test";
@@ -25,7 +25,7 @@ const cmds = (over = {}) => ({ typecheck: NONE, lint: NONE, test: "exit 0", syst
 //  呼ばれたら名前を記録して終わるだけの偽の検査（STUB_FAIL に名前があれば失敗）
 function makeTools() {
 	const dir = temp("harness verify tools ");
-	for (const n of ["config-lint", "spec-lint", "trace-check", "exec-check", "contract-run"]) {
+	for (const n of ["lint-config", "lint-spec", "lint-refs", "lint-entry", "lint-entries", "run-cases", "lint-coverage"]) {
 		mkdirSync(join(dir, n), { recursive: true });
 		writeFileSync(
 			join(dir, n, `${n}.mjs`),
@@ -45,7 +45,7 @@ function makeRoot(cfg) {
 }
 
 function run(root, args, { tools, fail = "", input = "" } = {}) {
-	const env = { ...process.env, STOP_GATE_TOOLS_DIR: tools, STUB_FAIL: fail };
+	const env = { ...process.env, HARNESS_TOOLS_DIR: tools, STUB_FAIL: fail };
 	delete env.CLAUDE_PROJECT_DIR;
 	return spawnSync(process.execPath, [VERIFY, ...args], { encoding: "utf8", input, cwd: root, env });
 }
@@ -56,7 +56,7 @@ test("verify: すべて通れば 0。標準入力を読まず、状態もログ�
 	const r = run(root, [], { tools });
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /\[verify\] すべて通過（level full。8 検査、skip: typecheck, lint, system）/);
-	assert.deepEqual(calls(tools), ["config-lint", "spec-lint", "trace-check", "exec-check", "exec-check", "contract-run", "exec-check"]);
+	assert.deepEqual(calls(tools), ["lint-config", "lint-spec", "lint-refs", "lint-entry", "lint-entries", "run-cases", "lint-coverage"]);
 	assert.ok(existsSync(join(root, "ran.txt")));
 	assert.ok(!existsSync(join(root, ".harness-gate")), "フックの状態を作っている");
 });
@@ -64,22 +64,22 @@ test("verify: すべて通れば 0。標準入力を読まず、状態もログ�
 test("verify: 失敗があれば 1。失敗した検査の名前と出力の末尾を標準エラー出力に出す", () => {
 	const tools = makeTools();
 	const root = makeRoot({ commands: cmds({ test: "echo boom; exit 3" }) });
-	const r = run(root, [], { tools, fail: "trace-check" });
+	const r = run(root, [], { tools, fail: "lint-refs" });
 	assert.equal(r.status, 1, r.stdout);
-	assert.match(r.stderr, /\[verify\] 失敗 2 件（level full。7 検査）: trace-check, test/);
-	assert.match(r.stderr, /  trace-check: exit 1\n    trace-check red/);
+	assert.match(r.stderr, /\[verify\] 失敗 2 件（level full。7 検査）: lint refs, test/);
+	assert.match(r.stderr, /  lint refs: exit 1\n    lint-refs red/);
 	assert.match(r.stderr, /  test: exit 3\n    boom/);
 });
 
 test("verify --verbose: 通った検査の出力（警告など）も表示する", () => {
 	const tools = makeTools();
-	writeFileSync(join(tools, "spec-lint", "spec-lint.mjs"), `console.log("  warn  docs/x.md: 何かの警告");\n`);
+	writeFileSync(join(tools, "lint-spec", "lint-spec.mjs"), `console.log("  warn  docs/x.md: 何かの警告");\n`);
 	const root = makeRoot({ commands: cmds({ test: "echo test-out" }) });
 	const quiet = run(root, [], { tools });
 	assert.doesNotMatch(quiet.stdout, /何かの警告/);
 	const r = run(root, ["--verbose"], { tools });
 	assert.equal(r.status, 0, r.stderr);
-	assert.match(r.stdout, /== spec-lint（通過）\n  warn  docs\/x\.md: 何かの警告/);
+	assert.match(r.stdout, /== lint spec（通過）\n  warn  docs\/x\.md: 何かの警告/);
 	assert.match(r.stdout, /== test（通過）\ntest-out/);
 });
 
@@ -114,7 +114,7 @@ test("verify --hook: Stop フックとして動く（標準入力の JSON を読
 	const payload = JSON.stringify({ session_id: "s1", cwd: root, hook_event_name: "Stop", stop_hook_active: false });
 	const r = run(root, ["--hook", "--level", "fast"], { tools, input: payload });
 	assert.equal(r.status, 2, r.stdout + r.stderr);
-	assert.match(r.stderr, /\[stop-gate\] 終端ゲート不通過（round 1\/2）: 失敗 = test/);
+	assert.match(r.stderr, /\[verify\] 終端ゲート不通過（round 1\/2）: 失敗 = test/);
 	assert.ok(existsSync(join(root, ".harness-gate", "state.json")));
 	//  Stop 以外のイベントは対象外（フックの規則のまま）
 	const other = run(root, ["--hook"], { tools, input: JSON.stringify({ cwd: root, hook_event_name: "SubagentStop" }) });
@@ -124,7 +124,7 @@ test("verify --hook: Stop フックとして動く（標準入力の JSON を読
 test("verify: 止められたら、実行中のコマンドが起動したプロセスを残さず、同じシグナルで終わる", { skip: process.platform === "win32" }, async () => {
 	const tools = makeTools();
 	const root = makeRoot({ commands: cmds({ test: `node -e "setInterval(() => require('fs').appendFileSync('alive.txt', 'x'), 100)" ; true`, system: "echo s > system.txt" }) });
-	const child = spawn(process.execPath, [VERIFY], { cwd: root, stdio: "ignore", env: { ...process.env, STOP_GATE_TOOLS_DIR: tools } });
+	const child = spawn(process.execPath, [VERIFY], { cwd: root, stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: tools } });
 	const ended = new Promise((res) => child.on("exit", (status, signal) => res({ status, signal })));
 	for (let i = 0; i < 100 && !existsSync(join(root, "alive.txt")); i++) await new Promise((res) => setTimeout(res, 50));
 	assert.ok(existsSync(join(root, "alive.txt")), "コマンドが起動していない");
@@ -141,7 +141,7 @@ test("verify: 入口の一覧のコマンドの途中で止められても、一
 	const tools = makeTools();
 	const tmp = temp("harness verify tmp ");
 	const root = makeRoot({ commands: cmds({ list_entries: `node -e "require('fs').writeFileSync('started.txt', 'x'); setInterval(() => {}, 1000)"` }) });
-	const child = spawn(process.execPath, [VERIFY], { cwd: root, stdio: "ignore", env: { ...process.env, STOP_GATE_TOOLS_DIR: tools, TMPDIR: tmp } });
+	const child = spawn(process.execPath, [VERIFY], { cwd: root, stdio: "ignore", env: { ...process.env, HARNESS_TOOLS_DIR: tools, TMPDIR: tmp } });
 	const ended = new Promise((res) => child.on("exit", (status, signal) => res({ status, signal })));
 	for (let i = 0; i < 100 && !existsSync(join(root, "started.txt")); i++) await new Promise((res) => setTimeout(res, 50));
 	assert.ok(existsSync(join(root, "started.txt")), "コマンドが起動していない");

@@ -1,4 +1,4 @@
-//  config-lint のテスト。形の誤りを 1 つずつ入れ、その検査項目で落ちることを確かめる
+//  lint config のテスト。形の誤りを 1 つずつ入れ、その検査項目で落ちることを確かめる
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TOOL = join(HERE, "..", "config-lint.mjs");
+const TOOL = join(HERE, "..", "lint-config.mjs");
 const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "harness.config.json");
 const TEMP = [];
 after(() => TEMP.forEach((d) => rmSync(d, { recursive: true, force: true })));
@@ -22,7 +22,7 @@ const base = () => ({
 });
 
 function project(cfg, files = { "eslint.config.mjs": "" }) {
-	const d = mkdtempSync(join(tmpdir(), "config-lint-"));
+	const d = mkdtempSync(join(tmpdir(), "lint-config-"));
 	TEMP.push(d);
 	if (cfg !== null) writeFileSync(join(d, "harness.config.json"), typeof cfg === "string" ? cfg : JSON.stringify(cfg));
 	for (const [f, body] of Object.entries(files)) {
@@ -135,13 +135,13 @@ test("ひな形に値を置けない任意のキー（comment_pattern）は K1 �
 	assert.equal(r.status, 0, r.stdout);
 });
 
-test("各ツールが設定の最上位から読むキーは、すべて K1 を通る", () => {
+test("各コマンドが設定の最上位から読むキーは、すべて K1 を通る", () => {
 	const tools = join(HERE, "..", "..");
 	const read = new Set();
-	for (const f of ["trace-check/trace-check.mjs", "contract-run/contract-run.mjs", "gate-hook/stop-gate.mjs", "gate-hook/gate-hook.mjs"]) {
+	for (const f of ["_shared/refs.mjs", "lint-refs/lint-refs.mjs", "run-cases/run-cases.mjs", "verify/verify.mjs", "_shared/suite.mjs", "guard/guard.mjs"]) {
 		const src = readFileSync(join(tools, f), "utf8");
 		for (const m of src.matchAll(/\bcfg\??\.([a-z][a-z_]*)/g)) read.add(m[1]);
-		//  trace-check の宣言の検査は need("キー" または "キー.子") の形でも読む
+		//  紐づきの宣言の検査（_shared/refs.mjs）は need("キー" または "キー.子") の形でも読む
 		for (const m of src.matchAll(/\bneed\("([a-z][a-z_]*)/g)) read.add(m[1]);
 	}
 	assert.ok(read.has("comment_pattern"), "need(...) の形で読むキーを拾えていない");

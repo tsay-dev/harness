@@ -1,63 +1,15 @@
-//  trace-check の回帰検証（ADR-0056 / ADR-0070 の合意事項）: コメントの中だけの注釈、保留のテスト、義務表（C26）、
-//  規則を確かめるテスト（@covers BR-nnn。C3 / C11 / C13 / C22）、廃止したキーと検査、設定エラー。テンプレートの harness.config.json で、紐づきの揃った最小のプロジェクトを組み、1 か所ずつ崩す。
+//  lint refs の回帰検証（ADR-0056 / ADR-0070 の合意事項）: コメントの中だけの注釈、保留のテスト、義務表（C26）、
+//  規則を確かめるテスト（@covers BR-nnn。C3 / C11 / C13 / C22）、廃止したキーと検査、設定エラー。紐づきの揃った最小のプロジェクトを、1 か所ずつ崩す。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const TOOL = join(HERE, "..", "trace-check.mjs");
-const TEMPLATE = join(HERE, "..", "..", "..", "templates", "develop", "harness.config.json");
-
-const fm = (fields) => `---\n${Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n\n`;
-const G = "docs/goals/GOAL-01-x";
-const U = `${G}/UC-001-x`;
-
-//  紐づきの揃った最小のプロジェクト（違反 0 件）。files で上書き・追加（null は削除）し、configure で harness.config.json を変える
-function project(t, { files = {}, configure = () => {} } = {}) {
-	const root = mkdtempSync(join(tmpdir(), "harness trace-check links "));
-	t.after(() => rmSync(root, { recursive: true, force: true }));
-	const cfg = JSON.parse(readFileSync(TEMPLATE, "utf8"));
-	delete cfg.layering;
-	//  active な REQ と source があるので、実行の記録の宣言が要る（C26。記録の中身は exec-check が読む）
-	cfg.coverage = { report: "coverage/lcov.info" };
-	configure(cfg);
-	const base = {
-		"harness.config.json": JSON.stringify(cfg, null, 2),
-		"docs/00-vision.md": `${fm({ id: "VISION", status: "frozen" })}| 指標 | 現状 | 目標 |\n| --- | --- | --- |\n| KPI-01 登録数 | 0 | 10 |\n`,
-		"docs/01-glossary.md": `${fm({ id: "GLOSSARY", status: "living" })}| 用語 | 定義 | コード識別子 | 禁止同義語 |\n| --- | --- | --- | --- |\n| 案件 | 登録する単位 | \`createX\` | 仕事 |\n`,
-		"docs/02-actors.md": `${fm({ id: "ACTORS", status: "living" })}| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | 人間 / 認証済 | 登録する |\n| ACT-02 | 夜間バッチ | システム / スケジューラー | 集計する |\n`,
-		"docs/_shared/components.yaml": "authSchemes: {}\nerrorCodes: {}\nschemas: {}\n",
-		"docs/rules/.gitkeep": "",
-		"docs/nfr/.gitkeep": "",
-		"docs/adr/.gitkeep": "",
-		[`${G}/GOAL.md`]: `${fm({ id: "GOAL-01", actor: "ACT-01", origin: "KPI-01", status: "active" })}# GOAL-01\n`,
-		[`${U}/UC.md`]: `${fm({ id: "UC-001", title: "t", actor: "ACT-01", goal: "GOAL-01", status: "active", phase: "実装" })}# UC-001\n\n## 主シナリオ\n\n1. 利用者が案件を登録する\n\n## 状態 × イベント表\n\n| 状態 \\ イベント | 登録 |\n| --- | --- |\n| 未登録 | REQ-001 |\n`,
-		[`${U}/REQ-001.md`]: `${fm({ id: "REQ-001", pattern: "Ubiquitous", uc: "UC-001", status: "active" })}# REQ-001\n\n> 1 文\n\n## 検証方針\n\n- **分割クラス**:\n  - \`#ok\` — 正常\n`,
-		[`${U}/contract.yaml`]:
-			"x-uc: UC-001\nx-status: fixed\noperations:\n  createX:\n    transport: http\n    direction: inbound\n    owned: true\n    auth: none\n    summary: 登録\n    wire:\n      method: POST\n      path: /x/{id}\n      success: 200\n    errors: []\n",
-		"src/usecase/x.ts": "export function createX() {}\n",
-		"src/infra/routes.ts": 'app.post("/x/:id", h);\n',
-		"src/domain/errors.ts": "export {};\n",
-		"tests/x.test.ts": '// @covers REQ-001#ok\ntest("ok", () => {});\n',
-		"e2e/x.spec.ts": '// @scenario UC-001\ntest("flow", () => {});\n',
-		"prisma/schema.prisma": "model X {\n  id Int @id\n}\n",
-	};
-	for (const [rel, text] of Object.entries({ ...base, ...files })) {
-		if (text === null) continue;
-		mkdirSync(dirname(join(root, rel)), { recursive: true });
-		writeFileSync(join(root, rel), text);
-	}
-	return root;
-}
+import { toolOf, fm, U, project, br, UC_WITH_BR } from "../../_shared/test/refs-linked-fixture.mjs";
 
 const run = (root, ...args) => {
 	foldReqFiles(root); //  入力の REQ-nnn.md を UC.md の「要件」の節に畳む（ADR-0067）
-	return spawnSync("node", [TOOL, "--root", root, ...args], { encoding: "utf8" });
+	return spawnSync("node", [toolOf("lint-refs"), "--root", root, ...args], { encoding: "utf8" });
 };
 
 test("紐づきの揃った最小のプロジェクトは違反 0 件（テンプレートの harness.config.json のまま）", (t) => {
@@ -164,12 +116,6 @@ test("C26: 義務がある範囲の none、一致 0 件、active な UC があ�
 	assert.equal(r.status, 0, r.stdout + r.stderr);
 	assert.match(r.stdout, /未作成[^\n]*\n {2}- docs\.rules_dir: docs\/rules/);
 });
-
-//  ---- 規則を確かめるテスト（@covers BR-nnn。ADR-0070） ----
-
-const br = (id, enforcedAt, status = "active") => `${fm({ id, title: "t", enforced_at: enforcedAt, status })}# ${id}\n`;
-//  UC の本文から BR-001 を参照する（C4 の「死んだ規則」にしない）
-const UC_WITH_BR = `${fm({ id: "UC-001", title: "t", actor: "ACT-01", goal: "GOAL-01", status: "active", phase: "実装" })}# UC-001\n\n- 適用される業務規則: BR-001\n\n## 状態 × イベント表\n\n| 状態 \\ イベント | 登録 |\n| --- | --- |\n| 未登録 | REQ-001 |\n`;
 const REQ_WITH_BR = `${fm({ id: "REQ-001", pattern: "Ubiquitous", uc: "UC-001", br: "BR-001", status: "active" })}# REQ-001\n\n> 1 文\n\n## 検証方針\n\n- **分割クラス**:\n  - \`#ok\` — 正常\n`;
 const DB_TEST = '// @covers REQ-001#ok\ntest("ok", () => {});\n// @covers BR-001\ntest("同じ名前の行を DB に直接入れると断られる", () => {});\n';
 
@@ -247,23 +193,6 @@ test("廃止したキーと検査（ADR-0070）: 設定に残っていれば案�
 		assert.equal(r.status, 2, r.stdout + r.stderr);
 		assert.match(r.stderr, new RegExp(`--only の ${id} は廃止した検査`));
 	}
-});
-
-test("--index: REQ・BR・UC ごとに、それを確かめるテストのファイルを引ける（保留は印を付ける）", (t) => {
-	const files = {
-		"docs/rules/BR-001.md": br("BR-001", "database"),
-		"docs/rules/BR-002.md": br("BR-002", "domain 層", "draft"),
-		[`${U}/UC.md`]: UC_WITH_BR,
-		"tests/x.test.ts": '// @covers REQ-001#ok\ntest("ok", () => {});\n',
-		"tests/db/rule.test.ts": '// @covers BR-001\ntest("断られる", () => {});\n',
-		"tests/later.test.ts": '// @covers REQ-001#ok\ntest.skip("あとで", () => {});\n',
-	};
-	const r = run(project(t, { files }), "--index");
-	assert.equal(r.status, 0, r.stdout + r.stderr);
-	assert.match(r.stdout, /REQ-001 \[Ubiquitous\][^\n]*\n\s+classes: #ok\n\s+tests: tests\/later\.test\.ts \(保留\), tests\/x\.test\.ts\n/);
-	assert.match(r.stdout, /BR-001 {2}t {2}\(enforced_at: database\)\n\s+tests: tests\/db\/rule\.test\.ts\n/);
-	assert.match(r.stdout, /BR-002 [^\n]*\n\s+tests: -\n/);
-	assert.match(r.stdout, /UC-001\/ [^\n]*\n\s+scenario: e2e\/x\.spec\.ts\n/);
 });
 
 test("C15: 人間でないと数えるのは種別が「システム」で始まるアクターだけ", (t) => {

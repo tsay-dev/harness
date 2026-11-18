@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-//  gate-hook — §2 実装着手ゲートの機械強制（PreToolUse フック）
+//  guard — §2 実装着手ゲートの機械強制（PreToolUse フック）
 //
 //  develop skill §2 は「UC / REQ が active になり契約が fixed になる前に実装コードを書くな」
-//  という停止線だが、それ自体は説得的制御（AI が読み飛ばせば止まらない）。spec-lint の
+//  という停止線だが、それ自体は説得的制御（AI が読み飛ばせば止まらない）。lint spec の
 //  gate も commit 時にしか発火しない事後チェックである。本フックはその停止線を
 //  Write / Edit の直前で発火する構造的強制に変える。
 //
@@ -15,7 +15,7 @@
 //    AI に差し戻される。
 //
 //  判定規則（上から順に最初に当たったもの。パスの比較は大文字小文字を無視する）:
-//    - .harness-gate/ 配下 → ブロック（exit 2）。ログと stop-gate の状態はフック自身だけが書く。
+//    - .harness-gate/ 配下 → ブロック（exit 2）。ログと Stop フック（verify --hook）の状態はフック自身だけが書く。
 //    - 検査の範囲・検査器・hook の設定 → 止めずに人間の承認を求める（permissionDecision: "ask"、ADR-0057）。
 //        **/harness.config.json（reason: config）、.harness/**（harness）、
 //        .claude/settings*.json と .codex / .cursor / .grok / .agents 直下の設定（プロジェクト外のユーザー設定を含む。hook-settings）、
@@ -34,7 +34,7 @@
 //        該当 UC が active でない / draft の REQ がある / 契約が無い・fixed でない
 //      → ブロック（exit 2）。ここは fail-closed（ゲートの存在意義）で、判定中の例外もブロックする。
 //    - stdin が解釈できない等の入口の不具合、--code 一致より前の例外 → 許可（exit 0）。フック自身の不具合で
-//      セッションを壊さない（ゲートは spec-lint gate と §2 自己確認が二重に守る）。
+//      セッションを壊さない（ゲートは lint git uc と §2 自己確認が二重に守る）。
 //
 //  却下ログ:
 //    ゲート判定に達した書き込み（docs の status の変更を除く docs / provider dir / --exclude / --code 非マッチを除く）
@@ -47,7 +47,7 @@
 //
 //  設定はフックコマンドの引数で渡す（設定ファイルを増やさない。submodule 配置でも
 //  取り込み先の settings.local.json に閉じる）:
-//    node tools/gate-hook/gate-hook.mjs --code 'src/**' [--code ...]
+//    harness guard --code 'src/**' [--code ...]
 //         [--exclude 'skeleton/**' ...] [--docs docs] [--log .harness-gate/log.jsonl]
 //
 //  使い方・設置手順・制約は同梱 README.md を参照。
@@ -57,7 +57,7 @@ import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { matchesAny } from "../_shared/glob.mjs";
 import { isMap, parseStrictYaml } from "../_shared/strict-yaml.mjs";
-import { appendLog, defaultLogPath } from "./gate-log.mjs";
+import { appendLog, defaultLogPath } from "../_shared/gate-log.mjs";
 import { CONFIG_FILE, readHostConfig } from "../_shared/config.mjs";
 import { reqDocsOf } from "../_shared/reqs.mjs";
 import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
@@ -77,7 +77,7 @@ function parseArgs(argv) {
 	return opts;
 }
 
-//  ---- docs パーサ（spec-lint / trace-check と同じ規約: frontmatter が SSOT） -------
+//  ---- docs パーサ（lint spec / lint refs と同じ規約: frontmatter が SSOT） -------
 
 const fm = (text) => parseFrontmatter(text).data;
 
@@ -107,7 +107,7 @@ function draftReqs(dir) {
 	return drafts;
 }
 
-//  契約（境界契約 yaml）の x-status。読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。
+//  契約（境界契約 yaml）の x-status。読み方は tools/_shared/strict-yaml.mjs（lint spec / lint refs / run cases と同じ）。
 //  行スキャンで読むと `x-status : fixed` のような書き方を他のツールと別の値に読み、fixed への昇格が承認を通らない
 const xStatus = (text) => {
 	const root = parseStrictYaml(text).root;
@@ -145,7 +145,7 @@ function afterContent(input, before) {
 	return text;
 }
 
-//  文書の status。契約（yaml）は x-status、それ以外は frontmatter の status（引用符は外さない。trace-check と同じ値で比べ、
+//  文書の status。契約（yaml）は x-status、それ以外は frontmatter の status（引用符は外さない。lint refs と同じ値で比べ、
 //  "active" のように引用符を付けた値は語彙の外 ＝ 義務の無い値として扱う）
 const statusOf = (rel, text) => {
 	if (text === null) return null;
@@ -153,7 +153,7 @@ const statusOf = (rel, text) => {
 	return v || null;
 };
 
-//  アクター表の種別（ACT-nn -> 種別）。人間でないと数えるのは「システム」で始まる種別だけ（trace-check C15 / C26）
+//  アクター表の種別（ACT-nn -> 種別）。人間でないと数えるのは「システム」で始まる種別だけ（lint refs C15 / C26）
 function actorKinds(text) {
 	const kinds = {};
 	for (const line of (text ?? "").split(/\r?\n/)) {
@@ -253,7 +253,7 @@ function classifyStatusChange(abs, rel, input) {
 function log(decision, reason, ctx) {
 	appendLog(ctx.logPath, {
 		ts: new Date().toISOString(),
-		hook: "gate-hook",
+		hook: "guard",
 		event: "PreToolUse",
 		session: ctx.session ?? null,
 		decision,
@@ -272,7 +272,7 @@ function block(reason, lines, ctx) {
 	log("block", reason, ctx);
 	process.stderr.write(
 		[
-			"[gate-hook] 実装着手ゲート（develop skill §2）によりこの書き込みをブロックしました。",
+			"[guard] 実装着手ゲート（develop skill §2）によりこの書き込みをブロックしました。",
 			...lines,
 			"コードでなく SSOT を先に整えること（§2 の分岐表に従い Phase 1 / Phase 3 へ）。",
 		].join("\n") + "\n",
@@ -288,7 +288,7 @@ function ask(reason, message, ctx) {
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
 				permissionDecision: "ask",
-				permissionDecisionReason: `[gate-hook] ${message}`,
+				permissionDecisionReason: `[guard] ${message}`,
 			},
 		}) + "\n",
 	);
@@ -309,9 +309,9 @@ function guardedTarget(rel) {
 	if (p.startsWith(".harness/"))
 		return { reason: "harness", message: `${rel} は検査器（harness）そのもの。書き換えれば検査を外せるため、人間の承認で変える（ADR-0057）` };
 	if (HOOK_SETTINGS_RE.test(p))
-		return { reason: "hook-settings", message: `${rel} は gate-hook / stop-gate を有効にする hook の設定。書き換えればゲートを外せるため、人間の承認で変える（ADR-0057）` };
+		return { reason: "hook-settings", message: `${rel} は guard / verify --hook を有効にする hook の設定。書き換えればゲートを外せるため、人間の承認で変える（ADR-0057）` };
 	if (p.startsWith(".github/workflows/"))
-		return { reason: "workflow", message: `${rel} は CI の検査（spec-gate）を呼ぶ workflow。書き換えれば CI の検査を外せるため、人間の承認で変える（ADR-0057）` };
+		return { reason: "workflow", message: `${rel} は CI の検査（verify）を呼ぶ workflow。書き換えれば CI の検査を外せるため、人間の承認で変える（ADR-0057）` };
 	return null;
 }
 
@@ -336,7 +336,7 @@ function main() {
 		//  （exit 1: 非ブロッキングエラー。stderr はユーザー向け表示に載る）。設置ミスも記録する。
 		log("skip", "misconfig", ctx);
 		process.stderr.write(
-			"[gate-hook] --code が未指定のため何もゲートしません（settings の hook コマンドに --code 'src/**' 等を追加してください）\n",
+			"[guard] --code が未指定のため何もゲートしません（settings の hook コマンドに --code 'src/**' 等を追加してください）\n",
 		);
 		process.exit(1);
 	}
@@ -357,19 +357,19 @@ function main() {
 			const absPath = abs.split(sep).join("/");
 			if (HOOK_SETTINGS_RE.test(absPath.toLowerCase())) {
 				ctx.target = absPath;
-				ask("hook-settings", `${absPath} は hook の設定。書き換えれば gate-hook / stop-gate を外せるため、人間の承認で変える（ADR-0057）`, ctx);
+				ask("hook-settings", `${absPath} は hook の設定。書き換えれば guard / verify --hook を外せるため、人間の承認で変える（ADR-0057）`, ctx);
 			}
 			process.exit(0);
 		}
 		//  パスは大文字小文字を無視して比べる（大文字小文字を区別しないファイルシステムで Docs/ や Src/ から書けば素通りしないように）
 		const lower = rel.toLowerCase();
 
-		//  ログと stop-gate の状態はフック自身だけが書く。agent が書き換えれば合格の記録を偽れる
+		//  ログと Stop フック（verify --hook）の状態はフック自身だけが書く。agent が書き換えれば合格の記録を偽れる
 		if (lower === ".harness-gate" || lower.startsWith(".harness-gate/")) {
 			ctx.target = rel;
 			log("block", "harness-gate", ctx);
 			process.stderr.write(
-				`[gate-hook] ${rel}: .harness-gate/ はゲートのログと状態の置き場で、書くのはフック自身だけ。Write / Edit で書かない\n`,
+				`[guard] ${rel}: .harness-gate/ はゲートのログと状態の置き場で、書くのはフック自身だけ。Write / Edit で書かない\n`,
 			);
 			process.exit(2);
 		}
@@ -490,7 +490,7 @@ function main() {
 				problems.push(`${u.id}: 契約（${basename(u.dir)}/contract.yaml）が存在しない → Phase 3`);
 			} else if (contract.status !== "fixed") {
 				found("contract-not-fixed");
-				problems.push(`${u.id}: 契約が fixed でない（現在 ${contract.status ?? "不明"}）→ 契約を先に fixed にする（spec-lint が緑で、reviewer を起動した場合は阻止ゼロの後に orchestrator が行う）`);
+				problems.push(`${u.id}: 契約が fixed でない（現在 ${contract.status ?? "不明"}）→ 契約を先に fixed にする（lint spec が緑で、reviewer を起動した場合は阻止ゼロの後に orchestrator が行う）`);
 			}
 		}
 		if (problems.length > 0)
@@ -502,7 +502,7 @@ function main() {
 		if (!gating) process.exit(0); //  ゲート判定に入る前の不具合 → fail-open
 		//  実装コードへの書き込みを判定できない → fail-closed（判定できないまま通すとゲートが無いのと同じ）
 		log("block", "internal-error", ctx);
-		process.stderr.write(`[gate-hook] 実装着手ゲートを判定できないため、この書き込みをブロックしました（内部エラー: ${e?.message ?? e}）。docs/goals の構造を確認すること\n`);
+		process.stderr.write(`[guard] 実装着手ゲートを判定できないため、この書き込みをブロックしました（内部エラー: ${e?.message ?? e}）。docs/goals の構造を確認すること\n`);
 		process.exit(2);
 	}
 }

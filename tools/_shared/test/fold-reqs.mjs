@@ -1,7 +1,7 @@
 //  テストの支援: 入力として置いた REQ-nnn.md を、UC.md の「要件」の節の小節に畳む。
 //
 //  検査ツールのテストは、REQ を 1 つずつ書き換えながら状態を作る。入力を書く側は REQ を 1 ファイルで書き、
-//  ツールを実行する直前にここで UC.md に畳む（ADR-0067 の形にする）。本物の移行（tools/docs-migrate/merge-reqs.mjs）と違い、
+//  ツールを実行する直前にここで UC.md に畳む（ADR-0067 の形にする）。本物の移行（harness migrate reqs）と違い、
 //  形の誤った REQ（項目の欠け、知らない項目、見出しの欠けなど）も、誤りを残したまま畳む（誤りを検査が見つけることを確かめるため）。
 //  同じ ID の小節がすでにあれば置き換える。UC.md が無い場所の REQ-nnn.md は、そのまま残す。
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";

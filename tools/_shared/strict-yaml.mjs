@@ -1,4 +1,4 @@
-//  厳格サブセット YAML パーサ（spec-lint / trace-check / contract-run が共有する。依存ゼロの Node）
+//  厳格サブセット YAML パーサ（lint spec / lint refs / run cases が共有する。依存ゼロの Node）
 //  契約（contract.yaml）と共有語彙（_shared/components.yaml）を、どのツールも同じ規則で読むための唯一の実装。
 //  ツールごとに読み方が違うと、同じ契約を一方は fixed、他方は draft と読むような分裂が生じる（ADR-0056）。
 //  判断の理由は docs/adr/ADR-0002。

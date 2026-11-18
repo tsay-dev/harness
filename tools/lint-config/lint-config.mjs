@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 //
-//  config-lint — プロジェクトの設定（harness.config.json）の形の検査（harness 同梱ツール。依存ゼロの Node）
+//  lint config — プロジェクトの設定（harness.config.json）の形の検査（harness 同梱ツール。依存ゼロの Node）
 //
 //  設定には 3 種類のことを書く。
 //    1. harness が直接使う事実（docs / source / tests / commands / git など）。値の意味は、読むツールが検査する。
@@ -29,8 +29,8 @@
 //  monorepo（git.units = { 単位名: ディレクトリ }）では、ルートに続けて、設定ファイルを持つ unit を検査する。
 //
 //  使い方:
-//    node config-lint.mjs [--root <プロジェクトのルート>]
-//    node config-lint.mjs --config <設定ファイル>
+//    harness lint config [--root <プロジェクトのルート>]
+//    harness lint config --config <設定ファイル>
 //  rules の source と unit は、設定ファイルがあるディレクトリから探す。
 //
 //  終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 使い方・設定ファイルが無い・JSON として読めない
@@ -41,7 +41,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CONFIG_FILE, OPTIONAL_TOP_KEYS, renamedConfigHint, retiredKeysIn } from "../_shared/config.mjs";
 
-const TAG = "[config-lint]";
+const TAG = "[lint config]";
 const TEMPLATE =
 	process.env.CONFIG_LINT_TEMPLATE || join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "develop", CONFIG_FILE);
 
@@ -60,7 +60,7 @@ const isNone = (v) => isMap(v) && typeof v.none === "string";
 
 function usage(msg) {
 	if (msg) console.error(`${TAG} ${msg}`);
-	console.error("usage: config-lint.mjs [--root .] | [--config <設定ファイル>]");
+	console.error("usage: harness lint config [--root .] | [--config <設定ファイル>]");
 	process.exit(2);
 }
 
@@ -199,7 +199,7 @@ function main() {
 	const unitErrs = [];
 	const units = isMap(top.value.git) && isMap(top.value.git.units) ? top.value.git.units : {};
 	for (const [name, dir] of Object.entries(units)) {
-		if (typeof dir !== "string") continue; //  git.units の形は git-lint が検査する
+		if (typeof dir !== "string") continue; //  git.units の形は lint git branch が検査する
 		const p = join(root, dir, CONFIG_FILE);
 		//  外やルート自身を指す unit は読まず、違反として数える（黙って飛ばさない）
 		if (!dir.trim() || isAbsolute(dir) || outside(root, resolve(root, dir)) || resolve(root, dir) === root) {

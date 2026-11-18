@@ -1,24 +1,24 @@
 //
-//  spec-lint の回帰テスト（node --test tools/spec-lint/test/）。
-//  fixture の最小 docs を一時ディレクトリに書き、validate の終了コードと出力で判定する。
+//  lint spec の回帰テスト（node --test tools/lint-spec/test/）。
+//  fixture の最小 docs を一時ディレクトリに書き、終了コードと出力で判定する。
 //
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { writeMinimalDocs, runNode, SPEC_LINT } from "./fixture.mjs";
+import { writeMinimalDocs, runNode, LINT_SPEC } from "../../_shared/test/spec-fixture.mjs";
 
 //  一時ルートで validate を走らせる（cwd はホストのルート ＝ DEFERRED の対象パスの基準）
 function validate(opts = {}) {
-	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
+	const root = mkdtempSync(join(tmpdir(), "lint-spec-"));
 	try {
 		writeMinimalDocs(root, opts);
 		for (const [rel, text] of Object.entries(opts.hostFiles ?? {})) {
 			mkdirSync(dirname(join(root, rel)), { recursive: true });
 			writeFileSync(join(root, rel), text);
 		}
-		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		const r = runNode(LINT_SPEC, [], { cwd: root });
 		return { ...r, out: r.stdout + r.stderr };
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -77,9 +77,9 @@ test("baseline は持たない: 台帳ファイルがあっても違反は失敗
 	assert.equal(r.status, 1, r.out);
 	assert.match(r.out, /\.spec-baseline\.json: baseline は廃止した/);
 	//  空の作業場所で実行する（一時フォルダの親を作業場所にすると、ほかのテストの入力まで畳んでしまう）
-	const empty = mkdtempSync(join(tmpdir(), "spec-lint-empty-"));
+	const empty = mkdtempSync(join(tmpdir(), "lint-spec-empty-"));
 	for (const flag of ["--strict", "--update-baseline"]) {
-		const u = runNode(SPEC_LINT, ["validate", flag], { cwd: empty });
+		const u = runNode(LINT_SPEC, [flag], { cwd: empty });
 		assert.equal(u.status, 2, u.stdout + u.stderr);
 		assert.match(u.stderr, new RegExp(`${flag} は廃止した`));
 	}
@@ -202,109 +202,18 @@ test("DEFERRED.md: ID 重複・未来の起票日・存在しない対象", () =
 });
 
 test("DEFERRED.md: status は living のみ", () => {
-	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
+	const root = mkdtempSync(join(tmpdir(), "lint-spec-"));
 	try {
 		writeMinimalDocs(root, { deferredRows: [] });
 		//  fixture の外で status だけ書き換える
 		const file = join(root, "docs/verification/DEFERRED.md");
 		writeFileSync(file, readFileSync(file, "utf8").replace("status: living", "status: draft"));
-		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		const r = runNode(LINT_SPEC, [], { cwd: root });
 		assert.equal(r.status, 1, r.stdout + r.stderr);
 		assert.match(r.stdout + r.stderr, /status は living のいずれか。実際: "draft"/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
-});
-
-//  ---- gate（UC: トレーラ） -------------------------------------------------------
-//  layout: { "<docs を置くディレクトリ（ホスト直下は "."）>": 契約の x-status }
-//  units:  harness.config.json の git.units（null なら harness.config.json を置かない ＝ 単一ユニット）
-function gate(args, { layout = { ".": "fixed" }, units = null, message = null } = {}) {
-	const root = mkdtempSync(join(tmpdir(), "spec-lint-gate-"));
-	try {
-		for (const [dir, status] of Object.entries(layout)) writeMinimalDocs(join(root, dir), { status });
-		if (units) writeFileSync(join(root, "harness.config.json"), JSON.stringify({ git: { units } }));
-		if (message !== null) writeFileSync(join(root, "msg.txt"), message);
-		const r = runNode(SPEC_LINT, ["gate", ...args], { cwd: root });
-		return { ...r, out: r.stdout + r.stderr };
-	} finally {
-		rmSync(root, { recursive: true, force: true });
-	}
-}
-
-const UNITS = { "app-a": "apps/a", "app-b": "apps/b" };
-const commit = (header, trailer = "UC: UC-001") => `${header}\n\n本文\n\n${trailer}\n`;
-
-test("gate: 単一ユニットでは cwd 直下の docs で UC を引く", () => {
-	const ok = gate(["--message", "msg.txt"], { message: commit("feat(auth): ログインを足す") });
-	assert.equal(ok.status, 0, ok.out);
-	const draft = gate(["--message", "msg.txt"], { layout: { ".": "draft" }, message: commit("feat(auth): ログインを足す") });
-	assert.equal(draft.status, 1, draft.out);
-	assert.match(draft.out, /UC-001: 契約が fixed でない/);
-});
-
-test("gate: モノレポでは scope の unit の docs で UC を引く（同じ番号が別 unit にあっても混ざらない）", () => {
-	const layout = { "apps/a": "fixed", "apps/b": "draft" };
-	const a = gate(["--message", "msg.txt"], { layout, units: UNITS, message: commit("feat(app-a): ログインを足す") });
-	assert.equal(a.status, 0, a.out);
-	const b = gate(["--message", "msg.txt"], { layout, units: UNITS, message: commit("feat(app-b): ログインを足す") });
-	assert.equal(b.status, 1, b.out);
-	assert.match(b.out, /UC-001: 契約が fixed でない/);
-});
-
-test("gate: モノレポで UC が scope の unit に無ければ、その unit の docs を指して落とす", () => {
-	const r = gate(["--message", "msg.txt"], { layout: { "apps/a": "fixed" }, units: UNITS, message: commit("feat(app-b): ログインを足す") });
-	assert.equal(r.status, 1, r.out);
-	assert.match(r.out, /UC-001: 対応する UC が無い（apps\/b\/docs\/goals\//);
-});
-
-test("gate: モノレポで UC: を付けたコミットの scope が unit でなければ落とす（repo・scope なし・未宣言）", () => {
-	for (const [header, shown] of [
-		["chore(repo): 依存を上げる", "repo"],
-		["feat: ログインを足す", "（なし）"],
-		["feat(auth): ログインを足す", "auth"],
-	]) {
-		const r = gate(["--message", "msg.txt"], { layout: { "apps/a": "fixed" }, units: UNITS, message: commit(header) });
-		assert.equal(r.status, 1, r.out);
-		assert.ok(r.out.includes(`UC-001: コミットの scope ${shown} が unit でない`), r.out);
-		assert.match(r.out, /app-a \/ app-b/);
-	}
-});
-
-test("gate: UC: トレーラの無いコミットは、モノレポでも scope に関係なく素通りする", () => {
-	const r = gate(["--message", "msg.txt"], { layout: {}, units: UNITS, message: commit("chore(repo): 依存を上げる", "Refs: #1") });
-	assert.equal(r.status, 0, r.out);
-});
-
-test("gate: commit-msg ファイルの # 行は 1 行目として読まない", () => {
-	const r = gate(["--message", "msg.txt"], { layout: { "apps/a": "fixed" }, units: UNITS, message: "# コメント\n" + commit("feat(app-a): ログインを足す") });
-	assert.equal(r.status, 0, r.out);
-});
-
-test("gate: モノレポの --uc は --unit で unit を決める", () => {
-	const layout = { "apps/a": "fixed", "apps/b": "draft" };
-	const none = gate(["--uc", "UC-001"], { layout, units: UNITS });
-	assert.equal(none.status, 2, none.out);
-	assert.match(none.out, /--unit <名前> が要る（使えるのは app-a \/ app-b）/);
-	const a = gate(["--uc", "UC-001", "--unit", "app-a"], { layout, units: UNITS });
-	assert.equal(a.status, 0, a.out);
-	const b = gate(["--uc", "UC-001", "--unit", "app-b"], { layout, units: UNITS });
-	assert.equal(b.status, 1, b.out);
-	const unknown = gate(["--uc", "UC-001", "--unit", "repo"], { layout, units: UNITS });
-	assert.equal(unknown.status, 2, unknown.out);
-});
-
-test("gate: --unit は単一ユニットのホストと --message では使えない", () => {
-	const single = gate(["--uc", "UC-001", "--unit", "app-a"]);
-	assert.equal(single.status, 2, single.out);
-	const withMessage = gate(["--message", "msg.txt", "--unit", "app-a"], { layout: { "apps/a": "fixed" }, units: UNITS, message: commit("feat(app-a): ログインを足す") });
-	assert.equal(withMessage.status, 2, withMessage.out);
-});
-
-test("gate: git.units から unit を読めない harness.config.json は設定異常（2）", () => {
-	const r = gate(["--message", "msg.txt"], { layout: { "apps/a": "fixed" }, units: {}, message: commit("feat(app-a): ログインを足す") });
-	assert.equal(r.status, 2, r.out);
-	assert.match(r.out, /git\.units から unit を読めない/);
 });
 
 const linesOf = (n) => Array.from({ length: n }, (_, i) => `行 ${i + 1}`).join("\n") + "\n";
@@ -322,13 +231,13 @@ test("作業指針: 150 行を超える CLAUDE.md・AGENTS.md はそれぞれ er
 });
 
 test("frontmatter の曖昧な書き方（先頭が空白の行、キーの重複、区切りもどき）は違反（ADR-0056）", () => {
-	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
+	const root = mkdtempSync(join(tmpdir(), "lint-spec-"));
 	try {
 		writeMinimalDocs(root);
 		//  UC.md の frontmatter で確かめる（REQ は UC.md の「要件」の節の小節で、frontmatter を持たない）
 		const file = join(root, "docs/goals/GOAL-01-a/UC-001-b/UC.md");
 		writeFileSync(file, readFileSync(file, "utf8").replace(/^status: (\w+)(.*)$/m, "status: draft\n status: $1\nstatus: $1"));
-		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		const r = runNode(LINT_SPEC, [], { cwd: root });
 		const out = r.stdout + r.stderr;
 		assert.equal(r.status, 1, out);
 		assert.match(out, /先頭が空白の行がある/);
@@ -339,19 +248,19 @@ test("frontmatter の曖昧な書き方（先頭が空白の行、キーの重�
 });
 
 test("docs/goals が無ければ設定エラー（exit 2）、アクターの種別は 人間 / システム で始める", () => {
-	const root = mkdtempSync(join(tmpdir(), "spec-lint-"));
+	const root = mkdtempSync(join(tmpdir(), "lint-spec-"));
 	try {
-		const r = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		const r = runNode(LINT_SPEC, [], { cwd: root });
 		assert.equal(r.status, 2, r.stdout + r.stderr);
 		assert.match(r.stderr, /docs\/goals が無い/);
 		writeMinimalDocs(root);
 		const actors = (kind) =>
 			`---\nid: ACTORS\nstatus: living\n---\n\n# アクター\n\n## アクター一覧（この表は閉じている）\n\n| ID | アクター | 種別 | 説明 |\n| --- | --- | --- | --- |\n| ACT-01 | 利用者 | ${kind} | 登録する |\n`;
 		writeFileSync(join(root, "docs/02-actors.md"), actors("利用者（人間）"));
-		const bad = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		const bad = runNode(LINT_SPEC, [], { cwd: root });
 		assert.match(bad.stdout + bad.stderr, /ACT-01: 種別は 人間 \/ システム のどちらかで始める/);
 		writeFileSync(join(root, "docs/02-actors.md"), actors("人間 / 認証済"));
-		const good = runNode(SPEC_LINT, ["validate"], { cwd: root });
+		const good = runNode(LINT_SPEC, [], { cwd: root });
 		assert.doesNotMatch(good.stdout + good.stderr, /種別は/);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -641,7 +550,7 @@ test("契約: 撤回済みの UC の契約には、wire.path と wire.method の
 	assert.doesNotMatch(r.out, /空でない文字列で書く/, r.out);
 });
 
-test("契約: 入口の一覧と比べる項目は、exec-check と同じ判定（空でない文字列。空白だけは空）で検査する", () => {
+test("契約: 入口の一覧と比べる項目は、lint entries と同じ判定（空でない文字列。空白だけは空）で検査する", () => {
 	assert.match(validate({ contract: httpContract({ path: '" "' }) }).out, /wire\.path は、空でない文字列で書く（実際: " "。/);
 	const push = (entry) => `x-uc: UC-001\nx-status: draft\nx-spec: ./UC.md\nx-updated: 2026-09-01\n\noperations:\n  onNotice:\n    transport: push\n    direction: inbound\n    owned: true\n    auth: none\n    summary: 通知を受け取る\n    entry: ${entry}\n    request: { type: object }\n`;
 	for (const [entry, shown] of [["123", "123"], ['" "', '" "'], ["[a]", '["a"]']]) {
@@ -652,7 +561,7 @@ test("契約: 入口の一覧と比べる項目は、exec-check と同じ判定�
 	assert.doesNotMatch(validate({ contract: push("notice.updated") }).out, /entry（URL パターン/);
 });
 
-test("フォルダの数え方: goals の直下の . と _ で始まるフォルダ、ゴールの直下の . で始まるフォルダの契約は読まない（exec-check も数えない）", () => {
+test("フォルダの数え方: goals の直下の . と _ で始まるフォルダ、ゴールの直下の . で始まるフォルダの契約は読まない（lint entries も数えない）", () => {
 	const bad = "x-uc: UC-900\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n";
 	const files = {};
 	for (const dir of ["docs/goals/.stash/x", "docs/goals/_shared/x", "docs/goals/_tmp/x", "docs/goals/GOAL-01-a/.hidden"]) {
@@ -672,12 +581,12 @@ test("根: docs の隣の設定が docs.goals_dir を別の場所に宣言して
 	};
 	const r = validate({ hostFiles: alt });
 	assert.equal(r.status, 2, r.out);
-	assert.match(r.out, /spec-lint: 仕様の置き場が 2 通りに決まっている: 設定の docs\.goals_dir は .*specs\/goals、docs のフォルダ（--docs）から決まる場所は .*docs\/goals/);
+	assert.match(r.out, /lint spec: 仕様の置き場が 2 通りに決まっている: 設定の docs\.goals_dir は .*specs\/goals、docs のフォルダ（--docs）から決まる場所は .*docs\/goals/);
 	//  設定が同じ場所を指していれば、今までどおり検査する
 	assert.equal(validate({ hostFiles: { "harness.config.json": JSON.stringify({ docs: { goals_dir: "docs/goals" } }) } }).status, 0);
 });
 
-test("フォルダの数え方: ゴールの直下の _ で始まるフォルダも読まない（goals の直下と同じ決まり。trace-check が配置の違反にする）", () => {
+test("フォルダの数え方: ゴールの直下の _ で始まるフォルダも読まない（goals の直下と同じ決まり。lint refs が配置の違反にする）", () => {
 	const r = validate({ hostFiles: { "docs/goals/GOAL-01-a/_draft/UC.md": "---\nid: UC-900\nstatus: active\n---\n", "docs/goals/GOAL-01-a/_draft/contract.yaml": "x-uc: UC-900\nx-status: fixed\noperations:\n  wipe:\n    bogus: 1\n" } });
 	assert.equal(r.status, 0, r.out);
 });

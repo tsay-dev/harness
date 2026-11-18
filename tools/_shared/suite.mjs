@@ -1,23 +1,23 @@
 //  suite — 完了の判定が実行する検査の並び（共有の部品。単独では実行しない）
 //
-//  Stop フック（stop-gate.mjs）と、CI・手元から呼ぶ verify.mjs が、同じ並びを同じ規則で実行する。
+//  Stop フック（harness verify --hook）と、CI・手元から呼ぶ harness verify が、同じ並びを同じ規則で実行する。
 //  検査の並びを 2 か所に書くと、フックで通って CI で落ちる（またはその逆の）食い違いになる。
 //
 //  検査の並び（level で、どこまで実行するかを選ぶ）:
 //    level lint 以上（読むだけ。利用プロジェクトのコマンドは実行しない）
-//      1. config-lint                  設定の形（ルートで 1 回。unit の設定も config-lint が読む）
-//      2. spec-lint validate           仕様の文書の書式と状態の決まり
-//      3. trace-check                  仕様・コード・テストの ID の紐づき
-//         exec-check entry             テストの入口が、本番と同じ組み立てを呼んでいるか
-//         exec-check entries           commands.list_entries がコマンドでないとき（未宣言・none・形の誤り）は、ここで読むだけの判定をする
+//      1. lint config                  設定の形（ルートで 1 回。unit の設定も lint config が読む）
+//      2. lint spec                    仕様の文書の書式と状態の決まり
+//      3. lint refs                    仕様・コード・テストの ID の紐づき
+//         lint entry                   テストの入口が、本番と同じ組み立てを呼んでいるか
+//         lint entries                 commands.list_entries がコマンドでないとき（未宣言・none・形の誤り）は、ここで読むだけの判定をする
 //                                      （none にできるのは、撤回されていない UC の fixed の契約に inbound の操作が無い間だけ）
 //      commands の宣言の検査（typecheck / lint / test / system は、コマンドか理由付きの none が必須）
 //    level fast 以上
-//      4. commands.list_entries → exec-check entries
+//      4. commands.list_entries → lint entries
 //                                      アプリの入口の一覧をコマンドに出させ、契約と突き合わせる（契約に無い入口・入口の無い操作）。
-//                                      exec-check は読むだけなので、コマンドはここで実行し、標準出力を一時ファイルに書いて渡す
-//         contract-run                 契約の実例を実装に当てて実行する
-//      5. commands.typecheck → lint → test → exec-check coverage（test が書いた実行の記録で、どのテストからも
+//                                      lint entries は読むだけなので、コマンドはここで実行し、標準出力を一時ファイルに書いて渡す
+//         run cases                    契約の実例を実装に当てて実行する
+//      5. commands.typecheck → lint → test → lint coverage（test が書いた実行の記録で、どのテストからも
 //         実行されなかったソースが無いか）→ commands.extra の各コマンド（書いた順）
 //    level full
 //      6. commands.system              シナリオテスト全件
@@ -37,13 +37,16 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
-import { goalsRootOf } from "../_shared/spec-tree.mjs";
+import { commandFile } from "./command-file.mjs";
+import { CONFIG_FILE, renamedConfigHint } from "./config.mjs";
+import { goalsRootOf } from "./spec-tree.mjs";
 
 export const LEVELS = ["lint", "fast", "full"];
 export const COMMAND_KEYS = ["typecheck", "lint", "test", "system"];
-//  検査の指紋に入れる、使う harness ツール（tools/ からの相対パス）
-export const TOOL_SCRIPTS = ["config-lint/config-lint.mjs", "spec-lint/spec-lint.mjs", "trace-check/trace-check.mjs", "exec-check/exec-check.mjs", "contract-run/contract-run.mjs", "gate-hook/suite.mjs"];
+//  検査の並びが実行するコマンド。ファイルの場所は、コマンドの語から決まる（command-file.mjs）。
+//  検査の指紋にも入れる（コマンドのファイルが変われば、同じツリーでも結果が変わる。共有の処理 _shared/*.mjs は、指紋を作る側が足す）
+export const SUITE_COMMANDS = ["lint config", "lint spec", "lint refs", "lint entry", "lint entries", "lint coverage", "run cases"];
+export const suiteCommandFiles = (toolsDir) => SUITE_COMMANDS.map((c) => commandFile(toolsDir, c.split(" ")));
 
 const MAX_OUTPUT = 8 * 1024 * 1024; //  1 つの検査の出力のうち、覚えておく末尾の量
 const posix = process.platform !== "win32";
@@ -214,7 +217,7 @@ export const tailLines = (text, n) => {
 
 //  検査を実行する。
 //    root: プロジェクトのルート / configPath: ルートの設定 / loaded: readConfig(configPath) の結果
-//    opts: { docs, timeout, level, only: [unit の名前], ignoreLegacyLayout: 旧レイアウトが残っていても続ける（spec-lint へ渡す。移行中だけ） }
+//    opts: { docs, timeout, level, only: [unit の名前], ignoreLegacyLayout: 旧レイアウトが残っていても続ける（lint spec へ渡す。移行中だけ） }
 //  戻り: { failures, skipped, notes, ran, outputs }
 export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 	const q = (p) => `"${p.replace(/"/g, '\\"')}"`;
@@ -241,15 +244,15 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		skipped.push(name);
 		notes.push(`[verify] skip: ${why}`);
 	};
-	const tool = (name) => q(join(toolsDir, name, `${name}.mjs`));
-	const specLint = (label, docsDir) => run(`spec-lint${label}`, `node ${tool("spec-lint")} validate --docs ${q(docsDir)}${opts.ignoreLegacyLayout ? " --ignore-legacy-layout" : ""}`);
+	const tool = (command) => q(commandFile(toolsDir, command.split(" ")));
+	const specLint = (label, docsDir) => run(`lint spec${label}`, `node ${tool("lint spec")} --docs ${q(docsDir)}${opts.ignoreLegacyLayout ? " --ignore-legacy-layout" : ""}`);
 
 	const { cfg } = loaded;
 	if (loaded.missing) {
 		//  設定が無いことは「検査しない理由」ではなく失敗（紐づきの検査は黙って省かない / ADR-0056）
 		await specLint("", resolve(root, opts.docs));
 		fail(
-			"trace-check",
+			"lint refs",
 			`${CONFIG_FILE} が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/${CONFIG_FILE} から置き、対象が無い範囲は { "none": "<理由>" } と宣言する${renamedConfigHint(configPath)}`,
 		);
 		return { failures, skipped, notes, ran, outputs };
@@ -260,24 +263,24 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		return { failures, skipped, notes, ran, outputs };
 	}
 
-	//  1. 設定の形（unit の設定も config-lint が読む）
-	await run("config-lint", `node ${tool("config-lint")} --config ${q(configPath)}`);
+	//  1. 設定の形（unit の設定も lint config が読む）
+	await run("lint config", `node ${tool("lint config")} --config ${q(configPath)}`);
 
 	//  2〜4 を 1 組の docs / 設定に対して実行する（失敗を集める）
 	const checkDocs = async (label, unitRoot, docsDir, cfgPath, unitCfg) => {
-		//  spec-lint・contract-run には docs のフォルダを、trace-check・exec-check には設定を渡す。2 つが別の木を指していれば、
-		//  ツールごとに別の契約を読むので、検査を実行せずに失敗にする（根の決め方は tools/_shared/spec-tree.mjs）
+		//  lint spec・run cases には docs のフォルダを、lint refs・lint entry・lint entries には設定を渡す。2 つが別の木を指していれば、
+		//  コマンドごとに別の契約を読むので、検査を実行せずに失敗にする（根の決め方は tools/_shared/spec-tree.mjs）
 		const tree = goalsRootOf({ docsDir, hostRoot: unitRoot, cfg: unitCfg });
 		if (tree.error) {
 			fail(`config${label}`, `${tree.error}（${cfgPath}）`);
 			return;
 		}
 		await specLint(label, docsDir);
-		await run(`trace-check${label}`, `node ${tool("trace-check")} --root ${q(unitRoot)} --config ${q(cfgPath)}`);
-		await run(`entry${label}`, `node ${tool("exec-check")} entry --root ${q(unitRoot)} --config ${q(cfgPath)}`);
+		await run(`lint refs${label}`, `node ${tool("lint refs")} --root ${q(unitRoot)} --config ${q(cfgPath)}`);
+		await run(`entry${label}`, `node ${tool("lint entry")} --root ${q(unitRoot)} --config ${q(cfgPath)}`);
 		//  入口の一覧と契約の突き合わせ。一覧を出すコマンドは利用プロジェクトのものなので、level fast 以上でだけ実行する。
-		//  コマンドでない宣言（未宣言・none・形の誤り）は、exec-check が読むだけで判定できるので、level によらず渡す
-		const entriesCheck = `node ${tool("exec-check")} entries --root ${q(unitRoot)} --config ${q(cfgPath)}`;
+		//  コマンドでない宣言（未宣言・none・形の誤り）は、lint entries が読むだけで判定できるので、level によらず渡す
+		const entriesCheck = `node ${tool("lint entries")} --root ${q(unitRoot)} --config ${q(cfgPath)}`;
 		const listCmd = isMap(unitCfg.commands) ? unitCfg.commands.list_entries : undefined;
 		if (typeof listCmd !== "string" || !listCmd.trim()) await run(`entries${label}`, entriesCheck);
 		else if (level < 1) skip(`entries${label}`, `entries${label}（--level lint では、入口の一覧を出すコマンド commands.list_entries を実行しない）`);
@@ -300,8 +303,8 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 				tempDirs.delete(dir);
 			}
 		}
-		if (level >= 1) await run(`contract-run${label}`, `node ${tool("contract-run")} --root ${q(unitRoot)} --config ${q(cfgPath)} --docs ${q(docsDir)}`);
-		else skip(`contract-run${label}`, `contract-run${label}（--level lint では実行しない）`);
+		if (level >= 1) await run(`run cases${label}`, `node ${tool("run cases")} --root ${q(unitRoot)} --config ${q(cfgPath)} --docs ${q(docsDir)}`);
+		else skip(`run cases${label}`, `run cases${label}（--level lint では実行しない）`);
 	};
 
 	//  5〜6: commands の宣言（欠落・型の誤りは失敗）と実行
@@ -336,7 +339,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 			//  （ファイルの時刻の粒度の分だけ、2 秒さかのぼる）
 			const since = Date.now() - 2000;
 			if (!(await run(s.name, s.decl.cmd, cwd))) break;
-			if (s.key === "test" && !(await run(`coverage${label}`, `node ${tool("exec-check")} coverage --root ${q(cwd)} --config ${q(cfgPath)} --since ${since}`))) break;
+			if (s.key === "test" && !(await run(`coverage${label}`, `node ${tool("lint coverage")} --root ${q(cwd)} --config ${q(cfgPath)} --since ${since}`))) break;
 		}
 	};
 
@@ -363,7 +366,7 @@ export async function runSuite(root, opts, toolsDir, configPath, loaded) {
 		if (!existsSync(unitCfgPath)) {
 			if (existsSync(unitDocs))
 				fail(
-					`trace-check:${name}`,
+					`lint refs:${name}`,
 					`unit ${name}（${dir}）は docs を持つのに ${dir}/${CONFIG_FILE} が無い。紐づきの検査は省略できない（ADR-0056）。templates/develop/${CONFIG_FILE} から置く${renamedConfigHint(unitCfgPath)}`,
 				);
 			else if (renamedConfigHint(unitCfgPath)) fail(`config:${name}`, `unit ${name}（${dir}）に ${dir}/${CONFIG_FILE} が無い${renamedConfigHint(unitCfgPath)}`);

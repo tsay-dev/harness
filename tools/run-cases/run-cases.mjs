@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 //
-//  contract-run — 契約 ↔ 実装の実行検査（harness 同梱ツール。依存ゼロの Node）
+//  run cases — 契約 ↔ 実装の実行検査（harness 同梱ツール。依存ゼロの Node）
 //
-//  spec-lint は契約の「書式」を、trace-check は「参照」を検査する。本ツールはその先、
+//  lint spec は契約の「書式」を、lint refs は「参照」を検査する。本ツールはその先、
 //  fixed な契約に書かれた examples（正常 1 件以上＋エラーコードごとの異常 1 件以上の実値）を
 //  ホスト実装に対して実際に呼び、返答が契約どおりかを機械で判定する。
 //  examples はテンプレートで既に必須の実値なので、そのままフィクスチャとして使う。
@@ -26,7 +26,7 @@
 //    response も error も無い例: 例の不備として fail
 //
 //  使い方:
-//    node contract-run.mjs [--root <host root>] [--config harness.config.json] [--docs docs]
+//    harness run cases [--root <host root>] [--config harness.config.json] [--docs docs]
 //                          [--uc UC-012 ...] [--all] [--include-external] [--json] [--timeout 120]
 //      --uc                 x-uc で絞る（複数可）
 //      --all                draft の契約も実行する（既定は x-status: fixed だけ）
@@ -45,7 +45,7 @@ import { lineOf, parseStrictYaml } from "../_shared/strict-yaml.mjs";
 import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
 import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
 
-const TAG = "[contract-run]";
+const TAG = "[run cases]";
 
 //  ---- 設定 -------------------------------------------------------------------
 
@@ -68,7 +68,7 @@ function loadConfig(configPath) {
 //  ---- 契約の収集 ---------------------------------------------------------------
 
 //  仕様の木の UC のフォルダの contract.yaml を集める。どのフォルダを UC として数えるかは tools/_shared/spec-tree.mjs
-//  （spec-lint・trace-check・exec-check と同じ。ほかのツールが検査しない場所の契約は、実行もしない）
+//  （lint spec・lint refs・lint entries と同じ。ほかのツールが検査しない場所の契約は、実行もしない）
 function findContracts(goalsRoot) {
 	return allUcDirs(goalsRoot)
 		.map(({ ucDir }) => join(ucDir, "contract.yaml"))
@@ -76,7 +76,7 @@ function findContracts(goalsRoot) {
 		.sort();
 }
 
-//  契約 1 件を「実行する例」の列に落とす。書式の妥当性は spec-lint の仕事なので、
+//  契約 1 件を「実行する例」の列に落とす。書式の妥当性は lint spec の仕事なので、
 //  ここでは実行に要る最小限（operations がマップ、example がマップ）だけを見る
 function planContract(file, root, opts) {
 	const uc = root["x-uc"] || basename(join(file, ".."));
@@ -381,7 +381,7 @@ async function main() {
 	for (const file of findContracts(tree.root)) {
 		const { root: node, problems } = parseStrictYaml(readFileSync(file, "utf8"));
 		if (problems.length) {
-			console.error(`${TAG} 契約が読めない: ${file}:${problems[0].line} ${problems[0].msg}（spec-lint validate で直す）`);
+			console.error(`${TAG} 契約が読めない: ${file}:${problems[0].line} ${problems[0].msg}（lint spec で直す）`);
 			return 2;
 		}
 		const plan = planContract(file, node, opts);

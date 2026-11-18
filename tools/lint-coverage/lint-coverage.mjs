@@ -1,19 +1,14 @@
 #!/usr/bin/env node
 //
-//  exec-check — テストが本番と同じ組み立てを通り、ソースが実際に実行され、アプリの入口が契約と合っているかの検査
-//  （harness 同梱ツール。依存ゼロの Node）
+//  lint coverage — テストの実行の記録を読み、どのテストからも実行されなかったソースと関数を洗い出す検査（harness lint coverage。依存ゼロの Node）
 //
-//  テストが通っていても、テストが本番とは別の組み立てを通っていたり、どのテストからも実行されないコードが
-//  残っていたり、契約に無い入口がアプリに残っていたりすると、仕様どおりに動くことの裏付けにならない。
+//  テストが通っていても、どのテストからも実行されないコードが残っていれば、仕様どおりに動くことの裏付けにならない。
 //  実装のコードに書く印（名乗り）ではなく、実行の記録と、アプリ自身が出した入口の一覧で確かめる（ADR-0066 / ADR-0070）。
-//  このツールはファイルと記録を読むだけで、テストもコマンドも実行しない（実行の記録は利用プロジェクトのテストのコマンドが、
-//  入口の一覧は commands.list_entries のコマンドが作る。完了の判定では、検査の並び tools/gate-hook/suite.mjs が実行して渡す）。
+//  このコマンドはファイルと記録を読むだけで、テストもコマンドも実行しない（完了の判定では、検査の並び tools/_shared/suite.mjs が実行して渡す）。
+//  引数と設定の読み方は tools/_shared/entry.mjs（lint entry・lint coverage・lint entries で同じ）。
+//  実行の記録は、利用プロジェクトのテストのコマンドが作る。
 //
 //  設定（harness.config.json）:
-//    "entry": {
-//      "compose": "apps/api/src/compose.ts#assembleApps",      本番の組み立て（<ファイル>#<名前>）
-//      "test_entry": "tests/support/app.ts#createTestApp"       テストの入口（<ファイル>#<名前>）
-//    }
 //    "coverage": {
 //      "report": "coverage/lcov.info",                          実行の記録（lcov 形式）。テストのコマンドが毎回作る
 //      "scope": ["apps/api/src", "packages/shared/src"],        この記録で確かめるソースの範囲（glob。! で除外）。省略すると source.dirs の全部
@@ -21,157 +16,37 @@
 //                  { "path": "src/a.ts#legacy", "reason": "…" }]  …と、呼ばれないことを認めた関数（<ファイル>#<関数の名前>）
 //      "functions": { "none": "<理由>" }                        関数の単位の検査（V6・V7）を使わないとき。省略すると使う
 //    }
-//    "commands": { "list_entries": "node scripts/list-entries.mjs" }   アプリの入口の一覧を 1 行 1 件の JSON で標準出力に出すコマンド
-//  entry と coverage は { "none": "<理由>" } と書ける。省略したものは「未宣言」と表示する（確かめていないことを見えるままにする）。
-//  commands.list_entries は、コマンドか { "none": "<理由>" } を必ず書く（none は、撤回されていない UC の fixed の契約に inbound の操作が無い間だけ通る）。
-//  active な REQ と source があるプロジェクトでは、coverage の none・省略・形の誤りを trace-check の C26 が違反にする。
+//  coverage は { "none": "<理由>" } と書ける。省略すると「未宣言」と表示する（確かめていないことを見えるままにする）。
+//  active な REQ と source があるプロジェクトでは、coverage の none・省略・形の誤りを lint refs の C26 が違反にする。
 //
 //  検査項目:
-//    entry（harness lint entry）
-//      X1  compose と test_entry は「<ファイル>#<名前>」の形で、ファイルが実在し、その中に名前が現れる
-//      X2  test_entry のファイルの中に、compose の名前が現れる（テストの入口が、本番の組み立てを呼んでいる）
-//    coverage（harness lint coverage）
-//      V1  記録が実在し、lcov として読めて、--since より新しい（古い記録で通さない）
-//      V2  範囲（coverage.scope。省略すると source.dirs）に入るソースのファイルが、すべて記録に載っている
-//          （not_run に書いたファイルは、載っていなくてもよい）。
-//          範囲の外のソースは確かめず、件数を毎回表示する（確かめていない範囲を見えるままにする）
-//      V3  実行する行を持つソースのファイルは、1 行以上実行されている（not_run に書いたファイルを除く）
-//      V4  not_run の各項目は、path がソースのファイルか「<ファイル>#<関数の名前>」で、reason があり、実際に 1 行も実行されていない
-//          （関数なら 1 回も呼ばれていない）。実行されるようになったら、項目を消す
-//      V5  entry.compose のファイルが実行されている（entry を宣言しているとき）。記録に関数ごとの情報（FN / FNDA）が
-//          あれば、compose の名前の関数が 1 回以上呼ばれていることまで確かめる
-//      V6  範囲に入るソースの名前のある関数は、1 回以上呼ばれている（not_run に書いた関数と、V3 で違反になるファイルを除く）。
-//          名前の無い関数（記録の名前が ( や < で始まるものと anonymous_<数字>。無名のコールバックなど）は対象にしない
-//      V7  記録に関数ごとの情報（FN / FNDA）がある。出さない道具を使うなら coverage.functions を { "none": "<理由>" } にする。
-//          「FNF:0」は、そのファイルが関数を持たないことの印にだけ使う（FN / FNDA の代わりには数えない）
-//    entries（harness lint entries）
-//      入口と操作は、文字の完全一致で比べる（http は method と path、それ以外は名前。harness はパスを解釈しない）
-//      E1  一覧にある入口が、撤回されていない UC の fixed の契約の、inbound の操作のどれにも合わない。
-//          合う操作が 1 つも無い入口（契約に無い入口）と、合う操作が fixed でない契約にしか無い入口の 2 通りを、文を分けて報告する。
-//          契約の外の入口を認める宣言は無い。生存確認や静的なファイルの配信も、契約の操作として書く
-//      E2  fixed の契約の、owned かつ inbound の操作に合う入口が、一覧に無い
-//      E4  一覧か、契約の操作の入口を読めない（当てはまる場合の一覧は README の検査項目の表）
-//      （E3 は欠番。契約に書かない入口の宣言 entries.outside_contract の検査だったが、その宣言を廃止した）
+//    V1  記録が実在し、lcov として読めて、--since より新しい（古い記録で通さない）
+//    V2  範囲（coverage.scope。省略すると source.dirs）に入るソースのファイルが、すべて記録に載っている
+//        （not_run に書いたファイルは、載っていなくてもよい）。
+//        範囲の外のソースは確かめず、件数を毎回表示する（確かめていない範囲を見えるままにする）
+//    V3  実行する行を持つソースのファイルは、1 行以上実行されている（not_run に書いたファイルを除く）
+//    V4  not_run の各項目は、path がソースのファイルか「<ファイル>#<関数の名前>」で、reason があり、実際に 1 行も実行されていない
+//        （関数なら 1 回も呼ばれていない）。実行されるようになったら、項目を消す
+//    V5  entry.compose のファイルが実行されている（entry を宣言しているとき）。記録に関数ごとの情報（FN / FNDA）が
+//        あれば、compose の名前の関数が 1 回以上呼ばれていることまで確かめる
+//    V6  範囲に入るソースの名前のある関数は、1 回以上呼ばれている（not_run に書いた関数と、V3 で違反になるファイルを除く）。
+//        名前の無い関数（記録の名前が ( や < で始まるものと anonymous_<数字>。無名のコールバックなど）は対象にしない
+//    V7  記録に関数ごとの情報（FN / FNDA）がある。出さない道具を使うなら coverage.functions を { "none": "<理由>" } にする。
+//        「FNF:0」は、そのファイルが関数を持たないことの印にだけ使う（FN / FNDA の代わりには数えない）
 //  確かめるのは「1 回も実行されなかったファイル・関数が無いこと」まで。行ごとの割合のしきい値は持たない。
 //
 //  使い方:
-//    node exec-check.mjs entry    [--root <プロジェクトのルート>] [--config <設定ファイル>]
-//    node exec-check.mjs coverage [--root <プロジェクトのルート>] [--config <設定ファイル>] [--since <エポックからのミリ秒>]
-//    node exec-check.mjs entries  [--root <プロジェクトのルート>] [--config <設定ファイル>] [--from <入口の一覧のファイル>]
-//                                 --from を省くと、一覧を標準入力から読む（<一覧を出すコマンド> | node exec-check.mjs entries）
+//    harness lint coverage [--root <プロジェクトのルート>] [--config <設定ファイル>] [--since <エポックからのミリ秒>]
 //
 //  終了コード: 0 = 違反なし（未宣言・none を含む） / 1 = 違反あり / 2 = 使い方・設定ファイルが無い・JSON として読めない
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { CONFIG_FILE, renamedConfigHint } from "../_shared/config.mjs";
-import { allUcDirs, goalsRootOf } from "../_shared/spec-tree.mjs";
-import { ENTRY_TRANSPORTS, TRANSPORTS, isFilledText } from "../_shared/contract-vocab.mjs";
-import { parseFrontmatter } from "../_shared/frontmatter.mjs";
 import { inScope } from "../_shared/glob.mjs";
-import { parseStrictYaml } from "../_shared/strict-yaml.mjs";
+import { isMap, isNone, isText, openProject, posixPath, readEntry, tagOf } from "../_shared/entry.mjs";
 
-const TAG = "[exec-check]";
-const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-const isText = (v) => typeof v === "string" && v.trim() !== "";
-const isNone = (v) => isMap(v) && typeof v.none === "string" && v.none.trim() !== "";
-const posixPath = (p) => p.split(sep).join("/");
-
-function usage(msg) {
-	if (msg) console.error(`${TAG} ${msg}`);
-	console.error("usage: exec-check.mjs entry|coverage|entries [--root .] [--config <設定ファイル>] [--since <ms>] [--from <入口の一覧のファイル>]");
-	process.exit(2);
-}
-
-function parseArgs(argv) {
-	const mode = argv[0];
-	if (mode !== "entry" && mode !== "coverage" && mode !== "entries") usage(mode === undefined ? "entry・coverage・entries のどれかを指定する" : `知らないコマンド: ${mode}`);
-	const opts = { mode, root: ".", config: null, since: null, from: null };
-	for (let i = 1; i < argv.length; i++) {
-		const a = argv[i];
-		if (a === "--root" || a === "--config" || a === "--since" || a === "--from") {
-			if (argv[i + 1] === undefined) usage(`${a} に値が無い`);
-			opts[a.slice(2)] = argv[++i];
-		} else usage(`知らない引数: ${a}`);
-	}
-	if (opts.since !== null) {
-		if (mode !== "coverage") usage("--since は coverage でだけ使える");
-		if (!/^\d+$/.test(opts.since)) usage("--since はエポックからのミリ秒（整数）");
-		opts.since = Number(opts.since);
-	}
-	if (opts.from !== null && mode !== "entries") usage("--from は entries でだけ使える");
-	return opts;
-}
-
-function loadConfig(configPath) {
-	if (!existsSync(configPath)) {
-		console.error(`${TAG} 設定が無い: ${configPath}（テンプレート templates/develop/${CONFIG_FILE} を host 直下に置く）${renamedConfigHint(configPath)}`);
-		process.exit(2);
-	}
-	try {
-		const cfg = JSON.parse(readFileSync(configPath, "utf8"));
-		if (!isMap(cfg)) throw new Error("最上位がオブジェクトでない");
-		return cfg;
-	} catch (e) {
-		console.error(`${TAG} ${configPath}: JSON として読めない（${e.message}）`);
-		process.exit(2);
-	}
-}
-
-//  text の中に、識別子 name が（より長い識別子の一部としてではなく）現れるか
-function hasName(text, name) {
-	const esc = name.replace(/\$/g, "\\$");
-	return new RegExp(`(?<![\\p{ID_Continue}$])${esc}(?![\\p{ID_Continue}$])`, "u").test(text);
-}
-
-//  「<ファイル>#<名前>」を読む。誤りは errs に積んで null を返す
-function parseRef(key, value, root, errs) {
-	if (!isText(value)) {
-		errs.push(`X1  entry.${key} が無い（「<ファイル>#<名前>」で書く）`);
-		return null;
-	}
-	const m = /^([^#]+)#([\p{ID_Start}_$][\p{ID_Continue}$]*)$/u.exec(value.trim());
-	if (!m) {
-		errs.push(`X1  entry.${key} は「<ファイル>#<名前>」の形で書く。名前は識別子 1 つ（文字・数字・_・$。「.」や「::」でつないだ名前は書けない）（実際: ${value}）`);
-		return null;
-	}
-	const [, file, name] = m;
-	const abs = resolve(root, file);
-	const rel = relative(root, abs);
-	if (isAbsolute(file) || rel === ".." || rel.startsWith(`..${sep}`) || !existsSync(abs) || !statSync(abs).isFile()) {
-		errs.push(`X1  entry.${key} のファイルが無い: ${file}`);
-		return null;
-	}
-	const text = readFileSync(abs, "utf8");
-	if (!hasName(text, name)) {
-		errs.push(`X1  entry.${key} の名前「${name}」が ${file} の中に無い`);
-		return null;
-	}
-	return { file: posixPath(rel), name, text };
-}
-
-//  entry を読む。戻り: { state: "undeclared" | "none" | "declared", reason?, compose?, testEntry?, errs }
-function readEntry(cfg, root) {
-	const errs = [];
-	if (!("entry" in cfg)) return { state: "undeclared", errs };
-	if (isNone(cfg.entry)) return { state: "none", reason: cfg.entry.none, errs };
-	if (!isMap(cfg.entry)) {
-		errs.push('X1  entry は { "compose", "test_entry" } か { "none": "<理由>" } で書く');
-		return { state: "declared", errs };
-	}
-	for (const k of Object.keys(cfg.entry)) if (k !== "compose" && k !== "test_entry") errs.push(`X1  entry に知らないキー「${k}」がある（compose と test_entry だけ）`);
-	const compose = parseRef("compose", cfg.entry.compose, root, errs);
-	const testEntry = parseRef("test_entry", cfg.entry.test_entry, root, errs);
-	if (compose && testEntry) {
-		if (compose.file === testEntry.file) errs.push(`X2  entry.compose と entry.test_entry が同じファイルを指している（${compose.file}）。本番の組み立てとテストの入口は別のファイルに置く`);
-		else if (!hasName(testEntry.text, compose.name))
-			errs.push(
-				`X2  テストの入口（${testEntry.file}）の中に、本番の組み立ての名前「${compose.name}」が無い。テストの入口のファイルから、本番の組み立てを名前で直接呼ぶ（別のファイルを経由して呼ぶ形は、ここでは確かめられない）`,
-			);
-	}
-	return { state: "declared", compose, testEntry, errs };
-}
+const TAG = tagOf("coverage");
 
 //  ---- ソースのファイル --------------------------------------------------------
 
@@ -420,213 +295,9 @@ function checkCoverage(cfg, root, since, entry) {
 	};
 }
 
-//  ---- 入口の一覧と契約の突き合わせ（entries） -----------------------------------
-
-//  入口の突き合わせは、文字の完全一致で行う。http は method と path、それ以外は名前を、一覧と契約でそのまま比べる。
-//  harness はパスを解釈しない（:id と {id} を同じとみなさない。* を特別に扱わない。末尾の / も大文字小文字もならさない）。
-//  枠組みの書き方から契約の書き方へ直すのは、一覧を出すスクリプト（commands.list_entries）の役目（ADR-0070）
-
-//  入口の種類は、契約の transport と同じ語彙（tools/_shared/contract-vocab.mjs）。一覧の kind に使う
-const ENTRY_KINDS = TRANSPORTS;
-
-//  入口の同一性（突き合わせに使う鍵）と、表示の書き方。鍵は、項目の並びを JSON にしたもの（項目の中の文字で、別の入口と同じ鍵にならない）
-const httpEntry = (method, path) => ({ key: JSON.stringify(["http", method, path]), label: `${method} ${path}` });
-const namedEntry = (kind, name) => ({ key: JSON.stringify([kind, name]), label: `${kind} ${name}` });
-//  項目が「書いてある」かの判定は isFilledText（spec-lint と同じもの。空白だけは空とみなす）
-
-//  契約の操作 1 つから、入口を読む。戻り: null（inbound でない） / { key, label } /
-//  { label, field, problem }（比べる項目が、空でない文字列になっていない。transport が入口の種類に無い）
-function inboundEntryOf(name, op) {
-	if (!isMap(op) || op.direction !== "inbound") return null;
-	if (op.transport === "http") {
-		const wire = isMap(op.wire) ? op.wire : {};
-		for (const k of ["method", "path"])
-			if (!isFilledText(wire[k])) return { label: `http（wire.${k}: ${JSON.stringify(wire[k] ?? null)}）`, field: `wire.${k}`, problem: `空でない文字列でない（実際: ${JSON.stringify(wire[k] ?? null)}）` };
-		return httpEntry(wire.method, wire.path);
-	}
-	if (!TRANSPORTS.includes(op.transport)) return { label: `transport: ${JSON.stringify(op.transport ?? null)}`, field: "transport", problem: `入口の種類（${ENTRY_KINDS.join(" / ")}）に無い` };
-	if (!ENTRY_TRANSPORTS.includes(op.transport)) return namedEntry(op.transport, name);
-	if (!isFilledText(op.entry)) return { label: `${op.transport}（entry: ${JSON.stringify(op.entry ?? null)}）`, field: "entry", problem: `空でない文字列でない（実際: ${JSON.stringify(op.entry ?? null)}）` };
-	return namedEntry(op.transport, op.entry);
-}
-
-//  撤回されていない UC の契約の inbound の操作: [{ id: "UC-nnn#操作名", key, label, status, fixed, fixedOwned }]
-//  入口を読めない操作（wire.method・wire.path・entry が空でない文字列でない、transport が入口の種類に無い）は { id, label, field, problem } で、key を持たない
-//  status は契約の x-status（無ければ null）。入口の突き合わせ先（E1）にするのは fixed の契約の操作だけ（draft の契約は、人が承認していない）
-//  契約の読み方は tools/_shared/strict-yaml.mjs（spec-lint / trace-check / contract-run と同じ）。構文の誤りは spec-lint が報告し、ここは読めた分だけ使う
-function inboundOperations(cfg, root) {
-	//  根の決め方と、フォルダの数え方は tools/_shared/spec-tree.mjs（spec-lint が検査しない場所の契約を、突き合わせ先に数えない）
-	const goals = goalsRootOf({ hostRoot: root, cfg }).root;
-	if (goals === null) return null;
-	const out = [];
-	for (const { ucDir: udir } of allUcDirs(goals)) {
-		const ucFile = join(udir, "UC.md");
-		const file = join(udir, "contract.yaml");
-		if (!existsSync(ucFile) || !existsSync(file)) continue;
-		const uc = parseFrontmatter(readFileSync(ucFile, "utf8")).data;
-		if (uc.status === "withdrawn") continue;
-		const { root: doc } = parseStrictYaml(readFileSync(file, "utf8"));
-		if (!isMap(doc) || !isMap(doc.operations)) continue;
-		for (const [name, op] of Object.entries(doc.operations)) {
-			const e = inboundEntryOf(name, op);
-			if (e === null) continue;
-			const status = typeof doc["x-status"] === "string" ? doc["x-status"] : null;
-			out.push({ id: `${uc.id ?? "?"}#${name}`, ...e, status, fixed: status === "fixed", fixedOwned: status === "fixed" && op.owned === true });
-		}
-	}
-	return out;
-}
-
-//  一覧（1 行 1 件の JSON）を読む。戻り: { entries: [{ key, label, line }], errs }
-function parseEntryList(text) {
-	const errs = [];
-	const entries = [];
-	const seen = new Map();
-	text.split(/\r?\n/).forEach((raw, i) => {
-		if (!raw.trim()) return;
-		const at = `一覧の ${i + 1} 行目`;
-		let v;
-		try {
-			v = JSON.parse(raw);
-		} catch {
-			errs.push(`E4  ${at}が JSON でない: ${raw.trim().slice(0, 80)}（1 行に 1 件の JSON を出す。それ以外の出力は標準エラーへ出す）`);
-			return;
-		}
-		if (!isMap(v) || !ENTRY_KINDS.includes(v.kind)) {
-			errs.push(`E4  ${at}: kind が無いか、知らない種類（${ENTRY_KINDS.join(" / ")} のどれかにする）`);
-			return;
-		}
-		const want = v.kind === "http" ? ["kind", "method", "path"] : ["kind", "name"];
-		const unknown = Object.keys(v).filter((k) => !want.includes(k));
-		if (unknown.length) errs.push(`E4  ${at}: 知らない項目「${unknown.join("、")}」がある（kind が ${v.kind} なら ${want.join("・")} だけ）`);
-		let e;
-		if (v.kind === "http") {
-			if (!isFilledText(v.method) || !isFilledText(v.path)) {
-				errs.push(`E4  ${at}: kind が http の入口は、method と path を、空でない文字列で持つ（契約の wire.method・wire.path と、文字どおり同じに書く）`);
-				return;
-			}
-			e = httpEntry(v.method, v.path);
-		} else {
-			if (!isFilledText(v.name)) {
-				errs.push(`E4  ${at}: kind が ${v.kind} の入口は、name を、空でない文字列で持つ（契約の entry と、文字どおり同じに書く。entry を持たない種類は操作の名前）`);
-				return;
-			}
-			e = namedEntry(v.kind, v.name);
-		}
-		if (seen.has(e.key)) errs.push(`E4  ${at}: 同じ入口が ${seen.get(e.key)} 行目にもある: ${e.label}`);
-		else {
-			seen.set(e.key, i + 1);
-			entries.push(e);
-		}
-	});
-	return { entries, errs };
-}
-
-function checkEntries(cfg, root, opts) {
-	const NOT_CHECKED = "契約に無い入口が無いかを確かめていない";
-	const ops = inboundOperations(cfg, root);
-	if (ops === null) {
-		console.log(`  err  E4  設定の docs.goals_dir が無いので、契約を読めない（monorepo では unit のディレクトリを --root に指定する）`);
-		return 1;
-	}
-	const errs = [];
-	//  none を認める条件と、0 行の一覧を認める条件は同じ: fixed の契約に inbound の操作が無い間だけ
-	const fixedOps = ops.filter((o) => o.fixed);
-	const readableOps = ops.filter((o) => !o.problem);
-	//  入口を読めない契約の操作（比べる項目が空でない文字列でない、transport が入口の種類に無い）は、どの入口とも合わない。
-	//  同じ操作は spec-lint も違反にする（判定は tools/_shared/contract-vocab.mjs の isFilledText）。ここでも、owned・x-status によらず報告する
-	for (const o of ops)
-		if (o.problem) errs.push(`E4  契約の操作 ${o.id} の ${o.field} を読めない: ${o.problem}（契約の書き方の誤りで、このままではどの入口とも合わない）`);
-	//  契約の外の入口を認める宣言は廃止した。残っていれば、黙って読み飛ばさない
-	if (cfg.entries !== undefined)
-		errs.push("E4  設定の entries は廃止した（契約の外の入口は置けない）。キーを削除し、そこに書いていた入口は、契約の inbound の操作として書く");
-	const decl = isMap(cfg.commands) ? cfg.commands.list_entries : undefined;
-	let listed = null;
-	if (decl === undefined) errs.push('E4  commands.list_entries が宣言されていない（アプリの入口の一覧を 1 行 1 件の JSON で標準出力に出すコマンドを書く。入口が無いなら { "none": "<理由>" }）');
-	else if (isMap(decl) && "none" in decl) {
-		if (!isNone(decl) || Object.keys(decl).length !== 1) errs.push('E4  commands.list_entries の none は、理由の文字列だけを持つ（{ "none": "<理由>" }）');
-		else if (fixedOps.length)
-			errs.push(`E4  commands.list_entries は none にできない（撤回されていない UC の fixed の契約に inbound の操作が ${fixedOps.length} 件ある。例: ${fixedOps[0].id}）。入口の一覧を出すコマンドを書く（none の理由: ${decl.none.trim()}）`);
-		else console.log(`  commands.list_entries = none（${decl.none.trim()}）: ${NOT_CHECKED}`);
-	} else if (!isText(decl)) errs.push('E4  commands.list_entries は、文字列のコマンドか { "none": "<理由>" } で書く');
-	else {
-		let text;
-		if (opts.from !== null) {
-			const p = resolve(opts.from);
-			if (!existsSync(p) || !statSync(p).isFile()) {
-				console.error(`${TAG} --from のファイルが無い: ${opts.from}`);
-				return 2;
-			}
-			text = readFileSync(p, "utf8");
-		} else {
-			if (process.stdin.isTTY) usage(`入口の一覧を渡す（${decl} | exec-check.mjs entries、または --from <一覧を書き出したファイル>）`);
-			text = readFileSync(0, "utf8");
-		}
-		const parsed = parseEntryList(text);
-		errs.push(...parsed.errs);
-		listed = parsed.entries;
-		//  fixed の契約に inbound の操作があるのに一覧が空なら、一覧を出すコマンドが入口を出せていない。
-		//  fixed でない契約の操作しか無い間は、入口をまだ置けない（E1）ので、0 行が正しい
-		if (!text.trim() && fixedOps.length)
-			errs.push(`E4  入口の一覧が 0 行（撤回されていない UC の fixed の契約に inbound の操作が ${fixedOps.length} 件ある。例: ${fixedOps[0].id}）。commands.list_entries のコマンドが、入口を標準出力に出しているかを確かめる`);
-	}
-
-	if (listed !== null) {
-		//  突き合わせ先は fixed の契約の操作だけ。fixed でない契約の操作は、「合う操作はあるが承認されていない」と伝えるためにだけ引く
-		const fixedKeys = new Set(readableOps.filter((o) => o.fixed).map((o) => o.key));
-		const pending = new Map(); //  鍵 -> fixed でない契約の操作（最初の 1 件）
-		for (const o of readableOps) if (!o.fixed && !pending.has(o.key)) pending.set(o.key, o);
-		const listedKeys = new Set(listed.map((e) => e.key));
-		for (const e of listed) {
-			if (fixedKeys.has(e.key)) continue;
-			const p = pending.get(e.key);
-			if (p)
-				errs.push(
-					`E1  契約が fixed でない入口: ${e.label}（合う操作 ${p.id} はあるが、${p.status === null ? "その契約に x-status が無い" : `その契約の x-status が ${p.status}`}。fixed でない契約の操作は、入口の突き合わせ先に数えない。人間の承認を得て契約を fixed にするまで、この検査は通らない）`,
-				);
-			else errs.push(`E1  契約に無い入口: ${e.label}（契約に inbound の操作として書くか、使っていなければ入口を消す。生存確認や静的なファイルの配信のような入口も、契約に書く。突き合わせは文字の完全一致で、パラメーターの書き方や名前、method の大文字小文字、末尾の / が違っても合わない）`);
-		}
-		for (const o of readableOps)
-			if (o.fixedOwned && !listedKeys.has(o.key))
-				errs.push(
-					`E2  ${o.id}（fixed、owned かつ inbound）に合う入口が、一覧に無い: ${o.label}（入口を実装するか、一覧を出すコマンドが載せているかを確かめる）`,
-				);
-	}
-	for (const e of errs) console.log(`  err  ${e}`);
-	if (errs.length) {
-		console.log(`${TAG} 違反 ${errs.length} 件`);
-		return 1;
-	}
-	if (listed !== null)
-		console.log(`${TAG} OK: ${listed.length ? `入口 ${listed.length} 件（すべて fixed の契約の inbound の操作に合う）` : "入口は無い"}、fixed の契約の inbound の操作 ${fixedOps.length} 件`);
-	return 0;
-}
-
 function main() {
-	const opts = parseArgs(process.argv.slice(2));
-	const configPath = opts.config ? resolve(opts.config) : join(resolve(opts.root), CONFIG_FILE);
-	const root = resolve(opts.root);
-	const cfg = loadConfig(configPath);
-	if (opts.mode === "entries") return checkEntries(cfg, root, opts);
+	const { opts, cfg, root } = openProject("coverage", process.argv.slice(2));
 	const entry = readEntry(cfg, root);
-
-	if (opts.mode === "entry") {
-		if (entry.state === "undeclared") {
-			console.log(`${TAG} entry が未宣言: テストが本番と同じ組み立てを通っているかを確かめていない`);
-			return 0;
-		}
-		if (entry.state === "none") {
-			console.log(`${TAG} entry = none（${entry.reason}）: テストが本番と同じ組み立てを通っているかを確かめていない`);
-			return 0;
-		}
-		for (const e of entry.errs) console.log(`  err  ${e}`);
-		if (entry.errs.length) {
-			console.log(`${TAG} 違反 ${entry.errs.length} 件`);
-			return 1;
-		}
-		console.log(`${TAG} OK: テストの入口 ${entry.testEntry.file}#${entry.testEntry.name} は、本番の組み立て ${entry.compose.file}#${entry.compose.name} を呼んでいる`);
-		return 0;
-	}
 
 	if (!("coverage" in cfg)) {
 		console.log(`${TAG} coverage が未宣言: どのテストからも実行されないソースが無いかを確かめていない`);

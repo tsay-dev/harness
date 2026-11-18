@@ -1,4 +1,4 @@
-//  依存ゼロの最小 glob（`**` / `*` / `?` と、先頭の `!` による除外）。trace-check / gate-hook / stop-gate が共有する。
+//  依存ゼロの最小 glob（`**` / `*` / `?` と、先頭の `!` による除外）。lint refs / lint coverage / guard が共有する。
 //  パスはリポジトリ直下からの相対パス（区切りは `/`）で比べる。
 
 export function globToRegExp(glob) {

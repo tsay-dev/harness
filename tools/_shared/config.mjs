@@ -22,11 +22,11 @@ export function readHostConfig(hostRoot) {
 
 //  ひな形（templates/develop/harness.config.json）に無いが、最上位に書いてよいキー。
 //  既定の動きを変えるときだけ書くキーで、ひな形に値を置くと既定を上書きしてしまうもの。
-//  config-lint の K1 は「ひな形のキー + これ」を使えるキーとする
+//  lint config の K1 は「ひな形のキー + これ」を使えるキーとする
 export const OPTIONAL_TOP_KEYS = ["comment_pattern"];
 
 //  廃止したキーと、代わりにすること（ADR-0070: 手で書く紐づきはテストの側だけにし、実装のコードの注釈を読まない）。
-//  設定に残っていたら、config-lint（K6）と trace-check が案内を付けて失敗にする。黙って無視すると、
+//  設定に残っていたら、lint config（K6）と lint refs が案内を付けて失敗にする。黙って無視すると、
 //  利用プロジェクトは「まだ検査されている」と思ったまま、注釈と設定を保ち続けることになる
 const NO_IMPLEMENTS = "実装とスキーマの @implements は読まない。紐づきはテストの @covers に書く";
 const NO_UNITS = "実現単位と技術部品の置き場の分類はやめた。実行されないソースは lint coverage（実行の記録）で見つける";

@@ -1,5 +1,5 @@
 //
-//  contract-run のテスト（node --test）。
+//  run cases のテスト（node --test）。
 //  一時ディレクトリに最小の host（harness.config.json / docs / エコーアダプタ）を組み立て、
 //  アダプタの返答を adapter-table.json で差し替えながら終了コードと出力を検証する。
 //  アダプタは cwd = host root で起動される契約なので、表と「見た要求」の記録はどちらも cwd 相対で読む。
@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const TOOL = join(dirname(fileURLToPath(import.meta.url)), "..", "contract-run.mjs");
+const TOOL = join(dirname(fileURLToPath(import.meta.url)), "..", "run-cases.mjs");
 
 //  エコーアダプタ: 要求ごとに adapter-table.json の replies["<operation>:<request.i_xxx または request.id>"]
 //  （無ければ "<operation>:*"）を id つきで返す。crash / hang / silent / garbage で異常系を再現する
@@ -109,7 +109,7 @@ const OK_TABLE = {
 };
 
 function makeHost({ table = OK_TABLE, adapter = "node adapter.mjs", contract = CONTRACT } = {}) {
-	const root = mkdtempSync(join(tmpdir(), "contract-run-"));
+	const root = mkdtempSync(join(tmpdir(), "run-cases-"));
 	mkdirSync(join(root, "docs", "_shared"), { recursive: true });
 	const ucDir = join(root, "docs", "goals", "GOAL-01-a", "UC-001-b");
 	mkdirSync(ucDir, { recursive: true });
@@ -217,12 +217,12 @@ test("応答が来ないまま生き続ければ --timeout で exit 2", (t) => {
 	const r = run(root, "--timeout", "1");
 	assert.equal(r.status, 2);
 	assert.match(r.stderr, /タイムアウト（1 秒）/);
-	//  シェルの子として動いていたアダプタも止まっている（シェルだけを止めると残り、contract-run が終わらなくなる）
+	//  シェルの子として動いていたアダプタも止まっている（シェルだけを止めると残り、run cases が終わらなくなる）
 	assert.ok(heartbeat(root) > 0, "アダプタが動き始めていない（テストの前提が成り立っていない）");
 	assertAdapterStopped(root, "タイムアウトの後もアダプタが動き続けている");
 });
 
-test("contract-run が SIGTERM で止められたら、アダプタも止めてから終わる", async (t) => {
+test("run cases が SIGTERM で止められたら、アダプタも止めてから終わる", async (t) => {
 	const root = makeHost({ table: { hang: true, replies: {} } });
 	t.after(() => rmSync(root, { recursive: true, force: true }));
 	const child = spawn(process.execPath, [TOOL, "--root", root, "--timeout", "30"], { stdio: "ignore" });
@@ -233,7 +233,7 @@ test("contract-run が SIGTERM で止められたら、アダプタも止めて�
 	child.kill("SIGTERM");
 	const { signal } = await exited;
 	assert.equal(signal, "SIGTERM");
-	assertAdapterStopped(root, "contract-run が止められた後もアダプタが動き続けている");
+	assertAdapterStopped(root, "run cases が止められた後もアダプタが動き続けている");
 });
 
 test("応答を返さずに終了すれば未応答の id を挙げて exit 2", (t) => {

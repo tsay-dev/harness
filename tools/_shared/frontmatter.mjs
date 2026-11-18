@@ -1,6 +1,6 @@
-//  frontmatter の読み方（spec-lint / trace-check / gate-hook が共有する唯一の実装）。
+//  frontmatter の読み方（lint spec / lint refs / guard が共有する唯一の実装）。
 //  ツールごとに読み方が違うと、同じ文書を一方は active、他方は draft と読む分裂が生じる（ADR-0056）。
-//  曖昧な書き方は problems として返し、spec-lint が違反にする:
+//  曖昧な書き方は problems として返し、lint spec が違反にする:
 //    区切り行は `---` ちょうど（`--- ` や `---x` は区切りもどき）、キーの行は先頭が空白でない、キーは重複しない。
 
 export function parseFrontmatter(text) {

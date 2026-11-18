@@ -1,15 +1,17 @@
 //
-//  spec-lint テスト用の最小 docs 一式を一時ディレクトリに書き出す。
-//  validate が 0 で通る「素の状態」を基準にし、各テストは 1 箇所だけ崩して違反を確かめる。
+//  lint spec と lint git uc のテスト用の最小 docs 一式を一時ディレクトリに書き出す。
+//  lint spec が 0 で通る「素の状態」を基準にし、各テストは 1 箇所だけ崩して違反を確かめる。
 //  書式はテンプレート templates/develop/ に合わせる（テンプレートの改定で基準が崩れたら fixture も直す）。
 //
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { foldReqFiles } from "../../_shared/test/fold-reqs.mjs";
+import { foldReqFiles } from "./fold-reqs.mjs";
 
-export const SPEC_LINT = join(dirname(fileURLToPath(import.meta.url)), "..", "spec-lint.mjs");
+const TOOLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+export const LINT_SPEC = join(TOOLS_DIR, "lint-spec", "lint-spec.mjs");
+export const LINT_GIT_UC = join(TOOLS_DIR, "lint-git-uc", "lint-git-uc.mjs");
 
 const write = (root, rel, text) => {
 	const file = join(root, rel);

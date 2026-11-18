@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-//  gate-log — gate-hook / stop-gate 共用の却下ログ（JSONL）と集計
+//  gate-log — guard（書き込み前の関門）と verify --hook（Stop フック）が共有する却下ログ（JSONL）と集計
 //
 //  2 つのフック（PreToolUse の実装着手ゲート、Stop の終端ゲート）は判定のたびに
 //  1 行の JSON を追記する。目的は「ゲートが実際に何かを止めているか」を事実で
@@ -8,16 +8,16 @@
 //
 //  記録の形（キー順は固定）:
 //    ts        ISO 時刻
-//    hook      "gate-hook" | "stop-gate"
+//    hook      "guard" | "verify"
 //    event     "PreToolUse" | "Stop"
 //    session   Claude Code の session_id（無ければ null）
-//    decision  "block" | "pass" | "skip" | "release" | "ask"（gate-hook が止めずに人間の承認を求めた）
-//    reason    判定理由の語彙（各フックが定める）。gate-hook の ask は ASK_REASONS、
+//    decision  "block" | "pass" | "skip" | "release" | "ask"（guard が止めずに人間の承認を求めた）
+//    reason    判定理由の語彙（各フックが定める）。guard の ask は ASK_REASONS、
 //              docs の status の昇格・新規作成の記録は pass / "status-up"、.harness-gate/ への書き込みの阻止は block / "harness-gate"
-//    target    書き込み対象の相対パス（gate-hook のみ。他は null）
-//    uc        検査した UC id の配列（gate-hook のみ。他は null）
-//    round     終端ゲートのラウンド番号（stop-gate のみ。他は null）
-//    failures  失敗した検査名の配列（stop-gate のブロック時のみ。他は null）
+//    target    書き込み対象の相対パス（guard のみ。他は null）
+//    uc        検査した UC id の配列（guard のみ。他は null）
+//    round     終端ゲートのラウンド番号（verify --hook のみ。他は null）
+//    failures  失敗した検査名の配列（verify --hook のブロック時のみ。他は null）
 //    ms        判定にかかった時間（ミリ秒）
 //
 //  ログの失敗はゲートを止めない（追記に失敗しても例外を握りつぶす）。
@@ -31,10 +31,10 @@ import { fileURLToPath } from "node:url";
 
 const RECORD_KEYS = ["ts", "hook", "event", "session", "decision", "reason", "target", "uc", "round", "failures", "ms"];
 
-//  gate-hook が人間の承認を求める理由（集計の内訳の並び順）
+//  guard が人間の承認を求める理由（集計の内訳の並び順）
 export const ASK_REASONS = ["config", "harness", "hook-settings", "workflow", "status-down", "status-up-gate", "actor-kind", "deferred"];
 
-//  既定のログ置き場: <root>/.harness-gate/log.jsonl（stop-gate の state.json も同じ場所）
+//  既定のログ置き場: <root>/.harness-gate/log.jsonl（verify --hook の state.json も同じ場所）
 export function defaultLogPath(root) {
 	return join(root, ".harness-gate", "log.jsonl");
 }
@@ -97,10 +97,10 @@ function reasonBreakdown(blocks) {
 function summarize(records, sinceDays) {
 	const lines = [`gate-log: 直近 ${sinceDays} 日（${records.length} 件）`];
 
-	//  gate-hook: 実装ゲートの母数はゲート判定に達した実装コードへの書き込みだけ（docs や対象外は記録されない）。
+	//  guard: 実装ゲートの母数はゲート判定に達した実装コードへの書き込みだけ（docs や対象外は記録されない）。
 	//  ask（人間の承認を求めた件数）、status-up（docs の status の昇格・新規作成の記録）、
 	//  .harness-gate/ への書き込みの阻止は実装ゲートの母数に含めず、別に数える
-	const ghAll = records.filter((r) => r.hook === "gate-hook");
+	const ghAll = records.filter((r) => r.hook === "guard");
 	const ghAsk = ghAll.filter((r) => r.decision === "ask");
 	const ghUp = ghAll.filter((r) => r.decision === "pass" && r.reason === "status-up");
 	const ghSelf = ghAll.filter((r) => r.decision === "block" && r.reason === "harness-gate");
@@ -111,16 +111,16 @@ function summarize(records, sinceDays) {
 	const others = count(ghAsk, (r) => !ASK_REASONS.includes(r.reason));
 	const askDetail = [...ASK_REASONS.map((r) => `${r} ${askBy(r)}`), ...(others ? [`その他 ${others}`] : [])].join(", ");
 	lines.push(
-		`gate-hook: gated ${gh.length} / block ${ghBlocks.length} / last block: ${lastBlock} / ask ${ghAsk.length}（${askDetail}）/ status-up ${ghUp.length} / harness-gate block ${ghSelf.length}`,
+		`guard: gated ${gh.length} / block ${ghBlocks.length} / last block: ${lastBlock} / ask ${ghAsk.length}（${askDetail}）/ status-up ${ghUp.length} / harness-gate block ${ghSelf.length}`,
 	);
 	if (ghBlocks.length === 0) lines.push("  降格候補（期間内のブロック 0 件。降格の判断は人間が行う）");
 	else lines.push(...reasonBreakdown(ghBlocks));
 
-	//  stop-gate: runs は全記録（block / pass / skip / release）
-	const sg = records.filter((r) => r.hook === "stop-gate");
+	//  verify: runs は全記録（block / pass / skip / release）
+	const sg = records.filter((r) => r.hook === "verify");
 	const sgBlocks = sg.filter((r) => r.decision === "block");
 	lines.push(
-		`stop-gate: runs ${sg.length} / block ${sgBlocks.length} / release ${count(sg, (r) => r.decision === "release")} / skip ${count(sg, (r) => r.decision === "skip")}`,
+		`verify: runs ${sg.length} / block ${sgBlocks.length} / release ${count(sg, (r) => r.decision === "release")} / skip ${count(sg, (r) => r.decision === "skip")}`,
 	);
 	if (sgBlocks.length === 0) lines.push("  降格候補（期間内のブロック 0 件。降格の判断は人間が行う）");
 	else lines.push(...reasonBreakdown(sgBlocks));

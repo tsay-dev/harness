@@ -19,7 +19,7 @@
 //  小節の見出しは `### REQ-nnn` だけ。直後の `- キー: 値` の並びが REQ の項目（pattern / br / status）。
 //  どの UC の要件かは、書かれている UC.md で決まるので、項目には書かない。
 //
-//  検査ツール（spec-lint / trace-check / gate-hook）は、REQ を「id・pattern・uc・br・status の frontmatter と、
+//  検査ツール（lint spec / lint refs / guard）は、REQ を「id・pattern・uc・br・status の frontmatter と、
 //  `# REQ-nnn` で始まる本文」を持つ 1 つの文書として検査する。ここでは、小節からその形の文書（reqDoc）を組み立てる。
 //  小節の中の見出しは 2 段浅くする（`#### 検証方針` → `## 検証方針`）。
 

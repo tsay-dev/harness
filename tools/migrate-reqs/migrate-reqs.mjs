@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 //
-//  merge-reqs — REQ のファイル（REQ-nnn.md）を、UC の文書（UC.md）の「要件」の節へ移す（harness 同梱ツール）
+//  migrate reqs — REQ のファイル（REQ-nnn.md）を、UC の文書（UC.md）の「要件」の節へ移す（harness 同梱ツール）
 //
 //  REQ を 1 ID 1 ファイルで置く形から、UC.md の `## 要件` の節に小節として書く形（ADR-0067）へ、意味を変えずに移す。
 //  入口からは `harness migrate reqs`。
@@ -16,7 +16,7 @@
 //  1 つでもあれば、どのファイルも書き換えずに失敗する。
 //
 //  使い方:
-//    node merge-reqs.mjs [--root <プロジェクトのルート>] [--docs docs] [--write]
+//    harness migrate reqs [--root <プロジェクトのルート>] [--docs docs] [--write]
 //      --write  書き換える。付けなければ、何を移すかを表示するだけ
 //
 //  終了コード: 0 = 移せる（--write なら移した） / 1 = 移せないものがある / 2 = 使い方の誤り
@@ -25,7 +25,7 @@ import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync 
 import { join, relative, resolve } from "node:path";
 import { REQS_HEADING, reqDocsOf, sectionFromReqDoc } from "../_shared/reqs.mjs";
 
-const TAG = "[merge-reqs]";
+const TAG = "[migrate reqs]";
 //  検証方針の下に置かれていた、ひな形の案内のコメントの書き出し（日本語のひな形と、その前の英語のひな形）
 const GUIDANCE = ["要件作成者ではなくテスト設計者が所有する", "Owned by the test designer, not by the requirement"];
 //  status の値の後ろに置かれていた、ひな形の案内の文面（長いものから照らす）。これに続けて書かれた文は、項目 note に移す
@@ -33,7 +33,7 @@ const STATUS_GUIDANCE = ["draft | active | withdrawn（active = 人間承認済�
 
 function usage(msg) {
 	if (msg) console.error(`${TAG} ${msg}`);
-	console.error("usage: merge-reqs.mjs [--root .] [--docs docs] [--write]");
+	console.error("usage: harness migrate reqs [--root .] [--docs docs] [--write]");
 	process.exit(2);
 }
 
